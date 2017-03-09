@@ -2394,7 +2394,7 @@ c     Begin program
 
       if (.not.associated(gbc_def)) then
         call pstop("periodicBC"
-     .            ,"This routine should not be called stanalone")
+     .            ,"This routine should not be called standalone")
       endif
 
       if (gbc_def%MPI_COMM_PER(dim) /= MPI_COMM_NULL) then
@@ -2414,78 +2414,95 @@ c     Begin program
           call per_BC(ibc,array)
 
         else
-          
+
           select case(dim)
           case(1)
 
-            allocate(rhs(size(array,2),size(array,3)))
+            allocate(rhs(2,nzbc+2))
 
             if (loc==0.and.isBdry(gbc_def,1,igxbc,ibc)) then
-cc              write (*,*) 'DIAG -- sync_PER   ;   '
-cc     .         ,'dim=',dim,'my_rank=',my_rank,'Ranks=',np_l
-cc     .         ,'Source=',my_rank_l,'Dest=',dest,'left'
-
-              rhs = array(1,:,:)
-              call MPI_Sendrecv_replace(rhs,size(array,2)*size(array,3)
+cc              rhs = array(1,:,:)
+              rhs(1,:) = array(1,0     ,:)
+              rhs(2,:) = array(1,nybc+1,:)
+              call MPI_Sendrecv_replace(rhs,2*(nzbc+2)
      .                   ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
      .                   ,gbc_def%MPI_COMM_PER(dim),MPI_STATUS_IGNORE
      .                   ,mpierr)
-              array(0,:,:) = rhs
+cc              rhs = array(0,:,:)
+              array(0,0     ,:) = rhs(1,:)
+              array(0,nybc+1,:) = rhs(2,:)
+
             elseif (loc==1.and.isBdry(gbc_def,nxbc,igxbc,ibc)) then
-cc              write (*,*) 'DIAG -- sync_PER   ;   '
-cc     .         ,'dim=',dim,'my_rank=',my_rank,'Ranks=',np_l
-cc     .         ,'Source=',my_rank_l,'Dest=',dest,'right'
-
-              rhs = array(nxbc,:,:)
-              call MPI_Sendrecv_replace(rhs,size(array,2)*size(array,3)
+cc              rhs = array(nxbc,:,:)
+              rhs(1,:) = array(nxbc,0     ,:)
+              rhs(2,:) = array(nxbc,nybc+1,:)
+              call MPI_Sendrecv_replace(rhs,2*(nzbc+2)
      .                   ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
      .                   ,gbc_def%MPI_COMM_PER(dim),MPI_STATUS_IGNORE
      .                   ,mpierr)
-              array(nxbc+1,:,:) = rhs
+cc              array(nxbc+1,:,:) = rhs
+              array(nxbc+1,0     ,:) = rhs(1,:)
+              array(nxbc+1,nybc+1,:) = rhs(2,:)
             endif
 
             deallocate(rhs)
 
           case(2)
 
-            allocate(rhs(size(array,1),size(array,3)))
+            allocate(rhs(2,nzbc+2))
 
             if (loc==0.and.isBdry(gbc_def,1,igybc,ibc)) then
-              rhs = array(:,1,:)
-              call MPI_Sendrecv_replace(rhs,size(array,1)*size(array,3)
+cc              rhs = array(:,1,:)
+              rhs(1,:) = array(0     ,1,:)
+              rhs(2,:) = array(nxbc+1,1,:)
+              call MPI_Sendrecv_replace(rhs,2*(nzbc+2)
      .                   ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
      .                   ,gbc_def%MPI_COMM_PER(dim),MPI_STATUS_IGNORE
      .                   ,mpierr)
-              array(:,0,:) = rhs
+cc              array(:,0,:) = rhs
+              array(0     ,0,:) = rhs(1,:)
+              array(nxbc+1,0,:) = rhs(2,:)
             elseif (loc==1.and.isBdry(gbc_def,nybc,igybc,ibc)) then
-              rhs = array(:,nybc,:)
-              call MPI_Sendrecv_replace(rhs,size(array,1)*size(array,3)
+cc              rhs = array(:,nybc,:)
+              rhs(1,:) = array(0     ,nybc,:)
+              rhs(2,:) = array(nxbc+1,nybc,:)
+              call MPI_Sendrecv_replace(rhs,2*(nzbc+2)
      .                   ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
      .                   ,gbc_def%MPI_COMM_PER(dim),MPI_STATUS_IGNORE
      .                   ,mpierr)
-              array(:,nybc+1,:) = rhs
+cc              array(:,nybc+1,:) = rhs
+              array(0     ,nybc+1,:) = rhs(1,:)
+              array(nxbc+1,nybc+1,:) = rhs(2,:)
             endif
 
             deallocate(rhs)
 
           case(3)
 
-            allocate(rhs(size(array,1),size(array,2)))
+            allocate(rhs(2,nxbc+2))
 
             if (loc==0.and.isBdry(gbc_def,1,igzbc,ibc)) then
-              rhs = array(:,:,1)
-              call MPI_Sendrecv_replace(rhs,size(array,1)*size(array,2)
+cc              rhs = array(:,:,1)
+              rhs(1,:) = array(:,0     ,1)
+              rhs(2,:) = array(:,nybc+1,1)
+              call MPI_Sendrecv_replace(rhs,2*(nxbc+2)
      .                   ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
      .                   ,gbc_def%MPI_COMM_PER(dim),MPI_STATUS_IGNORE
      .                   ,mpierr)
-              array(:,:,0) = rhs
+cc              array(:,:,0) = rhs
+              array(:,0     ,0) = rhs(1,:) 
+              array(:,nybc+1,0) = rhs(2,:)
             elseif (loc==1.and.isBdry(gbc_def,nzbc,igzbc,ibc)) then
-              rhs = array(:,:,nzbc)
-              call MPI_Sendrecv_replace(rhs,size(array,1)*size(array,2)
+cc              rhs = array(:,:,nzbc)
+              rhs(1,:) = array(:,0     ,nzbc)
+              rhs(2,:) = array(:,nybc+1,nzbc)
+              call MPI_Sendrecv_replace(rhs,2*(nxbc+2)
      .                   ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
      .                   ,gbc_def%MPI_COMM_PER(dim),MPI_STATUS_IGNORE
      .                   ,mpierr)
-              array(:,:,nzbc+1) = rhs
+cc              array(:,:,nzbc+1) = rhs
+              array(:,0     ,nzbc+1) = rhs(1,:) 
+              array(:,nybc+1,nzbc+1) = rhs(2,:)
             endif
 
             deallocate(rhs)
