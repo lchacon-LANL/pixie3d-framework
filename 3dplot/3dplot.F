@@ -63,7 +63,7 @@ c Time loop
 
 c     Update counters
 
-        call TS_update_timecounters(time)
+        call TS_update_preCounters(time)
 
 c     Read next record
 
@@ -293,7 +293,7 @@ c Begin program
 
       igx = 1 ; igy = 1 ; igz = 1
 
-      call TS_init_timecounters
+      call TS_init_counters
 
 c Read user initializations
 

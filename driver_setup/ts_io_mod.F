@@ -8,6 +8,60 @@ c ######################################################################
 
       contains
 
+c     TS_init_timers
+c     ####################################################################
+      subroutine TS_init_timers
+
+c     --------------------------------------------------------------------
+c     Initialize time stepping counters
+c     --------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+c     Local variables
+
+c     Begin program
+
+c     PETSc CPU counters and profiling
+      
+#if defined(petsc)
+      call PetscGetTime   (prof_time(1),prof_err)
+      call PetscGetCPUTime(prof_time(2),prof_err)
+#endif
+
+c     End program
+
+      end subroutine TS_init_timers
+
+c     TS_end_timers
+c     ####################################################################
+      subroutine TS_end_timers
+
+c     --------------------------------------------------------------------
+c     Initialize time stepping counters
+c     --------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+c     Local variables
+
+c     Begin program
+
+c     PETSc CPU counters and profiling
+      
+#if defined(petsc)
+      call PetscGetTime   (prof_time(3),prof_err)
+      call PetscGetCPUTime(prof_time(4),prof_err)
+#endif
+
+c     End program
+
+      end subroutine TS_end_timers
+
 c     TS_chk_dump
 c     ###############################################################
       function TS_chk_dump(etime,reset_counters) result(dump)
@@ -122,12 +176,9 @@ c     Average explicit timestep
         write (*,'(a,1pe11.4)') 'Average explicit time step: ',dtexp
       endif
 
-c     PETSc CPU diagnostics
+c     CPU diagnostics
 
 #if defined(petsc)
-      call PetscGetTime   (prof_time(3),prof_err)
-      call PetscGetCPUTime(prof_time(4),prof_err)
-
       omp_threads = 1
 #ifdef _OPENMP
 !$OMP PARALLEL
