@@ -104,9 +104,9 @@ c     End program
 
       end function getEarlyTimeRestartFlag
 
-c     TS_init_timecounters
+c     TS_init_counters
 c     ###############################################################
-      subroutine TS_init_timecounters()
+      subroutine TS_init_counters()
 
 c     ---------------------------------------------------------------
 c     Performs update of time counters
@@ -131,11 +131,11 @@ c     Begin program
 
 c     End program
 
-      end subroutine TS_init_timecounters
+      end subroutine TS_init_counters
 
-c     TS_rollback_timecounters
+c     TS_rollback_counters
 c     ###############################################################
-      subroutine TS_rollback_timecounters(exclude_itime)
+      subroutine TS_rollback_counters(exclude_itime)
 
 c     ---------------------------------------------------------------
 c     Performs rollback of time counters when subcycling/restarting
@@ -172,11 +172,12 @@ c     Begin program
 
 c     End program
 
-      end subroutine TS_rollback_timecounters
+      end subroutine TS_rollback_counters
 
-c     TS_update_timecounters
+
+c     TS_update_preCounters
 c     ###############################################################
-      subroutine TS_update_timecounters(time,exclude_itime)
+      subroutine TS_update_preCounters(time,exclude_itime)
 
 c     ---------------------------------------------------------------
 c     Performs update of time counters
@@ -216,7 +217,7 @@ c     Begin program
 
 c     End program
 
-      end subroutine TS_update_timecounters
+      end subroutine TS_update_preCounters
 
 #if !defined(samrai)
 c     TS_create
@@ -251,7 +252,7 @@ c     Initialization
       x_old = 0d0
       x0    = 0d0
 
-      call TS_init_timecounters
+      call TS_init_counters
 
       alpha = 1. - cnfactor
 
@@ -265,7 +266,13 @@ c     Initialization
         endif
       endif
 
-      call ts_solver_consistency_chk
+      call TS_solver_consistency_chk
+
+c     Begin profiling postprocessing stage
+
+#if defined(petsc)
+      call switch_profile_stage(iPOST)
+#endif
 
 c     End program
 

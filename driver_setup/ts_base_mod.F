@@ -236,7 +236,7 @@ c     Estimate local growth rate
 
 c     Update counters
 
-      call TS_update_timecounters(time)
+      call TS_update_preCounters(time)
 
 c     Find new time step
 
@@ -250,43 +250,9 @@ c     End program
 
       end subroutine TS_correct_dt
 
-c     TS_init_otherCounters
+c     TS_update_postCounters
 c     ####################################################################
-      subroutine TS_init_otherCounters
-
-c     --------------------------------------------------------------------
-c     Initialize time stepping counters
-c     --------------------------------------------------------------------
-
-      implicit none
-
-c     Call variables
-
-c     Local variables
-
-c     Begin program
-
-      itime = inewtime - 1
-
-      if (relax_init_grid) init_grid_offset = 1
-
-c     PETSc CPU counters and profiling
-      
-#if defined(petsc)
-      call PetscGetTime   (prof_time(1),prof_err)
-      call PetscGetCPUTime(prof_time(2),prof_err)
-
-      !Begin profiling postprocessing stage
-      call switch_profile_stage(iPOST)
-#endif
-
-c     End program
-
-      end subroutine TS_init_otherCounters
-
-c     TS_update_otherCounters
-c     ####################################################################
-      subroutine TS_update_otherCounters
+      subroutine TS_update_postCounters
 
 c     --------------------------------------------------------------------
 c     Update time stepping counters
@@ -315,7 +281,7 @@ c     Begin program
 
 c     End program
 
-      end subroutine TS_update_otherCounters
+      end subroutine TS_update_postCounters
 
 c     TS_find_new_dt
 c     ####################################################################
