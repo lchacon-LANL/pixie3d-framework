@@ -27,7 +27,7 @@ c ######################################################################
         integer   :: adios_err            ! error handler
         integer   :: adios_attrtype,adios_attrsize,adios_vartype
      .              ,adios_ndim,adios_tdim
-        integer*8,dimension(3) :: adios_vardims
+        integer*8,dimension(0:3) :: adios_vardims
 
         logical,private :: adios_debug=.false.
      $                    ,adios_append_recordfile=.false.
@@ -162,20 +162,15 @@ c     Begin program
         inq_adios_var = (PRESENT(nx).or.PRESENT(ny).or.PRESENT(nz))
         adios_nvar=0
         do i=1,adios_varcount
-            if (index(adios_varlist(i),"/var/") == 1) then
-                adios_nvar = adios_nvar+1
-                !Check problem size
-cc                if (inq_adios_var.and.(ADIOS_VER == 1.31)) then
-                  call adios_inq_var(adios_gh,trim(adios_varlist(i))
+          if (index(adios_varlist(i),"/var/") == 1) then
+            adios_nvar = adios_nvar+1
+            !Check problem size
+            call adios_inq_var(adios_gh,trim(adios_varlist(i))
      .               ,adios_vartype,adios_ndim,adios_vardims,adios_tdim
      .               ,ierr)
-cc                endif
-cc                ! get rid of trailing char(0) in names
-cc                nullidx=index(adios_varlist(i),char(0))
-cc                if (nullidx == 0) nullidx=len(trim(adios_varlist(i)))+1
-cc                adios_varnames(adios_nvar) = 
-cc     .                    adios_varlist(i)(1:nullidx-1)
-            endif
+c$$$                  write (*,*) "Var="//adios_varlist(i) //" Dimensions: "
+c$$$     .                 , adios_vardims,adios_ndim,adios_tdim 
+          endif
         enddo
         
 cc        do i=1,adios_attrcount
@@ -196,14 +191,15 @@ cc        enddo
             do i=1,adios_varcount
               write (*,"(i5, a, a)") i,")  ", trim(adios_varlist(i))
             enddo
+            write (*,"(a, 3i5)") " Dimensions: ", adios_vardims(1:3)
           endif
         endif
 
         if (PRESENT(nvar)) nvar = adios_nvar
         !C ordering for array dimensions
-        if (PRESENT(nx)) nx = adios_vardims(3)-2
+        if (PRESENT(nx)) nx = adios_vardims(1)-2
         if (PRESENT(ny)) ny = adios_vardims(2)-2
-        if (PRESENT(nz)) nz = adios_vardims(1)-2
+        if (PRESENT(nz)) nz = adios_vardims(3)-2
 
       end subroutine openADIOSRecordFileForRead
 

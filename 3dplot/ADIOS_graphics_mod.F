@@ -37,8 +37,6 @@ c       ADIOS no-xml definition variables
         integer*8      :: grp
         character(strlength)  :: grp_name = 'plot'
 
-        integer, dimension(ARRAY_RANK) ::
-     .                         array_dim,node_array_dim
         integer, dimension(ATTR_RANK ) ::
      .                         attr_dim = (/ARRAY_RANK/)
         integer, dimension(VEXP_RANK ) ::
@@ -75,9 +73,6 @@ c     Begin program
       if (adios_debug) write (*,'("%%%% initializeADIOSPlot")') 
 
 c     Setup plot dump variables
-
-      array_dim      = (/nxd,nyd,nzd/)
-      node_array_dim = (/nxd+1,nyd+1,nzd+1/)
 
 c     Attach location of node positions as attribute (relative path to timestep)
 
@@ -293,9 +288,9 @@ c Temporary fix to ADIOS bug (L. Chacon, 10/6/10)
       write (node_ldim_str, '(i0,",",i0,",",i0,",iter")')
      .        nx_temp,ny_temp,nz_temp
 
-cc      write (*,*) isBdry(nxl,1,2),nx_temp,ihip-ilo+1
-cc      write (*,*) isBdry(nyl,1,4),ny_temp,jhip-jlo+1
-cc      write (*,*) isBdry(nzl,1,6),nz_temp,khip-klo+1
+c$$$      write (*,*) isBdry(gv%gparams,nxl,1,2),nx_temp,ihip-ilo+1
+c$$$      write (*,*) isBdry(gv%gparams,nyl,1,4),ny_temp,jhip-jlo+1
+c$$$      write (*,*) isBdry(gv%gparams,nzl,1,6),nz_temp,khip-klo+1
 c End of temporary fix
 
       if (adios_debug)
