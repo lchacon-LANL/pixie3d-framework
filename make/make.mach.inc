@@ -1091,7 +1091,12 @@ ifeq ($(findstring marconi_work,$(WORK)),marconi_work)
     PETSC_DIR = /marconi_work/FUA11_PIXIE3D/petsc-3.0.0-p7
 
     ifeq ($(BOPT),O)
-      PETSC_ARCH = linux64_intelmpi
+# ifort/intelmpi
+#      PETSC_ARCH = linux64_intelmpi
+# gfortran/openmpi
+#      PETSC_ARCH = linux64_openmpi_gnu
+# ifort/openmpi
+      PETSC_ARCH = linux64_openmpi_ifort
     else
       PETSC_ARCH = linux64_intelmpi_g
     endif
@@ -1102,11 +1107,27 @@ ifeq ($(findstring marconi_work,$(WORK)),marconi_work)
     #HDF5_LIBS = $(HDF5_FLIB)
     #HDF5_MOD  = $(HDF5_HOME)/lib
 
-    ADIOS = f
+    #ADIOS = f
+
     #ADIOS = t
     #ADIOS_HOME = /marconi_work/FUA11_PIXIE3D/adios-1.3.1/linux64_intelmpi
     #ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L/marconi_work/FUA11_PIXIE3D/mxml-2.10/linux64_intelmpi/lib -lmxml
     #ADIOS_VER  = 1.31
+
+    #ADIOS = t
+    #ADIOS_HOME = /marconi_work/FUA11_PIXIE3D/adios-1.10.0/linux64_intelmpi
+    #ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -L/marconi_work/FUA11_PIXIE3D/mxml-2.10/linux64_intelmpi/lib -lmxml
+    #ADIOS_VER  = 1.10
+
+    #ADIOS = t
+    #ADIOS_HOME = /marconi_work/FUA11_PIXIE3D/adios-1.10.0/linux64_openmpi_gnu
+    #ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -L/marconi_work/FUA11_PIXIE3D/mxml-2.10/linux64_openmpi_gnu/lib -lmxml
+    #ADIOS_VER  = 1.10
+
+    ADIOS = t
+    ADIOS_HOME = /marconi_work/FUA11_PIXIE3D/adios-1.10.0/linux64_openmpi_ifort
+    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -L/marconi_work/FUA11_PIXIE3D/mxml-2.10/linux64_openmpi_ifort/lib -lmxml
+    ADIOS_VER  = 1.10
 
   else
     HDF5 = f
