@@ -6389,9 +6389,9 @@ c     Call variables
 
       integer :: i,j,k,nx,ny,nz,igr,method
 
-      real(8) :: arr (0:nx+1,0:ny+1,0:nz+1)
-     .          ,darr(0:nx+1,0:ny+1,0:nz+1)
-     .          ,v   (0:nx+1,0:ny+1,0:nz+1),flxip
+      real(8) :: arr (0:,0:,0:)
+     .          ,darr(0:,0:,0:)
+     .          ,v   (0:,0:,0:),flxip
 
       logical,optional :: sp,zip_vel
 
@@ -6506,9 +6506,9 @@ c     Call variables
 
       integer :: i,j,k,nx,ny,nz,igr,method
 
-      real(8) :: arr (0:nx+1,0:ny+1,0:nz+1)
-     .          ,darr(0:nx+1,0:ny+1,0:nz+1)
-     .          ,v   (0:nx+1,0:ny+1,0:nz+1),flxjp
+      real(8) :: arr (0:,0:,0:)
+     .          ,darr(0:,0:,0:)
+     .          ,v   (0:,0:,0:),flxjp
 
       logical,optional :: zip_vel
 
@@ -6597,9 +6597,9 @@ c     Call variables
 
       integer :: i,j,k,nx,ny,nz,igr,method
 
-      real(8) :: arr (0:nx+1,0:ny+1,0:nz+1)
-     .          ,darr(0:nx+1,0:ny+1,0:nz+1)
-     .          ,v   (0:nx+1,0:ny+1,0:nz+1),flxkp
+      real(8) :: arr (0:,0:,0:)
+     .          ,darr(0:,0:,0:)
+     .          ,v   (0:,0:,0:),flxkp
 
       logical,optional :: zip_vel
 
