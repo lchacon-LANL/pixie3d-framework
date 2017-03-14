@@ -965,9 +965,9 @@ ifeq ($(findstring wf,$(HOST)),wf)
        PETSC_DIR =/turquoise/usr/projects/magreconn/soft/petsc-3.0.0-p7
 
        ifeq ($(BOPT),O)
-        PETSC_ARCH = linux64_wolf_intel17.0.1_intelmpi2017.1
+        PETSC_ARCH = linux64_wolf_intel17.0.1_openmpi1.10.5
        else
-        PETSC_ARCH = linux64_wolf_intel17.0.1_intelmpi2017.1_dbg
+        PETSC_ARCH = linux64_wolf_intel17.0.1_openmpi1.10.5_dbg
        endif
 
        HDF5 = f
@@ -981,7 +981,7 @@ ifeq ($(findstring wf,$(HOST)),wf)
 
        ADIOS_BUFFER_MB = 1000
 
-       ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.10.0/lib-wolf-intel17.0.1_intelmpi2017.1
+       ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.10.0/lib-wolf-intel-17.0.1_openmpi-1.10.5
        ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1
        ADIOS_VER  = 1.10.0
    endif
@@ -1051,9 +1051,9 @@ ifeq ($(findstring gr,$(HOST)),gr)
        PETSC_DIR =/turquoise/usr/projects/magreconn/soft/petsc-3.0.0-p7
 
        ifeq ($(BOPT),O)
-        PETSC_ARCH = linux64_grizzly_intel17.0.1_intelmpi2017.1
+        PETSC_ARCH = linux64_grizzly_intel17.0.1_openmpi1.10.5
        else
-        PETSC_ARCH = linux64_grizzly_intel17.0.1_intelmpi2017.1_dbg
+        PETSC_ARCH = linux64_grizzly_intel17.0.1_openmpi1.10.5_dbg
        endif
 
        HDF5 = f
@@ -1067,7 +1067,7 @@ ifeq ($(findstring gr,$(HOST)),gr)
 
        ADIOS_BUFFER_MB = 1000
 
-       ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.10.0/lib-grizzly-intel17.0.1_intelmpi2017.1
+       ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.10.0/lib-grizzly-intel-17.0.1_openmpi-1.10.5
        ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -llustreapi
        ADIOS_VER  = 1.10.0
    endif
