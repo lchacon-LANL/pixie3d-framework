@@ -144,7 +144,7 @@ c Call variables
 c Local variables
 
       integer*4   i
-      real*8      pi,twopi,xmed,lx
+      real*8      twopi,xmed,lx
       real*8      psi_wrk(nv),x_wrk(nv),data(2*nv)
 
 c Begin program

@@ -2627,12 +2627,11 @@ c     Begin program
 c     Impose boundary conditions
 
       if (order > 0 .or. cartesian) then
-        if (is__stg) then
+        if (is__stg.and.isvec) then
           call setMGBC_stg(mgctx%g_def,0,neq,nxc,nyc,nzc,igc,arrayc,bcnd
      .              ,result_is_curv=(.not.cartesian)
      .              ,out_iscurv=isvec,out_iscnv=iscnv  !<= These define whether quantities are 
      .              )                                  !   vectors or scalars. 
-
         else
           call setMGBC(mgctx%g_def,0,neq,nxc,nyc,nzc,igc,arrayc,bcnd
      .              ,result_is_curv=(.not.cartesian)
@@ -4202,7 +4201,11 @@ c     Begin program
 
         call MG_set_res_vol_wgt(vol_wgt) !Initialize volume-weighing variable
 
-        if (PRESENT(staggered)) call MG_set_vector_type(staggered)
+        if (PRESENT(staggered)) then
+          call MG_set_vector_type(staggered)
+        else
+          call MG_set_vector_type(.false.)
+        endif
 
 c     Check input integrity
 

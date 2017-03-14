@@ -3709,7 +3709,7 @@ c     Initialize pcle accounting qtys
 
       do isp = 1,n_sp
         if (npcles(isp) <= gnip) then
-          call pstop('readInput'
+          call pstop('setup_pic_2d'
      .              ,'Pcle buffer exceeds total pcle budget')
         endif
       enddo
