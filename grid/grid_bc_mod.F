@@ -1179,8 +1179,6 @@ c     Local variables
 
 c     Begin program
 
-      call set_skip_corners(.false.) !Do not skip BC corner treatment
-
 c     Initialize interpolation order (else use last set)
 
       if (PRESENT(iorder)) then
@@ -1350,8 +1348,6 @@ c     Local variables
 #endif
 
 c     Begin program
-
-      call set_skip_corners(.false.) !Do no skip BC corner treatment
 
       !By default, we assume input are vector components
       if (PRESENT(is_vec)) then
@@ -1759,6 +1755,7 @@ c     Local variables
       integer :: ivar,ieq,ibc,loc,dim,bctype
      .          ,ilmin,jlmin,klmin,ilmax,jlmax,klmax
       logical :: cov_to_cnv(6,3),to_cnv,is__vec,petsc__bc
+     .          ,flg_sc
 
 #if defined(petsc)
       type(petsc_da_ctx),pointer :: da_ctx
@@ -1788,7 +1785,11 @@ c     Begin program
         to_cnv = .false.
       endif
 
-      call set_skip_corners(.true.) !Skip BC corner treatment
+      flg_sc = .false.
+      if (.not.skip_corners) then
+        skip_corners=.true.     !Skip BC corner treatment
+        flg_sc = .true.
+      endif
 
 c     Initialize interpolation order (else use last set)
 
@@ -1869,6 +1870,7 @@ c     Fill PETSc/PERIODIC ghost cells
       !Exit if all periodic domains 
       if (bcPER(1).and.bcPER(2).and.bcPER(3)) then
         stg_vector = .false.
+        if (flg_sc) skip_corners=.false. !Reset skip_corners
         return
       endif
       
@@ -1939,6 +1941,7 @@ c     Periodic boundary synchronizing
 c     End program
 
       stg_vector = .false.
+      if (flg_sc) skip_corners=.false. !Reset skip_corners
 
       contains
 
@@ -3561,6 +3564,7 @@ c     Check for "do nothing" conditions
       endif
 
       if (skip_corners.and.(.not.face)) return
+      write (*,*) 'here face',face,skip_corners
 
 c     Do nothing for SP boundary faces, edges, and corners
 

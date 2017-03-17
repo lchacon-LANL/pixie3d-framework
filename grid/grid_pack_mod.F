@@ -582,7 +582,7 @@ cc          endif
 cc          if (bcs1 == PER.and.bcs2 == PER) then !Sets angle origin at zero
             dh = length/ng
             lstart = lmin
-          elseif (bcs1 == SYM .and. bcs2 == SYM) then
+          elseif (bcs1 == SYM .and. bcs2 == SYM.and.ng > 1) then
             dh = length/(ng-1)
             lstart = lmin
           elseif (bcs1 == SYM .and. bcs2 /= SYM) then
