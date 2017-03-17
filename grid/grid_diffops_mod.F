@@ -6674,7 +6674,7 @@ c     End program
 c     flx_advec_mesh
 c     ###############################################################
       function flx_advec_mesh(g_def,igrid,v,arr,method,bcs,sp,vol
-     .                       ,zip_vel) result(advec)
+     .                       ,zip_vel,no_jac) result(advec)
       implicit none
 c     ---------------------------------------------------------------
 c     Calculates divergence of vector field (v.arr) at cell centers in
@@ -6695,7 +6695,7 @@ c     Call variables
      $                ,0:size(v,2)-1
      $                ,0:size(v,3)-1)
 
-      logical,optional :: sp,vol,zip_vel
+      logical,optional :: sp,vol,zip_vel,no_jac
 
 c     Local variables
 
@@ -6704,7 +6704,7 @@ c     Local variables
       real(8) :: dxx,dyy,dzz
       real(8) :: flxip,flxim,flxjp,flxjm,flxkp,flxkm
       real(8),pointer,dimension(:,:,:,:) :: darr
-      logical :: vw
+      logical :: vw,njac
 
 c     Begin program
 
@@ -6718,6 +6718,12 @@ c     Begin program
         vw = vol
       else
         vw = .false.
+      endif
+
+      if (PRESENT(no_jac)) then
+        njac = no_jac
+      else
+        njac = .false.
       endif
 
 c     Compute difference arrays and communicate BCs
@@ -6799,8 +6805,11 @@ c     Compute advection
         enddo
       enddo
 
-      advec = advec/g_def%gmetric%grid(igrid)%jac
-      if (vw) advec = advec*g_def%gmetric%grid(igrid)%dvol
+      if (vw) then
+        advec = advec*g_def%gmetric%grid(igrid)%dlvol
+      elseif (.not.njac) then
+        advec = advec/g_def%gmetric%grid(igrid)%jac
+      endif
 
       deallocate(darr)
 
@@ -7194,8 +7203,11 @@ c     Compute advection
         enddo
       enddo
 
-      advec = advec/g_def%gmetric%grid(igrid)%jac
-      if (vw) advec = advec*g_def%gmetric%grid(igrid)%dvol
+      if (vw) then
+        advec = advec*g_def%gmetric%grid(igrid)%dlvol
+      else
+        advec = advec/g_def%gmetric%grid(igrid)%jac
+      endif
 
       deallocate(darr)
 
@@ -7298,7 +7310,7 @@ c     tensor_nc_advc_mesh2
 c     #####################################################################
       function tensor_nc_advc_mesh2(g_def,igr,v0,v1,meth,v1_cov
      .                             ,transpose)
-     .     result(vec)
+     .         result(vec)
 
 c     ---------------------------------------------------------------------
 c     Calculates v0.nabla(v1), with both v0, v1 vector fields, on the whole
@@ -7890,6 +7902,93 @@ c     Postprocessing
 c     End program
 
       end subroutine tnsr_advc_z
+
+c     tensor_advc_mesh
+c     #####################################################################
+      function tensor_advc_mesh(g_def,igr,v0,v1,bcs,meth) result(vec)
+
+c     ---------------------------------------------------------------------
+c     Calculates v0.nabla(v1), with both v0, v1 vector fields, on the whole
+c     mesh. Vector v0 is always contravariant; v1 can be covariant or
+c     contravariant. Result is in same representation as v1.
+c
+c     meth: specifies the advective scheme
+c     ---------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
+
+      integer :: igr,meth,bcs(6,3)
+      real(8),target :: v1(0:,0:,0:,:)
+     .                 ,v0(0:,0:,0:,:)
+      real(8) :: vec(0:size(v1,1)-1
+     .              ,0:size(v1,2)-1
+     .              ,0:size(v1,3)-1,size(v1,4))
+
+      logical :: zv
+      
+c     Local variables
+
+      integer :: i,j,k,nx,ny,nz
+      real(8) :: msource(3)
+     
+c     Begin program
+
+      nx = size(v1,1)-2
+      ny = size(v1,2)-2
+      nz = size(v1,3)-2
+
+      zv = (meth == 2)
+
+      !Perform advective step
+      vec(:,:,:,1) = v1(:,:,:,1)/g_def%gmetric%grid(igr)%jac
+      if (.not.alt__eom()) then
+        vec(:,:,:,2) = v1(:,:,:,2)/g_def%gmetric%grid(igr)%jac
+      else
+        vec(:,:,:,2) = v1(:,:,:,2)
+      endif
+      vec(:,:,:,3) = v1(:,:,:,3)/g_def%gmetric%grid(igr)%jac
+
+      vec(:,:,:,1) = flx_advec_mesh(g_def,igr,v0,vec(:,:,:,1),meth
+     .                             ,bcs(:,1),no_jac=.true.,zip_vel=zv)
+      vec(:,:,:,2) = flx_advec_mesh(g_def,igr,v0,vec(:,:,:,2),meth
+     .                             ,bcs(:,2),no_jac=.true.,zip_vel=zv)
+      vec(:,:,:,3) = flx_advec_mesh(g_def,igr,v0,vec(:,:,:,3),meth
+     .                             ,bcs(:,3),no_jac=.true.,zip_vel=zv)
+
+      !Add geometric source
+      vec1 => v0
+      vec2 => v1
+      if (.not.alt__eom()) then
+        do k=1,nz
+          do j=1,ny
+            do i=1,nx
+              msource =dtnsr_src_ijk(g_def,i,j,k,nx,ny,nz,igr,alt__eom()
+     .                             ,tnsr_advc_x,tnsr_advc_y,tnsr_advc_z)
+              vec(i,j,k,:) = vec(i,j,k,:) + msource
+            enddo
+          enddo
+        enddo
+      else
+        do k=1,nz
+          do j=1,ny
+            do i=1,nx
+              msource =dtnsr_src_ijk(g_def,i,j,k,nx,ny,nz,igr,alt__eom()
+     .                             ,tnsr_advc_x,tnsr_advc_y,tnsr_advc_z)
+              vec(i,j,k,:) = vec(i,j,k,:) + msource
+              vec(i,j,k,2) = vec(i,j,k,2)
+     .                      /g_def%gmetric%grid(igr)%jac(i,j,k)
+            enddo
+          enddo
+        enddo
+      endif
+
+c     End program
+
+      end function tensor_advc_mesh
 
 c     in2face_scl
 c     ###############################################################

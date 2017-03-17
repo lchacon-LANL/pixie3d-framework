@@ -79,7 +79,7 @@ ifeq ($(findstring gfortran,$(FC)),gfortran)
   ifeq ($(ARCH),Darwin)
     OPTIMIZATION ?= -Wa,-q -O3 -march=$(M_ARCH) -fopenmp-simd #-fopt-info -ffast-math 
   else
-    OPTIMIZATION ?= -O3 -march=$(M_ARCH) #Only for gcc > 4.9... -ffast-math -fopenmp-simd -fopt-info
+    OPTIMIZATION ?= -O3 -g -march=$(M_ARCH) #Only for gcc > 4.9... -ffast-math -fopenmp-simd -fopt-info
   endif
   DEBUG        = -g -fbounds-check -fbacktrace -ffpe-trap=invalid,zero -ftrapv #-finit-real=snan #-finit-local-zero
   PROFILE      = -O2 -pg -g

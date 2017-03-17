@@ -285,9 +285,9 @@ ifeq ($(findstring quevedo,$(HOST)),quevedo)
     PETSC_DIR =$(HOME)/Software/petsc-3.0.0-p7
 
     ifeq ($(BOPT),O)
-      PETSC_ARCH = macosx_openmpi_O
+      PETSC_ARCH = macosx_gcc6.3.0_openmpi1.6.5_O
     else
-      PETSC_ARCH = macosx_openmpi_g
+      PETSC_ARCH = macosx_gcc6.3.0_openmpi1.6.5_g
     endif
 
     HDF5 = t
@@ -300,7 +300,7 @@ ifeq ($(findstring quevedo,$(HOST)),quevedo)
     ADIOS = t
 
     ADIOS_HOME = $(HOME)/lib/adios-1.10.0
-    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -L$(HOME)/lib/mxml-2.7/lib -lmxml
+    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1
     ADIOS_VER  = 1.10.0
 
 #    LIBS += -L/opt/local/lib -latlas
