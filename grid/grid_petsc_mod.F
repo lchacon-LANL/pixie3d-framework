@@ -489,9 +489,14 @@ c     Store MPI info
           iy = (i-1 - 9*iz)/3
           ix = i-1 - iy*3 - iz*9
           dactx%proc_neighbors(ix-1,iy-1,iz-1)=neighbors(i)
-c$$$          if (dactx%rank == 0) write (*,*) ix-1,iy-1,iz-1
-c$$$     .         ,dactx%proc_neighbors(ix-1,iy-1,iz-1)
         enddo
+
+c$$$        if (dactx%rank == 0) then
+c$$$          write (*,*) dactx%proc_neighbors( 0  , 1,0)
+c$$$          write (*,*) dactx%proc_neighbors(-1:1, 0,0)
+c$$$          write (*,*) dactx%proc_neighbors( 0  ,-1,0)
+c$$$        endif
+c$$$        stop
 
 c     End program
 
