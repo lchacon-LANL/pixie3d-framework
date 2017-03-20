@@ -214,7 +214,7 @@ c     #################################################################
         call adios_gclose(adios_gh, ierr)
         call adios_fclose(adios_fh, ierr)
 
-        if (adios_debug) write (*,*), "Closed ", trim(recordfile)
+        if (adios_debug) write (*,*) "Closed ", trim(recordfile)
 
       end subroutine closeADIOSRecordFileForRead
 
@@ -290,7 +290,7 @@ c     Begin program
       !firstread = (adios_tread == 0)
 
       if (adios_debug)
-     .  write (*,"(a,i0,a,i5)"), "rank=",my_rank,
+     .  write (*,"(a,i0,a,i5)") "rank=",my_rank,
      .       " adios read time=", adios_tread
 
       if (adios_tread < adios_ntsteps) then
@@ -299,28 +299,28 @@ c     Begin program
           readcount = 1
 
           if (adios_debug)
-     .      write (*,"(a,i0,a,i5,a,i5)"), "rank=",my_rank,
+     .      write (*,"(a,i0,a,i5,a,i5)") "rank=",my_rank,
      .           ": read in time.  start=",start,"count=",readcount
 
           call adios_read_var(adios_gh,"time",start,readcount,time,m)
           start = adios_tread 
 
           if (adios_debug)
-     .      write (*,"(a,i0,a,i5,a,i5)"), "rank=",my_rank,
+     .      write (*,"(a,i0,a,i5,a,i5)") "rank=",my_rank,
      .           ": read in itime. start=",start,"count=",readcount
 
           call adios_read_var(adios_gh,"itime",start,readcount,itime,m)
           start = adios_tread 
 
           if (adios_debug)
-     .      write (*,"(a,i0,a,i5,a,i5)"), "rank=",my_rank,
+     .      write (*,"(a,i0,a,i5,a,i5)") "rank=",my_rank,
      .           ": read in dt.   start=",start,"count=",readcount
 
           call adios_read_var(adios_gh,"dt",start,readcount,dt,m)
           start = adios_tread 
 
           if (adios_debug)
-     .      write (*,"(a,i0,a,i5,a,i5)"), "rank=",my_rank,
+     .      write (*,"(a,i0,a,i5,a,i5)") "rank=",my_rank,
      .           ": read in gammat.   start=",start,"count=",readcount
 
           call adios_read_var(adios_gh,"gammat",start,readcount,gammat
@@ -333,7 +333,7 @@ c     Begin program
             varray%nvar = tmp(1)
             ! consistency check
             if (adios_nvar.ne.varray%nvar) then
-                write (*,"(a,i0,a,i2,a,i2)"), "rank=",my_rank,
+                write (*,"(a,i0,a,i2,a,i2)") "rank=",my_rank,
      .                 " ERROR: adios_nvar=",adios_nvar,
      .                 " != varray%nvar=",varray%nvar
             endif
@@ -808,7 +808,7 @@ c     .      ilomg,ihipg,jlomg,jhipg,klomg,khipg
             endif
 
             if (adios_debug)
-     .        write (*,"(a,a,a,i0)"), "read ",trim(vvar),"  bytes=",m
+     .        write (*,"(a,a,a,i0)") "read ",trim(vvar),"  bytes=",m
           enddo
 
           if (firstread) then

@@ -36,6 +36,7 @@ c     -----------------------------------------------------------------
      .                      ,SYM=8   !Symmetry (even > 0, odd < 0)
      .                      ,FSYM=9  !Symmetry (at faces; even > 0, odd < 0)
      .                      ,OPN=10  !Open boundary conditions
+     .                      ,SYNC=11 !Parallel sync
 
         integer,parameter :: BCLIM=7 !Defines # of BC cases (excludes DEF,SYM,FSYM,OPN)
      .                      ,BCTOT=10!Total number of BC defs
@@ -363,6 +364,7 @@ c ######################################################################
           integer    :: nxgl,nygl,nzgl  !Global number of mesh points
           integer    :: igrid
           integer    :: MPI_COMM_DA,np,rank
+          integer    :: proc_neighbors(-1:1,-1:1,-1:1)
         end type petsc_da_ctx
 
         integer :: debug_par=0        !For parallel debugging
@@ -386,7 +388,7 @@ c     Call variables
 
 c     Local variables
 
-        integer :: BC,ierr,mpierr
+        integer :: BC,ierr,mpierr,i,ix,iy,iz,neighbors(27)
 
 c     Begin program
 
@@ -478,6 +480,18 @@ c     Store MPI info
 
         call MPI_Comm_rank(dactx%MPI_COMM_DA,dactx%rank,mpierr)
         call MPI_Comm_size(dactx%MPI_COMM_DA,dactx%np  ,mpierr)
+
+        !Processor topology
+        call DAGetNeighbors(dactx,neighbors,mpierr)
+
+        do i=1,27
+          iz = (i-1)/9
+          iy = (i-1 - 9*iz)/3
+          ix = i-1 - iy*3 - iz*9
+          dactx%proc_neighbors(ix-1,iy-1,iz-1)=neighbors(i)
+c$$$          if (dactx%rank == 0) write (*,*) ix-1,iy-1,iz-1
+c$$$     .         ,dactx%proc_neighbors(ix-1,iy-1,iz-1)
+        enddo
 
 c     End program
 
