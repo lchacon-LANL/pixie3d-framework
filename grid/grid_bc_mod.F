@@ -2431,7 +2431,7 @@ c     Local variables
 
       integer :: ibc,i,j,k
 
-      integer :: dest,tag=0,ireq,request(10),status(10)
+      integer :: dest,tag=0,ireq,request(10),status(MPI_STATUS_SIZE,10)
 
 c$$$      real(8),pointer,dimension(:,:) :: rhs
 
@@ -2491,64 +2491,55 @@ c$$$      end select
       case(0)
 
         if     (dim==1.and.isBdry(gbc_def,1,igxbc,ibc)) then
-          write (*,*) my_rank,dim,loc,'recv'
           call l0d1(0)
         elseif (dim==2.and.isBdry(gbc_def,1,igybc,ibc)) then
-          write (*,*) my_rank,dim,loc,'recv'
           call l0d2(0)
         elseif (dim==3.and.isBdry(gbc_def,1,igzbc,ibc)) then
-          write (*,*) my_rank,dim,loc,'recv'
           call l0d3(0)
         endif
         
       case(1)
 
         if     (dim==1.and.isBdry(gbc_def,nxbc,igxbc,ibc)) then
-          write (*,*) my_rank,dim,loc,'recv'
           call l1d1(0)
         elseif (dim==2.and.isBdry(gbc_def,nybc,igybc,ibc)) then
-          write (*,*) my_rank,dim,loc,'recv'
           call l1d2(0)
         elseif (dim==3.and.isBdry(gbc_def,nzbc,igzbc,ibc)) then
-          write (*,*) my_rank,dim,loc,'recv'
           call l1d3(0)
         endif
 
       end select
+
+      write (*,*) my_rank,dim,loc,'recv',ireq
 
       !Schedule sends
       select case(loc)
       case(0)
 
         if     (dim==1.and.isBdry(gbc_def,1,igxbc,ibc)) then
-          write (*,*) my_rank,dim,loc,'send'
           call l0d1(1)
         elseif (dim==2.and.isBdry(gbc_def,1,igybc,ibc)) then
-          write (*,*) my_rank,dim,loc,'send'
           call l0d2(1)
         elseif (dim==3.and.isBdry(gbc_def,1,igzbc,ibc)) then
-          write (*,*) my_rank,dim,loc,'send'
           call l0d3(1)
         endif
         
       case(1)
 
         if     (dim==1.and.isBdry(gbc_def,nxbc,igxbc,ibc)) then
-          write (*,*) my_rank,dim,loc,'send'
           call l1d1(1)
         elseif (dim==2.and.isBdry(gbc_def,nybc,igybc,ibc)) then
-          write (*,*) my_rank,dim,loc,'send'
           call l1d2(1)
         elseif (dim==3.and.isBdry(gbc_def,nzbc,igzbc,ibc)) then
-          write (*,*) my_rank,dim,loc,'send'
           call l1d3(1)
-        endif
-
+       endif
+       
       end select
 
-      write (*,*) 'Number of MPI requests',ireq
-      if (ireq > 0)
-     .     call MPI_Waitall(ireq,request(1:ireq),status(1:ireq),mpierr)
+      write (*,*) my_rank,dim,loc,'send',ireq
+
+      write (*,*) my_rank,'Number of MPI requests',ireq
+      if (ireq > 0) call MPI_Waitall(ireq,request,status,mpierr)
 #endif
 
 c     End program
@@ -2565,11 +2556,11 @@ c     ################################################################
 
       i = 0
       
-      if (.not.bcPER(ibc)) then
+      if (.not.bcPER(dim)) then
 c$$$        allocate(rhs(1,nzbc+2))
         !Down
-        if (  gbc_def%dactx(igxbc)%proc_neighbors(0, 0,0)
-     .      /=gbc_def%dactx(igxbc)%proc_neighbors(0,-1,0)) then
+c$$$        if (  gbc_def%dactx(igxbc)%proc_neighbors(0, 0,0)
+c$$$     .      /=gbc_def%dactx(igxbc)%proc_neighbors(0,-1,0)) then
           dest = gbc_def%dactx(igxbc)%proc_neighbors(0,-1,0)
 c$$$          rhs(1,:) = array(i,1   ,:)
 c$$$          call MPI_Sendrecv_replace(rhs(1,:),(nzbc+2)
@@ -2590,11 +2581,11 @@ c$$$          array(i,0,:) = rhs(1,:)
      .             ,gbc_def%MPI_COMM,request(ireq)
      .             ,mpierr)
           endif
-        endif
+c$$$        endif
 
         !Up
-        if (  gbc_def%dactx(igxbc)%proc_neighbors(0, 0,0)
-     .      /=gbc_def%dactx(igxbc)%proc_neighbors(0, 1,0)) then
+c$$$        if (  gbc_def%dactx(igxbc)%proc_neighbors(0, 0,0)
+c$$$     .      /=gbc_def%dactx(igxbc)%proc_neighbors(0, 1,0)) then
           dest = gbc_def%dactx(igxbc)%proc_neighbors(0,1,0)
 c$$$          rhs(1,:) = array(i,nybc,:)
 c$$$          call MPI_Sendrecv_replace(rhs(1,:),(nzbc+2)
@@ -2615,14 +2606,14 @@ c$$$          array(i,nybc+1,:) = rhs(1,:)
      .             ,gbc_def%MPI_COMM,request(ireq)
      .             ,mpierr)
           endif
-        endif
+c$$$        endif
 
 c$$$        deallocate(rhs)
 
 c$$$        allocate(rhs(1,nybc+2))            
         !Bottom
-        if (  gbc_def%dactx(igxbc)%proc_neighbors(0,0, 0)
-     .      /=gbc_def%dactx(igxbc)%proc_neighbors(0,0,-1)) then
+c$$$        if (  gbc_def%dactx(igxbc)%proc_neighbors(0,0, 0)
+c$$$     .      /=gbc_def%dactx(igxbc)%proc_neighbors(0,0,-1)) then
           dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,-1)
 c$$$          rhs(1,:) = array(i,:,1)
 c$$$          call MPI_Sendrecv_replace(rhs(1,:),(nybc+2)
@@ -2643,11 +2634,11 @@ c$$$          array(i,:,0) = rhs(1,:)
      .             ,gbc_def%MPI_COMM,request(ireq)
      .             ,mpierr)
           endif
-        endif
+c$$$        endif
 
         !Top
-        if (  gbc_def%dactx(igxbc)%proc_neighbors(0,0, 0)
-     .      /=gbc_def%dactx(igxbc)%proc_neighbors(0,0, 1)) then
+c$$$        if (  gbc_def%dactx(igxbc)%proc_neighbors(0,0, 0)
+c$$$     .      /=gbc_def%dactx(igxbc)%proc_neighbors(0,0, 1)) then
           dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,1)
 c$$$          rhs(1,:) = array(i,:,nzbc)
 c$$$          call MPI_Sendrecv_replace(rhs(1,:),(nybc+2)
@@ -2668,7 +2659,7 @@ c$$$          array(i,:,nzbc+1) = rhs(1,:)
      .             ,gbc_def%MPI_COMM,request(ireq)
      .             ,mpierr)
           endif
-        endif
+c$$$        endif
 
 c$$$        deallocate(rhs)
 
@@ -2686,11 +2677,11 @@ c     ################################################################
 
       i = nxbc+1
 
-      if (.not.bcPER(ibc)) then
+      if (.not.bcPER(dim)) then
 c$$$        allocate(rhs(1,nzbc+2))
         !Up
-        if (  gbc_def%dactx(igxbc)%proc_neighbors(0,0,0)
-     .      /=gbc_def%dactx(igxbc)%proc_neighbors(0,1,0)) then
+c$$$        if (  gbc_def%dactx(igxbc)%proc_neighbors(0,0,0)
+c$$$     .      /=gbc_def%dactx(igxbc)%proc_neighbors(0,1,0)) then
           dest = gbc_def%dactx(igxbc)%proc_neighbors(0,1,0)
 c$$$          rhs(1,:) = array(i,nybc,:)
 c$$$          call MPI_Sendrecv_replace(rhs(1,:),(nzbc+2)
@@ -2711,11 +2702,11 @@ c$$$          array(i,nybc+1,:) = rhs(1,:)
      .             ,gbc_def%MPI_COMM,request(ireq)
      .             ,mpierr)
           endif
-        endif
+c$$$        endif
 
         !Down
-        if (  gbc_def%dactx(igxbc)%proc_neighbors(0, 0,0)
-     .      /=gbc_def%dactx(igxbc)%proc_neighbors(0,-1,0)) then
+c$$$        if (  gbc_def%dactx(igxbc)%proc_neighbors(0, 0,0)
+c$$$     .      /=gbc_def%dactx(igxbc)%proc_neighbors(0,-1,0)) then
           dest = gbc_def%dactx(igxbc)%proc_neighbors(0,-1,0)
 c$$$          rhs(1,:) = array(i,1   ,:)
 c$$$          call MPI_Sendrecv_replace(rhs(1,:),(nzbc+2)
@@ -2736,14 +2727,14 @@ c$$$          array(i,0,:) = rhs(1,:)
      .             ,gbc_def%MPI_COMM,request(ireq)
      .             ,mpierr)
           endif
-        endif
+c$$$        endif
 
 c$$$        deallocate(rhs)
 
 c$$$        allocate(rhs(1,nybc+2))            
         !Top
-        if (  gbc_def%dactx(igxbc)%proc_neighbors(0,0, 0)
-     .      /=gbc_def%dactx(igxbc)%proc_neighbors(0,0, 1)) then
+c$$$        if (  gbc_def%dactx(igxbc)%proc_neighbors(0,0, 0)
+c$$$     .      /=gbc_def%dactx(igxbc)%proc_neighbors(0,0, 1)) then
           dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,1)
 c$$$          rhs(1,:) = array(i,:,nzbc)
 c$$$          call MPI_Sendrecv_replace(rhs(1,:),(nybc+2)
@@ -2764,11 +2755,11 @@ c$$$          array(i,:,nzbc+1) = rhs(1,:)
      .             ,gbc_def%MPI_COMM,request(ireq)
      .             ,mpierr)
           endif
-        endif
+c$$$        endif
 
         !Bottom
-        if (  gbc_def%dactx(igxbc)%proc_neighbors(0,0, 0)
-     .      /=gbc_def%dactx(igxbc)%proc_neighbors(0,0,-1)) then
+c$$$        if (  gbc_def%dactx(igxbc)%proc_neighbors(0,0, 0)
+c$$$     .      /=gbc_def%dactx(igxbc)%proc_neighbors(0,0,-1)) then
           dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,-1)
 c$$$          rhs(1,:) = array(i,:,1)
 c$$$          call MPI_Sendrecv_replace(rhs(1,:),(nybc+2)
@@ -2789,7 +2780,7 @@ c$$$          array(i,:,0) = rhs(1,:)
      .             ,gbc_def%MPI_COMM,request(ireq)
      .             ,mpierr)
           endif
-        endif
+c$$$        endif
 
 c$$$        deallocate(rhs)
 
@@ -2807,12 +2798,12 @@ c     ################################################################
 
       j = 0
 
-      if (.not.bcPER(ibc)) then
+      if (.not.bcPER(dim)) then
 
 c$$$        allocate(rhs(1,nzbc+2))
         !Left
-        if (  gbc_def%dactx(igxbc)%proc_neighbors(0 ,0,0)
-     .      /=gbc_def%dactx(igxbc)%proc_neighbors(-1,0,0)) then
+c$$$        if (  gbc_def%dactx(igxbc)%proc_neighbors(0 ,0,0)
+c$$$     .      /=gbc_def%dactx(igxbc)%proc_neighbors(-1,0,0)) then
           dest = gbc_def%dactx(igxbc)%proc_neighbors(-1,0,0)
 c$$$          rhs(1,:) = array(1,j   ,:)
 c$$$          call MPI_Sendrecv_replace(rhs(1,:),(nzbc+2)
@@ -2833,11 +2824,11 @@ c$$$          array(0,j,:) = rhs(1,:)
      .             ,gbc_def%MPI_COMM,request(ireq)
      .             ,mpierr)
           endif
-        endif
+c$$$        endif
 
         !Right
-        if (  gbc_def%dactx(igxbc)%proc_neighbors(0,0,0)
-     .      /=gbc_def%dactx(igxbc)%proc_neighbors(1,0,0)) then
+c$$$        if (  gbc_def%dactx(igxbc)%proc_neighbors(0,0,0)
+c$$$     .      /=gbc_def%dactx(igxbc)%proc_neighbors(1,0,0)) then
           dest = gbc_def%dactx(igxbc)%proc_neighbors(1,0,0)
 c$$$          rhs(1,:) = array(nxbc,j,:)
 c$$$          call MPI_Sendrecv_replace(rhs(1,:),(nzbc+2)
@@ -2858,15 +2849,15 @@ c$$$          array(nxbc+1,j,:) = rhs(1,:)
      .             ,gbc_def%MPI_COMM,request(ireq)
      .             ,mpierr)
           endif
-        endif
+c$$$        endif
 
 c$$$        deallocate(rhs)
 
 c$$$        allocate(rhs(1,nxbc+2))            
 
         !Bottom
-        if (  gbc_def%dactx(igxbc)%proc_neighbors(0,0, 0)
-     .      /=gbc_def%dactx(igxbc)%proc_neighbors(0,0,-1)) then
+c$$$        if (  gbc_def%dactx(igxbc)%proc_neighbors(0,0, 0)
+c$$$     .      /=gbc_def%dactx(igxbc)%proc_neighbors(0,0,-1)) then
           dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,-1)
 c$$$          rhs(1,:) = array(:,j,1)
 c$$$          call MPI_Sendrecv_replace(rhs(1,:),(nxbc+2)
@@ -2887,11 +2878,11 @@ c$$$          array(:,j,0) = rhs(1,:)
      .             ,gbc_def%MPI_COMM,request(ireq)
      .             ,mpierr)
           endif
-        endif
+c$$$        endif
 
         !Top
-        if (  gbc_def%dactx(igxbc)%proc_neighbors(0,0,0)
-     .      /=gbc_def%dactx(igxbc)%proc_neighbors(0,0,1)) then
+c$$$        if (  gbc_def%dactx(igxbc)%proc_neighbors(0,0,0)
+c$$$     .      /=gbc_def%dactx(igxbc)%proc_neighbors(0,0,1)) then
           dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,1)
 c$$$          rhs(1,:) = array(:,j,nzbc)
 c$$$          call MPI_Sendrecv_replace(rhs(1,:),(nxbc+2)
@@ -2912,7 +2903,7 @@ c$$$          array(:,j,nzbc+1) = rhs(1,:)
      .             ,gbc_def%MPI_COMM,request(ireq)
      .             ,mpierr)
           endif
-        endif
+c$$$        endif
 
 c$$$        deallocate(rhs)
 
@@ -2930,12 +2921,12 @@ c     ################################################################
 
       j = nybc+1
 
-      if (.not.bcPER(ibc)) then
+      if (.not.bcPER(dim)) then
 
 c$$$        allocate(rhs(1,nzbc+2))
         !Left
-        if (  gbc_def%dactx(igxbc)%proc_neighbors( 0,0,0)
-     .      /=gbc_def%dactx(igxbc)%proc_neighbors(-1,0,0)) then
+c$$$        if (  gbc_def%dactx(igxbc)%proc_neighbors( 0,0,0)
+c$$$     .      /=gbc_def%dactx(igxbc)%proc_neighbors(-1,0,0)) then
           dest = gbc_def%dactx(igxbc)%proc_neighbors(-1,0,0)
 c$$$          rhs(1,:) = array(1,j   ,:)
 c$$$          call MPI_Sendrecv_replace(rhs(1,:),(nzbc+2)
@@ -2956,11 +2947,11 @@ c$$$          array(0,j,:) = rhs(1,:)
      .             ,gbc_def%MPI_COMM,request(ireq)
      .             ,mpierr)
           endif
-        endif
+c$$$        endif
 
         !Right
-        if (  gbc_def%dactx(igxbc)%proc_neighbors(0,0,0)
-     .      /=gbc_def%dactx(igxbc)%proc_neighbors(1,0,0)) then
+c$$$        if (  gbc_def%dactx(igxbc)%proc_neighbors(0,0,0)
+c$$$     .      /=gbc_def%dactx(igxbc)%proc_neighbors(1,0,0)) then
           dest = gbc_def%dactx(igxbc)%proc_neighbors(1,0,0)
 c$$$          rhs(1,:) = array(nxbc,j,:)
 c$$$          call MPI_Sendrecv_replace(rhs(1,:),(nzbc+2)
@@ -2981,15 +2972,15 @@ c$$$          array(nxbc+1,j,:) = rhs(1,:)
      .             ,gbc_def%MPI_COMM,request(ireq)
      .             ,mpierr)
           endif
-        endif
+c$$$        endif
 
 c$$$        deallocate(rhs)
 
 c$$$        allocate(rhs(1,nxbc+2))            
 
         !Bottom
-        if (  gbc_def%dactx(igxbc)%proc_neighbors(0,0, 0)
-     .      /=gbc_def%dactx(igxbc)%proc_neighbors(0,0,-1)) then
+c$$$        if (  gbc_def%dactx(igxbc)%proc_neighbors(0,0, 0)
+c$$$     .      /=gbc_def%dactx(igxbc)%proc_neighbors(0,0,-1)) then
           dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,-1)
 c$$$          rhs(1,:) = array(:,j,1)
 c$$$          call MPI_Sendrecv_replace(rhs(1,:),(nxbc+2)
@@ -3010,11 +3001,11 @@ c$$$          array(:,j,0) = rhs(1,:)
      .             ,gbc_def%MPI_COMM,request(ireq)
      .             ,mpierr)
           endif
-        endif
+c$$$        endif
 
         !Top
-        if (  gbc_def%dactx(igxbc)%proc_neighbors(0,0,0)
-     .      /=gbc_def%dactx(igxbc)%proc_neighbors(0,0,1)) then
+c$$$        if (  gbc_def%dactx(igxbc)%proc_neighbors(0,0,0)
+c$$$     .      /=gbc_def%dactx(igxbc)%proc_neighbors(0,0,1)) then
           dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,1)
 c$$$          rhs(1,:) = array(:,j,nzbc)
 c$$$          call MPI_Sendrecv_replace(rhs(1,:),(nxbc+2)
@@ -3035,7 +3026,7 @@ c$$$          array(:,j,nzbc+1) = rhs(1,:)
      .             ,gbc_def%MPI_COMM,request(ireq)
      .             ,mpierr)
           endif
-         endif
+c$$$         endif
 
 c$$$        deallocate(rhs)
         
@@ -3053,12 +3044,12 @@ c     ################################################################
 
       k = 0
 
-      if (.not.bcPER(ibc)) then
+      if (.not.bcPER(dim)) then
 
 c$$$        allocate(rhs(1,nybc+2))
         !Left
-        if (  gbc_def%dactx(igxbc)%proc_neighbors( 0,0,0)
-     .      /=gbc_def%dactx(igxbc)%proc_neighbors(-1,0,0)) then
+c$$$        if (  gbc_def%dactx(igxbc)%proc_neighbors( 0,0,0)
+c$$$     .      /=gbc_def%dactx(igxbc)%proc_neighbors(-1,0,0)) then
           dest = gbc_def%dactx(igxbc)%proc_neighbors(-1,0,0)
 c$$$          rhs(1,:) = array(1,:,k)
 c$$$          call MPI_Sendrecv_replace(rhs(1,:),(nybc+2)
@@ -3079,11 +3070,11 @@ c$$$          array(0,:,k) = rhs(1,:)
      .             ,gbc_def%MPI_COMM,request(ireq)
      .             ,mpierr)
           endif
-        endif
+c$$$        endif
 
         !Right
-        if (  gbc_def%dactx(igxbc)%proc_neighbors(0,0,0)
-     .      /=gbc_def%dactx(igxbc)%proc_neighbors(1,0,0)) then
+c$$$        if (  gbc_def%dactx(igxbc)%proc_neighbors(0,0,0)
+c$$$     .      /=gbc_def%dactx(igxbc)%proc_neighbors(1,0,0)) then
           dest = gbc_def%dactx(igxbc)%proc_neighbors(1,0,0)
 c$$$          rhs(1,:) = array(nxbc,:,k)
 c$$$          call MPI_Sendrecv_replace(rhs(1,:),(nybc+2)
@@ -3104,14 +3095,14 @@ c$$$          array(nxbc+1,:,k) = rhs(1,:)
      .             ,gbc_def%MPI_COMM,request(ireq)
      .             ,mpierr)
           endif
-        endif
+c$$$        endif
 
 c$$$        deallocate(rhs)
 c$$$
 c$$$        allocate(rhs(1,nxbc+2))
         !Down
-        if (  gbc_def%dactx(igxbc)%proc_neighbors(0, 0,0)
-     .      /=gbc_def%dactx(igxbc)%proc_neighbors(0,-1,0)) then
+c$$$        if (  gbc_def%dactx(igxbc)%proc_neighbors(0, 0,0)
+c$$$     .      /=gbc_def%dactx(igxbc)%proc_neighbors(0,-1,0)) then
           dest = gbc_def%dactx(igxbc)%proc_neighbors(0,-1,0)
 c$$$          rhs(1,:) = array(:,1,k)
 c$$$          call MPI_Sendrecv_replace(rhs(1,:),(nxbc+2)
@@ -3132,11 +3123,11 @@ c$$$          array(:,0,k) = rhs(1,:)
      .             ,gbc_def%MPI_COMM,request(ireq)
      .             ,mpierr)
           endif
-        endif
+c$$$        endif
 
         !Up
-        if (  gbc_def%dactx(igxbc)%proc_neighbors(0,0,0)
-     .      /=gbc_def%dactx(igxbc)%proc_neighbors(0,1,0)) then
+c$$$        if (  gbc_def%dactx(igxbc)%proc_neighbors(0,0,0)
+c$$$     .      /=gbc_def%dactx(igxbc)%proc_neighbors(0,1,0)) then
           dest = gbc_def%dactx(igxbc)%proc_neighbors(0,1,0)
 c$$$          rhs(1,:) = array(:,nybc,k)
 c$$$          call MPI_Sendrecv_replace(rhs(1,:),(nxbc+2)
@@ -3157,7 +3148,7 @@ c$$$          array(:,nybc+1,k) = rhs(1,:)
      .             ,gbc_def%MPI_COMM,request(ireq)
      .             ,mpierr)
           endif
-        endif
+c$$$        endif
 
 c$$$        deallocate(rhs)
 
@@ -3175,12 +3166,12 @@ c     ################################################################
 
       k = nzbc+1
 
-      if (.not.bcPER(ibc)) then
+      if (.not.bcPER(dim)) then
 
 c$$$        allocate(rhs(1,nybc+2))
         !Left
-        if (  gbc_def%dactx(igxbc)%proc_neighbors( 0,0,0)
-     .      /=gbc_def%dactx(igxbc)%proc_neighbors(-1,0,0)) then
+c$$$        if (  gbc_def%dactx(igxbc)%proc_neighbors( 0,0,0)
+c$$$     .      /=gbc_def%dactx(igxbc)%proc_neighbors(-1,0,0)) then
           dest = gbc_def%dactx(igxbc)%proc_neighbors(-1,0,0)
 c$$$          rhs(1,:) = array(1,:,k)
 c$$$          call MPI_Sendrecv_replace(rhs(1,:),(nybc+2)
@@ -3201,11 +3192,11 @@ c$$$          array(0,:,k) = rhs(1,:)
      .             ,gbc_def%MPI_COMM,request(ireq)
      .             ,mpierr)
           endif
-        endif
+c$$$        endif
 
         !Right
-        if (  gbc_def%dactx(igxbc)%proc_neighbors(0,0,0)
-     .      /=gbc_def%dactx(igxbc)%proc_neighbors(1,0,0)) then
+c$$$        if (  gbc_def%dactx(igxbc)%proc_neighbors(0,0,0)
+c$$$     .      /=gbc_def%dactx(igxbc)%proc_neighbors(1,0,0)) then
           dest = gbc_def%dactx(igxbc)%proc_neighbors(1,0,0)
 c$$$          rhs(1,:) = array(nxbc,:,k)
 c$$$          call MPI_Sendrecv_replace(rhs(1,:),(nybc+2)
@@ -3226,14 +3217,14 @@ c$$$          array(nxbc+1,:,k) = rhs(1,:)
      .             ,gbc_def%MPI_COMM,request(ireq)
      .             ,mpierr)
           endif
-        endif
+c$$$        endif
 
 c$$$        deallocate(rhs)
 c$$$
 c$$$        allocate(rhs(1,nxbc+2))
         !Down
-        if (  gbc_def%dactx(igxbc)%proc_neighbors(0, 0,0)
-     .      /=gbc_def%dactx(igxbc)%proc_neighbors(0,-1,0)) then
+c$$$        if (  gbc_def%dactx(igxbc)%proc_neighbors(0, 0,0)
+c$$$     .      /=gbc_def%dactx(igxbc)%proc_neighbors(0,-1,0)) then
           dest = gbc_def%dactx(igxbc)%proc_neighbors(0,-1,0)
 c$$$          rhs(1,:) = array(:,1,k)
 c$$$          call MPI_Sendrecv_replace(rhs(1,:),(nxbc+2)
@@ -3254,11 +3245,11 @@ c$$$          array(:,0,k) = rhs(1,:)
      .             ,gbc_def%MPI_COMM,request(ireq)
      .             ,mpierr)
           endif
-        endif
+c$$$        endif
 
         !Up
-        if (  gbc_def%dactx(igxbc)%proc_neighbors(0,0,0)
-     .      /=gbc_def%dactx(igxbc)%proc_neighbors(0,1,0)) then
+c$$$        if (  gbc_def%dactx(igxbc)%proc_neighbors(0,0,0)
+c$$$     .      /=gbc_def%dactx(igxbc)%proc_neighbors(0,1,0)) then
           dest = gbc_def%dactx(igxbc)%proc_neighbors(0,1,0)
 c$$$          rhs(1,:) = array(:,nybc,k)
 c$$$          call MPI_Sendrecv_replace(rhs(1,:),(nxbc+2)
@@ -3279,7 +3270,7 @@ c$$$          array(:,nybc+1,k) = rhs(1,:)
      .             ,gbc_def%MPI_COMM,request(ireq)
      .             ,mpierr)
           endif
-        endif
+c$$$        endif
 
 c$$$        deallocate(rhs)
 
@@ -3322,7 +3313,7 @@ c$$$      ibc = (1+loc)+2*(dim-1)
 c$$$
 c$$$#if !defined(petsc)
 c$$$
-c$$$cc      if (bcPER(ibc)) call per_BC(ibc,array)
+c$$$cc      if (bcPER(dim)) call per_BC(ibc,array)
 c$$$
 c$$$#else
 c$$$
@@ -3333,7 +3324,7 @@ c$$$        if (loc==0.and.isBdry(gbc_def,1,igxbc,ibc)) then
 c$$$
 c$$$          i = 0
 c$$$          
-c$$$c$$$          if (bcPER(ibc)) then
+c$$$c$$$          if (bcPER(dim)) then
 c$$$c$$$            allocate(rhs(2,nzbc+2))
 c$$$c$$$            !Left
 c$$$c$$$            dest = gbc_def%dactx(igxbc)%proc_neighbors(-1,0,0)
@@ -3347,7 +3338,7 @@ c$$$c$$$            array(i,0     ,:) = rhs(1,:)
 c$$$c$$$            array(i,nybc+1,:) = rhs(2,:)
 c$$$c$$$            deallocate(rhs)
 c$$$c$$$          else
-c$$$          if (.not.bcPER(ibc)) then
+c$$$          if (.not.bcPER(dim)) then
 c$$$            allocate(rhs(1,nzbc+2))
 c$$$            !Down
 c$$$            if (  gbc_def%dactx(igxbc)%proc_neighbors(0, 0,0)
@@ -3407,7 +3398,7 @@ c$$$        elseif (loc==1.and.isBdry(gbc_def,nxbc,igxbc,ibc)) then
 c$$$
 c$$$          i = nxbc+1
 c$$$
-c$$$c$$$          if (bcPER(ibc)) then
+c$$$c$$$          if (bcPER(dim)) then
 c$$$c$$$            allocate(rhs(2,nzbc+2))
 c$$$c$$$            !Right
 c$$$c$$$            dest = gbc_def%dactx(igxbc)%proc_neighbors(1,0,0)
@@ -3421,7 +3412,7 @@ c$$$c$$$            array(i,0     ,:) = rhs(1,:)
 c$$$c$$$            array(i,nybc+1,:) = rhs(2,:)
 c$$$c$$$            deallocate(rhs)
 c$$$c$$$          else
-c$$$          if (.not.bcPER(ibc)) then
+c$$$          if (.not.bcPER(dim)) then
 c$$$            allocate(rhs(1,nzbc+2))
 c$$$            !Up
 c$$$            if (  gbc_def%dactx(igxbc)%proc_neighbors(0,0,0)
@@ -3486,7 +3477,7 @@ c$$$        if (loc==0.and.isBdry(gbc_def,1,igybc,ibc)) then
 c$$$            
 c$$$          j = 0
 c$$$
-c$$$c$$$          if (bcPER(ibc)) then
+c$$$c$$$          if (bcPER(dim)) then
 c$$$c$$$
 c$$$c$$$            allocate(rhs(2,nzbc+2))
 c$$$c$$$            !Down
@@ -3502,7 +3493,7 @@ c$$$c$$$            array(nxbc+1,j,:) = rhs(2,:)
 c$$$c$$$            deallocate(rhs)
 c$$$c$$$
 c$$$c$$$          else
-c$$$          if (.not.bcPER(ibc)) then
+c$$$          if (.not.bcPER(dim)) then
 c$$$
 c$$$            allocate(rhs(1,nzbc+2))
 c$$$            !Left
@@ -3565,7 +3556,7 @@ c$$$        elseif (loc==1.and.isBdry(gbc_def,nybc,igybc,ibc)) then
 c$$$
 c$$$          j = nybc+1
 c$$$
-c$$$c$$$          if (bcPER(ibc)) then
+c$$$c$$$          if (bcPER(dim)) then
 c$$$c$$$            !Up
 c$$$c$$$            dest = gbc_def%dactx(igxbc)%proc_neighbors(0,1,0)
 c$$$c$$$
@@ -3583,7 +3574,7 @@ c$$$c$$$
 c$$$c$$$            deallocate(rhs)
 c$$$c$$$
 c$$$c$$$          else
-c$$$          if (.not.bcPER(ibc)) then
+c$$$          if (.not.bcPER(dim)) then
 c$$$
 c$$$            allocate(rhs(1,nzbc+2))
 c$$$            !Left
@@ -3650,7 +3641,7 @@ c$$$        if (loc==0.and.isBdry(gbc_def,1,igzbc,ibc)) then
 c$$$
 c$$$          k = 0
 c$$$
-c$$$c$$$          if (bcPER(ibc)) then
+c$$$c$$$          if (bcPER(dim)) then
 c$$$c$$$              
 c$$$c$$$            allocate(rhs(2,nxbc+2))
 c$$$c$$$            !Bottom
@@ -3667,7 +3658,7 @@ c$$$c$$$            array(:,nybc+1,k) = rhs(2,:)
 c$$$c$$$            deallocate(rhs)
 c$$$c$$$
 c$$$c$$$          else
-c$$$          if (.not.bcPER(ibc)) then
+c$$$          if (.not.bcPER(dim)) then
 c$$$
 c$$$            allocate(rhs(1,nybc+2))
 c$$$            !Left
@@ -3729,7 +3720,7 @@ c$$$        elseif (loc==1.and.isBdry(gbc_def,nzbc,igzbc,ibc)) then
 c$$$
 c$$$          k = nzbc+1
 c$$$
-c$$$c$$$          if (bcPER(ibc)) then
+c$$$c$$$          if (bcPER(dim)) then
 c$$$c$$$            allocate(rhs(2,nxbc+2))
 c$$$c$$$            !Top
 c$$$c$$$            dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,1)
@@ -3743,7 +3734,7 @@ c$$$c$$$            array(:,0     ,k) = rhs(1,:)
 c$$$c$$$            array(:,nybc+1,k) = rhs(2,:)
 c$$$c$$$            deallocate(rhs)
 c$$$c$$$          else
-c$$$          if (.not.bcPER(ibc)) then
+c$$$          if (.not.bcPER(dim)) then
 c$$$
 c$$$            allocate(rhs(1,nybc+2))
 c$$$            !Left
