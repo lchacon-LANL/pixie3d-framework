@@ -2431,6 +2431,7 @@ c     Local variables
 
       integer :: ibc,flg
 
+#if defined(petsc)
       integer :: dest,tag=0,ireq,request(10),status(MPI_STATUS_SIZE,10)
 
 c     Interfaces
@@ -2446,6 +2447,7 @@ c     Interfaces
           integer :: count,type,dest,tag,comm,req,err
         end subroutine
       END INTERFACE
+#endif
 
 c     Begin program
 
@@ -2495,8 +2497,6 @@ c$$$        endif
       enddo
 
 c$$$      write (*,*) my_rank,'Number of MPI requests',ireq
-
-#endif
 
 c     End program
 
@@ -2969,6 +2969,7 @@ c     ################################################################
       if(ireq>0.and.flg==1) call MPI_Waitall(ireq,request,status,mpierr)
 
       end subroutine l1d3
+#endif
 
       end subroutine syncBC
 
