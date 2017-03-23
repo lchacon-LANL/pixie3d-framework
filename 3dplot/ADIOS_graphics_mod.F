@@ -101,11 +101,11 @@ c     Define adios group and transport method
      .   write (*,'("%%%%     declare adios group ",a)') grp_name 
       !! FIXME: after adios 1.2.1, adios_declare_group has one more
        ! argument: (ADIOS_FLAG stats), 1 for true, 2 for false
-      if (ADIOS_VER <= 1.21) then
-        call adios_declare_group (grp,grp_name,"iter",ierr);
-      else
+cc      if (ADIOS_VER <= 1.21) then
+cc        call adios_declare_group (grp,grp_name,"iter",ierr);
+cc      else
         call adios_declare_group (grp,grp_name,"iter",1,ierr);
-      endif
+cc      endif
 
       if (adios_debug) write (*,'("%%%%     select method MPI")')
 

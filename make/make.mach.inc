@@ -110,7 +110,10 @@ ifeq ($(HOST),jetta)
       ADIOS_BUFFER_MB = 10
 
       #Determined via modules
+      ADIOS_INC = $(HOME)/lib/adios-1.31/include
+      ADIOS_LIB = $(HOME)/lib/adios-1.31/lib
       ADIOS_LIBS = -I$(ADIOS_INC) -L$(ADIOS_LIB) -ladiosf -ladiosreadf -lmxml
+      ADIOS_VER=1.3.1
 
       SPRNG = t
 
@@ -246,7 +249,7 @@ ifeq ($(HOST),gongora)
 
     ADIOS_HOME = $(HOME)/lib/adios-1.3.1
     ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L$(HOME)/lib/mxml-2.7/lib -lmxml
-    ADIOS_VER  = 1.31
+    ADIOS_VER  = 1.3.1
 
   else
     LIBS += -L/usr/lib -llapack -lblas
@@ -300,7 +303,7 @@ ifeq ($(findstring quevedo,$(HOST)),quevedo)
 
     ADIOS_HOME = $(HOME)/lib/adios-1.3.1
     ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L$(HOME)/lib/mxml-2.7/lib -lmxml
-    ADIOS_VER  = 1.31
+    ADIOS_VER  = 1.3.1
 
 #    LIBS += -L/opt/local/lib -latlas
   else
@@ -356,7 +359,7 @@ ifeq ($(HOST),quadrivium)
 
     ADIOS_HOME = $(HOME)/lib/adios-1.3.1
     ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L$(HOME)/lib/mxml-2.7/lib -lmxml
-    ADIOS_VER  = 1.31
+    ADIOS_VER  = 1.3.1
 
   else
 
@@ -416,7 +419,7 @@ ifeq ($(HOST),Marias-MacBook-Air)
 
     ADIOS_HOME = $(WORKDIR)/lib/adios-1.3.1
     ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L$(WORKDIR)/lib/mxml-2.7/lib -lmxml
-    ADIOS_VER  = 1.31
+    ADIOS_VER  = 1.3.1
 
   else
     LIBS += -L/usr/lib -llapack -lblas
@@ -737,7 +740,7 @@ ifeq ($(HOST),t1243055)
 
     ADIOS_HOME = $(WORKDIR)/lib/adios-1.3.1
     ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L$(WORKDIR)/lib/mxml-2.7/lib -lmxml
-    ADIOS_VER  = 1.31
+    ADIOS_VER  = 1.3.1
 
     SPRNG = t
 
@@ -835,7 +838,7 @@ ifeq ($(findstring helios,$(HOST)),helios)
     ADIOS_HOME = /csc/softs/nccs/adios-1.3.1/intel-12.0.5.220/intelmpi-4.0.3/default/
     #ADIOS_HOME = $(ADIOS_DIR)
     ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -lmxml -llustreapi
-    ADIOS_VER  = 1.31
+    ADIOS_VER  = 1.3.1
     #ADIOS_VER  = 1.50 # error at link time
     #ADIOS_VER  = 1.70 # error at link time
   else
@@ -889,7 +892,7 @@ ifeq ($(HOST),t1243000)
 
       ADIOS_HOME = $(HOME)/lib/adios-1.31
       ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -lmxml
-      ADIOS_VER  = 1.31
+      ADIOS_VER  = 1.3.1
 
       #Determined via modules
       HDF5_LIBS = -lhdf5_fortran -lhdf5 -lz -lm
@@ -948,7 +951,7 @@ ifeq ($(findstring wf,$(HOST)),wf)
 
     ADIOS_HOME = /turquoise/usr/projects/icfifp/Applications/adios-1.3.1/
     ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L/turquoise/usr/projects/icfifp/Applications/mxml-2.5/lib/ -lmxml
-    ADIOS_VER  = 1.31
+    ADIOS_VER  = 1.3.1
 
     ADIOS_BUFFER_MB = 1000
 
@@ -1016,7 +1019,7 @@ ifeq ($(findstring gr,$(HOST)),gr)
 
      ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.3.1/lib-grizzly-gcc-5.3.0_openmpi-1.10.5
      ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib  -ladiosf -ladiosreadf -L/turquoise/usr/projects/magreconn/soft/mxml-2.5/grizzly-gcc-5.3.0_openmpi-1.10.5/lib -lmxml -llustreapi
-     ADIOS_VER  = 1.31
+     ADIOS_VER  = 1.3.1
     endif
 
   endif
@@ -1047,7 +1050,7 @@ ifeq ($(findstring gr,$(HOST)),gr)
 
        ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.3.1/lib-grizzly-intel17.0.1_intelmpi2017.1
        ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L/turquoise/usr/projects/magreconn/soft/mxml-2.5/grizzly-intel17.0.1_intelmpi2017.1/lib -lmxml -llustreapi
-       ADIOS_VER  = 1.31
+       ADIOS_VER  = 1.3.1
    endif
 
   endif
@@ -1084,7 +1087,7 @@ ifeq ($(findstring marconi_work,$(WORK)),marconi_work)
     #ADIOS = t
     #ADIOS_HOME = /marconi_work/FUA11_PIXIE3D/adios-1.3.1/linux64_intelmpi
     #ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L/marconi_work/FUA11_PIXIE3D/mxml-2.10/linux64_intelmpi/lib -lmxml
-    #ADIOS_VER  = 1.31
+    #ADIOS_VER  = 1.3.1
 
   else
     HDF5 = f

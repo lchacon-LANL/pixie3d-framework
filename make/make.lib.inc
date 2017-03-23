@@ -30,7 +30,7 @@ ifeq ($(ADIOS),t)
   ifdef ADIOS_BUFFER_MB
     CPPFLAGS  += $(PREPROC)ADIOS_BUFFER_MB=$(ADIOS_BUFFER_MB)
   endif
-  MODPATH     += $(ADDMODFLAG)$(ADIOS_HOME)/include
+  MODPATH     += $(ADDMODFLAG)$(ADIOS_INC)
 endif
 
 # HDF5 setup
