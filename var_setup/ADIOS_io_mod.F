@@ -9,7 +9,7 @@ c ######################################################################
 
         !!! ADIOS variables
         !!! Used to dump main record file (to be postprocessed)
-        character*(1024) :: recordfile='record.bp'
+        character*(1024) :: recordfile='record-ADIOS_VER.bp'
 
         ! ADIOS needs a variable containing the MPI_WORLD_COMM communicator
         integer :: adios_world_comm
