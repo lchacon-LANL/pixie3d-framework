@@ -2418,11 +2418,11 @@ c        * dim -> dimension we are imposing BC on (X,Y,Z)
 c        * loc -> boundary location (0 -> left, 1 -> right)
 c     -----------------------------------------------------------------
 
-      implicit none
-
 #if defined(petsc)
       use mpi_f08
 #endif
+
+      implicit none
 
 c     Call variables
 
