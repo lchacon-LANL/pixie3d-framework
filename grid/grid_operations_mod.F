@@ -1428,22 +1428,18 @@ c     Call variables
 
 c     Local variables
 
-      type(MG_grid_metrics),pointer :: gmetric 
-
 c     Begin program
-
-      gmetric => g_def%gmetric
 
       if (cnv_in) then  !Result is covariant
         vec3(:,:,:,1) = (vec1(:,:,:,2)*vec2(:,:,:,3)
      .                  -vec1(:,:,:,3)*vec2(:,:,:,2))
-     .                  /gmetric%grid(igrid)%jac
+     .                  /g_def%gmetric%grid(igrid)%jac
         vec3(:,:,:,2) = (vec1(:,:,:,3)*vec2(:,:,:,1)
      .                  -vec1(:,:,:,1)*vec2(:,:,:,3))
-     .                  /gmetric%grid(igrid)%jac
+     .                  /g_def%gmetric%grid(igrid)%jac
         vec3(:,:,:,3) = (vec1(:,:,:,1)*vec2(:,:,:,2)
      .                  -vec1(:,:,:,2)*vec2(:,:,:,1))
-     .                  /gmetric%grid(igrid)%jac
+     .                  /g_def%gmetric%grid(igrid)%jac
       else           !Result is contravariant
         vec3(:,:,:,1) = (vec1(:,:,:,2)*vec2(:,:,:,3)
      .                  -vec1(:,:,:,3)*vec2(:,:,:,2))

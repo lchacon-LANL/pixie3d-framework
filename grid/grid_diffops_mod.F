@@ -6397,7 +6397,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: im,ip,igp,ig,jg,kg,nxgl
+      integer :: ip,igp,ig,jg,kg,nxgl
 
       real(8) :: jacip,jacim,jac,qip,vxp
 
@@ -6414,7 +6414,7 @@ c     Begin program
       if (PRESENT(zip_vel)) then
         zv = zip_vel
       else
-        zv = .true.
+        zv = .false.
       endif
 
 c     Update grid indices
@@ -6424,7 +6424,6 @@ c     Update grid indices
       call getMGmap(g_def,i,j,k,igr,igr,igr,ig,jg,kg)
 
       ip  = i+1
-      im  = max(i-1,0)
 
       igp  = ig + (ip-i)
 
@@ -6442,7 +6441,6 @@ c     Find X ZIP flux (used even if method /= ZIP)
 
       flxip = 0d0
 
-c$$$      at_bdry = isBdry(g_def,i,igr,2).or.isBdry(g_def,i+1,igr,1)
       at_bdry = (isBdry(g_def,i  ,igr,2).and.bcond(2)/=PER)
      .      .or.(isBdry(g_def,i+1,igr,1).and.bcond(1)/=PER)
 
@@ -6450,8 +6448,9 @@ c$$$      at_bdry = isBdry(g_def,i,igr,2).or.isBdry(g_def,i+1,igr,1)
         flxip = 0.25*(v(ip,j,k)*arr(i ,j,k)/jacip
      .              + v(i ,j,k)*arr(ip,j,k)/jac  )*(jac+jacip)
       else
-        if (   (v(ip,j,k) == -v(i,j,k))
-     .     .or.(isSP2(g_def,i+1,igr,ibc=1).and.spoint)) then
+c$$$        if (   (v(ip,j,k) == -v(i,j,k))
+c$$$     .     .or.(isSP2(g_def,i+1,igr,ibc=1).and.spoint)) then
+        if (isSP2(g_def,i+1,igr,ibc=1).and.spoint) then
           flxip = 0d0    !Shut off flux for vn=0 BC
         else
           flxip = 0.5*(v(ip,j,k)*arr(i,j,k)+v(i,j,k)*arr(ip,j,k))
@@ -6460,7 +6459,8 @@ c$$$      at_bdry = isBdry(g_def,i,igr,2).or.isBdry(g_def,i+1,igr,1)
 
 c     Other advective methods
 
-      if (method /= 2.and.(.not.at_bdry)) then
+cc      if (method /= 2.and.(.not.at_bdry)) then
+      if (method /= 2) then
 
         !Find velocities at faces from ZIP fluxes
         if (zv
@@ -6514,7 +6514,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: jm,jp,jgp,ig,jg,kg
+      integer :: jp,jgp,ig,jg,kg
 
       real(8) :: jac,qjp,vyp
 
@@ -6525,7 +6525,7 @@ c     Begin program
       if (PRESENT(zip_vel)) then
         zv = zip_vel
       else
-        zv = .true.
+        zv = .false.
       endif
 
 c     Update grid indices
@@ -6533,7 +6533,6 @@ c     Update grid indices
       call getMGmap(g_def,i,j,k,igr,igr,igr,ig,jg,kg)
 
       jp  = j+1
-      jm  = max(j-1,0)
 
       jgp  = jg + (jp-j)
 
@@ -6543,15 +6542,15 @@ c     Grid info
 
 c     Find X ZIP flux (used even if method /= ZIP)
 
-c$$$      at_bdry = isBdry(g_def,j,igr,4) .or. isBdry(g_def,j+1,igr,3)
-      at_bdry = (isBdry(g_def,j  ,igr,4).and.bcond(4)/=PER)
-     .      .or.(isBdry(g_def,j+1,igr,3).and.bcond(3)/=PER)
-
       flxjp = 0.5*(v(i,jp,k)*arr(i,j,k) + v(i,j,k)*arr(i,jp,k))
 
 c     Other advective methods
 
-      if (method /= 2.and.(.not.at_bdry)) then
+      at_bdry = (isBdry(g_def,j  ,igr,4).and.bcond(4)/=PER)
+     .      .or.(isBdry(g_def,j+1,igr,3).and.bcond(3)/=PER)
+
+cc      if (method /= 2.and.(.not.at_bdry)) then
+      if (method /= 2) then
 
         !Find velocities at faces from ZIP fluxes
         if (zv
@@ -6605,7 +6604,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: km,kp,kgp,ig,jg,kg
+      integer :: kp,kgp,ig,jg,kg
 
       real(8) :: jac,qkp,vzp
 
@@ -6616,7 +6615,7 @@ c     Begin program
       if (PRESENT(zip_vel)) then
         zv = zip_vel
       else
-        zv = .true.
+        zv = .false.
       endif
 
 c     Update grid indices
@@ -6624,7 +6623,6 @@ c     Update grid indices
       call getMGmap(g_def,i,j,k,igr,igr,igr,ig,jg,kg)
 
       kp  = k+1
-      km  = max(k-1,0)
 
       kgp  = kg + (kp-k)
 
@@ -6634,15 +6632,15 @@ c     Grid info
 
 c     Find X ZIP flux (used even if method /= ZIP)
 
-c$$$      at_bdry = isBdry(g_def,k,igr,6) .or. isBdry(g_def,k+1,igr,5)
-      at_bdry = (isBdry(g_def,k  ,igr,6).and.bcond(6)/=PER)
-     .      .or.(isBdry(g_def,k+1,igr,5).and.bcond(5)/=PER)
-
       flxkp = 0.5*(v(i,j,kp)*arr(i,j,k) + v(i,j,k)*arr(i,j,kp))
 
 c     Other advective methods
 
-      if (method /= 2.and.(.not.at_bdry)) then
+      at_bdry = (isBdry(g_def,k  ,igr,6).and.bcond(6)/=PER)
+     .      .or.(isBdry(g_def,k+1,igr,5).and.bcond(5)/=PER)
+
+cc      if (method /= 2.and.(.not.at_bdry)) then
+      if (method /= 2) then
 
         !Find velocities at faces from ZIP fluxes
         if (zv
@@ -6673,8 +6671,8 @@ c     End program
 
 c     flx_advec_mesh
 c     ###############################################################
-      function flx_advec_mesh(g_def,igrid,v,arr,method,bcs,sp,vol
-     .                       ,zip_vel) result(advec)
+      function flx_advec_mesh(g_def,igrid,v,arr,method,bcs,sp,vol,no_jac
+     .                       ) result(advec)
       implicit none
 c     ---------------------------------------------------------------
 c     Calculates divergence of vector field (v.arr) at cell centers in
@@ -6695,7 +6693,7 @@ c     Call variables
      $                ,0:size(v,2)-1
      $                ,0:size(v,3)-1)
 
-      logical,optional :: sp,vol,zip_vel
+      logical,optional :: sp,vol,no_jac
 
 c     Local variables
 
@@ -6704,7 +6702,7 @@ c     Local variables
       real(8) :: dxx,dyy,dzz
       real(8) :: flxip,flxim,flxjp,flxjm,flxkp,flxkm
       real(8),pointer,dimension(:,:,:,:) :: darr
-      logical :: vw
+      logical :: vw,njac,zip_vel
 
 c     Begin program
 
@@ -6719,6 +6717,14 @@ c     Begin program
       else
         vw = .false.
       endif
+
+      if (PRESENT(no_jac)) then
+        njac = no_jac
+      else
+        njac = .false.
+      endif
+
+      zip_vel = (method == 2)
 
 c     Compute difference arrays and communicate BCs
 
@@ -6799,8 +6805,11 @@ c     Compute advection
         enddo
       enddo
 
-      advec = advec/g_def%gmetric%grid(igrid)%jac
-      if (vw) advec = advec*g_def%gmetric%grid(igrid)%dvol
+      if (vw) then
+        advec = advec*g_def%gmetric%grid(igrid)%dlvol
+      elseif (.not.njac) then
+        advec = advec/g_def%gmetric%grid(igrid)%jac
+      endif
 
       deallocate(darr)
 
@@ -7194,8 +7203,11 @@ c     Compute advection
         enddo
       enddo
 
-      advec = advec/g_def%gmetric%grid(igrid)%jac
-      if (vw) advec = advec*g_def%gmetric%grid(igrid)%dvol
+      if (vw) then
+        advec = advec*g_def%gmetric%grid(igrid)%dlvol
+      else
+        advec = advec/g_def%gmetric%grid(igrid)%jac
+      endif
 
       deallocate(darr)
 
@@ -7298,7 +7310,7 @@ c     tensor_nc_advc_mesh2
 c     #####################################################################
       function tensor_nc_advc_mesh2(g_def,igr,v0,v1,meth,v1_cov
      .                             ,transpose)
-     .     result(vec)
+     .         result(vec)
 
 c     ---------------------------------------------------------------------
 c     Calculates v0.nabla(v1), with both v0, v1 vector fields, on the whole
@@ -7890,6 +7902,89 @@ c     Postprocessing
 c     End program
 
       end subroutine tnsr_advc_z
+
+c     tensor_advc_mesh
+c     #####################################################################
+      function tensor_advc_mesh(g_def,igr,v0,v1,bcs,meth) result(vec)
+
+c     ---------------------------------------------------------------------
+c     Calculates v0.nabla(v1), with both v0, v1 vector fields, on the whole
+c     mesh. Vector v0 is always contravariant; v1 can be covariant or
+c     contravariant. Result is in same representation as v1.
+c
+c     meth: specifies the advective scheme
+c     ---------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
+
+      integer :: igr,meth,bcs(6,3)
+      real(8),target :: v1(0:,0:,0:,:)
+     .                 ,v0(0:,0:,0:,:)
+      real(8) :: vec(0:size(v1,1)-1
+     .              ,0:size(v1,2)-1
+     .              ,0:size(v1,3)-1,size(v1,4))
+
+c     Local variables
+
+      integer :: i,j,k,nx,ny,nz
+      real(8) :: msource(3)
+     
+c     Begin program
+
+      nx = size(v1,1)-2
+      ny = size(v1,2)-2
+      nz = size(v1,3)-2
+
+      !Perform advective step
+      vec(:,:,:,1) = v1(:,:,:,1)/g_def%gmetric%grid(igr)%jac
+      if (.not.alt__eom()) then
+        vec(:,:,:,2) = v1(:,:,:,2)/g_def%gmetric%grid(igr)%jac
+      else
+        vec(:,:,:,2) = v1(:,:,:,2)
+      endif
+      vec(:,:,:,3) = v1(:,:,:,3)/g_def%gmetric%grid(igr)%jac
+
+      vec(:,:,:,1) = flx_advec_mesh(g_def,igr,v0,vec(:,:,:,1),meth
+     .                             ,bcs(:,1),no_jac=.true.)
+      vec(:,:,:,2) = flx_advec_mesh(g_def,igr,v0,vec(:,:,:,2),meth
+     .                             ,bcs(:,2),no_jac=.true.)
+      vec(:,:,:,3) = flx_advec_mesh(g_def,igr,v0,vec(:,:,:,3),meth
+     .                             ,bcs(:,3),no_jac=.true.)
+
+      !Add geometric source
+      vec1 => v0
+      vec2 => v1
+      if (.not.alt__eom()) then
+        do k=1,nz
+          do j=1,ny
+            do i=1,nx
+              msource =dtnsr_src_ijk(g_def,i,j,k,nx,ny,nz,igr,alt__eom()
+     .                             ,tnsr_advc_x,tnsr_advc_y,tnsr_advc_z)
+              vec(i,j,k,:) = vec(i,j,k,:) + msource
+            enddo
+          enddo
+        enddo
+      else
+        do k=1,nz
+          do j=1,ny
+            do i=1,nx
+              msource =dtnsr_src_ijk(g_def,i,j,k,nx,ny,nz,igr,alt__eom()
+     .                             ,tnsr_advc_x,tnsr_advc_y,tnsr_advc_z)
+              vec(i,j,k,:) = vec(i,j,k,:) + msource
+              vec(i,j,k,2) = vec(i,j,k,2)
+     .                      /g_def%gmetric%grid(igr)%jac(i,j,k)
+            enddo
+          enddo
+        enddo
+      endif
+
+c     End program
+
+      end function tensor_advc_mesh
 
 c     in2face_scl
 c     ###############################################################

@@ -1179,8 +1179,6 @@ c     Local variables
 
 c     Begin program
 
-      call set_skip_corners(.false.) !Do not skip BC corner treatment
-
 c     Initialize interpolation order (else use last set)
 
       if (PRESENT(iorder)) then
@@ -1247,7 +1245,7 @@ c     Fill PETSc ghost cells and PER BCs
         call fillPetscGhostCells(da_ctx,array)
       endif
 #elif !defined(samrai)
-      call sync_PER
+      call sync_bc(.true.)
 #endif
 
       if (bcPER(1).and.bcPER(2).and.bcPER(3)) return !PETSc deals with all periodic domains
@@ -1279,39 +1277,56 @@ c     Fill corners
 c     Periodic boundary synchronizing
 
 #if defined(PER_BC_SYNC) && !defined(samrai)
-      call sync_PER
+      call sync_bc(.false.)
 #endif
 
 c     End program
 
       contains
 
-c     sync_PER
+c     sync_bc
 c     #################################################################
-      subroutine sync_PER
+      subroutine sync_bc(only_per)
 
 c     -----------------------------------------------------------------
-c     Synchronizes periodic boundaries.
+c     Synchronizes boundaries in parallel.
 c     -----------------------------------------------------------------
 
       implicit none
 
+c     Call variables
+      
+      logical :: only_per
+      
 c     Local variables
 
 c     Begin program
 
-      bctype=PER
+      !Periodic: order by dimension
       do dim=1,3
         do loc=0,1
           ibc = (1+loc)+2*(dim-1)
-          if (abs(bcnd(ibc)) == bctype) then
-            call FillGhostNodes(gbc_def,ieq,1,1,dim,loc,bctype,array
+          if (abs(bcnd(ibc)) == PER) then
+            call FillGhostNodes(gbc_def,ieq,1,1,dim,loc,PER,array
      .                         ,array0)
           endif
         enddo
       enddo
 
-      end subroutine sync_PER
+      if (only_per) return
+
+      !Other: order by location
+      do loc=0,1
+        do dim=1,3
+          ibc = (1+loc)+2*(dim-1)
+          if (abs(bcnd(ibc)) /= PER) then
+            call FillGhostNodes(gbc_def,ieq,1,1,dim,loc,SYNC,array
+     .                         ,array0)
+          endif
+        enddo
+      enddo
+
+      end subroutine sync_bc
 
       end subroutine imposeBConScalar
 
@@ -1350,8 +1365,6 @@ c     Local variables
 #endif
 
 c     Begin program
-
-      call set_skip_corners(.false.) !Do no skip BC corner treatment
 
       !By default, we assume input are vector components
       if (PRESENT(is_vec)) then
@@ -1442,7 +1455,7 @@ c     Fill PETSc ghost cells and PER BCs
         enddo
       endif
 #elif !defined(samrai)
-      call sync_PER
+      call sync_bc(.true.)
 #endif
 
       if (bcPER(1).and.bcPER(2).and.bcPER(3)) return
@@ -1513,18 +1526,26 @@ c     Fill corners (for both cnv and cov components)
 c     Periodic boundary synchronizing
 
 #if defined(PER_BC_SYNC) && !defined(samrai)
-      call sync_PER
+      call sync_bc(.false.)
 #endif
 
 c     End program
 
       contains
 
-c     sync_PER
+c     sync_bc
 c     #################################################################
-      subroutine sync_PER
+      subroutine sync_bc(only_per)
 
-      bctype=PER
+c     Call variables
+
+      logical :: only_per
+
+c     Local variables
+      
+c     Begin program
+
+      !Periodic: order by dimension first
       do dim=1,3
         do loc=0,1
           ibc = (1+loc)+2*(dim-1)
@@ -1532,10 +1553,10 @@ c     #################################################################
           do ivar = 1,ncomp
             ieq = ivar + fcomp - 1
 
-            if (abs(bcnd(ibc,ivar)) == bctype) then
-              call FillGhostNodes(gbc_def,ieq,ivar,ncomp,dim,loc,bctype
+            if (abs(bcnd(ibc,ivar)) == PER) then
+              call FillGhostNodes(gbc_def,ieq,ivar,ncomp,dim,loc,PER
      .                         ,v_cnv,var0)
-              call FillGhostNodes(gbc_def,ieq,ivar,ncomp,dim,loc,bctype
+              call FillGhostNodes(gbc_def,ieq,ivar,ncomp,dim,loc,PER
      .                         ,v_cov,var0,cnv=.false.)
             endif
           enddo
@@ -1543,7 +1564,28 @@ c     #################################################################
         enddo
       enddo
 
-      end subroutine sync_PER
+      if (only_per) return
+
+      !Other: order by location first
+      do loc=0,1
+        do dim=1,3
+          ibc = (1+loc)+2*(dim-1)
+
+          do ivar = 1,ncomp
+            ieq = ivar + fcomp - 1
+
+            if (abs(bcnd(ibc,ivar)) /= PER) then
+              call FillGhostNodes(gbc_def,ieq,ivar,ncomp,dim,loc,SYNC
+     .                         ,v_cnv,var0)
+              call FillGhostNodes(gbc_def,ieq,ivar,ncomp,dim,loc,SYNC
+     .                         ,v_cov,var0,cnv=.false.)
+            endif
+          enddo
+
+        enddo
+      enddo
+
+      end subroutine sync_bc
 
 c     synchronize
 c     #################################################################
@@ -1759,6 +1801,7 @@ c     Local variables
       integer :: ivar,ieq,ibc,loc,dim,bctype
      .          ,ilmin,jlmin,klmin,ilmax,jlmax,klmax
       logical :: cov_to_cnv(6,3),to_cnv,is__vec,petsc__bc
+     .          ,flg_sc
 
 #if defined(petsc)
       type(petsc_da_ctx),pointer :: da_ctx
@@ -1788,7 +1831,11 @@ c     Begin program
         to_cnv = .false.
       endif
 
-      call set_skip_corners(.true.) !Skip BC corner treatment
+      flg_sc = .false.
+      if (.not.skip_corners) then
+        skip_corners=.true.     !Skip BC corner treatment
+        flg_sc = .true.
+      endif
 
 c     Initialize interpolation order (else use last set)
 
@@ -1863,18 +1910,19 @@ c     Fill PETSc/PERIODIC ghost cells
         enddo
       endif
 #elif !defined(samrai)
-      call sync(PER)
+      call sync_bc(PER)
 #endif
 
       !Exit if all periodic domains 
       if (bcPER(1).and.bcPER(2).and.bcPER(3)) then
         stg_vector = .false.
+        if (flg_sc) skip_corners=.false. !Reset skip_corners
         return
       endif
       
 c     Fill SP ghost cells independently on cnv and cov staggered vectors
 
-      call sync(SP)
+      call sync_bc(SP)
 
 c     Impose BCs
 
@@ -1933,18 +1981,19 @@ c     Fill corners (for both cnv and cov components)
 c     Periodic boundary synchronizing
 
 #if defined(PER_BC_SYNC) && !defined(samrai)
-      call sync(PER)
+      call sync_bc(PER)
 #endif
 
 c     End program
 
       stg_vector = .false.
+      if (flg_sc) skip_corners=.false. !Reset skip_corners
 
       contains
 
-c     sync
+c     sync_bc
 c     #################################################################
-      subroutine sync(bctype)
+      subroutine sync_bc(bctype)
 
       integer :: bctype
 
@@ -1966,7 +2015,7 @@ c     #################################################################
         enddo
       enddo
 
-      end subroutine sync
+      end subroutine sync_bc
 
 c     synchronize_stg
 c     #################################################################
@@ -2315,6 +2364,8 @@ c     Find BC update
         case(IFC)
           call interpolateToFace(gbc_def,array(:,:,:,nvar),dim,loc
      .                          ,order)
+        case(SYNC) 
+          call syncBC(gbc_def,array(:,:,:,nvar),dim,loc)
         case default
           call pstop('fillGhostNodes'
      .             ,'BC '//trim(int2char(bctype))//' not implemented')
@@ -2345,6 +2396,8 @@ c     Find BC update
         case(IFC)
           call interpolateToFace(gbc_def,array(:,:,:,ivar),dim,loc
      .                          ,order)
+        case(SYNC) 
+          call syncBC(gbc_def,array(:,:,:,ivar),dim,loc)
         case default
           call pstop('fillGhostNodes'
      .             ,'BC '//trim(int2char(bctype))//' not implemented')
@@ -2354,6 +2407,1091 @@ c     Find BC update
 c     End
 
       end subroutine fillGhostNodes
+
+c     syncBC
+c     #################################################################
+      subroutine syncBC(gbc_def,array,dim,loc)
+c     -----------------------------------------------------------------
+c     Synchronizes ghostcells in parallel. On input:
+c        * array -> 3D array to impose BC's on.
+c        * dim -> dimension we are imposing BC on (X,Y,Z)
+c        * loc -> boundary location (0 -> left, 1 -> right)
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: gbc_def
+
+      integer :: dim,loc
+      real(8) :: array(0:nxbc+1,0:nybc+1,0:nzbc+1)
+
+c     Local variables
+
+      integer :: ibc,flg
+
+      integer :: dest,tag=0,ireq,request(10),status(MPI_STATUS_SIZE,10)
+
+c     Interfaces
+
+      INTERFACE
+        subroutine MPI_Isend(array,count,type,dest,tag,comm,req,err)
+          real(8) :: array(:)
+          integer :: count,type,dest,tag,comm,req,err
+        end subroutine
+
+        subroutine MPI_Irecv(array,count,type,dest,tag,comm,req,err)
+          real(8) :: array(:)
+          integer :: count,type,dest,tag,comm,req,err
+        end subroutine
+      END INTERFACE
+
+c     Begin program
+
+      ibc = (1+loc)+2*(dim-1)
+
+#if !defined(petsc)
+
+cc      if (bcPER(ibc)) call per_BC(ibc,array)
+
+#else
+
+      if (bcPER(dim)) return
+
+      ireq = 0
+
+      !Schedule receives first (flg=0) and sends later (flg=1)
+      do flg=0,1
+        select case(loc)
+        case(0)
+
+          if     (dim==1.and.isBdry(gbc_def,1,igxbc,ibc)) then
+            call l0d1(flg)
+          elseif (dim==2.and.isBdry(gbc_def,1,igybc,ibc)) then
+            call l0d2(flg)
+          elseif (dim==3.and.isBdry(gbc_def,1,igzbc,ibc)) then
+            call l0d3(flg)
+          endif
+          
+        case(1)
+
+          if     (dim==1.and.isBdry(gbc_def,nxbc,igxbc,ibc)) then
+            call l1d1(flg)
+          elseif (dim==2.and.isBdry(gbc_def,nybc,igybc,ibc)) then
+            call l1d2(flg)
+          elseif (dim==3.and.isBdry(gbc_def,nzbc,igzbc,ibc)) then
+            call l1d3(flg)
+          endif
+
+        end select
+
+c$$$        if (flg == 0) then
+c$$$          write (*,*) my_rank,dim,loc,'recv',ireq
+c$$$        else
+c$$$          write (*,*) my_rank,dim,loc,'send',ireq
+c$$$        endif
+
+      enddo
+
+c$$$      write (*,*) my_rank,'Number of MPI requests',ireq
+
+#endif
+
+c     End program
+
+      contains
+
+c     l0d1
+c     ################################################################
+      subroutine l0d1(flg)
+
+      implicit none
+
+      integer :: flg,i
+
+      i = 0
+
+      !Down
+      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,-1,0)
+      if (flg == 0) then
+        ireq = ireq+1
+        call MPI_Irecv(array(i,0,0:nzbc+1),(nzbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      else
+        ireq = ireq+1
+        call MPI_Isend(array(i,1,0:nzbc+1),(nzbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      endif
+
+      !Up
+      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,1,0)
+      if (flg == 0) then
+        ireq = ireq+1
+        call MPI_Irecv( array(i,nybc+1,0:nzbc+1),(nzbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      else
+        ireq = ireq+1
+        call MPI_Isend(array(i,nybc,0:nzbc+1),(nzbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      endif
+
+      !Bottom
+      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,-1)
+      if (flg == 0) then
+        ireq = ireq+1
+        call MPI_Irecv(array(i,0:nybc+1,0),(nybc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      else
+        ireq = ireq+1
+        call MPI_Isend(array(i,0:nybc+1,1),(nybc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      endif
+
+      !Top
+      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,1)
+      if (flg == 0) then
+        ireq = ireq+1
+        call MPI_Irecv(array(i,0:nybc+1,nzbc+1),(nybc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      else
+        ireq = ireq+1
+        call MPI_Isend(array(i,0:nybc+1,nzbc),(nybc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      endif
+     
+      if(ireq>0.and.flg==1) call MPI_Waitall(ireq,request,status,mpierr)
+
+      end subroutine l0d1
+
+c     l1d1
+c     ################################################################
+      subroutine l1d1(flg)
+
+      implicit none
+
+      integer :: flg,i
+
+      i = nxbc+1
+
+      !Up
+      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,1,0)
+      if (flg == 0) then
+        ireq = ireq+1
+        call MPI_Irecv(array(i,nybc+1,0:nzbc+1),(nzbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      else
+        ireq = ireq+1
+        call MPI_Isend(array(i,nybc,0:nzbc+1),(nzbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      endif
+
+      !Down
+      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,-1,0)
+      if (flg == 0) then
+        ireq = ireq+1
+        call MPI_Irecv(array(i,0,0:nzbc+1),(nzbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      else
+        ireq = ireq+1
+        call MPI_Isend(array(i,1,0:nzbc+1),(nzbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      endif
+
+      !Top
+      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,1)
+      if (flg == 0) then
+        ireq = ireq+1
+        call MPI_Irecv(array(i,0:nybc+1,nzbc+1),(nybc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      else
+        ireq = ireq+1
+        call MPI_Isend(array(i,0:nybc+1,nzbc),(nybc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      endif
+
+      !Bottom
+      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,-1)
+      if (flg == 0) then
+        ireq = ireq+1
+        call MPI_Irecv(array(i,0:nybc+1,0),(nybc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      else
+        ireq = ireq+1
+        call MPI_Isend(array(i,0:nybc+1,1),(nybc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      endif
+
+      if(ireq>0.and.flg==1) call MPI_Waitall(ireq,request,status,mpierr)
+
+      end subroutine l1d1
+
+c     l0d2
+c     ################################################################
+      subroutine l0d2(flg)
+
+      implicit none
+      
+      integer :: flg,j
+
+      j = 0
+
+      !Left
+      dest = gbc_def%dactx(igxbc)%proc_neighbors(-1,0,0)
+      if (flg == 0) then
+        ireq = ireq+1
+        call MPI_Irecv(array(0,j,0:nzbc+1),(nzbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      else
+        ireq = ireq+1
+        call MPI_Isend(array(1,j,0:nzbc+1),(nzbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      endif
+
+      !Right
+      dest = gbc_def%dactx(igxbc)%proc_neighbors(1,0,0)
+      if (flg == 0) then
+        ireq = ireq+1
+        call MPI_Irecv(array(nxbc+1,j,0:nzbc+1),(nzbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      else
+        ireq = ireq+1
+        call MPI_Isend(array(nxbc,j,0:nzbc+1),(nzbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      endif
+
+      !Bottom
+      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,-1)
+      if (flg == 0) then
+        ireq = ireq+1
+        call MPI_Irecv(array(0:nxbc+1,j,0),(nxbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      else
+        ireq = ireq+1
+        call MPI_Isend(array(0:nxbc+1,j,1),(nxbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      endif
+
+      !Top
+      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,1)
+      if (flg == 0) then
+        ireq = ireq+1
+        call MPI_Irecv(array(0:nxbc+1,j,nzbc+1),(nxbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      else
+        ireq = ireq+1
+        call MPI_Isend(array(0:nxbc+1,j,nzbc),(nxbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      endif
+
+      if(ireq>0.and.flg==1) call MPI_Waitall(ireq,request,status,mpierr)
+
+      end subroutine l0d2
+
+c     l1d2
+c     ################################################################
+      subroutine l1d2(flg)
+
+      implicit none
+
+      integer :: flg,j
+
+      j = nybc+1
+
+      !Left
+      dest = gbc_def%dactx(igxbc)%proc_neighbors(-1,0,0)
+      if (flg == 0) then
+        ireq = ireq+1
+        call MPI_Irecv(array(0,j,0:nzbc+1),(nzbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      else
+        ireq = ireq+1
+        call MPI_Isend(array(1,j,0:nzbc+1),(nzbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      endif
+
+      !Right
+      dest = gbc_def%dactx(igxbc)%proc_neighbors(1,0,0)
+      if (flg == 0) then
+        ireq = ireq+1
+        call MPI_Irecv(array(nxbc+1,j,0:nzbc+1),(nzbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      else
+        ireq = ireq+1
+        call MPI_Isend(array(nxbc,j,0:nzbc+1),(nzbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      endif
+
+      !Bottom
+      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,-1)
+      if (flg == 0) then
+        ireq = ireq+1
+        call MPI_Irecv(array(0:nxbc+1,j,0),(nxbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      else
+        ireq = ireq+1
+        call MPI_Isend(array(0:nxbc+1,j,1),(nxbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      endif
+
+      !Top
+      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,1)
+      if (flg == 0) then
+        ireq = ireq+1
+        call MPI_Irecv(array(0:nxbc+1,j,nzbc+1),(nxbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      else
+        ireq = ireq+1
+        call MPI_Isend(array(0:nxbc+1,j,nzbc),(nxbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      endif
+
+      if(ireq>0.and.flg==1) call MPI_Waitall(ireq,request,status,mpierr)
+
+      end subroutine l1d2
+
+c     l0d3
+c     ################################################################
+      subroutine l0d3(flg)
+
+      implicit none
+
+      integer :: flg,k
+
+      k = 0
+
+      !Left
+      dest = gbc_def%dactx(igxbc)%proc_neighbors(-1,0,0)
+      if (flg == 0) then
+        ireq = ireq+1
+        call MPI_Irecv(array(0,0:nybc+1,k),(nybc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      else
+        ireq = ireq+1
+        call MPI_Isend(array(1,0:nybc+1,k),(nybc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      endif
+
+      !Right
+      dest = gbc_def%dactx(igxbc)%proc_neighbors(1,0,0)
+      if (flg == 0) then
+        ireq = ireq+1
+        call MPI_Irecv(array(nxbc+1,0:nybc+1,k),(nybc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      else
+        ireq = ireq+1
+        call MPI_Isend(array(nxbc,0:nybc+1,k),(nybc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      endif
+
+      !Down
+      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,-1,0)
+      if (flg == 0) then
+        ireq = ireq+1
+        call MPI_Irecv(array(0:nxbc+1,0,k),(nxbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      else
+        ireq = ireq+1
+        call MPI_Isend(array(0:nxbc+1,1,k),(nxbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      endif
+
+      !Up
+      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,1,0)
+      if (flg == 0) then
+        ireq = ireq+1
+        call MPI_Irecv(array(0:nxbc+1,nybc+1,k),(nxbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      else
+        ireq = ireq+1
+        call MPI_Isend(array(0:nxbc+1,nybc,k),(nxbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      endif
+
+      if(ireq>0.and.flg==1) call MPI_Waitall(ireq,request,status,mpierr)
+
+      end subroutine l0d3
+
+c     l1d3
+c     ################################################################
+      subroutine l1d3(flg)
+
+      implicit none
+
+      integer :: flg,k
+
+      k = nzbc+1
+
+      !Left
+      dest = gbc_def%dactx(igxbc)%proc_neighbors(-1,0,0)
+       if (flg == 0) then
+         ireq = ireq+1
+         call MPI_Irecv(array(0,0:nybc+1,k),(nybc+2)
+     .          ,MPI_DOUBLE_PRECISION,dest,ibc
+     .          ,gbc_def%MPI_COMM,request(ireq)
+     .          ,mpierr)
+       else
+         ireq = ireq+1
+         call MPI_Isend(array(1,0:nybc+1,k),(nybc+2)
+     .          ,MPI_DOUBLE_PRECISION,dest,ibc
+     .          ,gbc_def%MPI_COMM,request(ireq)
+     .          ,mpierr)
+       endif
+
+       !Right
+       dest = gbc_def%dactx(igxbc)%proc_neighbors(1,0,0)
+       if (flg == 0) then
+         ireq = ireq+1
+         call MPI_Irecv(array(nxbc+1,0:nybc+1,k),(nybc+2)
+     .          ,MPI_DOUBLE_PRECISION,dest,ibc
+     .          ,gbc_def%MPI_COMM,request(ireq)
+     .          ,mpierr)
+       else
+         ireq = ireq+1
+         call MPI_Isend(array(nxbc,0:nybc+1,k),(nybc+2)
+     .          ,MPI_DOUBLE_PRECISION,dest,ibc
+     .          ,gbc_def%MPI_COMM,request(ireq)
+     .          ,mpierr)
+       endif
+
+       !Down
+       dest = gbc_def%dactx(igxbc)%proc_neighbors(0,-1,0)
+       if (flg == 0) then
+         ireq = ireq+1
+         call MPI_Irecv(array(0:nxbc+1,0,k),(nxbc+2)
+     .          ,MPI_DOUBLE_PRECISION,dest,ibc
+     .          ,gbc_def%MPI_COMM,request(ireq)
+     .          ,mpierr)
+       else
+         ireq = ireq+1
+         call MPI_Isend(array(0:nxbc+1,1,k),(nxbc+2)
+     .          ,MPI_DOUBLE_PRECISION,dest,ibc
+     .          ,gbc_def%MPI_COMM,request(ireq)
+     .          ,mpierr)
+       endif
+
+       !Up
+       dest = gbc_def%dactx(igxbc)%proc_neighbors(0,1,0)
+       if (flg == 0) then
+         ireq = ireq+1
+         call MPI_Irecv(array(0:nxbc+1,nybc+1,k),(nxbc+2)
+     .          ,MPI_DOUBLE_PRECISION,dest,ibc
+     .          ,gbc_def%MPI_COMM,request(ireq)
+     .          ,mpierr)
+       else
+         ireq = ireq+1
+         call MPI_Isend(array(0:nxbc+1,nybc,k),(nxbc+2)
+     .          ,MPI_DOUBLE_PRECISION,dest,ibc
+     .          ,gbc_def%MPI_COMM,request(ireq)
+     .          ,mpierr)
+       endif
+
+      if(ireq>0.and.flg==1) call MPI_Waitall(ireq,request,status,mpierr)
+
+      end subroutine l1d3
+
+      end subroutine syncBC
+
+c$$$c     syncBC
+c$$$c     #################################################################
+c$$$      subroutine syncBC(gbc_def,array,dim,loc)
+c$$$c     -----------------------------------------------------------------
+c$$$c     Synchronizes ghostcells in parallel. On input:
+c$$$c        * array -> 3D array to impose BC's on.
+c$$$c        * dim -> dimension we are imposing BC on (X,Y,Z)
+c$$$c        * loc -> boundary location (0 -> left, 1 -> right)
+c$$$c     -----------------------------------------------------------------
+c$$$
+c$$$      implicit none
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$      type(grid_mg_def),pointer :: gbc_def
+c$$$
+c$$$      integer :: dim,loc
+c$$$      real(8) :: array(0:nxbc+1,0:nybc+1,0:nzbc+1)
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$      integer :: ibc,i,j,k
+c$$$
+c$$$      integer :: dest,tag=0
+c$$$
+c$$$      real(8),pointer,dimension(:,:) :: rhs
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$      ibc = (1+loc)+2*(dim-1)
+c$$$
+c$$$#if !defined(petsc)
+c$$$
+c$$$cc      if (bcPER(dim)) call per_BC(ibc,array)
+c$$$
+c$$$#else
+c$$$
+c$$$      select case(dim)
+c$$$      case(1)
+c$$$
+c$$$        if (loc==0.and.isBdry(gbc_def,1,igxbc,ibc)) then
+c$$$
+c$$$          i = 0
+c$$$          
+c$$$c$$$          if (bcPER(dim)) then
+c$$$c$$$            allocate(rhs(2,nzbc+2))
+c$$$c$$$            !Left
+c$$$c$$$            dest = gbc_def%dactx(igxbc)%proc_neighbors(-1,0,0)
+c$$$c$$$            rhs(1,:) = array(i+1,0     ,:)
+c$$$c$$$            rhs(2,:) = array(i+1,nybc+1,:)
+c$$$c$$$            call MPI_Sendrecv_replace(rhs,2*(nzbc+2)
+c$$$c$$$     .                  ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
+c$$$c$$$     .                  ,gbc_def%MPI_COMM,MPI_STATUS_IGNORE
+c$$$c$$$     .                  ,mpierr)
+c$$$c$$$            array(i,0     ,:) = rhs(1,:)
+c$$$c$$$            array(i,nybc+1,:) = rhs(2,:)
+c$$$c$$$            deallocate(rhs)
+c$$$c$$$          else
+c$$$          if (.not.bcPER(dim)) then
+c$$$            allocate(rhs(1,nzbc+2))
+c$$$            !Down
+c$$$            if (  gbc_def%dactx(igxbc)%proc_neighbors(0, 0,0)
+c$$$     .          /=gbc_def%dactx(igxbc)%proc_neighbors(0,-1,0)) then
+c$$$              dest = gbc_def%dactx(igxbc)%proc_neighbors(0,-1,0)
+c$$$              rhs(1,:) = array(i,1   ,:)
+c$$$              call MPI_Sendrecv_replace(rhs(1,:),(nzbc+2)
+c$$$     .                 ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
+c$$$     .                 ,gbc_def%MPI_COMM,MPI_STATUS_IGNORE
+c$$$     .                 ,mpierr)
+c$$$              array(i,0,:) = rhs(1,:)
+c$$$            endif
+c$$$
+c$$$            !Up
+c$$$            if (  gbc_def%dactx(igxbc)%proc_neighbors(0, 0,0)
+c$$$     .          /=gbc_def%dactx(igxbc)%proc_neighbors(0, 1,0)) then
+c$$$              dest = gbc_def%dactx(igxbc)%proc_neighbors(0,1,0)
+c$$$              rhs(1,:) = array(i,nybc,:)
+c$$$              call MPI_Sendrecv_replace(rhs(1,:),(nzbc+2)
+c$$$     .                 ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
+c$$$     .                 ,gbc_def%MPI_COMM,MPI_STATUS_IGNORE
+c$$$     .                 ,mpierr)
+c$$$              array(i,nybc+1,:) = rhs(1,:)
+c$$$            endif
+c$$$
+c$$$            deallocate(rhs)
+c$$$
+c$$$            allocate(rhs(1,nybc+2))            
+c$$$            !Bottom
+c$$$            if (  gbc_def%dactx(igxbc)%proc_neighbors(0,0, 0)
+c$$$     .          /=gbc_def%dactx(igxbc)%proc_neighbors(0,0,-1)) then
+c$$$              dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,-1)
+c$$$              rhs(1,:) = array(i,:,1)
+c$$$              call MPI_Sendrecv_replace(rhs(1,:),(nybc+2)
+c$$$     .                 ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
+c$$$     .                 ,gbc_def%MPI_COMM,MPI_STATUS_IGNORE
+c$$$     .                 ,mpierr)
+c$$$              array(i,:,0) = rhs(1,:)
+c$$$            endif
+c$$$
+c$$$            !Top
+c$$$            if (  gbc_def%dactx(igxbc)%proc_neighbors(0,0, 0)
+c$$$     .          /=gbc_def%dactx(igxbc)%proc_neighbors(0,0, 1)) then
+c$$$              dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,1)
+c$$$              rhs(1,:) = array(i,:,nzbc)
+c$$$              call MPI_Sendrecv_replace(rhs(1,:),(nybc+2)
+c$$$     .                 ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
+c$$$     .                 ,gbc_def%MPI_COMM,MPI_STATUS_IGNORE
+c$$$     .                 ,mpierr)
+c$$$              array(i,:,nzbc+1) = rhs(1,:)
+c$$$              deallocate(rhs)
+c$$$            endif
+c$$$
+c$$$          endif
+c$$$          
+c$$$        elseif (loc==1.and.isBdry(gbc_def,nxbc,igxbc,ibc)) then
+c$$$
+c$$$          i = nxbc+1
+c$$$
+c$$$c$$$          if (bcPER(dim)) then
+c$$$c$$$            allocate(rhs(2,nzbc+2))
+c$$$c$$$            !Right
+c$$$c$$$            dest = gbc_def%dactx(igxbc)%proc_neighbors(1,0,0)
+c$$$c$$$            rhs(1,:) = array(i-1,0     ,:)
+c$$$c$$$            rhs(2,:) = array(i-1,nybc+1,:)
+c$$$c$$$            call MPI_Sendrecv_replace(rhs,2*(nzbc+2)
+c$$$c$$$     .                  ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
+c$$$c$$$     .                  ,gbc_def%MPI_COMM,MPI_STATUS_IGNORE
+c$$$c$$$     .                  ,mpierr)
+c$$$c$$$            array(i,0     ,:) = rhs(1,:)
+c$$$c$$$            array(i,nybc+1,:) = rhs(2,:)
+c$$$c$$$            deallocate(rhs)
+c$$$c$$$          else
+c$$$          if (.not.bcPER(dim)) then
+c$$$            allocate(rhs(1,nzbc+2))
+c$$$            !Up
+c$$$            if (  gbc_def%dactx(igxbc)%proc_neighbors(0,0,0)
+c$$$     .          /=gbc_def%dactx(igxbc)%proc_neighbors(0,1,0)) then
+c$$$              dest = gbc_def%dactx(igxbc)%proc_neighbors(0,1,0)
+c$$$              rhs(1,:) = array(i,nybc,:)
+c$$$              call MPI_Sendrecv_replace(rhs(1,:),(nzbc+2)
+c$$$     .                 ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
+c$$$     .                 ,gbc_def%MPI_COMM,MPI_STATUS_IGNORE
+c$$$     .                 ,mpierr)
+c$$$              array(i,nybc+1,:) = rhs(1,:)
+c$$$            endif
+c$$$
+c$$$            !Down
+c$$$            if (  gbc_def%dactx(igxbc)%proc_neighbors(0, 0,0)
+c$$$     .          /=gbc_def%dactx(igxbc)%proc_neighbors(0,-1,0)) then
+c$$$              dest = gbc_def%dactx(igxbc)%proc_neighbors(0,-1,0)
+c$$$              rhs(1,:) = array(i,1   ,:)
+c$$$              call MPI_Sendrecv_replace(rhs(1,:),(nzbc+2)
+c$$$     .                 ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
+c$$$     .                 ,gbc_def%MPI_COMM,MPI_STATUS_IGNORE
+c$$$     .                 ,mpierr)
+c$$$              array(i,0,:) = rhs(1,:)
+c$$$            endif
+c$$$
+c$$$            deallocate(rhs)
+c$$$
+c$$$            allocate(rhs(1,nybc+2))            
+c$$$            !Top
+c$$$            if (  gbc_def%dactx(igxbc)%proc_neighbors(0,0, 0)
+c$$$     .          /=gbc_def%dactx(igxbc)%proc_neighbors(0,0, 1)) then
+c$$$              dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,1)
+c$$$              rhs(1,:) = array(i,:,nzbc)
+c$$$              call MPI_Sendrecv_replace(rhs(1,:),(nybc+2)
+c$$$     .                 ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
+c$$$     .                 ,gbc_def%MPI_COMM,MPI_STATUS_IGNORE
+c$$$     .                 ,mpierr)
+c$$$              array(i,:,nzbc+1) = rhs(1,:)
+c$$$            endif
+c$$$
+c$$$            !Bottom
+c$$$            if (  gbc_def%dactx(igxbc)%proc_neighbors(0,0, 0)
+c$$$     .          /=gbc_def%dactx(igxbc)%proc_neighbors(0,0,-1)) then
+c$$$              dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,-1)
+c$$$              rhs(1,:) = array(i,:,1)
+c$$$              call MPI_Sendrecv_replace(rhs(1,:),(nybc+2)
+c$$$     .                 ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
+c$$$     .                 ,gbc_def%MPI_COMM,MPI_STATUS_IGNORE
+c$$$     .                 ,mpierr)
+c$$$              array(i,:,0) = rhs(1,:)
+c$$$            endif
+c$$$
+c$$$            deallocate(rhs)
+c$$$
+c$$$          endif
+c$$$          
+c$$$        endif
+c$$$        
+c$$$      case(2)
+c$$$
+c$$$        if (loc==0.and.isBdry(gbc_def,1,igybc,ibc)) then
+c$$$            
+c$$$          j = 0
+c$$$
+c$$$c$$$          if (bcPER(dim)) then
+c$$$c$$$
+c$$$c$$$            allocate(rhs(2,nzbc+2))
+c$$$c$$$            !Down
+c$$$c$$$            dest = gbc_def%dactx(igxbc)%proc_neighbors(0,-1,0)
+c$$$c$$$            rhs(1,:) = array(0     ,j+1,:)
+c$$$c$$$            rhs(2,:) = array(nxbc+1,j+1,:)
+c$$$c$$$            call MPI_Sendrecv_replace(rhs,2*(nzbc+2)
+c$$$c$$$     .                 ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
+c$$$c$$$     .                 ,gbc_def%MPI_COMM,MPI_STATUS_IGNORE
+c$$$c$$$     .                 ,mpierr)
+c$$$c$$$            array(0     ,j,:) = rhs(1,:)
+c$$$c$$$            array(nxbc+1,j,:) = rhs(2,:)
+c$$$c$$$            deallocate(rhs)
+c$$$c$$$
+c$$$c$$$          else
+c$$$          if (.not.bcPER(dim)) then
+c$$$
+c$$$            allocate(rhs(1,nzbc+2))
+c$$$            !Left
+c$$$            if (  gbc_def%dactx(igxbc)%proc_neighbors(0 ,0,0)
+c$$$     .          /=gbc_def%dactx(igxbc)%proc_neighbors(-1,0,0)) then
+c$$$              dest = gbc_def%dactx(igxbc)%proc_neighbors(-1,0,0)
+c$$$              rhs(1,:) = array(1,j   ,:)
+c$$$              call MPI_Sendrecv_replace(rhs(1,:),(nzbc+2)
+c$$$     .                 ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
+c$$$     .                 ,gbc_def%MPI_COMM,MPI_STATUS_IGNORE
+c$$$     .                 ,mpierr)
+c$$$              array(0,j,:) = rhs(1,:)
+c$$$            endif
+c$$$
+c$$$            !Right
+c$$$            if (  gbc_def%dactx(igxbc)%proc_neighbors(0,0,0)
+c$$$     .          /=gbc_def%dactx(igxbc)%proc_neighbors(1,0,0)) then
+c$$$              dest = gbc_def%dactx(igxbc)%proc_neighbors(1,0,0)
+c$$$              rhs(1,:) = array(nxbc,j,:)
+c$$$              call MPI_Sendrecv_replace(rhs(1,:),(nzbc+2)
+c$$$     .                 ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
+c$$$     .                 ,gbc_def%MPI_COMM,MPI_STATUS_IGNORE
+c$$$     .                 ,mpierr)
+c$$$              array(nxbc+1,j,:) = rhs(1,:)
+c$$$            endif
+c$$$
+c$$$            deallocate(rhs)
+c$$$
+c$$$            allocate(rhs(1,nxbc+2))            
+c$$$
+c$$$            !Bottom
+c$$$            if (  gbc_def%dactx(igxbc)%proc_neighbors(0,0, 0)
+c$$$     .          /=gbc_def%dactx(igxbc)%proc_neighbors(0,0,-1)) then
+c$$$              dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,-1)
+c$$$              rhs(1,:) = array(:,j,1)
+c$$$              call MPI_Sendrecv_replace(rhs(1,:),(nxbc+2)
+c$$$     .                 ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
+c$$$     .                 ,gbc_def%MPI_COMM,MPI_STATUS_IGNORE
+c$$$     .                 ,mpierr)
+c$$$              array(:,j,0) = rhs(1,:)
+c$$$            endif
+c$$$
+c$$$            !Top
+c$$$            if (  gbc_def%dactx(igxbc)%proc_neighbors(0,0,0)
+c$$$     .          /=gbc_def%dactx(igxbc)%proc_neighbors(0,0,1)) then
+c$$$              dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,1)
+c$$$              rhs(1,:) = array(:,j,nzbc)
+c$$$              call MPI_Sendrecv_replace(rhs(1,:),(nxbc+2)
+c$$$     .                 ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
+c$$$     .                 ,gbc_def%MPI_COMM,MPI_STATUS_IGNORE
+c$$$     .                 ,mpierr)
+c$$$              array(:,j,nzbc+1) = rhs(1,:)
+c$$$            endif
+c$$$
+c$$$            deallocate(rhs)
+c$$$
+c$$$          endif
+c$$$
+c$$$        elseif (loc==1.and.isBdry(gbc_def,nybc,igybc,ibc)) then
+c$$$
+c$$$          j = nybc+1
+c$$$
+c$$$c$$$          if (bcPER(dim)) then
+c$$$c$$$            !Up
+c$$$c$$$            dest = gbc_def%dactx(igxbc)%proc_neighbors(0,1,0)
+c$$$c$$$
+c$$$c$$$            allocate(rhs(2,nzbc+2))
+c$$$c$$$
+c$$$c$$$            rhs(1,:) = array(0     ,j-1,:)
+c$$$c$$$            rhs(2,:) = array(nxbc+1,j-1,:)
+c$$$c$$$            call MPI_Sendrecv_replace(rhs,2*(nzbc+2)
+c$$$c$$$     .                 ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
+c$$$c$$$     .                 ,gbc_def%MPI_COMM,MPI_STATUS_IGNORE
+c$$$c$$$     .                 ,mpierr)
+c$$$c$$$            array(0     ,j,:) = rhs(1,:)
+c$$$c$$$            array(nxbc+1,j,:) = rhs(2,:)
+c$$$c$$$
+c$$$c$$$            deallocate(rhs)
+c$$$c$$$
+c$$$c$$$          else
+c$$$          if (.not.bcPER(dim)) then
+c$$$
+c$$$            allocate(rhs(1,nzbc+2))
+c$$$            !Left
+c$$$            if (  gbc_def%dactx(igxbc)%proc_neighbors( 0,0,0)
+c$$$     .          /=gbc_def%dactx(igxbc)%proc_neighbors(-1,0,0)) then
+c$$$              dest = gbc_def%dactx(igxbc)%proc_neighbors(-1,0,0)
+c$$$              rhs(1,:) = array(1,j   ,:)
+c$$$              call MPI_Sendrecv_replace(rhs(1,:),(nzbc+2)
+c$$$     .                 ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
+c$$$     .                 ,gbc_def%MPI_COMM,MPI_STATUS_IGNORE
+c$$$     .                 ,mpierr)
+c$$$              array(0,j,:) = rhs(1,:)
+c$$$            endif
+c$$$
+c$$$            !Right
+c$$$            if (  gbc_def%dactx(igxbc)%proc_neighbors(0,0,0)
+c$$$     .          /=gbc_def%dactx(igxbc)%proc_neighbors(1,0,0)) then
+c$$$              dest = gbc_def%dactx(igxbc)%proc_neighbors(1,0,0)
+c$$$              rhs(1,:) = array(nxbc,j,:)
+c$$$              call MPI_Sendrecv_replace(rhs(1,:),(nzbc+2)
+c$$$     .                 ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
+c$$$     .                 ,gbc_def%MPI_COMM,MPI_STATUS_IGNORE
+c$$$     .                 ,mpierr)
+c$$$              array(nxbc+1,j,:) = rhs(1,:)
+c$$$            endif
+c$$$
+c$$$            deallocate(rhs)
+c$$$
+c$$$            allocate(rhs(1,nxbc+2))            
+c$$$
+c$$$            !Bottom
+c$$$            if (  gbc_def%dactx(igxbc)%proc_neighbors(0,0, 0)
+c$$$     .          /=gbc_def%dactx(igxbc)%proc_neighbors(0,0,-1)) then
+c$$$              dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,-1)
+c$$$              rhs(1,:) = array(:,j,1)
+c$$$              call MPI_Sendrecv_replace(rhs(1,:),(nxbc+2)
+c$$$     .                 ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
+c$$$     .                 ,gbc_def%MPI_COMM,MPI_STATUS_IGNORE
+c$$$     .                 ,mpierr)
+c$$$              array(:,j,0) = rhs(1,:)
+c$$$            endif
+c$$$
+c$$$            !Top
+c$$$            if (  gbc_def%dactx(igxbc)%proc_neighbors(0,0,0)
+c$$$     .          /=gbc_def%dactx(igxbc)%proc_neighbors(0,0,1)) then
+c$$$              dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,1)
+c$$$              rhs(1,:) = array(:,j,nzbc)
+c$$$              call MPI_Sendrecv_replace(rhs(1,:),(nxbc+2)
+c$$$     .                 ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
+c$$$     .                 ,gbc_def%MPI_COMM,MPI_STATUS_IGNORE
+c$$$     .                 ,mpierr)
+c$$$              array(:,j,nzbc+1) = rhs(1,:)
+c$$$            endif
+c$$$
+c$$$            deallocate(rhs)
+c$$$            
+c$$$          endif
+c$$$
+c$$$        endif
+c$$$
+c$$$      case(3)
+c$$$
+c$$$        if (loc==0.and.isBdry(gbc_def,1,igzbc,ibc)) then
+c$$$
+c$$$          k = 0
+c$$$
+c$$$c$$$          if (bcPER(dim)) then
+c$$$c$$$              
+c$$$c$$$            allocate(rhs(2,nxbc+2))
+c$$$c$$$            !Bottom
+c$$$c$$$            dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,-1)
+c$$$c$$$
+c$$$c$$$            rhs(1,:) = array(:,0     ,k+1)
+c$$$c$$$            rhs(2,:) = array(:,nybc+1,k+1)
+c$$$c$$$            call MPI_Sendrecv_replace(rhs,2*(nxbc+2)
+c$$$c$$$     .                   ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
+c$$$c$$$     .                   ,gbc_def%MPI_COMM,MPI_STATUS_IGNORE
+c$$$c$$$     .                   ,mpierr)
+c$$$c$$$            array(:,0     ,k) = rhs(1,:) 
+c$$$c$$$            array(:,nybc+1,k) = rhs(2,:)
+c$$$c$$$            deallocate(rhs)
+c$$$c$$$
+c$$$c$$$          else
+c$$$          if (.not.bcPER(dim)) then
+c$$$
+c$$$            allocate(rhs(1,nybc+2))
+c$$$            !Left
+c$$$            if (  gbc_def%dactx(igxbc)%proc_neighbors( 0,0,0)
+c$$$     .          /=gbc_def%dactx(igxbc)%proc_neighbors(-1,0,0)) then
+c$$$              dest = gbc_def%dactx(igxbc)%proc_neighbors(-1,0,0)
+c$$$              rhs(1,:) = array(1,:,k)
+c$$$              call MPI_Sendrecv_replace(rhs(1,:),(nybc+2)
+c$$$     .                 ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
+c$$$     .                 ,gbc_def%MPI_COMM,MPI_STATUS_IGNORE
+c$$$     .                 ,mpierr)
+c$$$              array(0,:,k) = rhs(1,:)
+c$$$            endif
+c$$$
+c$$$            !Right
+c$$$            if (  gbc_def%dactx(igxbc)%proc_neighbors(0,0,0)
+c$$$     .          /=gbc_def%dactx(igxbc)%proc_neighbors(1,0,0)) then
+c$$$              dest = gbc_def%dactx(igxbc)%proc_neighbors(1,0,0)
+c$$$              rhs(1,:) = array(nxbc,:,k)
+c$$$              call MPI_Sendrecv_replace(rhs(1,:),(nybc+2)
+c$$$     .                 ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
+c$$$     .                 ,gbc_def%MPI_COMM,MPI_STATUS_IGNORE
+c$$$     .                 ,mpierr)
+c$$$              array(nxbc+1,:,k) = rhs(1,:)
+c$$$            endif
+c$$$
+c$$$            deallocate(rhs)
+c$$$
+c$$$            allocate(rhs(1,nxbc+2))
+c$$$            !Down
+c$$$            if (  gbc_def%dactx(igxbc)%proc_neighbors(0, 0,0)
+c$$$     .          /=gbc_def%dactx(igxbc)%proc_neighbors(0,-1,0)) then
+c$$$              dest = gbc_def%dactx(igxbc)%proc_neighbors(0,-1,0)
+c$$$              rhs(1,:) = array(:,1,k)
+c$$$              call MPI_Sendrecv_replace(rhs(1,:),(nxbc+2)
+c$$$     .                 ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
+c$$$     .                 ,gbc_def%MPI_COMM,MPI_STATUS_IGNORE
+c$$$     .                 ,mpierr)
+c$$$              array(:,0,k) = rhs(1,:)
+c$$$            endif
+c$$$
+c$$$            !Up
+c$$$            if (  gbc_def%dactx(igxbc)%proc_neighbors(0,0,0)
+c$$$     .          /=gbc_def%dactx(igxbc)%proc_neighbors(0,1,0)) then
+c$$$              dest = gbc_def%dactx(igxbc)%proc_neighbors(0,1,0)
+c$$$              rhs(1,:) = array(:,nybc,k)
+c$$$              call MPI_Sendrecv_replace(rhs(1,:),(nxbc+2)
+c$$$     .                 ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
+c$$$     .                 ,gbc_def%MPI_COMM,MPI_STATUS_IGNORE
+c$$$     .                 ,mpierr)
+c$$$              array(:,nybc+1,k) = rhs(1,:)
+c$$$            endif
+c$$$
+c$$$            deallocate(rhs)
+c$$$
+c$$$          endif
+c$$$            
+c$$$        elseif (loc==1.and.isBdry(gbc_def,nzbc,igzbc,ibc)) then
+c$$$
+c$$$          k = nzbc+1
+c$$$
+c$$$c$$$          if (bcPER(dim)) then
+c$$$c$$$            allocate(rhs(2,nxbc+2))
+c$$$c$$$            !Top
+c$$$c$$$            dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,1)
+c$$$c$$$            rhs(1,:) = array(:,0     ,k-1)
+c$$$c$$$            rhs(2,:) = array(:,nybc+1,k-1)
+c$$$c$$$            call MPI_Sendrecv_replace(rhs,2*(nxbc+2)
+c$$$c$$$     .                   ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
+c$$$c$$$     .                   ,gbc_def%MPI_COMM,MPI_STATUS_IGNORE
+c$$$c$$$     .                   ,mpierr)
+c$$$c$$$            array(:,0     ,k) = rhs(1,:) 
+c$$$c$$$            array(:,nybc+1,k) = rhs(2,:)
+c$$$c$$$            deallocate(rhs)
+c$$$c$$$          else
+c$$$          if (.not.bcPER(dim)) then
+c$$$
+c$$$            allocate(rhs(1,nybc+2))
+c$$$            !Left
+c$$$            if (  gbc_def%dactx(igxbc)%proc_neighbors( 0,0,0)
+c$$$     .          /=gbc_def%dactx(igxbc)%proc_neighbors(-1,0,0)) then
+c$$$              dest = gbc_def%dactx(igxbc)%proc_neighbors(-1,0,0)
+c$$$              rhs(1,:) = array(1,:,k)
+c$$$              call MPI_Sendrecv_replace(rhs(1,:),(nybc+2)
+c$$$     .                 ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
+c$$$     .                 ,gbc_def%MPI_COMM,MPI_STATUS_IGNORE
+c$$$     .                 ,mpierr)
+c$$$              array(0,:,k) = rhs(1,:)
+c$$$            endif
+c$$$
+c$$$            !Right
+c$$$            if (  gbc_def%dactx(igxbc)%proc_neighbors(0,0,0)
+c$$$     .          /=gbc_def%dactx(igxbc)%proc_neighbors(1,0,0)) then
+c$$$              dest = gbc_def%dactx(igxbc)%proc_neighbors(1,0,0)
+c$$$              rhs(1,:) = array(nxbc,:,k)
+c$$$              call MPI_Sendrecv_replace(rhs(1,:),(nybc+2)
+c$$$     .                 ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
+c$$$     .                 ,gbc_def%MPI_COMM,MPI_STATUS_IGNORE
+c$$$     .                 ,mpierr)
+c$$$              array(nxbc+1,:,k) = rhs(1,:)
+c$$$            endif
+c$$$
+c$$$            deallocate(rhs)
+c$$$
+c$$$            allocate(rhs(1,nxbc+2))
+c$$$            !Down
+c$$$            if (  gbc_def%dactx(igxbc)%proc_neighbors(0, 0,0)
+c$$$     .          /=gbc_def%dactx(igxbc)%proc_neighbors(0,-1,0)) then
+c$$$              dest = gbc_def%dactx(igxbc)%proc_neighbors(0,-1,0)
+c$$$              rhs(1,:) = array(:,1,k)
+c$$$              call MPI_Sendrecv_replace(rhs(1,:),(nxbc+2)
+c$$$     .                 ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
+c$$$     .                 ,gbc_def%MPI_COMM,MPI_STATUS_IGNORE
+c$$$     .                 ,mpierr)
+c$$$              array(:,0,k) = rhs(1,:)
+c$$$            endif
+c$$$
+c$$$            !Up
+c$$$            if (  gbc_def%dactx(igxbc)%proc_neighbors(0,0,0)
+c$$$     .          /=gbc_def%dactx(igxbc)%proc_neighbors(0,1,0)) then
+c$$$              dest = gbc_def%dactx(igxbc)%proc_neighbors(0,1,0)
+c$$$              rhs(1,:) = array(:,nybc,k)
+c$$$              call MPI_Sendrecv_replace(rhs(1,:),(nxbc+2)
+c$$$     .                 ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
+c$$$     .                 ,gbc_def%MPI_COMM,MPI_STATUS_IGNORE
+c$$$     .                 ,mpierr)
+c$$$              array(:,nybc+1,k) = rhs(1,:)
+c$$$            endif
+c$$$
+c$$$            deallocate(rhs)
+c$$$
+c$$$          endif
+c$$$        endif
+c$$$
+c$$$      end select
+c$$$
+c$$$#endif
+c$$$
+c$$$c     End program
+c$$$
+c$$$      end subroutine syncBC
 
 c     periodicBC
 c     #################################################################
@@ -2376,7 +3514,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: ibc
+      integer :: ibc,i,j,k
 
       integer :: np_l,my_rank_l,dest,tag=0
 
@@ -2392,124 +3530,245 @@ c     Begin program
 
 #else
 
-      if (.not.associated(gbc_def)) then
-        call pstop("periodicBC"
-     .            ,"This routine should not be called standalone")
-      endif
+      select case(dim)
+      case(1)
 
-      if (gbc_def%MPI_COMM_PER(dim) /= MPI_COMM_NULL) then
-        call MPI_Comm_size(gbc_def%MPI_COMM_PER(dim),np_l     ,mpierr)
-        call MPI_Comm_rank(gbc_def%MPI_COMM_PER(dim),my_rank_l,mpierr)
-
-        if (np_l > 2.or.np_l < 1) then
-          call pstop('sync_PER'
-     .         ,'Periodic comm in dimension '//trim(int2char(dim))
-     .       //' has wrong rank='//trim(int2char(np_l)))
-        elseif (np_l == 2) then
-          dest = 1 - my_rank_l
-        endif
-
-        if (np_l == 1) then
+        if (  gbc_def%dactx(igxbc)%proc_neighbors( 0,0,0)
+     .      ==gbc_def%dactx(igxbc)%proc_neighbors( 1,0,0)) then
 
           call per_BC(ibc,array)
 
-        else
+        elseif (loc==0.and.isBdry(gbc_def,1,igxbc,ibc)) then
 
-          select case(dim)
-          case(1)
+          allocate(rhs(2,nzbc+2))
+          !Left
+          dest = gbc_def%dactx(igxbc)%proc_neighbors(-1,0,0)
+          rhs(1,:) = array(1,0     ,:)
+          rhs(2,:) = array(1,nybc+1,:)
+          call MPI_Sendrecv_replace(rhs,2*(nzbc+2)
+     .                ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
+     .                ,gbc_def%MPI_COMM,MPI_STATUS_IGNORE
+     .                ,mpierr)
+          array(0,0     ,:) = rhs(1,:)
+          array(0,nybc+1,:) = rhs(2,:)
+          deallocate(rhs)
+          
+        elseif (loc==1.and.isBdry(gbc_def,nxbc,igxbc,ibc)) then
 
-            allocate(rhs(2,nzbc+2))
+          allocate(rhs(2,nzbc+2))
+          !Right
+          dest = gbc_def%dactx(igxbc)%proc_neighbors(1,0,0)
+          rhs(1,:) = array(nxbc,0     ,:)
+          rhs(2,:) = array(nxbc,nybc+1,:)
+          call MPI_Sendrecv_replace(rhs,2*(nzbc+2)
+     .                ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
+     .                ,gbc_def%MPI_COMM,MPI_STATUS_IGNORE
+     .                ,mpierr)
+          array(nxbc+1,0     ,:) = rhs(1,:)
+          array(nxbc+1,nybc+1,:) = rhs(2,:)
+          deallocate(rhs)
+          
+        endif
+        
+      case(2)
 
-            if (loc==0.and.isBdry(gbc_def,1,igxbc,ibc)) then
-cc              rhs = array(1,:,:)
-              rhs(1,:) = array(1,0     ,:)
-              rhs(2,:) = array(1,nybc+1,:)
-              call MPI_Sendrecv_replace(rhs,2*(nzbc+2)
-     .                   ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
-     .                   ,gbc_def%MPI_COMM_PER(dim),MPI_STATUS_IGNORE
-     .                   ,mpierr)
-cc              rhs = array(0,:,:)
-              array(0,0     ,:) = rhs(1,:)
-              array(0,nybc+1,:) = rhs(2,:)
+        if (  gbc_def%dactx(igybc)%proc_neighbors(0, 0,0)
+     .      ==gbc_def%dactx(igybc)%proc_neighbors(0, 1,0)) then
 
-            elseif (loc==1.and.isBdry(gbc_def,nxbc,igxbc,ibc)) then
-cc              rhs = array(nxbc,:,:)
-              rhs(1,:) = array(nxbc,0     ,:)
-              rhs(2,:) = array(nxbc,nybc+1,:)
-              call MPI_Sendrecv_replace(rhs,2*(nzbc+2)
-     .                   ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
-     .                   ,gbc_def%MPI_COMM_PER(dim),MPI_STATUS_IGNORE
-     .                   ,mpierr)
-cc              array(nxbc+1,:,:) = rhs
-              array(nxbc+1,0     ,:) = rhs(1,:)
-              array(nxbc+1,nybc+1,:) = rhs(2,:)
-            endif
+          call per_BC(ibc,array)
 
-            deallocate(rhs)
+        elseif (loc==0.and.isBdry(gbc_def,1,igybc,ibc)) then
+            
+          allocate(rhs(2,nzbc+2))
+          !Down
+          dest = gbc_def%dactx(igybc)%proc_neighbors(0,-1,0)
+          rhs(1,:) = array(0     ,1,:)
+          rhs(2,:) = array(nxbc+1,1,:)
+          call MPI_Sendrecv_replace(rhs,2*(nzbc+2)
+     .               ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
+     .               ,gbc_def%MPI_COMM,MPI_STATUS_IGNORE
+     .               ,mpierr)
+          array(0     ,0,:) = rhs(1,:)
+          array(nxbc+1,0,:) = rhs(2,:)
+          deallocate(rhs)
 
-          case(2)
+        elseif (loc==1.and.isBdry(gbc_def,nybc,igybc,ibc)) then
 
-            allocate(rhs(2,nzbc+2))
+          allocate(rhs(2,nzbc+2))
+          !Up
+          dest = gbc_def%dactx(igybc)%proc_neighbors(0,1,0)
+          rhs(1,:) = array(0     ,nybc,:)
+          rhs(2,:) = array(nxbc+1,nybc,:)
+          call MPI_Sendrecv_replace(rhs,2*(nzbc+2)
+     .               ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
+     .               ,gbc_def%MPI_COMM,MPI_STATUS_IGNORE
+     .               ,mpierr)
+          array(0     ,nybc+1,:) = rhs(1,:)
+          array(nxbc+1,nybc+1,:) = rhs(2,:)
 
-            if (loc==0.and.isBdry(gbc_def,1,igybc,ibc)) then
-cc              rhs = array(:,1,:)
-              rhs(1,:) = array(0     ,1,:)
-              rhs(2,:) = array(nxbc+1,1,:)
-              call MPI_Sendrecv_replace(rhs,2*(nzbc+2)
-     .                   ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
-     .                   ,gbc_def%MPI_COMM_PER(dim),MPI_STATUS_IGNORE
-     .                   ,mpierr)
-cc              array(:,0,:) = rhs
-              array(0     ,0,:) = rhs(1,:)
-              array(nxbc+1,0,:) = rhs(2,:)
-            elseif (loc==1.and.isBdry(gbc_def,nybc,igybc,ibc)) then
-cc              rhs = array(:,nybc,:)
-              rhs(1,:) = array(0     ,nybc,:)
-              rhs(2,:) = array(nxbc+1,nybc,:)
-              call MPI_Sendrecv_replace(rhs,2*(nzbc+2)
-     .                   ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
-     .                   ,gbc_def%MPI_COMM_PER(dim),MPI_STATUS_IGNORE
-     .                   ,mpierr)
-cc              array(:,nybc+1,:) = rhs
-              array(0     ,nybc+1,:) = rhs(1,:)
-              array(nxbc+1,nybc+1,:) = rhs(2,:)
-            endif
+          deallocate(rhs)
 
-            deallocate(rhs)
-
-          case(3)
-
-            allocate(rhs(2,nxbc+2))
-
-            if (loc==0.and.isBdry(gbc_def,1,igzbc,ibc)) then
-cc              rhs = array(:,:,1)
-              rhs(1,:) = array(:,0     ,1)
-              rhs(2,:) = array(:,nybc+1,1)
-              call MPI_Sendrecv_replace(rhs,2*(nxbc+2)
-     .                   ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
-     .                   ,gbc_def%MPI_COMM_PER(dim),MPI_STATUS_IGNORE
-     .                   ,mpierr)
-cc              array(:,:,0) = rhs
-              array(:,0     ,0) = rhs(1,:) 
-              array(:,nybc+1,0) = rhs(2,:)
-            elseif (loc==1.and.isBdry(gbc_def,nzbc,igzbc,ibc)) then
-cc              rhs = array(:,:,nzbc)
-              rhs(1,:) = array(:,0     ,nzbc)
-              rhs(2,:) = array(:,nybc+1,nzbc)
-              call MPI_Sendrecv_replace(rhs,2*(nxbc+2)
-     .                   ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
-     .                   ,gbc_def%MPI_COMM_PER(dim),MPI_STATUS_IGNORE
-     .                   ,mpierr)
-cc              array(:,:,nzbc+1) = rhs
-              array(:,0     ,nzbc+1) = rhs(1,:) 
-              array(:,nybc+1,nzbc+1) = rhs(2,:)
-            endif
-
-            deallocate(rhs)
-          end select
         endif
 
-      endif
+      case(3)
+
+        if (  gbc_def%dactx(igzbc)%proc_neighbors(0,0, 0)
+     .      ==gbc_def%dactx(igzbc)%proc_neighbors(0,0, 1)) then
+
+          call per_BC(ibc,array)
+
+        elseif (loc==0.and.isBdry(gbc_def,1,igzbc,ibc)) then
+
+          allocate(rhs(2,nxbc+2))
+          !Bottom
+          dest = gbc_def%dactx(igzbc)%proc_neighbors(0,0,-1)
+          rhs(1,:) = array(:,0     ,1)
+          rhs(2,:) = array(:,nybc+1,1)
+          call MPI_Sendrecv_replace(rhs,2*(nxbc+2)
+     .                 ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
+     .                 ,gbc_def%MPI_COMM,MPI_STATUS_IGNORE
+     .                 ,mpierr)
+          array(:,0     ,0) = rhs(1,:) 
+          array(:,nybc+1,0) = rhs(2,:)
+          deallocate(rhs)
+  
+        elseif (loc==1.and.isBdry(gbc_def,nzbc,igzbc,ibc)) then
+
+          allocate(rhs(2,nxbc+2))
+          !Top
+          dest = gbc_def%dactx(igzbc)%proc_neighbors(0,0,1)
+          rhs(1,:) = array(:,0     ,nzbc)
+          rhs(2,:) = array(:,nybc+1,nzbc)
+          call MPI_Sendrecv_replace(rhs,2*(nxbc+2)
+     .                 ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
+     .                 ,gbc_def%MPI_COMM,MPI_STATUS_IGNORE
+     .                 ,mpierr)
+          array(:,0     ,nzbc+1) = rhs(1,:) 
+          array(:,nybc+1,nzbc+1) = rhs(2,:)
+          deallocate(rhs)
+
+        endif
+
+      end select
+
+c$$$      if (.not.associated(gbc_def)) then
+c$$$        call pstop("periodicBC"
+c$$$     .            ,"This routine should not be called standalone")
+c$$$      endif
+c$$$
+c$$$      if (gbc_def%MPI_COMM_PER(dim) /= MPI_COMM_NULL) then
+c$$$        call MPI_Comm_size(gbc_def%MPI_COMM_PER(dim),np_l     ,mpierr)
+c$$$        call MPI_Comm_rank(gbc_def%MPI_COMM_PER(dim),my_rank_l,mpierr)
+c$$$
+c$$$        if (np_l > 2.or.np_l < 1) then
+c$$$          call pstop('periodicBC'
+c$$$     .         ,'Periodic comm in dimension '//trim(int2char(dim))
+c$$$     .       //' has wrong rank='//trim(int2char(np_l)))
+c$$$        elseif (np_l == 2) then
+c$$$          dest = 1 - my_rank_l
+c$$$        endif
+c$$$
+c$$$        if (np_l == 1) then
+c$$$
+c$$$          call per_BC(ibc,array)
+c$$$
+c$$$        else
+c$$$
+c$$$          select case(dim)
+c$$$          case(1)
+c$$$
+c$$$            allocate(rhs(2,nzbc+2))
+c$$$
+c$$$            if (loc==0.and.isBdry(gbc_def,1,igxbc,ibc)) then
+c$$$cc              rhs = array(1,:,:)
+c$$$              rhs(1,:) = array(1,0     ,:)
+c$$$              rhs(2,:) = array(1,nybc+1,:)
+c$$$              call MPI_Sendrecv_replace(rhs,2*(nzbc+2)
+c$$$     .                   ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
+c$$$     .                   ,gbc_def%MPI_COMM_PER(dim),MPI_STATUS_IGNORE
+c$$$     .                   ,mpierr)
+c$$$cc              rhs = array(0,:,:)
+c$$$              array(0,0     ,:) = rhs(1,:)
+c$$$              array(0,nybc+1,:) = rhs(2,:)
+c$$$
+c$$$            elseif (loc==1.and.isBdry(gbc_def,nxbc,igxbc,ibc)) then
+c$$$cc              rhs = array(nxbc,:,:)
+c$$$              rhs(1,:) = array(nxbc,0     ,:)
+c$$$              rhs(2,:) = array(nxbc,nybc+1,:)
+c$$$              call MPI_Sendrecv_replace(rhs,2*(nzbc+2)
+c$$$     .                   ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
+c$$$     .                   ,gbc_def%MPI_COMM_PER(dim),MPI_STATUS_IGNORE
+c$$$     .                   ,mpierr)
+c$$$cc              array(nxbc+1,:,:) = rhs
+c$$$              array(nxbc+1,0     ,:) = rhs(1,:)
+c$$$              array(nxbc+1,nybc+1,:) = rhs(2,:)
+c$$$            endif
+c$$$
+c$$$            deallocate(rhs)
+c$$$
+c$$$          case(2)
+c$$$
+c$$$            allocate(rhs(2,nzbc+2))
+c$$$
+c$$$            if (loc==0.and.isBdry(gbc_def,1,igybc,ibc)) then
+c$$$cc              rhs = array(:,1,:)
+c$$$              rhs(1,:) = array(0     ,1,:)
+c$$$              rhs(2,:) = array(nxbc+1,1,:)
+c$$$              call MPI_Sendrecv_replace(rhs,2*(nzbc+2)
+c$$$     .                   ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
+c$$$     .                   ,gbc_def%MPI_COMM_PER(dim),MPI_STATUS_IGNORE
+c$$$     .                   ,mpierr)
+c$$$cc              array(:,0,:) = rhs
+c$$$              array(0     ,0,:) = rhs(1,:)
+c$$$              array(nxbc+1,0,:) = rhs(2,:)
+c$$$            elseif (loc==1.and.isBdry(gbc_def,nybc,igybc,ibc)) then
+c$$$cc              rhs = array(:,nybc,:)
+c$$$              rhs(1,:) = array(0     ,nybc,:)
+c$$$              rhs(2,:) = array(nxbc+1,nybc,:)
+c$$$              call MPI_Sendrecv_replace(rhs,2*(nzbc+2)
+c$$$     .                   ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
+c$$$     .                   ,gbc_def%MPI_COMM_PER(dim),MPI_STATUS_IGNORE
+c$$$     .                   ,mpierr)
+c$$$cc              array(:,nybc+1,:) = rhs
+c$$$              array(0     ,nybc+1,:) = rhs(1,:)
+c$$$              array(nxbc+1,nybc+1,:) = rhs(2,:)
+c$$$            endif
+c$$$
+c$$$            deallocate(rhs)
+c$$$
+c$$$          case(3)
+c$$$
+c$$$            allocate(rhs(2,nxbc+2))
+c$$$
+c$$$            if (loc==0.and.isBdry(gbc_def,1,igzbc,ibc)) then
+c$$$cc              rhs = array(:,:,1)
+c$$$              rhs(1,:) = array(:,0     ,1)
+c$$$              rhs(2,:) = array(:,nybc+1,1)
+c$$$              call MPI_Sendrecv_replace(rhs,2*(nxbc+2)
+c$$$     .                   ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
+c$$$     .                   ,gbc_def%MPI_COMM_PER(dim),MPI_STATUS_IGNORE
+c$$$     .                   ,mpierr)
+c$$$cc              array(:,:,0) = rhs
+c$$$              array(:,0     ,0) = rhs(1,:) 
+c$$$              array(:,nybc+1,0) = rhs(2,:)
+c$$$            elseif (loc==1.and.isBdry(gbc_def,nzbc,igzbc,ibc)) then
+c$$$cc              rhs = array(:,:,nzbc)
+c$$$              rhs(1,:) = array(:,0     ,nzbc)
+c$$$              rhs(2,:) = array(:,nybc+1,nzbc)
+c$$$              call MPI_Sendrecv_replace(rhs,2*(nxbc+2)
+c$$$     .                   ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
+c$$$     .                   ,gbc_def%MPI_COMM_PER(dim),MPI_STATUS_IGNORE
+c$$$     .                   ,mpierr)
+c$$$cc              array(:,:,nzbc+1) = rhs
+c$$$              array(:,0     ,nzbc+1) = rhs(1,:) 
+c$$$              array(:,nybc+1,nzbc+1) = rhs(2,:)
+c$$$            endif
+c$$$
+c$$$            deallocate(rhs)
+c$$$          end select
+c$$$        endif
+c$$$
+c$$$      endif
 #endif
 
 c     End program
@@ -3533,8 +4792,6 @@ c     Local variables
 
       logical :: flg(3),select_bc(3),face,edge,corner
 
-cc      type(grid_mg_def),pointer :: gl_def
-
 c     Extrapolation
 
       real(8),dimension(10) :: xx,yy,zz
@@ -3549,137 +4806,15 @@ c     Initialize variables
       edge   = (count(ibcl /= 0) == 2)
       corner = (count(ibcl /= 0) == 3)
 
-c     Check for "do nothing" conditions
+c     Check for exceptions
 
-      if (bc_debug) then
-        write(bc_debug_unit,*)
-     .       '>>> extrapolateToCorner - face, Proc='
-     .      ,my_rank,' Check for "do nothing" conditions'
-        write(bc_debug_unit,*)
-     .       '>>> extrapolateToCorner - face, Proc='
-     .      ,my_rank,' Skip corners',(skip_corners.and.(.not.face))
-      endif
-
-      if (skip_corners.and.(.not.face)) return
-
-c     Do nothing for SP boundary faces, edges, and corners
-
-      if (bc_debug) then
-        write(bc_debug_unit,*)
-     .       '>>> extrapolateToCorner - face, Proc='
-     .      ,my_rank,' SP boundaries',
-     .       (bcSP(ibc=ibcl(1),bcnd=bcnd)
-     .    .or.bcSP(ibc=ibcl(2),bcnd=bcnd)
-     .    .or.bcSP(ibc=ibcl(3),bcnd=bcnd))
-     .    .and.(.not.force_corners)
-      endif
-
-      if (   (bcSP(ibc=ibcl(1),bcnd=bcnd)
-     .    .or.bcSP(ibc=ibcl(2),bcnd=bcnd)
-     .    .or.bcSP(ibc=ibcl(3),bcnd=bcnd))
-     .    .and.(.not.force_corners)) return
-
-c     Do nothing for DEF boundary faces, edges, and corners
-
-      if (bc_debug) then
-        write(bc_debug_unit,*)
-     .       '>>> extrapolateToCorner - face, Proc='
-     .      ,my_rank,' DEF boundaries',
-     .       (bcChk(ibcl(1),DEF,bcnd=bcnd)
-     .    .or.bcChk(ibcl(2),DEF,bcnd=bcnd)
-     .    .or.bcChk(ibcl(3),DEF,bcnd=bcnd))
-     .    .and.(.not.force_corners)
-      endif
-
-      if (   (bcChk(ibcl(1),DEF,bcnd=bcnd)
-     .    .or.bcChk(ibcl(2),DEF,bcnd=bcnd)
-     .    .or.bcChk(ibcl(3),DEF,bcnd=bcnd))
-     .    .and.(.not.force_corners)) return
-
-c     Do nothing for SYM (not FSYM) boundary faces, edges, and corners
-c     (taken care of by scalarNeumann and scalarDirichlet routines)
-
-      if (bc_debug) then
-        write(bc_debug_unit,*)
-     .       '>>> extrapolateToCorner - face, Proc='
-     .      ,my_rank,' SYM boundaries',
-     .        (isSYMBdry(gbc_def,ibc=ibcl(1))
-     .     .or.isSYMBdry(gbc_def,ibc=ibcl(2))
-     .     .or.isSYMBdry(gbc_def,ibc=ibcl(3)))
-     .    .and.(.not.force_corners)
-      endif
-
-      if (   (isSYMBdry(gbc_def,ibc=ibcl(1))
-     .    .or.isSYMBdry(gbc_def,ibc=ibcl(2))
-     .    .or.isSYMBdry(gbc_def,ibc=ibcl(3)))
-     .    .and.(.not.force_corners)) return
-
-c     Do nothing for doubly-periodic edges (PETSc does it)
-
-      if (edge) then
-        if ((ibcl(1) == 0)
-     .      .and.(bcChk(ibcl(2),PER).and.bcChk(ibcl(3),PER))) return
-        if ((ibcl(2) == 0)
-     .      .and.(bcChk(ibcl(3),PER).and.bcChk(ibcl(1),PER))) return
-        if ((ibcl(3) == 0)
-     .      .and.(bcChk(ibcl(1),PER).and.bcChk(ibcl(2),PER))) return
-      endif
-
-c     Do nothing for Dirichlet edges (extrapolateBC does it), except when BOTH are
-
-      if (edge) then
-        if ((ibcl(1) == 0)
-     .  .and.((selectFace(gbc_def,ibcl(3))
-     .       .and.(bcChk(ibcl(3),DIR,bcnd=bcnd)
-     .         .or.bcChk(ibcl(3),EQU,bcnd=bcnd)))
-     .    .or.(selectFace(gbc_def,ibcl(2))
-     .       .and.(bcChk(ibcl(2),DIR,bcnd=bcnd)
-     .         .or.bcChk(ibcl(2),EQU,bcnd=bcnd))))
-c$$$     .  .and.(.not.((selectFace(gbc_def,ibcl(3))
-c$$$     .       .and.(bcChk(ibcl(3),DIR,bcnd=bcnd)
-c$$$     .         .or.bcChk(ibcl(3),EQU,bcnd=bcnd)))
-c$$$     .         .and.(selectFace(gbc_def,ibcl(2))
-c$$$     .       .and.(bcChk(ibcl(2),DIR,bcnd=bcnd)
-c$$$     .         .or.bcChk(ibcl(2),EQU,bcnd=bcnd)))))
-     .     .and.(.not.force_corners))
-     .       return
-        if ((ibcl(2) == 0)
-     .  .and.((selectFace(gbc_def,ibcl(3))
-     .       .and.(bcChk(ibcl(3),DIR,bcnd=bcnd)
-     .         .or.bcChk(ibcl(3),EQU,bcnd=bcnd)))
-     .    .or.(selectFace(gbc_def,ibcl(1))
-     .       .and.(bcChk(ibcl(1),DIR,bcnd=bcnd)
-     .         .or.bcChk(ibcl(1),EQU,bcnd=bcnd))))
-c$$$     .  .and.(.not.((selectFace(gbc_def,ibcl(3))
-c$$$     .       .and.(bcChk(ibcl(3),DIR,bcnd=bcnd)
-c$$$     .         .or.bcChk(ibcl(3),EQU,bcnd=bcnd)))
-c$$$     .         .and.(selectFace(gbc_def,ibcl(1))
-c$$$     .       .and.(bcChk(ibcl(1),DIR,bcnd=bcnd)
-c$$$     .         .or.bcChk(ibcl(1),EQU,bcnd=bcnd)))))
-     .     .and.(.not.force_corners))
-     .       return
-        if ((ibcl(3) == 0)
-     .  .and.((selectFace(gbc_def,ibcl(1))
-     .       .and.(bcChk(ibcl(1),DIR,bcnd=bcnd)
-     .         .or.bcChk(ibcl(1),EQU,bcnd=bcnd)))
-     .    .or.(selectFace(gbc_def,ibcl(2))
-     .       .and.(bcChk(ibcl(2),DIR,bcnd=bcnd)
-     .         .or.bcChk(ibcl(2),EQU,bcnd=bcnd))))
-c$$$     .  .and.(.not.((selectFace(gbc_def,ibcl(1))
-c$$$     .       .and.(bcChk(ibcl(1),DIR,bcnd=bcnd)
-c$$$     .         .or.bcChk(ibcl(1),EQU,bcnd=bcnd)))
-c$$$     .         .and.(selectFace(gbc_def,ibcl(2))
-c$$$     .       .and.(bcChk(ibcl(2),DIR,bcnd=bcnd)
-c$$$     .         .or.bcChk(ibcl(2),EQU,bcnd=bcnd)))))
-     .     .and.(.not.force_corners))
-     .       return
-      endif
+      call checkExceptions
 
 c     Identify directions for extrapolation.
 
       if (bc_debug) then
         write(bc_debug_unit,*)
-     .       '>>> extrapolateToCorner - face, Proc='
+     .       '>>> extrapolateToCorner, Proc='
      .      ,my_rank,' Identifying directions extrap'
       endif
 
@@ -3902,6 +5037,158 @@ c     End program
 
       contains
 
+c     checkExceptions
+c     ######################################################################
+      subroutine checkExceptions
+
+      implicit none
+
+c     Check for "do nothing" conditions
+
+      if (bc_debug) then
+        write(bc_debug_unit,*)
+     .       '>>> extrapolateToCorner, Proc='
+     .      ,my_rank,' Check for "do nothing" conditions'
+        write(bc_debug_unit,*)
+     .       '>>> extrapolateToCorner, Proc='
+     .      ,my_rank,' Skip corners',(skip_corners.and.(.not.face))
+      endif
+
+      if (skip_corners.and.(.not.face)) return
+
+c     Do nothing for SP boundary faces, edges, and corners
+
+      if (bc_debug) then
+        write(bc_debug_unit,*)
+     .       '>>> extrapolateToCorner, Proc='
+     .      ,my_rank,' SP boundaries',
+     .       (bcSP(ibc=ibcl(1),bcnd=bcnd)
+     .    .or.bcSP(ibc=ibcl(2),bcnd=bcnd)
+     .    .or.bcSP(ibc=ibcl(3),bcnd=bcnd))
+     .    .and.(.not.force_corners)
+      endif
+
+      if (   (bcSP(ibc=ibcl(1),bcnd=bcnd)
+     .    .or.bcSP(ibc=ibcl(2),bcnd=bcnd)
+     .    .or.bcSP(ibc=ibcl(3),bcnd=bcnd))
+     .    .and.(.not.force_corners)) return
+
+c     Do nothing for DEF boundary faces, edges, and corners
+
+      if (bc_debug) then
+        write(bc_debug_unit,*)
+     .       '>>> extrapolateToCorner, Proc='
+     .      ,my_rank,' DEF boundaries',
+     .       (bcChk(ibcl(1),DEF,bcnd=bcnd)
+     .    .or.bcChk(ibcl(2),DEF,bcnd=bcnd)
+     .    .or.bcChk(ibcl(3),DEF,bcnd=bcnd))
+     .    .and.(.not.force_corners)
+      endif
+
+      if (   (bcChk(ibcl(1),DEF,bcnd=bcnd)
+     .    .or.bcChk(ibcl(2),DEF,bcnd=bcnd)
+     .    .or.bcChk(ibcl(3),DEF,bcnd=bcnd))
+     .    .and.(.not.force_corners)) return
+
+c     Do nothing for SYM (not FSYM) boundary faces, edges, and corners
+c     (taken care of by scalarNeumann and scalarDirichlet routines)
+
+      if (bc_debug) then
+        write(bc_debug_unit,*)
+     .       '>>> extrapolateToCorner, Proc='
+     .      ,my_rank,' SYM boundaries',
+     .        (isSYMBdry(gbc_def,ibc=ibcl(1))
+     .     .or.isSYMBdry(gbc_def,ibc=ibcl(2))
+     .     .or.isSYMBdry(gbc_def,ibc=ibcl(3)))
+     .    .and.(.not.force_corners)
+      endif
+
+      if (   (isSYMBdry(gbc_def,ibc=ibcl(1))
+     .    .or.isSYMBdry(gbc_def,ibc=ibcl(2))
+     .    .or.isSYMBdry(gbc_def,ibc=ibcl(3)))
+     .    .and.(.not.force_corners)) return
+
+c     Do nothing for PER boundary faces, edges, and corners
+c     (taken care of by PETSc and SYNC routines)
+      
+      if (bc_debug) then
+        write(bc_debug_unit,*)
+     .       '>>> extrapolateToCorner, Proc='
+     .      ,my_rank,' PER boundaries',
+     .       (bcChk(ibcl(1),PER,bcnd=bcnd)
+     .    .or.bcChk(ibcl(2),PER,bcnd=bcnd)
+     .    .or.bcChk(ibcl(3),PER,bcnd=bcnd))
+     .    .and.(.not.force_corners)
+      endif
+
+      if (   (bcChk(ibcl(1),PER,bcnd=bcnd)
+     .    .or.bcChk(ibcl(2),PER,bcnd=bcnd)
+     .    .or.bcChk(ibcl(3),PER,bcnd=bcnd))
+     .    .and.(.not.force_corners)) return
+
+c$$$c     Do nothing for doubly-periodic edges (PETSc does it)
+c$$$
+c$$$      if (edge) then
+c$$$        if ((ibcl(1) == 0)
+c$$$     .      .and.(bcChk(ibcl(2),PER).and.bcChk(ibcl(3),PER))) return
+c$$$        if ((ibcl(2) == 0)
+c$$$     .      .and.(bcChk(ibcl(3),PER).and.bcChk(ibcl(1),PER))) return
+c$$$        if ((ibcl(3) == 0)
+c$$$     .      .and.(bcChk(ibcl(1),PER).and.bcChk(ibcl(2),PER))) return
+c$$$      endif
+
+c     Do nothing for Dirichlet edges (extrapolateBC does it), except when BOTH are
+
+      if (edge) then
+        if ((ibcl(1) == 0)
+     .  .and.((selectFace(gbc_def,ibcl(3))
+     .       .and.(bcChk(ibcl(3),DIR,bcnd=bcnd)
+     .         .or.bcChk(ibcl(3),EQU,bcnd=bcnd)))
+     .    .or.(selectFace(gbc_def,ibcl(2))
+     .       .and.(bcChk(ibcl(2),DIR,bcnd=bcnd)
+     .         .or.bcChk(ibcl(2),EQU,bcnd=bcnd))))
+c$$$     .  .and.(.not.((selectFace(gbc_def,ibcl(3))
+c$$$     .       .and.(bcChk(ibcl(3),DIR,bcnd=bcnd)
+c$$$     .         .or.bcChk(ibcl(3),EQU,bcnd=bcnd)))
+c$$$     .         .and.(selectFace(gbc_def,ibcl(2))
+c$$$     .       .and.(bcChk(ibcl(2),DIR,bcnd=bcnd)
+c$$$     .         .or.bcChk(ibcl(2),EQU,bcnd=bcnd)))))
+     .     .and.(.not.force_corners))
+     .       return
+        if ((ibcl(2) == 0)
+     .  .and.((selectFace(gbc_def,ibcl(3))
+     .       .and.(bcChk(ibcl(3),DIR,bcnd=bcnd)
+     .         .or.bcChk(ibcl(3),EQU,bcnd=bcnd)))
+     .    .or.(selectFace(gbc_def,ibcl(1))
+     .       .and.(bcChk(ibcl(1),DIR,bcnd=bcnd)
+     .         .or.bcChk(ibcl(1),EQU,bcnd=bcnd))))
+c$$$     .  .and.(.not.((selectFace(gbc_def,ibcl(3))
+c$$$     .       .and.(bcChk(ibcl(3),DIR,bcnd=bcnd)
+c$$$     .         .or.bcChk(ibcl(3),EQU,bcnd=bcnd)))
+c$$$     .         .and.(selectFace(gbc_def,ibcl(1))
+c$$$     .       .and.(bcChk(ibcl(1),DIR,bcnd=bcnd)
+c$$$     .         .or.bcChk(ibcl(1),EQU,bcnd=bcnd)))))
+     .     .and.(.not.force_corners))
+     .       return
+        if ((ibcl(3) == 0)
+     .  .and.((selectFace(gbc_def,ibcl(1))
+     .       .and.(bcChk(ibcl(1),DIR,bcnd=bcnd)
+     .         .or.bcChk(ibcl(1),EQU,bcnd=bcnd)))
+     .    .or.(selectFace(gbc_def,ibcl(2))
+     .       .and.(bcChk(ibcl(2),DIR,bcnd=bcnd)
+     .         .or.bcChk(ibcl(2),EQU,bcnd=bcnd))))
+c$$$     .  .and.(.not.((selectFace(gbc_def,ibcl(1))
+c$$$     .       .and.(bcChk(ibcl(1),DIR,bcnd=bcnd)
+c$$$     .         .or.bcChk(ibcl(1),EQU,bcnd=bcnd)))
+c$$$     .         .and.(selectFace(gbc_def,ibcl(2))
+c$$$     .       .and.(bcChk(ibcl(2),DIR,bcnd=bcnd)
+c$$$     .         .or.bcChk(ibcl(2),EQU,bcnd=bcnd)))))
+     .     .and.(.not.force_corners))
+     .       return
+      endif
+
+      end subroutine checkExceptions
+
 c     checkFaces
 c     ######################################################################
       subroutine checkFaces(ibcl)
@@ -3933,18 +5220,16 @@ c     ######################################################################
 c     -----------------------------------------------------------------------
 c     Selects interpolation directions so that interpolation occurs ALONG
 c     selected boundary only.
-c         1) SP boundary
-c         2) Interpolate-to-face boundary
-c         3) Equilibrium boundary (removed 12/13/06, added back 11/10/08)
-c         4) Discard internal processor boundaries (not real boundaries)
+c         1) Interpolate-to-face boundary
+c         2) Equilibrium boundary (removed 12/13/06, added back 11/10/08)
+c         3) Discard internal processor boundaries (not real boundaries)
 c     -----------------------------------------------------------------------
 
       select_bc = .false.
       do i=1,3
         i_bc = ibcl(i)
         if (i_bc <= 0) cycle
-        select_bc(i) =(    (abs(bcnd(i_bc)) == SP )
-     .                 .or.(abs(bcnd(i_bc)) == IFC)
+        select_bc(i) =(    (abs(bcnd(i_bc)) == IFC)
      .                 .or.(abs(bcnd(i_bc)) == EQU)
      .                ).and.selectFace(gbc_def,i_bc)
       enddo
@@ -4022,11 +5307,8 @@ c     ######################################################################
 c     -----------------------------------------------------------------------
 c     Selects interpolation directions so that interpolation occurs ACROSS
 c     selected boundary only.
-c         1) Periodic boundary
-c         2) Symmetry boundary (NEU+order=0; SYM removed on 6/1/12)
-c         3) Equilibrium boundary (removed 11/10/08; was interfering with
-c            parallelization)
-c         4) Discard internal processor boundaries (not real boundaries)
+c         1) Symmetry boundary (NEU+order=0; SYM removed on 6/1/12)
+c         2) Discard internal processor boundaries (not real boundaries)
 c     -----------------------------------------------------------------------
 
       select_bc = .false.
@@ -4035,7 +5317,6 @@ c     -----------------------------------------------------------------------
         if (i_bc <= 0) cycle
         select_bc(i) =(     (abs(bcnd(i_bc)) == NEU .and. order == 0)
 cc     .                 .or.(abs(bcond(i_bc))== FSYM .and. abs(bcnd(i_bc)) == NEU)
-     .                 .or. (    bcnd(i_bc)  == PER)
      .                ).and.selectFace(gbc_def,i_bc)
       enddo
 
