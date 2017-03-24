@@ -9,7 +9,7 @@ c ######################################################################
 
         !!! ADIOS variables
         !!! Used to dump main record file (to be postprocessed)
-        character*(1024) :: recordfile='record-ADIOS_VER.bp'
+        character*(1024) :: recordfile=ADIOS_FILE
 
         ! ADIOS needs a variable containing the MPI_WORLD_COMM communicator
         integer :: adios_world_comm
@@ -196,7 +196,6 @@ cc        enddo
         endif
 
         if (PRESENT(nvar)) nvar = adios_nvar
-        !C ordering for array dimensions
         if (PRESENT(nx)) nx = adios_vardims(1)-2
         if (PRESENT(ny)) ny = adios_vardims(2)-2
         if (PRESENT(nz)) nz = adios_vardims(3)-2
