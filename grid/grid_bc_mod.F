@@ -1266,7 +1266,7 @@ c     Impose BCs
 
 c     Fill edges
 
-      xtrap_o = max(2,order)
+      xtrap_o = order ! max(2,order)
 
       call fillEdges(gbc_def,array,array0,bcnd,xtrap_o)
 
@@ -1507,7 +1507,7 @@ c     Synchronize covariant and contravariant components
 
 c     Fill edges (for both cnv and cov components)
 
-      xtrap_o = max(2,order)
+      xtrap_o = order !max(2,order)
 
       do ivar=1,ncomp
         call fillEdges(gbc_def,v_cov(:,:,:,ivar),var0(:,:,:,ivar)
@@ -1962,7 +1962,7 @@ c     Synchronize covariant and contravariant components
 
 c     Fill edges (for both cnv and cov components)
 
-      xtrap_o = max(2,order)
+      xtrap_o = order !max(2,order)
 
       do ivar=1,ncomp
         call fillEdges(gbc_def,v_cov(:,:,:,ivar),var0(:,:,:,ivar)
@@ -2554,6 +2554,20 @@ c     Local variables
 #if defined(petsc)
       integer :: dest,tag=0,ireq,request(10),status(MPI_STATUS_SIZE,10)
 
+      real(8),volatile :: dumzin1 (nzbc+2)
+     .                   ,dumzin2 (nzbc+2)
+     .                   ,dumyin1 (nybc+2)
+     .                   ,dumyin2 (nybc+2)
+     .                   ,dumxin1 (nxbc+2)
+     .                   ,dumxin2 (nxbc+2)
+
+      real(8),volatile :: dumzout1(nzbc+2)
+     .                   ,dumzout2(nzbc+2)
+     .                   ,dumyout1(nybc+2)
+     .                   ,dumyout2(nybc+2)
+     .                   ,dumxout1(nxbc+2)
+     .                   ,dumxout2(nxbc+2)
+
 c     Interfaces
 
 c$$$      INTERFACE
@@ -2571,17 +2585,17 @@ c$$$          type(c_ptr) :: array
 c$$$          real(c_double) :: array(*)
 c$$$        end subroutine
 c$$$      END INTERFACE
-      INTERFACE
-        subroutine MPI_Isend(array,count,type,dest,tag,comm,req,err)
-          integer :: count,type,dest,tag,comm,req,err
-          real(8) :: array(:)
-        end subroutine
-
-        subroutine MPI_Irecv(array,count,type,dest,tag,comm,req,err)
-          integer :: count,type,dest,tag,comm,req,err
-          real(8) :: array(:)
-        end subroutine
-      END INTERFACE
+c$$$      INTERFACE
+c$$$        subroutine MPI_Isend(array,count,type,dest,tag,comm,req,err)
+c$$$          integer :: count,type,dest,tag,comm,req,err
+c$$$          real(8) :: array(:)
+c$$$        end subroutine
+c$$$
+c$$$        subroutine MPI_Irecv(array,count,type,dest,tag,comm,req,err)
+c$$$          integer :: count,type,dest,tag,comm,req,err
+c$$$          real(8) :: array(:)
+c$$$        end subroutine
+c$$$      END INTERFACE
 #endif
 
 c     Begin program
@@ -2590,7 +2604,7 @@ c     Begin program
 
 #if !defined(petsc)
 
-cc      if (bcPER(ibc)) call per_BC(ibc,array)
+cc      if (bcPER(dim)) call per_BC(ibc,array)
 
 #else
 
@@ -2630,12 +2644,548 @@ c$$$          write (*,*) my_rank,dim,loc,'send',ireq
 c$$$        endif
 
       enddo
+     
+cc      call MPI_Waitall(ireq,request(1:ireq),status(:,1:ireq),mpierr)
 
 c$$$      write (*,*) my_rank,'Number of MPI requests',ireq
 
 c     End program
 
       contains
+
+c     l0d1
+c     ################################################################
+      subroutine l0d1(flg)
+
+      implicit none
+
+      integer :: flg,i
+
+      i = 0
+
+      !Down
+      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,-1,0)
+      if (flg == 0) then
+        ireq = ireq+1
+        call MPI_Irecv(dumzout1,(nzbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,0
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      else
+        ireq = ireq+1
+        dumzin1 = array(i,1,0:nzbc+1)
+        call MPI_Isend(dumzin1,(nzbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,0
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      endif
+
+      !Up
+      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,1,0)
+      if (flg == 0) then
+        ireq = ireq+1
+        call MPI_Irecv(dumzout2,(nzbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,1
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      else
+        ireq = ireq+1
+        dumzin2 = array(i,nybc,0:nzbc+1)
+        call MPI_Isend(dumzin2,(nzbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,1
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      endif
+
+      !Bottom
+      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,-1)
+      if (flg == 0) then
+        ireq = ireq+1
+        call MPI_Irecv(dumyout1,(nybc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,2
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      else
+        ireq = ireq+1
+        dumyin1 = array(i,0:nybc+1,1)
+        call MPI_Isend(dumyin1,(nybc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,2
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      endif
+
+      !Top
+      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,1)
+      if (flg == 0) then
+        ireq = ireq+1
+        call MPI_Irecv(dumyout2,(nybc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,3
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      else
+        ireq = ireq+1
+        dumyin2 = array(i,0:nybc+1,nzbc)
+        call MPI_Isend(dumyin2,(nybc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,3
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      endif
+     
+      if(ireq>0.and.flg==1) then
+        call MPI_Waitall(ireq,request,status,mpierr)
+
+        array(i,0     ,0:nzbc+1) = dumzout1
+        array(i,nybc+1,0:nzbc+1) = dumzout2
+        array(i,0:nybc+1,0     ) = dumyout1
+        array(i,0:nybc+1,nzbc+1) = dumyout2
+      endif
+
+      end subroutine l0d1
+
+c     l1d1
+c     ################################################################
+      subroutine l1d1(flg)
+
+      implicit none
+
+      integer :: flg,i
+
+      i = nxbc+1
+
+      !Up
+      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,1,0)
+      if (flg == 0) then
+        ireq = ireq+1
+        call MPI_Irecv(dumzout1,(nzbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,0
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      else
+        ireq = ireq+1
+        dumzin1 = array(i,nybc,0:nzbc+1)
+        call MPI_Isend(dumzin1,(nzbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,0
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      endif
+
+      !Down
+      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,-1,0)
+      if (flg == 0) then
+        ireq = ireq+1
+        call MPI_Irecv(dumzout2,(nzbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,1
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      else
+        ireq = ireq+1
+        dumzin2 = array(i,1,0:nzbc+1)
+        call MPI_Isend(dumzin2,(nzbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,1
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      endif
+
+      !Top
+      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,1)
+      if (flg == 0) then
+        ireq = ireq+1
+        call MPI_Irecv(dumyout1,(nybc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,2
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      else
+        ireq = ireq+1
+        dumyin1 = array(i,0:nybc+1,nzbc)
+        call MPI_Isend(dumyin1,(nybc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,2
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      endif
+
+      !Bottom
+      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,-1)
+      if (flg == 0) then
+        ireq = ireq+1
+        call MPI_Irecv(dumyout2,(nybc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,3
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      else
+        ireq = ireq+1
+        dumyin2 = array(i,0:nybc+1,1)
+        call MPI_Isend(dumyin2,(nybc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,3
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      endif
+
+      if(ireq>0.and.flg==1) then
+        call MPI_Waitall(ireq,request,status,mpierr)
+
+        array(i,nybc+1,0:nzbc+1) = dumzout1
+        array(i,0     ,0:nzbc+1) = dumzout2
+        array(i,0:nybc+1,nzbc+1) = dumyout1
+        array(i,0:nybc+1,0     ) = dumyout2
+      endif
+
+      end subroutine l1d1
+
+c     l0d2
+c     ################################################################
+      subroutine l0d2(flg)
+
+      implicit none
+      
+      integer :: flg,j
+
+      j = 0
+
+      !Left
+      dest = gbc_def%dactx(igxbc)%proc_neighbors(-1,0,0)
+      if (flg == 0) then
+        ireq = ireq+1
+        call MPI_Irecv(dumzout1,(nzbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      else
+        ireq = ireq+1
+        dumzin1 = array(1,j,0:nzbc+1)
+        call MPI_Isend(dumzin1,(nzbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      endif
+
+      !Right
+      dest = gbc_def%dactx(igxbc)%proc_neighbors(1,0,0)
+      if (flg == 0) then
+        ireq = ireq+1
+        call MPI_Irecv(dumzout2,(nzbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      else
+        ireq = ireq+1
+        dumzin2 = array(nxbc,j,0:nzbc+1)
+        call MPI_Isend(dumzin2,(nzbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      endif
+
+      !Bottom
+      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,-1)
+      if (flg == 0) then
+        ireq = ireq+1
+        call MPI_Irecv(dumxout1,(nxbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      else
+        ireq = ireq+1
+        dumxin1 = array(0:nxbc+1,j,1)
+        call MPI_Isend(dumxin1,(nxbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      endif
+
+      !Top
+      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,1)
+      if (flg == 0) then
+        ireq = ireq+1
+        call MPI_Irecv(dumxout2,(nxbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      else
+        ireq = ireq+1
+        dumxin2 = array(0:nxbc+1,j,nzbc)
+        call MPI_Isend(dumxin2,(nxbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      endif
+
+      if(ireq>0.and.flg==1) then
+        call MPI_Waitall(ireq,request,status,mpierr)
+
+        array(0     ,j,0:nzbc+1) = dumzout1
+        array(nxbc+1,j,0:nzbc+1) = dumzout2
+        array(0:nxbc+1,j,0     ) = dumxout1
+        array(0:nxbc+1,j,nzbc+1) = dumxout2
+      endif
+
+      end subroutine l0d2
+
+c     l1d2
+c     ################################################################
+      subroutine l1d2(flg)
+
+      implicit none
+
+      integer :: flg,j
+ 
+      j = nybc+1
+
+      !Left
+      dest = gbc_def%dactx(igxbc)%proc_neighbors(-1,0,0)
+      if (flg == 0) then
+        ireq = ireq+1
+        call MPI_Irecv(dumzout1,(nzbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      else
+        ireq = ireq+1
+        dumzin1 = array(1,j,0:nzbc+1)
+        call MPI_Isend(dumzin1,(nzbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      endif
+
+      !Right
+      dest = gbc_def%dactx(igxbc)%proc_neighbors(1,0,0)
+      if (flg == 0) then
+        ireq = ireq+1
+        call MPI_Irecv(dumzout2,(nzbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      else
+        ireq = ireq+1
+        dumzin2 = array(nxbc,j,0:nzbc+1)
+        call MPI_Isend(dumzin2,(nzbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      endif
+
+      !Bottom
+      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,-1)
+      if (flg == 0) then
+        ireq = ireq+1
+        call MPI_Irecv(dumxout1,(nxbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      else
+        ireq = ireq+1
+        dumxin1 = array(0:nxbc+1,j,1)
+        call MPI_Isend(dumxin1,(nxbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      endif
+
+      !Top
+      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,1)
+      if (flg == 0) then
+        ireq = ireq+1
+        call MPI_Irecv(dumxout2,(nxbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      else
+        ireq = ireq+1
+        dumxin2 = array(0:nxbc+1,j,nzbc)
+        call MPI_Isend(dumxin2,(nxbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      endif
+
+      if(ireq>0.and.flg==1) then
+        call MPI_Waitall(ireq,request,status,mpierr)
+
+        array(0     ,j,0:nzbc+1) = dumzout1
+        array(nxbc+1,j,0:nzbc+1) = dumzout2
+        array(0:nxbc+1,j,0     ) = dumxout1
+        array(0:nxbc+1,j,nzbc+1) = dumxout2
+      endif
+
+      end subroutine l1d2
+
+c     l0d3
+c     ################################################################
+      subroutine l0d3(flg)
+
+      implicit none
+
+      integer :: flg,k
+
+      k = 0
+
+      !Left
+      dest = gbc_def%dactx(igxbc)%proc_neighbors(-1,0,0)
+      if (flg == 0) then
+        ireq = ireq+1
+        call MPI_Irecv(dumyout1,(nybc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      else
+        ireq = ireq+1
+        dumyin1 = array(1,0:nybc+1,k)
+        call MPI_Isend(dumyin1,(nybc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      endif
+
+      !Right
+      dest = gbc_def%dactx(igxbc)%proc_neighbors(1,0,0)
+      if (flg == 0) then
+        ireq = ireq+1
+        call MPI_Irecv(dumyout2,(nybc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      else
+        ireq = ireq+1
+        dumyin2 = array(nxbc,0:nybc+1,k)
+        call MPI_Isend(dumyin2,(nybc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      endif
+
+      !Down
+      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,-1,0)
+      if (flg == 0) then
+        ireq = ireq+1
+        call MPI_Irecv(dumxout1,(nxbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      else
+        ireq = ireq+1
+        dumxin1 = array(0:nxbc+1,1,k)
+        call MPI_Isend(dumxin1,(nxbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      endif
+
+      !Up
+      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,1,0)
+      if (flg == 0) then
+        ireq = ireq+1
+        call MPI_Irecv(dumxout2,(nxbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      else
+        ireq = ireq+1
+        dumxin2 = array(0:nxbc+1,nybc,k)
+        call MPI_Isend(dumxin2,(nxbc+2)
+     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,gbc_def%MPI_COMM,request(ireq)
+     .         ,mpierr)
+      endif
+
+      if(ireq>0.and.flg==1) then
+        call MPI_Waitall(ireq,request,status,mpierr)
+ 
+        array(0     ,0:nybc+1,k) = dumyout1
+        array(nxbc+1,0:nybc+1,k) = dumyout2
+        array(0:nxbc+1,0     ,k) = dumxout1
+        array(0:nxbc+1,nybc+1,k) = dumxout2
+      endif
+      
+      end subroutine l0d3
+
+c     l1d3
+c     ################################################################
+      subroutine l1d3(flg)
+
+      implicit none
+
+      integer :: flg,k
+
+      k = nzbc+1
+
+      !Left
+      dest = gbc_def%dactx(igxbc)%proc_neighbors(-1,0,0)
+       if (flg == 0) then
+         ireq = ireq+1
+         call MPI_Irecv(dumyout1,(nybc+2)
+     .          ,MPI_DOUBLE_PRECISION,dest,ibc
+     .          ,gbc_def%MPI_COMM,request(ireq)
+     .          ,mpierr)
+       else
+         ireq = ireq+1
+         dumyin1 = array(1,0:nybc+1,k)
+         call MPI_Isend(dumyin1,(nybc+2)
+     .          ,MPI_DOUBLE_PRECISION,dest,ibc
+     .          ,gbc_def%MPI_COMM,request(ireq)
+     .          ,mpierr)
+       endif
+
+       !Right
+       dest = gbc_def%dactx(igxbc)%proc_neighbors(1,0,0)
+       if (flg == 0) then
+         ireq = ireq+1
+         call MPI_Irecv(dumyout2,(nybc+2)
+     .          ,MPI_DOUBLE_PRECISION,dest,ibc
+     .          ,gbc_def%MPI_COMM,request(ireq)
+     .          ,mpierr)
+       else
+         ireq = ireq+1
+         dumyin2 = array(nxbc,0:nybc+1,k)
+         call MPI_Isend(dumyin2,(nybc+2)
+     .          ,MPI_DOUBLE_PRECISION,dest,ibc
+     .          ,gbc_def%MPI_COMM,request(ireq)
+     .          ,mpierr)
+       endif
+
+       !Down
+       dest = gbc_def%dactx(igxbc)%proc_neighbors(0,-1,0)
+       if (flg == 0) then
+         ireq = ireq+1
+         call MPI_Irecv(dumxout1,(nxbc+2)
+     .          ,MPI_DOUBLE_PRECISION,dest,ibc
+     .          ,gbc_def%MPI_COMM,request(ireq)
+     .          ,mpierr)
+       else
+         ireq = ireq+1
+         dumxin1 = array(0:nxbc+1,1,k)
+         call MPI_Isend(dumxin1,(nxbc+2)
+     .          ,MPI_DOUBLE_PRECISION,dest,ibc
+     .          ,gbc_def%MPI_COMM,request(ireq)
+     .          ,mpierr)
+       endif
+
+       !Up
+       dest = gbc_def%dactx(igxbc)%proc_neighbors(0,1,0)
+       if (flg == 0) then
+         ireq = ireq+1
+         call MPI_Irecv(dumxout2,(nxbc+2)
+     .          ,MPI_DOUBLE_PRECISION,dest,ibc
+     .          ,gbc_def%MPI_COMM,request(ireq)
+     .          ,mpierr)
+       else
+         ireq = ireq+1
+         dumxin2 = array(0:nxbc+1,nybc,k) 
+         call MPI_Isend(dumxin2,(nxbc+2)
+     .          ,MPI_DOUBLE_PRECISION,dest,ibc
+     .          ,gbc_def%MPI_COMM,request(ireq)
+     .          ,mpierr)
+       endif
+
+       if(ireq>0.and.flg==1) then
+         call MPI_Waitall(ireq,request,status,mpierr)
+
+         array(0     ,0:nybc+1,k) = dumyout1
+         array(nxbc+1,0:nybc+1,k) = dumyout2
+         array(0:nxbc+1,0     ,k) = dumxout1
+         array(0:nxbc+1,nybc+1,k) = dumxout2
+       endif
+       
+      end subroutine l1d3
 
 c$$$c     l0d1
 c$$$c     ################################################################
@@ -2645,32 +3195,20 @@ c$$$      implicit none
 c$$$
 c$$$      integer :: flg,i
 c$$$
-c$$$      real(8) :: dumzin1 (nzbc+2)
-c$$$     .          ,dumzin2 (nzbc+2)
-c$$$     .          ,dumyin1 (nybc+2)
-c$$$     .          ,dumyin2 (nybc+2)
-c$$$     .          ,dumzout1(nzbc+2)
-c$$$     .          ,dumzout2(nzbc+2)
-c$$$     .          ,dumyout1(nybc+2)
-c$$$     .          ,dumyout2(nybc+2)
-c$$$
 c$$$      i = 0
-c$$$
-c$$$      dumzout1 = 0d0 ; dumzout2 = 0d0 ; dumyout1 = 0d0 ; dumyout2 = 0d0
 c$$$
 c$$$      !Down
 c$$$      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,-1,0)
 c$$$      if (flg == 0) then
 c$$$        ireq = ireq+1
-c$$$        call MPI_Irecv(dumzout1(1),(nzbc+2)
-c$$$     .         ,MPI_DOUBLE_PRECISION,dest,0
+c$$$        call MPI_Irecv(array(i,0,0:nzbc+1),(nzbc+2)
+c$$$     .         ,MPI_DOUBLE_PRECISION,dest,ibc
 c$$$     .         ,gbc_def%MPI_COMM,request(ireq)
 c$$$     .         ,mpierr)
 c$$$      else
 c$$$        ireq = ireq+1
-c$$$        dumzin1 = array(i,1,0:nzbc+1)
-c$$$        call MPI_Isend(dumzin1(1),(nzbc+2)
-c$$$     .         ,MPI_DOUBLE_PRECISION,dest,0
+c$$$        call MPI_Isend(array(i,1,0:nzbc+1),(nzbc+2)
+c$$$     .         ,MPI_DOUBLE_PRECISION,dest,ibc
 c$$$     .         ,gbc_def%MPI_COMM,request(ireq)
 c$$$     .         ,mpierr)
 c$$$      endif
@@ -2679,15 +3217,14 @@ c$$$      !Up
 c$$$      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,1,0)
 c$$$      if (flg == 0) then
 c$$$        ireq = ireq+1
-c$$$        call MPI_Irecv(dumzout2(1),(nzbc+2)
-c$$$     .         ,MPI_DOUBLE_PRECISION,dest,1
+c$$$        call MPI_Irecv(array(i,nybc+1,0:nzbc+1),(nzbc+2)
+c$$$     .         ,MPI_DOUBLE_PRECISION,dest,ibc
 c$$$     .         ,gbc_def%MPI_COMM,request(ireq)
 c$$$     .         ,mpierr)
 c$$$      else
 c$$$        ireq = ireq+1
-c$$$        dumzin2 = array(i,nybc,0:nzbc+1)
-c$$$        call MPI_Isend(dumzin2(1),(nzbc+2)
-c$$$     .         ,MPI_DOUBLE_PRECISION,dest,1
+c$$$        call MPI_Isend(array(i,nybc,0:nzbc+1),(nzbc+2)
+c$$$     .         ,MPI_DOUBLE_PRECISION,dest,ibc
 c$$$     .         ,gbc_def%MPI_COMM,request(ireq)
 c$$$     .         ,mpierr)
 c$$$      endif
@@ -2696,15 +3233,14 @@ c$$$      !Bottom
 c$$$      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,-1)
 c$$$      if (flg == 0) then
 c$$$        ireq = ireq+1
-c$$$        call MPI_Irecv(dumyout1(1),(nybc+2)
-c$$$     .         ,MPI_DOUBLE_PRECISION,dest,2
+c$$$        call MPI_Irecv(array(i,0:nybc+1,0),(nybc+2)
+c$$$     .         ,MPI_DOUBLE_PRECISION,dest,ibc
 c$$$     .         ,gbc_def%MPI_COMM,request(ireq)
 c$$$     .         ,mpierr)
 c$$$      else
 c$$$        ireq = ireq+1
-c$$$        dumyin1 = array(i,0:nybc+1,1)
-c$$$        call MPI_Isend(dumyin1(1),(nybc+2)
-c$$$     .         ,MPI_DOUBLE_PRECISION,dest,2
+c$$$        call MPI_Isend(array(i,0:nybc+1,1),(nybc+2)
+c$$$     .         ,MPI_DOUBLE_PRECISION,dest,ibc
 c$$$     .         ,gbc_def%MPI_COMM,request(ireq)
 c$$$     .         ,mpierr)
 c$$$      endif
@@ -2713,27 +3249,19 @@ c$$$      !Top
 c$$$      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,1)
 c$$$      if (flg == 0) then
 c$$$        ireq = ireq+1
-c$$$        call MPI_Irecv(dumyout2(1),(nybc+2)
-c$$$     .         ,MPI_DOUBLE_PRECISION,dest,3
+c$$$        call MPI_Irecv(array(i,0:nybc+1,nzbc+1),(nybc+2)
+c$$$     .         ,MPI_DOUBLE_PRECISION,dest,ibc
 c$$$     .         ,gbc_def%MPI_COMM,request(ireq)
 c$$$     .         ,mpierr)
 c$$$      else
 c$$$        ireq = ireq+1
-c$$$        dumyin2 = array(i,0:nybc+1,nzbc)
-c$$$        call MPI_Isend(dumyin2(1),(nybc+2)
-c$$$     .         ,MPI_DOUBLE_PRECISION,dest,3
+c$$$        call MPI_Isend(array(i,0:nybc+1,nzbc),(nybc+2)
+c$$$     .         ,MPI_DOUBLE_PRECISION,dest,ibc
 c$$$     .         ,gbc_def%MPI_COMM,request(ireq)
 c$$$     .         ,mpierr)
 c$$$      endif
 c$$$     
-c$$$      if(ireq>0.and.flg==1) then
-c$$$        call MPI_Waitall(ireq,request,status,mpierr)
-c$$$
-c$$$        array(i,0     ,0:nzbc+1) = dumzout1
-c$$$        array(i,nybc+1,0:nzbc+1) = dumzout2
-c$$$        array(i,0:nybc+1,0     ) = dumyout1
-c$$$        array(i,0:nybc+1,nzbc+1) = dumyout2
-c$$$      endif
+c$$$cc      if(ireq>0.and.flg==1) call MPI_Waitall(ireq,request,status,mpierr)
 c$$$
 c$$$      end subroutine l0d1
 c$$$
@@ -2745,32 +3273,20 @@ c$$$      implicit none
 c$$$
 c$$$      integer :: flg,i
 c$$$
-c$$$      real(8) :: dumzin1 (nzbc+2)
-c$$$     .          ,dumzin2 (nzbc+2)
-c$$$     .          ,dumyin1 (nybc+2)
-c$$$     .          ,dumyin2 (nybc+2)
-c$$$     .          ,dumzout1(nzbc+2)
-c$$$     .          ,dumzout2(nzbc+2)
-c$$$     .          ,dumyout1(nybc+2)
-c$$$     .          ,dumyout2(nybc+2)
-c$$$
 c$$$      i = nxbc+1
-c$$$
-c$$$      dumzout1 = 0d0 ; dumzout2 = 0d0 ; dumyout1 = 0d0 ; dumyout2 = 0d0
 c$$$
 c$$$      !Up
 c$$$      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,1,0)
 c$$$      if (flg == 0) then
 c$$$        ireq = ireq+1
-c$$$        call MPI_Irecv(dumzout1(1),(nzbc+2)
-c$$$     .         ,MPI_DOUBLE_PRECISION,dest,0
+c$$$        call MPI_Irecv(array(i,nybc+1,0:nzbc+1),(nzbc+2)
+c$$$     .         ,MPI_DOUBLE_PRECISION,dest,ibc
 c$$$     .         ,gbc_def%MPI_COMM,request(ireq)
 c$$$     .         ,mpierr)
 c$$$      else
 c$$$        ireq = ireq+1
-c$$$        dumzin1 = array(i,nybc,0:nzbc+1)
-c$$$        call MPI_Isend(dumzin1(1),(nzbc+2)
-c$$$     .         ,MPI_DOUBLE_PRECISION,dest,0
+c$$$        call MPI_Isend(array(i,nybc,0:nzbc+1),(nzbc+2)
+c$$$     .         ,MPI_DOUBLE_PRECISION,dest,ibc
 c$$$     .         ,gbc_def%MPI_COMM,request(ireq)
 c$$$     .         ,mpierr)
 c$$$      endif
@@ -2779,15 +3295,14 @@ c$$$      !Down
 c$$$      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,-1,0)
 c$$$      if (flg == 0) then
 c$$$        ireq = ireq+1
-c$$$        call MPI_Irecv(dumzout2(1),(nzbc+2)
-c$$$     .         ,MPI_DOUBLE_PRECISION,dest,1
+c$$$        call MPI_Irecv(array(i,0,0:nzbc+1),(nzbc+2)
+c$$$     .         ,MPI_DOUBLE_PRECISION,dest,ibc
 c$$$     .         ,gbc_def%MPI_COMM,request(ireq)
 c$$$     .         ,mpierr)
 c$$$      else
 c$$$        ireq = ireq+1
-c$$$        dumzin2 = array(i,1,0:nzbc+1)
-c$$$        call MPI_Isend(dumzin2(1),(nzbc+2)
-c$$$     .         ,MPI_DOUBLE_PRECISION,dest,1
+c$$$        call MPI_Isend(array(i,1,0:nzbc+1),(nzbc+2)
+c$$$     .         ,MPI_DOUBLE_PRECISION,dest,ibc
 c$$$     .         ,gbc_def%MPI_COMM,request(ireq)
 c$$$     .         ,mpierr)
 c$$$      endif
@@ -2796,15 +3311,14 @@ c$$$      !Top
 c$$$      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,1)
 c$$$      if (flg == 0) then
 c$$$        ireq = ireq+1
-c$$$        call MPI_Irecv(dumyout1(1),(nybc+2)
-c$$$     .         ,MPI_DOUBLE_PRECISION,dest,2
+c$$$        call MPI_Irecv(array(i,0:nybc+1,nzbc+1),(nybc+2)
+c$$$     .         ,MPI_DOUBLE_PRECISION,dest,ibc
 c$$$     .         ,gbc_def%MPI_COMM,request(ireq)
 c$$$     .         ,mpierr)
 c$$$      else
 c$$$        ireq = ireq+1
-c$$$        dumyin1 = array(i,0:nybc+1,nzbc)
-c$$$        call MPI_Isend(dumyin1(1),(nybc+2)
-c$$$     .         ,MPI_DOUBLE_PRECISION,dest,2
+c$$$        call MPI_Isend(array(i,0:nybc+1,nzbc),(nybc+2)
+c$$$     .         ,MPI_DOUBLE_PRECISION,dest,ibc
 c$$$     .         ,gbc_def%MPI_COMM,request(ireq)
 c$$$     .         ,mpierr)
 c$$$      endif
@@ -2813,27 +3327,19 @@ c$$$      !Bottom
 c$$$      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,-1)
 c$$$      if (flg == 0) then
 c$$$        ireq = ireq+1
-c$$$        call MPI_Irecv(dumyout2(1),(nybc+2)
-c$$$     .         ,MPI_DOUBLE_PRECISION,dest,3
+c$$$        call MPI_Irecv(array(i,0:nybc+1,0),(nybc+2)
+c$$$     .         ,MPI_DOUBLE_PRECISION,dest,ibc
 c$$$     .         ,gbc_def%MPI_COMM,request(ireq)
 c$$$     .         ,mpierr)
 c$$$      else
 c$$$        ireq = ireq+1
-c$$$        dumyin2 = array(i,0:nybc+1,1)
-c$$$        call MPI_Isend(dumyin2(1),(nybc+2)
-c$$$     .         ,MPI_DOUBLE_PRECISION,dest,3
+c$$$        call MPI_Isend(array(i,0:nybc+1,1),(nybc+2)
+c$$$     .         ,MPI_DOUBLE_PRECISION,dest,ibc
 c$$$     .         ,gbc_def%MPI_COMM,request(ireq)
 c$$$     .         ,mpierr)
 c$$$      endif
 c$$$
-c$$$      if(ireq>0.and.flg==1) then
-c$$$        call MPI_Waitall(ireq,request,status,mpierr)
-c$$$
-c$$$        array(i,nybc+1,0:nzbc+1) = dumzout1
-c$$$        array(i,0     ,0:nzbc+1) = dumzout2
-c$$$        array(i,0:nybc+1,nzbc+1) = dumyout1
-c$$$        array(i,0:nybc+1,0     ) = dumyout2
-c$$$      endif
+c$$$cc      if(ireq>0.and.flg==1) call MPI_Waitall(ireq,request,status,mpierr)
 c$$$
 c$$$      end subroutine l1d1
 c$$$
@@ -2845,29 +3351,19 @@ c$$$      implicit none
 c$$$      
 c$$$      integer :: flg,j
 c$$$
-c$$$      real(8) :: dumzin1 (nzbc+2)
-c$$$     .          ,dumzin2 (nzbc+2)
-c$$$     .          ,dumxin1 (nxbc+2)
-c$$$     .          ,dumxin2 (nxbc+2)
-c$$$     .          ,dumzout1(nzbc+2)
-c$$$     .          ,dumzout2(nzbc+2)
-c$$$     .          ,dumxout1(nxbc+2)
-c$$$     .          ,dumxout2(nxbc+2)
-c$$$
 c$$$      j = 0
 c$$$
 c$$$      !Left
 c$$$      dest = gbc_def%dactx(igxbc)%proc_neighbors(-1,0,0)
 c$$$      if (flg == 0) then
 c$$$        ireq = ireq+1
-c$$$        call MPI_Irecv(dumzout1(1),(nzbc+2)
+c$$$        call MPI_Irecv(array(0,j,0:nzbc+1),(nzbc+2)
 c$$$     .         ,MPI_DOUBLE_PRECISION,dest,ibc
 c$$$     .         ,gbc_def%MPI_COMM,request(ireq)
 c$$$     .         ,mpierr)
 c$$$      else
 c$$$        ireq = ireq+1
-c$$$        dumzin1 = array(1,j,0:nzbc+1)
-c$$$        call MPI_Isend(dumzin1(1),(nzbc+2)
+c$$$        call MPI_Isend(array(1,j,0:nzbc+1),(nzbc+2)
 c$$$     .         ,MPI_DOUBLE_PRECISION,dest,ibc
 c$$$     .         ,gbc_def%MPI_COMM,request(ireq)
 c$$$     .         ,mpierr)
@@ -2877,14 +3373,13 @@ c$$$      !Right
 c$$$      dest = gbc_def%dactx(igxbc)%proc_neighbors(1,0,0)
 c$$$      if (flg == 0) then
 c$$$        ireq = ireq+1
-c$$$        call MPI_Irecv(dumzout2(1),(nzbc+2)
+c$$$        call MPI_Irecv(array(nxbc+1,j,0:nzbc+1),(nzbc+2)
 c$$$     .         ,MPI_DOUBLE_PRECISION,dest,ibc
 c$$$     .         ,gbc_def%MPI_COMM,request(ireq)
 c$$$     .         ,mpierr)
 c$$$      else
 c$$$        ireq = ireq+1
-c$$$        dumzin2 = array(nxbc,j,0:nzbc+1)
-c$$$        call MPI_Isend(dumzin2(1),(nzbc+2)
+c$$$        call MPI_Isend(array(nxbc,j,0:nzbc+1),(nzbc+2)
 c$$$     .         ,MPI_DOUBLE_PRECISION,dest,ibc
 c$$$     .         ,gbc_def%MPI_COMM,request(ireq)
 c$$$     .         ,mpierr)
@@ -2894,14 +3389,13 @@ c$$$      !Bottom
 c$$$      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,-1)
 c$$$      if (flg == 0) then
 c$$$        ireq = ireq+1
-c$$$        call MPI_Irecv(dumxout1(1),(nxbc+2)
+c$$$        call MPI_Irecv(array(0:nxbc+1,j,0),(nxbc+2)
 c$$$     .         ,MPI_DOUBLE_PRECISION,dest,ibc
 c$$$     .         ,gbc_def%MPI_COMM,request(ireq)
 c$$$     .         ,mpierr)
 c$$$      else
 c$$$        ireq = ireq+1
-c$$$        dumxin1 = array(0:nxbc+1,j,1)
-c$$$        call MPI_Isend(dumxin1(1),(nxbc+2)
+c$$$        call MPI_Isend(array(0:nxbc+1,j,1),(nxbc+2)
 c$$$     .         ,MPI_DOUBLE_PRECISION,dest,ibc
 c$$$     .         ,gbc_def%MPI_COMM,request(ireq)
 c$$$     .         ,mpierr)
@@ -2911,27 +3405,19 @@ c$$$      !Top
 c$$$      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,1)
 c$$$      if (flg == 0) then
 c$$$        ireq = ireq+1
-c$$$        call MPI_Irecv(dumxout2(1),(nxbc+2)
+c$$$        call MPI_Irecv(array(0:nxbc+1,j,nzbc+1),(nxbc+2)
 c$$$     .         ,MPI_DOUBLE_PRECISION,dest,ibc
 c$$$     .         ,gbc_def%MPI_COMM,request(ireq)
 c$$$     .         ,mpierr)
 c$$$      else
 c$$$        ireq = ireq+1
-c$$$        dumxin2 = array(0:nxbc+1,j,nzbc)
-c$$$        call MPI_Isend(dumxin2(1),(nxbc+2)
+c$$$        call MPI_Isend(array(0:nxbc+1,j,nzbc),(nxbc+2)
 c$$$     .         ,MPI_DOUBLE_PRECISION,dest,ibc
 c$$$     .         ,gbc_def%MPI_COMM,request(ireq)
 c$$$     .         ,mpierr)
 c$$$      endif
 c$$$
-c$$$      if(ireq>0.and.flg==1) then
-c$$$        call MPI_Waitall(ireq,request,status,mpierr)
-c$$$
-c$$$        array(0     ,j,0:nzbc+1) = dumzout1
-c$$$        array(nxbc+1,j,0:nzbc+1) = dumzout2
-c$$$        array(0:nxbc+1,j,0     ) = dumxout1
-c$$$        array(0:nxbc+1,j,nzbc+1) = dumxout2
-c$$$      endif
+c$$$cc      if(ireq>0.and.flg==1) call MPI_Waitall(ireq,request,status,mpierr)
 c$$$
 c$$$      end subroutine l0d2
 c$$$
@@ -2943,29 +3429,19 @@ c$$$      implicit none
 c$$$
 c$$$      integer :: flg,j
 c$$$
-c$$$      real(8) :: dumzin1 (nzbc+2)
-c$$$     .          ,dumzin2 (nzbc+2)
-c$$$     .          ,dumxin1 (nxbc+2)
-c$$$     .          ,dumxin2 (nxbc+2)
-c$$$     .          ,dumzout1(nzbc+2)
-c$$$     .          ,dumzout2(nzbc+2)
-c$$$     .          ,dumxout1(nxbc+2)
-c$$$     .          ,dumxout2(nxbc+2)
-c$$$
 c$$$      j = nybc+1
 c$$$
 c$$$      !Left
 c$$$      dest = gbc_def%dactx(igxbc)%proc_neighbors(-1,0,0)
 c$$$      if (flg == 0) then
 c$$$        ireq = ireq+1
-c$$$        call MPI_Irecv(dumzout1(1),(nzbc+2)
+c$$$        call MPI_Irecv(array(0,j,0:nzbc+1),(nzbc+2)
 c$$$     .         ,MPI_DOUBLE_PRECISION,dest,ibc
 c$$$     .         ,gbc_def%MPI_COMM,request(ireq)
 c$$$     .         ,mpierr)
 c$$$      else
 c$$$        ireq = ireq+1
-c$$$        dumzin1 = array(1,j,0:nzbc+1)
-c$$$        call MPI_Isend(dumzin1(1),(nzbc+2)
+c$$$        call MPI_Isend(array(1,j,0:nzbc+1),(nzbc+2)
 c$$$     .         ,MPI_DOUBLE_PRECISION,dest,ibc
 c$$$     .         ,gbc_def%MPI_COMM,request(ireq)
 c$$$     .         ,mpierr)
@@ -2975,14 +3451,13 @@ c$$$      !Right
 c$$$      dest = gbc_def%dactx(igxbc)%proc_neighbors(1,0,0)
 c$$$      if (flg == 0) then
 c$$$        ireq = ireq+1
-c$$$        call MPI_Irecv(dumzout2(1),(nzbc+2)
+c$$$        call MPI_Irecv(array(nxbc+1,j,0:nzbc+1),(nzbc+2)
 c$$$     .         ,MPI_DOUBLE_PRECISION,dest,ibc
 c$$$     .         ,gbc_def%MPI_COMM,request(ireq)
 c$$$     .         ,mpierr)
 c$$$      else
 c$$$        ireq = ireq+1
-c$$$        dumzin2 = array(nxbc,j,0:nzbc+1)
-c$$$        call MPI_Isend(dumzin2(1),(nzbc+2)
+c$$$        call MPI_Isend(array(nxbc,j,0:nzbc+1),(nzbc+2)
 c$$$     .         ,MPI_DOUBLE_PRECISION,dest,ibc
 c$$$     .         ,gbc_def%MPI_COMM,request(ireq)
 c$$$     .         ,mpierr)
@@ -2992,14 +3467,13 @@ c$$$      !Bottom
 c$$$      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,-1)
 c$$$      if (flg == 0) then
 c$$$        ireq = ireq+1
-c$$$        call MPI_Irecv(dumxout1(1),(nxbc+2)
+c$$$        call MPI_Irecv(array(0:nxbc+1,j,0),(nxbc+2)
 c$$$     .         ,MPI_DOUBLE_PRECISION,dest,ibc
 c$$$     .         ,gbc_def%MPI_COMM,request(ireq)
 c$$$     .         ,mpierr)
 c$$$      else
 c$$$        ireq = ireq+1
-c$$$        dumxin1 = array(0:nxbc+1,j,1)
-c$$$        call MPI_Isend(dumxin1(1),(nxbc+2)
+c$$$        call MPI_Isend(array(0:nxbc+1,j,1),(nxbc+2)
 c$$$     .         ,MPI_DOUBLE_PRECISION,dest,ibc
 c$$$     .         ,gbc_def%MPI_COMM,request(ireq)
 c$$$     .         ,mpierr)
@@ -3009,27 +3483,19 @@ c$$$      !Top
 c$$$      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,1)
 c$$$      if (flg == 0) then
 c$$$        ireq = ireq+1
-c$$$        call MPI_Irecv(dumxout2(1),(nxbc+2)
+c$$$        call MPI_Irecv(array(0:nxbc+1,j,nzbc+1),(nxbc+2)
 c$$$     .         ,MPI_DOUBLE_PRECISION,dest,ibc
 c$$$     .         ,gbc_def%MPI_COMM,request(ireq)
 c$$$     .         ,mpierr)
 c$$$      else
 c$$$        ireq = ireq+1
-c$$$        dumxin2 = array(0:nxbc+1,j,nzbc)
-c$$$        call MPI_Isend(dumxin2(1),(nxbc+2)
+c$$$        call MPI_Isend(array(0:nxbc+1,j,nzbc),(nxbc+2)
 c$$$     .         ,MPI_DOUBLE_PRECISION,dest,ibc
 c$$$     .         ,gbc_def%MPI_COMM,request(ireq)
 c$$$     .         ,mpierr)
 c$$$      endif
 c$$$
-c$$$      if(ireq>0.and.flg==1) then
-c$$$        call MPI_Waitall(ireq,request,status,mpierr)
-c$$$
-c$$$        array(0     ,j,0:nzbc+1) = dumzout1
-c$$$        array(nxbc+1,j,0:nzbc+1) = dumzout2
-c$$$        array(0:nxbc+1,j,0     ) = dumxout1
-c$$$        array(0:nxbc+1,j,nzbc+1) = dumxout2
-c$$$      endif
+c$$$cc      if(ireq>0.and.flg==1) call MPI_Waitall(ireq,request,status,mpierr)
 c$$$
 c$$$      end subroutine l1d2
 c$$$
@@ -3107,7 +3573,7 @@ c$$$     .         ,gbc_def%MPI_COMM,request(ireq)
 c$$$     .         ,mpierr)
 c$$$      endif
 c$$$
-c$$$      if(ireq>0.and.flg==1) call MPI_Waitall(ireq,request,status,mpierr)
+c$$$cc      if(ireq>0.and.flg==1) call MPI_Waitall(ireq,request,status,mpierr)
 c$$$
 c$$$      end subroutine l0d3
 c$$$
@@ -3185,477 +3651,9 @@ c$$$     .          ,gbc_def%MPI_COMM,request(ireq)
 c$$$     .          ,mpierr)
 c$$$       endif
 c$$$
-c$$$      if(ireq>0.and.flg==1) call MPI_Waitall(ireq,request,status,mpierr)
+c$$$cc      if(ireq>0.and.flg==1) call MPI_Waitall(ireq,request,status,mpierr)
 c$$$
 c$$$      end subroutine l1d3
-
-c     l0d1
-c     ################################################################
-      subroutine l0d1(flg)
-
-      implicit none
-
-      integer :: flg,i
-
-      i = 0
-
-      !Down
-      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,-1,0)
-      if (flg == 0) then
-        ireq = ireq+1
-        call MPI_Irecv(array(i,0,0:nzbc+1),(nzbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-      else
-        ireq = ireq+1
-        call MPI_Isend(array(i,1,0:nzbc+1),(nzbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-      endif
-
-      !Up
-      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,1,0)
-      if (flg == 0) then
-        ireq = ireq+1
-        call MPI_Irecv(array(i,nybc+1,0:nzbc+1),(nzbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-      else
-        ireq = ireq+1
-        call MPI_Isend(array(i,nybc,0:nzbc+1),(nzbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-      endif
-
-      !Bottom
-      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,-1)
-      if (flg == 0) then
-        ireq = ireq+1
-        call MPI_Irecv(array(i,0:nybc+1,0),(nybc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-      else
-        ireq = ireq+1
-        call MPI_Isend(array(i,0:nybc+1,1),(nybc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-      endif
-
-      !Top
-      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,1)
-      if (flg == 0) then
-        ireq = ireq+1
-        call MPI_Irecv(array(i,0:nybc+1,nzbc+1),(nybc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-      else
-        ireq = ireq+1
-        call MPI_Isend(array(i,0:nybc+1,nzbc),(nybc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-      endif
-     
-      if(ireq>0.and.flg==1) call MPI_Waitall(ireq,request,status,mpierr)
-
-      end subroutine l0d1
-
-c     l1d1
-c     ################################################################
-      subroutine l1d1(flg)
-
-      implicit none
-
-      integer :: flg,i
-
-      i = nxbc+1
-
-      !Up
-      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,1,0)
-      if (flg == 0) then
-        ireq = ireq+1
-        call MPI_Irecv(array(i,nybc+1,0:nzbc+1),(nzbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-      else
-        ireq = ireq+1
-        call MPI_Isend(array(i,nybc,0:nzbc+1),(nzbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-      endif
-
-      !Down
-      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,-1,0)
-      if (flg == 0) then
-        ireq = ireq+1
-        call MPI_Irecv(array(i,0,0:nzbc+1),(nzbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-      else
-        ireq = ireq+1
-        call MPI_Isend(array(i,1,0:nzbc+1),(nzbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-      endif
-
-      !Top
-      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,1)
-      if (flg == 0) then
-        ireq = ireq+1
-        call MPI_Irecv(array(i,0:nybc+1,nzbc+1),(nybc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-      else
-        ireq = ireq+1
-        call MPI_Isend(array(i,0:nybc+1,nzbc),(nybc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-      endif
-
-      !Bottom
-      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,-1)
-      if (flg == 0) then
-        ireq = ireq+1
-        call MPI_Irecv(array(i,0:nybc+1,0),(nybc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-      else
-        ireq = ireq+1
-        call MPI_Isend(array(i,0:nybc+1,1),(nybc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-      endif
-
-      if(ireq>0.and.flg==1) call MPI_Waitall(ireq,request,status,mpierr)
-
-      end subroutine l1d1
-
-c     l0d2
-c     ################################################################
-      subroutine l0d2(flg)
-
-      implicit none
-      
-      integer :: flg,j
-
-      j = 0
-
-      !Left
-      dest = gbc_def%dactx(igxbc)%proc_neighbors(-1,0,0)
-      if (flg == 0) then
-        ireq = ireq+1
-        call MPI_Irecv(array(0,j,0:nzbc+1),(nzbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-      else
-        ireq = ireq+1
-        call MPI_Isend(array(1,j,0:nzbc+1),(nzbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-      endif
-
-      !Right
-      dest = gbc_def%dactx(igxbc)%proc_neighbors(1,0,0)
-      if (flg == 0) then
-        ireq = ireq+1
-        call MPI_Irecv(array(nxbc+1,j,0:nzbc+1),(nzbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-      else
-        ireq = ireq+1
-        call MPI_Isend(array(nxbc,j,0:nzbc+1),(nzbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-      endif
-
-      !Bottom
-      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,-1)
-      if (flg == 0) then
-        ireq = ireq+1
-        call MPI_Irecv(array(0:nxbc+1,j,0),(nxbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-      else
-        ireq = ireq+1
-        call MPI_Isend(array(0:nxbc+1,j,1),(nxbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-      endif
-
-      !Top
-      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,1)
-      if (flg == 0) then
-        ireq = ireq+1
-        call MPI_Irecv(array(0:nxbc+1,j,nzbc+1),(nxbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-      else
-        ireq = ireq+1
-        call MPI_Isend(array(0:nxbc+1,j,nzbc),(nxbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-      endif
-
-      if(ireq>0.and.flg==1) call MPI_Waitall(ireq,request,status,mpierr)
-
-      end subroutine l0d2
-
-c     l1d2
-c     ################################################################
-      subroutine l1d2(flg)
-
-      implicit none
-
-      integer :: flg,j
-
-      j = nybc+1
-
-      !Left
-      dest = gbc_def%dactx(igxbc)%proc_neighbors(-1,0,0)
-      if (flg == 0) then
-        ireq = ireq+1
-        call MPI_Irecv(array(0,j,0:nzbc+1),(nzbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-      else
-        ireq = ireq+1
-        call MPI_Isend(array(1,j,0:nzbc+1),(nzbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-      endif
-
-      !Right
-      dest = gbc_def%dactx(igxbc)%proc_neighbors(1,0,0)
-      if (flg == 0) then
-        ireq = ireq+1
-        call MPI_Irecv(array(nxbc+1,j,0:nzbc+1),(nzbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-      else
-        ireq = ireq+1
-        call MPI_Isend(array(nxbc,j,0:nzbc+1),(nzbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-      endif
-
-      !Bottom
-      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,-1)
-      if (flg == 0) then
-        ireq = ireq+1
-        call MPI_Irecv(array(0:nxbc+1,j,0),(nxbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-      else
-        ireq = ireq+1
-        call MPI_Isend(array(0:nxbc+1,j,1),(nxbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-      endif
-
-      !Top
-      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,0,1)
-      if (flg == 0) then
-        ireq = ireq+1
-        call MPI_Irecv(array(0:nxbc+1,j,nzbc+1),(nxbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-      else
-        ireq = ireq+1
-        call MPI_Isend(array(0:nxbc+1,j,nzbc),(nxbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-      endif
-
-      if(ireq>0.and.flg==1) call MPI_Waitall(ireq,request,status,mpierr)
-
-      end subroutine l1d2
-
-c     l0d3
-c     ################################################################
-      subroutine l0d3(flg)
-
-      implicit none
-
-      integer :: flg,k
-
-      k = 0
-
-      !Left
-      dest = gbc_def%dactx(igxbc)%proc_neighbors(-1,0,0)
-      if (flg == 0) then
-        ireq = ireq+1
-        call MPI_Irecv(array(0,0:nybc+1,k),(nybc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-      else
-        ireq = ireq+1
-        call MPI_Isend(array(1,0:nybc+1,k),(nybc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-      endif
-
-      !Right
-      dest = gbc_def%dactx(igxbc)%proc_neighbors(1,0,0)
-      if (flg == 0) then
-        ireq = ireq+1
-        call MPI_Irecv(array(nxbc+1,0:nybc+1,k),(nybc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-      else
-        ireq = ireq+1
-        call MPI_Isend(array(nxbc,0:nybc+1,k),(nybc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-      endif
-
-      !Down
-      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,-1,0)
-      if (flg == 0) then
-        ireq = ireq+1
-        call MPI_Irecv(array(0:nxbc+1,0,k),(nxbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-      else
-        ireq = ireq+1
-        call MPI_Isend(array(0:nxbc+1,1,k),(nxbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-      endif
-
-      !Up
-      dest = gbc_def%dactx(igxbc)%proc_neighbors(0,1,0)
-      if (flg == 0) then
-        ireq = ireq+1
-        call MPI_Irecv(array(0:nxbc+1,nybc+1,k),(nxbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-      else
-        ireq = ireq+1
-        call MPI_Isend(array(0:nxbc+1,nybc,k),(nxbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-      endif
-
-      if(ireq>0.and.flg==1) call MPI_Waitall(ireq,request,status,mpierr)
-
-      end subroutine l0d3
-
-c     l1d3
-c     ################################################################
-      subroutine l1d3(flg)
-
-      implicit none
-
-      integer :: flg,k
-
-      k = nzbc+1
-
-      !Left
-      dest = gbc_def%dactx(igxbc)%proc_neighbors(-1,0,0)
-       if (flg == 0) then
-         ireq = ireq+1
-         call MPI_Irecv(array(0,0:nybc+1,k),(nybc+2)
-     .          ,MPI_DOUBLE_PRECISION,dest,ibc
-     .          ,gbc_def%MPI_COMM,request(ireq)
-     .          ,mpierr)
-       else
-         ireq = ireq+1
-         call MPI_Isend(array(1,0:nybc+1,k),(nybc+2)
-     .          ,MPI_DOUBLE_PRECISION,dest,ibc
-     .          ,gbc_def%MPI_COMM,request(ireq)
-     .          ,mpierr)
-       endif
-
-       !Right
-       dest = gbc_def%dactx(igxbc)%proc_neighbors(1,0,0)
-       if (flg == 0) then
-         ireq = ireq+1
-         call MPI_Irecv(array(nxbc+1,0:nybc+1,k),(nybc+2)
-     .          ,MPI_DOUBLE_PRECISION,dest,ibc
-     .          ,gbc_def%MPI_COMM,request(ireq)
-     .          ,mpierr)
-       else
-         ireq = ireq+1
-         call MPI_Isend(array(nxbc,0:nybc+1,k),(nybc+2)
-     .          ,MPI_DOUBLE_PRECISION,dest,ibc
-     .          ,gbc_def%MPI_COMM,request(ireq)
-     .          ,mpierr)
-       endif
-
-       !Down
-       dest = gbc_def%dactx(igxbc)%proc_neighbors(0,-1,0)
-       if (flg == 0) then
-         ireq = ireq+1
-         call MPI_Irecv(array(0:nxbc+1,0,k),(nxbc+2)
-     .          ,MPI_DOUBLE_PRECISION,dest,ibc
-     .          ,gbc_def%MPI_COMM,request(ireq)
-     .          ,mpierr)
-       else
-         ireq = ireq+1
-         call MPI_Isend(array(0:nxbc+1,1,k),(nxbc+2)
-     .          ,MPI_DOUBLE_PRECISION,dest,ibc
-     .          ,gbc_def%MPI_COMM,request(ireq)
-     .          ,mpierr)
-       endif
-
-       !Up
-       dest = gbc_def%dactx(igxbc)%proc_neighbors(0,1,0)
-       if (flg == 0) then
-         ireq = ireq+1
-         call MPI_Irecv(array(0:nxbc+1,nybc+1,k),(nxbc+2)
-     .          ,MPI_DOUBLE_PRECISION,dest,ibc
-     .          ,gbc_def%MPI_COMM,request(ireq)
-     .          ,mpierr)
-       else
-         ireq = ireq+1
-         call MPI_Isend(array(0:nxbc+1,nybc,k),(nxbc+2)
-     .          ,MPI_DOUBLE_PRECISION,dest,ibc
-     .          ,gbc_def%MPI_COMM,request(ireq)
-     .          ,mpierr)
-       endif
-
-      if(ireq>0.and.flg==1) call MPI_Waitall(ireq,request,status,mpierr)
-
-      end subroutine l1d3
 #endif
 
       end subroutine syncBC
