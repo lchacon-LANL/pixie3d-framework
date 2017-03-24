@@ -3158,8 +3158,6 @@ c     ################################################################
 
 #endif
 
-#endif
-
       end subroutine syncBC
 
 c     periodicBC
