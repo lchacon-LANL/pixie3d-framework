@@ -79,7 +79,30 @@ ifeq ($(findstring gfortran,$(FC)),gfortran)
   ifeq ($(ARCH),Darwin)
     OPTIMIZATION ?= -Wa,-q -O3 -march=$(M_ARCH) -fopenmp-simd #-fopt-info -ffast-math 
   else
-    OPTIMIZATION ?= -O3 -g -march=$(M_ARCH) #Only for gcc > 4.9... -ffast-math -fopenmp-simd -fopt-info
+    OPTIMIZATION ?= -O1 -fdevirtualize  -fhoist-adjacent-loads -finline-small-functions -fipa-sra -fpartial-inlining -ftree-tail-merge \
+          -finline-functions -funswitch-loops \
+          -fpredictive-commoning -ftree-vectorize -fgcse-after-reload  \
+          -fthread-jumps \
+          -falign-functions  -falign-jumps \
+          -falign-loops  -falign-labels \
+          -fcaller-saves \
+          -fcrossjumping \
+          -fcse-follow-jumps  -fcse-skip-blocks \
+          -fdelete-null-pointer-checks \
+          -fexpensive-optimizations \
+          -fgcse  -fgcse-lm  \
+          -findirect-inlining \
+          -foptimize-sibling-calls \
+          -fpeephole2 \
+          -fregmove \
+          -freorder-blocks  -freorder-functions \
+          -frerun-cse-after-loop  \
+          -fsched-interblock  -fsched-spec \
+          -fschedule-insns  -fschedule-insns2 \
+          -fstrict-aliasing -fstrict-overflow \
+          -ftree-switch-conversion \
+          -ftree-pre \
+          -ftree-vrp #Only for gcc > 4.9... -ffast-math -fopenmp-simd -fopt-info -march=$(M_ARCH)
   endif
   DEBUG        = -g -fbounds-check -fbacktrace -ffpe-trap=invalid,zero -ftrapv #-finit-real=snan #-finit-local-zero #-ggdb3
   PROFILE      = -O2 -pg -g
