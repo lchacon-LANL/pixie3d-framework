@@ -2897,8 +2897,6 @@ c     ################################################################
         endif
       endif
 
-      write (*,*) 'l0d2,bottom',dest,pn(0,0,-1),currp,nullp,ireq
-
       !Top
       dest = pn(0,0,1)
       if (dest /= currp) then
