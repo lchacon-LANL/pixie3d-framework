@@ -884,8 +884,7 @@ c     Evaluate dr=dx/dxi vectors at vertices
         do k = klom,khi
           do j = jlom,jhi
             do i = ilom,ihi
-              dr(i,j,k,:,:)
-     .             = find_dr(i,j,k,igrid,he,he,he,g_def,xc)
+              dr(i,j,k,:,:) = find_dr(i,j,k,igrid,he,he,he,g_def,xc)
             enddo
           enddo
         enddo
