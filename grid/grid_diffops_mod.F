@@ -6459,8 +6459,7 @@ c$$$     .     .or.(isSP2(g_def,i+1,igr,ibc=1).and.spoint)) then
 
 c     Other advective methods
 
-cc      if (method /= 2.and.(.not.at_bdry)) then
-      if (method /= 2) then
+      if (method /= 2.and.(.not.at_bdry)) then
 
         !Find velocities at faces from ZIP fluxes
         if (zv
@@ -6549,8 +6548,7 @@ c     Other advective methods
       at_bdry = (isBdry(g_def,j  ,igr,4).and.bcond(4)/=PER)
      .      .or.(isBdry(g_def,j+1,igr,3).and.bcond(3)/=PER)
 
-cc      if (method /= 2.and.(.not.at_bdry)) then
-      if (method /= 2) then
+      if (method /= 2.and.(.not.at_bdry)) then
 
         !Find velocities at faces from ZIP fluxes
         if (zv
@@ -6639,8 +6637,7 @@ c     Other advective methods
       at_bdry = (isBdry(g_def,k  ,igr,6).and.bcond(6)/=PER)
      .      .or.(isBdry(g_def,k+1,igr,5).and.bcond(5)/=PER)
 
-cc      if (method /= 2.and.(.not.at_bdry)) then
-      if (method /= 2) then
+      if (method /= 2.and.(.not.at_bdry)) then
 
         !Find velocities at faces from ZIP fluxes
         if (zv
