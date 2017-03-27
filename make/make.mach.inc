@@ -68,6 +68,8 @@ endif
 
 ifeq ($(HOST),jetta)
 
+  MACHINE = jetta
+
   FC = gfortran
 
   OMP_NUM_THREADS = 32
@@ -927,6 +929,8 @@ endif
 
 ifeq ($(findstring wf,$(HOST)),wf)
 
+  MACHINE = wolf
+
   ifeq ($(findstring gfortran,$(FC)),gfortran)
 
     NETCDF=f
@@ -953,7 +957,7 @@ ifeq ($(findstring wf,$(HOST)),wf)
      ADIOS_METHOD = MPI_LUSTRE
 
      ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.10.0/lib-wolf-gcc-5.3.0_openmpi-1.10.5
-     ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1
+     ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -llustreapi
      ADIOS_VER  = 1.10.0
     endif
 
@@ -985,7 +989,7 @@ ifeq ($(findstring wf,$(HOST)),wf)
        ADIOS_METHOD = MPI_LUSTRE
 
        ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.10.0/lib-wolf-intel-17.0.1_openmpi-1.10.5
-       ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1
+       ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -llustreapi
        ADIOS_VER  = 1.10.0
    endif
 
@@ -1014,6 +1018,8 @@ endif
 #####################
 
 ifeq ($(findstring gr,$(HOST)),gr)
+
+  MACHINE = grizzly
 
   ifeq ($(findstring gfortran,$(FC)),gfortran)
 
