@@ -4553,7 +4553,7 @@ c     Initialize variables
 
 c     Check for exceptions
 
-      call checkExceptions
+      if (checkExceptions()) return
 
 c     Identify directions for extrapolation.
 
@@ -4784,9 +4784,13 @@ c     End program
 
 c     checkExceptions
 c     ######################################################################
-      subroutine checkExceptions
+      function checkExceptions() result(get_out)
 
       implicit none
+
+      logical :: get_out
+
+      get_out = .false.
 
 c     Check for "do nothing" conditions
 
@@ -4799,7 +4803,10 @@ c     Check for "do nothing" conditions
      .      ,my_rank,' Skip corners',(skip_corners.and.(.not.face))
       endif
 
-      if (skip_corners.and.(.not.face)) return
+      if (skip_corners.and.(.not.face)) then
+        get_out = .true.
+        return
+      endif
 
 c     Do nothing for SP boundary faces, edges, and corners
 
@@ -4816,8 +4823,10 @@ c     Do nothing for SP boundary faces, edges, and corners
       if (   (bcSP(ibc=ibcl(1),bcnd=bcnd)
      .    .or.bcSP(ibc=ibcl(2),bcnd=bcnd)
      .    .or.bcSP(ibc=ibcl(3),bcnd=bcnd))
-     .    .and.(.not.force_corners)) return
-
+     .    .and.(.not.force_corners)) then
+        get_out = .true.
+        return
+      endif
 c     Do nothing for DEF boundary faces, edges, and corners
 
       if (bc_debug) then
@@ -4833,7 +4842,10 @@ c     Do nothing for DEF boundary faces, edges, and corners
       if (   (bcChk(ibcl(1),DEF,bcnd=bcnd)
      .    .or.bcChk(ibcl(2),DEF,bcnd=bcnd)
      .    .or.bcChk(ibcl(3),DEF,bcnd=bcnd))
-     .    .and.(.not.force_corners)) return
+     .    .and.(.not.force_corners)) then
+        get_out = .true.
+        return
+      endif
 
 c     Do nothing for SYM (not FSYM) boundary faces, edges, and corners
 c     (taken care of by scalarNeumann and scalarDirichlet routines)
@@ -4851,7 +4863,10 @@ c     (taken care of by scalarNeumann and scalarDirichlet routines)
       if (   (isSYMBdry(gbc_def,ibc=ibcl(1))
      .    .or.isSYMBdry(gbc_def,ibc=ibcl(2))
      .    .or.isSYMBdry(gbc_def,ibc=ibcl(3)))
-     .    .and.(.not.force_corners)) return
+     .    .and.(.not.force_corners)) then
+        get_out = .true.
+        return
+      endif
 
 c     Do nothing for PER boundary faces, edges, and corners
 c     (taken care of by PETSc and SYNC routines)
@@ -4869,7 +4884,10 @@ c     (taken care of by PETSc and SYNC routines)
       if (   (bcChk(ibcl(1),PER,bcnd=bcnd)
      .    .or.bcChk(ibcl(2),PER,bcnd=bcnd)
      .    .or.bcChk(ibcl(3),PER,bcnd=bcnd))
-     .    .and.(.not.force_corners)) return
+     .    .and.(.not.force_corners)) then
+        get_out = .true.
+        return
+      endif
 
 c$$$c     Do nothing for doubly-periodic edges (PETSc does it)
 c$$$
@@ -4898,8 +4916,11 @@ c$$$     .         .or.bcChk(ibcl(3),EQU,bcnd=bcnd)))
 c$$$     .         .and.(selectFace(gbc_def,ibcl(2))
 c$$$     .       .and.(bcChk(ibcl(2),DIR,bcnd=bcnd)
 c$$$     .         .or.bcChk(ibcl(2),EQU,bcnd=bcnd)))))
-     .     .and.(.not.force_corners))
-     .       return
+     .     .and.(.not.force_corners)) then
+          get_out = .true.
+          return
+        endif
+
         if ((ibcl(2) == 0)
      .  .and.((selectFace(gbc_def,ibcl(3))
      .       .and.(bcChk(ibcl(3),DIR,bcnd=bcnd)
@@ -4913,8 +4934,11 @@ c$$$     .         .or.bcChk(ibcl(3),EQU,bcnd=bcnd)))
 c$$$     .         .and.(selectFace(gbc_def,ibcl(1))
 c$$$     .       .and.(bcChk(ibcl(1),DIR,bcnd=bcnd)
 c$$$     .         .or.bcChk(ibcl(1),EQU,bcnd=bcnd)))))
-     .     .and.(.not.force_corners))
-     .       return
+     .     .and.(.not.force_corners))then
+          get_out = .true.
+          return
+        endif
+
         if ((ibcl(3) == 0)
      .  .and.((selectFace(gbc_def,ibcl(1))
      .       .and.(bcChk(ibcl(1),DIR,bcnd=bcnd)
@@ -4928,11 +4952,14 @@ c$$$     .         .or.bcChk(ibcl(1),EQU,bcnd=bcnd)))
 c$$$     .         .and.(selectFace(gbc_def,ibcl(2))
 c$$$     .       .and.(bcChk(ibcl(2),DIR,bcnd=bcnd)
 c$$$     .         .or.bcChk(ibcl(2),EQU,bcnd=bcnd)))))
-     .     .and.(.not.force_corners))
-     .       return
+     .     .and.(.not.force_corners))then
+          get_out = .true.
+          return
+        endif
+
       endif
 
-      end subroutine checkExceptions
+      end function checkExceptions
 
 c     checkFaces
 c     ######################################################################
