@@ -90,7 +90,6 @@ cc      moving_mesh = .not.checkMapDatabase()
       !        then we do not need adios_rank at all.
       call MPI_Comm_rank(adios_world_comm,adios_rank,mpierr)
 
-
 c     Define adios group and transport method
 
       if (adios_debug)
@@ -98,23 +97,25 @@ c     Define adios group and transport method
 
       call adios_declare_group (grp,grp_name,"iter",1,ierr);
 
-      if (adios_debug) write (*,'("%%%%     select method MPI")')
+      if (adios_debug) write (*,'("%%%%     select method")')
 
-      call adios_select_method (grp, "MPI", "","",ierr);
+      call adios_select_method (grp, ADIOS_METHOD, "","",ierr);
 
       num_open = 0
 
 c     Exit if not in rank=0
-      !if (.not.isProc(0)) return
+
       if (adios_rank.ne.0) return
 
 c     Create VISIT expressions (to identify vectors)
+
       if (adios_debug) write (*,'("%%%%     selectExpressions")')  
       call selectExpressions
 
       if (adios_debug) write (*,'("%%%% Done initializeADIOSPlot")') 
 
 c     End program
+
       end subroutine initializeADIOSPlot
 
 c     selectExpressions

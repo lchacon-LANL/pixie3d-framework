@@ -33,9 +33,15 @@ c ######################################################################
      $                    ,adios_append_recordfile=.false.
 
 #if !defined(ADIOS_BUFFER_MB)
-        !ADIOS IO buffer (for restart, postprocessing; main app set in adios_config.xml)
-        integer,private :: ADIOS_BUFFER_MB=100
+        !ADIOS IO buffer 
+        integer,private :: ADIOS_BUFFER_MB=100  !In MB
 #endif
+
+#if !defined(ADIOS_METHOD)
+        !ADIOS method 
+        character(20),private :: ADIOS_METHOD="MPI"
+#endif
+
       contains
 
 c     setADIOSAppendIOMode
@@ -83,6 +89,11 @@ c     Initialize ADIOS for componentized I/O
      .              ,"Could not setup ADIOS buffer")
         endif
 
+        if (set_adios_method(ADIOS_METHOD) /= 0) then
+          call pstop("init_ADIOS_IO"
+     .              ,"Could not setup ADIOS method")
+        endif
+        
         call ADIOS_init('adios_config.xml',adios_world_comm,adios_err);
       endif
 
@@ -109,6 +120,29 @@ c     #################################################################
 #endif
 
       end function set_adios_buffer
+
+c     set_adios_method
+c     #################################################################
+      function set_adios_method(method) result(ierr)
+
+        implicit none
+
+        character(*) :: method
+        integer :: ierr
+
+        character(60) :: line
+
+        if (my_rank == 0) then
+          line =
+     .   '    <method method=\"'//trim(method)//'\" group=\"record\"/>'
+          ierr = replace_line('adios_config.xml',"<method",line)
+        endif
+
+#if defined(petsc) || defined(petsc_c)
+        call MPI_Bcast(ierr,1,MPI_INTEGER,0,ADIOS_WORLD_COMM,mpierr)
+#endif
+
+      end function set_adios_method
 
       end function init_ADIOS_IO
 

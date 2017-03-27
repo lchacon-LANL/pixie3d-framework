@@ -30,6 +30,9 @@ ifeq ($(ADIOS),t)
   ifdef ADIOS_BUFFER_MB
     CPPFLAGS  += $(PREPROC)ADIOS_BUFFER_MB=$(ADIOS_BUFFER_MB)
   endif
+  ifdef ADIOS_METHOD
+    CPPFLAGS  += $(PREPROC)ADIOS_METHOD=\"$(ADIOS_METHOD)\"
+  endif
   MODPATH     += $(ADDMODFLAG)$(ADIOS_INC)
 endif
 

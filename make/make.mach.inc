@@ -108,6 +108,7 @@ ifeq ($(HOST),jetta)
       endif
 
       ADIOS_BUFFER_MB = 10
+      ADIOS_METHOD = MPI
 
       ADIOS_HOME = /nh/u/lchacon/lib/adios-1.10.0
       ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -lmxml
@@ -949,6 +950,7 @@ ifeq ($(findstring wf,$(HOST)),wf)
      ADIOS = t
 
      ADIOS_BUFFER_MB = 1000
+     ADIOS_METHOD = MPI_LUSTRE
 
      ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.10.0/lib-wolf-gcc-5.3.0_openmpi-1.10.5
      ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1
@@ -980,6 +982,7 @@ ifeq ($(findstring wf,$(HOST)),wf)
        ADIOS = t
 
        ADIOS_BUFFER_MB = 1000
+       ADIOS_METHOD = MPI_LUSTRE
 
        ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.10.0/lib-wolf-intel-17.0.1_openmpi-1.10.5
        ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1
@@ -1035,6 +1038,7 @@ ifeq ($(findstring gr,$(HOST)),gr)
      ADIOS = t
 
      ADIOS_BUFFER_MB = 1000
+     ADIOS_METHOD = MPI_LUSTRE
 
      ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.10.0/lib-grizzly-gcc-5.3.0_openmpi-1.10.5
      ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -llustreapi
@@ -1048,28 +1052,29 @@ ifeq ($(findstring gr,$(HOST)),gr)
     NETCDF=f
 
     ifdef BOPT
-       PETSC_DIR =/turquoise/usr/projects/magreconn/soft/petsc-3.0.0-p7
+     PETSC_DIR =/turquoise/usr/projects/magreconn/soft/petsc-3.0.0-p7
 
-       ifeq ($(BOPT),O)
-        PETSC_ARCH = linux64_grizzly_intel17.0.1_openmpi1.10.5
-       else
-        PETSC_ARCH = linux64_grizzly_intel17.0.1_openmpi1.10.5_dbg
-       endif
+     ifeq ($(BOPT),O)
+      PETSC_ARCH = linux64_grizzly_intel17.0.1_openmpi1.10.5
+     else
+      PETSC_ARCH = linux64_grizzly_intel17.0.1_openmpi1.10.5_dbg
+     endif
 
-       HDF5 = f
+     HDF5 = f
 
-#       HDF5_HOME = /usr/projects/hpcsoft/toss3/grizzly/hdf5/1.8.16_gcc-5.3.0_openmpi-1.10.3
-#       HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
-#       HDF5_MOD  = $(HDF5_HOME)/include
-#       HDF5_INC  = $(HDF5_MOD)
+#     HDF5_HOME = /usr/projects/hpcsoft/toss3/grizzly/hdf5/1.8.16_gcc-5.3.0_openmpi-1.10.3
+#     HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+#     HDF5_MOD  = $(HDF5_HOME)/include
+#     HDF5_INC  = $(HDF5_MOD)
 
-       ADIOS = t
+     ADIOS = t
 
-       ADIOS_BUFFER_MB = 1000
+     ADIOS_BUFFER_MB = 1000
+     ADIOS_METHOD = MPI_LUSTRE
 
-       ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.10.0/lib-grizzly-intel-17.0.1_openmpi-1.10.5
-       ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -llustreapi
-       ADIOS_VER  = 1.10.0
+     ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.10.0/lib-grizzly-intel-17.0.1_openmpi-1.10.5
+     ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -llustreapi
+     ADIOS_VER  = 1.10.0
    endif
 
   endif
