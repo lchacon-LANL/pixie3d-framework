@@ -166,7 +166,6 @@ c     Begin program
           car(2) = (major_r + aa*xlog(1)*cos(xlog(2)))*sin(-xlog(3))
           car(3) = bb*xlog(1)*sin(xlog(2))
         case ('sin')
-          pi = acos(-1d0)
           eps = gp(1)
 
           car(1) = xlog(1) + eps*sin(2*pi*xlog(1)/xmax)
@@ -255,8 +254,6 @@ c     Begin program
 
           jac = aa*bb*x1*(major_r + aa*x1*cos(x2))
         case ('sin')
-          pi = acos(-1d0)
-
           eps = gp(1)
           jac = (xmax*ymax + eps*Pi*(xmax - ymax)*
      -          Sin(Pi*((2*x1)/xmax - (2*x2)/ymax)) + 
@@ -419,8 +416,6 @@ c     Begin program
           end select
         case ('sin')
 
-          pi = acos(-1d0)
-
           eps = gp(1)
 
           select case (comp)
@@ -559,8 +554,6 @@ cc          vec(3,:) = (/ 0d0,0d0,1d0 /)
           vec(3,:) = (/ -sin(curv(3)),-cos(curv(3)),0d0 /)
      .                /(major_r + aa*curv(1)*cos(curv(2)))
         case ('sin')
-
-          pi = acos(-1d0)
 
           eps = gp(1)
 
@@ -751,8 +744,6 @@ c     Begin program
           end select
         case ('sin')
 
-          pi = acos(-1d0)
-
           eps = gp(1)
 
           select case (comp)
@@ -898,8 +889,6 @@ cc          vec(3,:) = (/ aa*sin(phi)*curv(1),-aa*cos(phi)*curv(1),1d0 /)
      .              /(major_r + curv(1)*cos(curv(2)))
           vec(3,:) = (/ -sin(curv(3)),-cos(curv(3)),0d0 /)/curv(1)/aa/bb
         case ('sin')
-
-          pi = acos(-1d0)
 
           eps = gp(1)
 
@@ -1162,8 +1151,6 @@ c     Begin program
           end select
 
         case ('sin')
-
-          pi = acos(-1d0)
 
           call getCurvilinearCoordinates(gl_def,i,j,k,igx,igy,igz
      .                                  ,ig,jg,kg,x1,x2,x3)
@@ -1438,8 +1425,6 @@ cc          end select
           vec(3,3,3) = 0d0
 
         case ('sin')
-
-          pi = acos(-1d0)
 
           eps = gp(1)
 
@@ -1814,8 +1799,6 @@ c     Begin program
           endif
         case ('sin')
 
-          pi = acos(-1d0)
-
           eps = gp(1)
 
           vec(1) =
@@ -2004,8 +1987,6 @@ c     Begin program
           endif
         case ('sin')
 
-          pi = acos(-1d0)
-
           eps = gp(1)
 
           vec(1) =
@@ -2175,8 +2156,6 @@ c     Begin program
             vec(9) = (aa*bb*x1)/(major_r + aa*x1*Cos(x2))
           endif
         case ('sin')
-
-          pi = acos(-1d0)
 
           eps = gp(1)
 

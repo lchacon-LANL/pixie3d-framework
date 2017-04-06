@@ -8381,7 +8381,7 @@ cc        endif
 
       case default
 
-        call pstop('in2face_scl','Advection scheme not available')
+        call pstop('in2face_scl_new','Advection scheme not available')
 
       end select
 

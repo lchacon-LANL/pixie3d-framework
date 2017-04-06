@@ -135,7 +135,7 @@ c     ###############################################################
       subroutine TS_set_dt_ramp_up(fraction,recovery)
 
 c     ---------------------------------------------------------------
-c     Check for end of time loop
+c     Set up initial dt ramp up
 c     ---------------------------------------------------------------
 
       implicit none
@@ -161,7 +161,7 @@ c     ###############################################################
       subroutine TS_set_bdf2_init_offset(offset)
 
 c     ---------------------------------------------------------------
-c     Check for end of time loop
+c     Set initial offset for bdf2 integration
 c     ---------------------------------------------------------------
 
       implicit none
@@ -334,10 +334,10 @@ c     #######################################################################
         real(8) ::    coef1=0.8   !Time subcycling coefficient
      .               ,coef2=1.05  !Time recovery   coefficient
 
-        if (ts_ramp_up_dt) then
-          coef1 = ts_ramp_up_dt_fraction
-          coef2 = ts_ramp_up_dt_recovery
-        endif
+c$$$        if (ts_ramp_up_dt) then
+c$$$          coef1 = ts_ramp_up_dt_fraction
+c$$$          coef2 = ts_ramp_up_dt_recovery
+c$$$        endif
 
         if (ierr /= NOERR) then   !Error in time stepping
 
@@ -355,7 +355,14 @@ c     #######################################################################
           select case (sm_flag)
           case(1)  !Rannacher time stepping
 
-            if (itm == 1.and.ts_adapt_dt) then
+            if (ts_ramp_up_dt) then
+              if (itm == 1) then
+                dt = dtbase*ts_ramp_up_dt_fraction
+              else
+                dt = min(dtbase,dt*ts_ramp_up_dt_recovery)
+                ts_ramp_up_dt = (dt /= dtbase) !Stop dt ramp-up
+              endif
+            elseif (itm == 1.and.ts_adapt_dt) then
               call set_explicit_dt(dt)
             elseif (   (itm <= sm_pass  .and.(.not.ts_adapt_dt))
      .             .or.(itm <= sm_pass+1.and.      ts_adapt_dt )) then
@@ -369,7 +376,14 @@ c     #######################################################################
 
           case(2)  !BDF time stepping
 
-            if (ts_restart) then
+            if (ts_ramp_up_dt) then
+              if (itm == 1) then
+                dt = dtbase*ts_ramp_up_dt_fraction
+              else
+                dt = min(dtbase,dt*ts_ramp_up_dt_recovery)
+                ts_ramp_up_dt = (dt /= dtbase) !Stop dt ramp-up
+              endif
+            elseif (ts_restart) then
               dt = dt*coef2**(-15) !Quiet BDF2 start to ramp up in a few time steps
             elseif (ts_adapt_dt) then
               if (itm == 1) then
@@ -396,7 +410,14 @@ c$$$                dt = dtbase/coef2**15  !Quiet BDF2 start to ramp up in a few
 
           case default   !Theta time stepping
 
-            if (ts_adapt_dt) then
+            if (ts_ramp_up_dt) then
+              if (itm == 1) then
+                dt = dtbase*ts_ramp_up_dt_fraction
+              else
+                dt = min(dtbase,dt*ts_ramp_up_dt_recovery)
+                ts_ramp_up_dt = (dt /= dtbase) !Stop dt ramp-up
+              endif
+            elseif (ts_adapt_dt) then
               if (itm == 1) then
                 call set_explicit_dt(dt)
               elseif (itm == 2) then
