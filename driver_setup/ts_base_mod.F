@@ -411,7 +411,7 @@ c$$$                dt = dtbase/coef2**15  !Quiet BDF2 start to ramp up in a few
           case default   !Theta time stepping
 
             if (ts_ramp_up_dt) then
-              if (itm == 1) then
+              if (itm == 1.or.ts_restart) then
                 dt = dtbase*ts_ramp_up_dt_fraction
               else
                 dt = min(dtbase,dt*ts_ramp_up_dt_recovery)
