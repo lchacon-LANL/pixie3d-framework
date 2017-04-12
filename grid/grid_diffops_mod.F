@@ -5584,141 +5584,6 @@ c     ---------------------------------------------------------------
 
       end subroutine set_bc_advc_meth
 
-ccc     advec
-ccc     ###############################################################
-cc      function advec(i,j,k,nx,ny,nz,igx,igy,igz,v1,v2,v3,phi,vol
-cc     .              ,upwind)
-cc      implicit none
-ccc     ---------------------------------------------------------------
-ccc     Calculates divergence of vector field (v.phi) at cell centers in
-ccc     general non-orthogonal geometry.
-ccc     ---------------------------------------------------------------
-cc
-ccc     Call variables
-cc
-cc      integer    :: i,j,k,nx,ny,nz,igx,igy,igz
-cc      real(8)    :: phi(0:nx+1,0:ny+1,0:nz+1)
-cc     .             ,v1 (0:nx+1,0:ny+1,0:nz+1)
-cc     .             ,v2 (0:nx+1,0:ny+1,0:nz+1)
-cc     .             ,v3 (0:nx+1,0:ny+1,0:nz+1),advec
-cc
-cc      logical,optional :: vol,upwind
-cc
-ccc     Local variables
-cc
-cc      integer    :: ig,jg,kg,igrid,half_elem,ip,im,jp,jm,kp,km,su
-cc      real(8)    :: dxx,dyy,dzz,x0,y0,z0,jac
-cc      real(8)    :: flxip,flxim,flxjp,flxjm,flxkp,flxkm
-cc      logical    :: vw,upw
-cc
-ccc     Begin program
-cc
-cc      if (PRESENT(vol)) then
-cc        vw = vol
-cc      else
-cc        vw = .false.
-cc      endif
-cc
-cc      if (PRESENT(upwind)) then
-cc        upw = upwind
-cc      else
-cc        upw = .false.
-cc      endif
-cc
-cc      igrid = igx
-cc
-cc      call getMGmap(g_def,i,j,k,igx,igy,igz,ig,jg,kg)
-cc
-cc      ip = i+1
-cc      im = i-1
-cc      jp = j+1
-cc      jm = j-1
-cc      kp = k+1
-cc      km = k-1
-cc
-cc      dxx = dxh(ig)
-cc      dyy = dyh(jg)
-cc      dzz = dzh(kg)
-cc
-cc      jac   = g_def%gmetric%grid(igrid)%jac(i ,j,k)
-cccc      jacip = g_def%gmetric%grid(igrid)%jac(ip,j,k)
-cccc      jacim = g_def%gmetric%grid(igrid)%jac(im,j,k)
-cc
-cc      if (upw) then
-cc        flxip = 0.25*(
-cc     .         (    (v1(i,j,k)+v1(ip,j,k))
-cc     .          +abs(v1(i,j,k)+v1(ip,j,k)) )*phi(i ,j,k)
-cc     .        +(    (v1(i,j,k)+v1(ip,j,k))          
-cc     .          -abs(v1(i,j,k)+v1(ip,j,k)) )*phi(ip,j,k)) 
-cc
-cc        if (isSP(i,j,k,igx,igy,igz)) then
-cc          flxim = 0d0
-cc        else
-cc          flxim = 0.25*(
-cc     .         (    (v1(i,j,k)+v1(im,j,k))
-cc     .          +abs(v1(i,j,k)+v1(im,j,k)) )*phi(im,j,k)
-cc     .        +(    (v1(i,j,k)+v1(im,j,k))          
-cc     .          -abs(v1(i,j,k)+v1(im,j,k)) )*phi(i ,j,k))
-cc        endif
-cc
-cc        flxjp = 0.25*(
-cc     .         (    (v2(i,j,k)+v2(i,jp,k))
-cc     .          +abs(v2(i,j,k)+v2(i,jp,k)) )*phi(i,j ,k)
-cc     .        +(    (v2(i,j,k)+v2(i,jp,k))          
-cc     .          -abs(v2(i,j,k)+v2(i,jp,k)) )*phi(i,jp,k))
-cc        flxjm = 0.25*(
-cc     .         (    (v2(i,j,k)+v2(i,jm,k))
-cc     .          +abs(v2(i,j,k)+v2(i,jm,k)) )*phi(i,jm,k)
-cc     .        +(    (v2(i,j,k)+v2(i,jm,k))          
-cc     .          -abs(v2(i,j,k)+v2(i,jm,k)) )*phi(i,j ,k))
-cc
-cc        flxkp = 0.25*(
-cc     .         (    (v3(i,j,k)+v3(i,j,kp))
-cc     .          +abs(v3(i,j,k)+v3(i,j,kp)) )*phi(i,j,k )
-cc     .        +(    (v3(i,j,k)+v3(i,j,kp))             
-cc     .          -abs(v3(i,j,k)+v3(i,j,kp)) )*phi(i,j,kp))
-cc        flxkm = 0.25*(
-cc     .         (    (v3(i,j,k)+v3(i,j,km))
-cc     .          +abs(v3(i,j,k)+v3(i,j,km)) )*phi(i,j,km)
-cc     .        +(    (v3(i,j,k)+v3(i,j,km))             
-cc     .          -abs(v3(i,j,k)+v3(i,j,km)) )*phi(i,j,k ))
-cc
-cc      else
-cccc        flxip = 0.5*(v1(ip,j,k)*phi(i,j,k) + v1(i,j,k)*phi(ip,j,k))
-cccc        if (isSP(i,j,k,igx,igy,igz)) then
-cccc          flxim = 0d0
-cccc        else
-cccc          flxim = 0.5*(v1(im,j,k)*phi(i,j,k) + v1(i,j,k)*phi(im,j,k))
-cccc        endif
-cc
-cccc        if (isSP(i,j,k,igx,igy,igz)) then
-cccc          flxip = 0.5*(v1(ip,j,k)*phi(ip,j,k) + v1(i,j,k)*phi(i,j,k))
-cccc          flxim = 0d0
-cccc        elseif (isSP(i-1,j,k,igx,igy,igz)) then
-cccc          flxip = 0.5*(v1(ip,j,k)*phi(i ,j,k) + v1(i,j,k)*phi(ip,j,k))
-cccc          flxim = 0.5*(v1(im,j,k)*phi(im,j,k) + v1(i,j,k)*phi(i ,j,k))
-cccc        else
-cc          flxip = 0.5*(v1(ip,j,k)*phi(i,j,k) + v1(i,j,k)*phi(ip,j,k))
-cc          flxim = 0.5*(v1(im,j,k)*phi(i,j,k) + v1(i,j,k)*phi(im,j,k))
-cccc        endif
-cc
-cc        flxjp = 0.5*(v2(i,jp,k)*phi(i,j,k) + v2(i,j,k)*phi(i,jp,k))
-cc        flxjm = 0.5*(v2(i,jm,k)*phi(i,j,k) + v2(i,j,k)*phi(i,jm,k))
-cc
-cc        flxkp = 0.5*(v3(i,j,kp)*phi(i,j,k) + v3(i,j,k)*phi(i,j,kp))
-cc        flxkm = 0.5*(v3(i,j,km)*phi(i,j,k) + v3(i,j,k)*phi(i,j,km))
-cc      endif
-cc
-cc      advec =( (flxip - flxim)/dxx
-cc     .       + (flxjp - flxjm)/dyy
-cc     .       + (flxkp - flxkm)/dzz )/jac
-cc      
-cc      if (vw) advec = advec*g_def%gmetric%grid(igrid)%dvol(i,j,k)
-cc
-ccc     End 
-cc
-cc      end function advec
-
 c     scl_advc_flx_x
 c     ###############################################################
       function scl_advc_flx_x(g_def,i,j,k,nx,ny,nz,igr,v,arr
@@ -6397,7 +6262,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: ip,igp,ig,jg,kg,nxgl
+      integer :: ip,igp,ig,jg,kg
 
       real(8) :: jacip,jacim,jac,qip,vxp
 
@@ -6414,12 +6279,10 @@ c     Begin program
       if (PRESENT(zip_vel)) then
         zv = zip_vel
       else
-        zv = .false.
+        zv = .true.
       endif
 
 c     Update grid indices
-
-      nxgl = g_def%nxgl(igr)
 
       call getMGmap(g_def,i,j,k,igr,igr,igr,ig,jg,kg)
 
@@ -6448,9 +6311,9 @@ c     Find X ZIP flux (used even if method /= ZIP)
         flxip = 0.25*(v(ip,j,k)*arr(i ,j,k)/jacip
      .              + v(i ,j,k)*arr(ip,j,k)/jac  )*(jac+jacip)
       else
-c$$$        if (   (v(ip,j,k) == -v(i,j,k))
-c$$$     .     .or.(isSP2(g_def,i+1,igr,ibc=1).and.spoint)) then
-        if (isSP2(g_def,i+1,igr,ibc=1).and.spoint) then
+        if (   (v(ip,j,k) == -v(i,j,k))
+     .     .or.(isSP2(g_def,i+1,igr,ibc=1).and.spoint)) then
+c$$$        if (isSP2(g_def,i+1,igr,ibc=1).and.spoint) then
           flxip = 0d0    !Shut off flux for vn=0 BC
         else
           flxip = 0.5*(v(ip,j,k)*arr(i,j,k)+v(i,j,k)*arr(ip,j,k))
@@ -6466,8 +6329,6 @@ c     Other advective methods
      .     .and.(arr(ip,j,k)*arr(i,j,k)>0d0)
      .     .and.(abs(arr(ip,j,k)+arr(i,j,k))>zip_threshold)) then
           vxp =2.*flxip/(arr(ip,j,k)+arr(i,j,k))
-c$$$          vxp =2.*flxip/(         arr(ip,j,k)+arr(i,j,k)
-c$$$     .                  +sign(1d0,arr(ip,j,k)+arr(i,j,k))*zip_threshold)
         else
           vxp = 0.5*(v(ip,j,k)+v(i,j,k))
         endif
@@ -6524,7 +6385,7 @@ c     Begin program
       if (PRESENT(zip_vel)) then
         zv = zip_vel
       else
-        zv = .false.
+        zv = .true.
       endif
 
 c     Update grid indices
@@ -6555,8 +6416,6 @@ c     Other advective methods
      .     .and.(arr(i,jp,k)*arr(i,j,k)>0d0)
      .     .and.(abs(arr(i,jp,k)+arr(i,j,k))>zip_threshold)) then
           vyp =2.*flxjp/(arr(i,jp,k)+arr(i,j,k))
-c$$$          vyp =2.*flxjp/(         arr(i,jp,k)+arr(i,j,k)
-c$$$     .                  +sign(1d0,arr(i,jp,k)+arr(i,j,k))*zip_threshold)
         else
           vyp = 0.5*(v(i,jp,k)+v(i,j,k))
         endif
@@ -6613,7 +6472,7 @@ c     Begin program
       if (PRESENT(zip_vel)) then
         zv = zip_vel
       else
-        zv = .false.
+        zv = .true.
       endif
 
 c     Update grid indices
@@ -6644,8 +6503,6 @@ c     Other advective methods
      .      .and.(arr(i,j,kp)*arr(i,j,k)>0d0)
      .      .and.abs(arr(i,j,kp)+arr(i,j,k))>zip_threshold) then
           vzp =2.*flxkp/(arr(i,j,kp)+arr(i,j,k))
-c$$$          vzp =2.*flxkp/(         arr(i,j,kp)+arr(i,j,k)
-c$$$     .                  +sign(1d0,arr(i,j,kp)+arr(i,j,k))*zip_threshold)
         else
           vzp = 0.5*(v(i,j,kp)+v(i,j,k))
         endif
@@ -6802,6 +6659,10 @@ c     Compute advection
      .                    + (flxjp - flxjm)/dyy
      .                    + (flxkp - flxkm)/dzz )
 
+c$$$            !Old code
+c$$$            advec(i,j,k) = flx_advec(g_def,i,j,k,nx,ny,nz,igrid,igrid
+c$$$     .                            ,igrid,v,arr,method,zip_vel=zv,vol=vw)
+c$$$     .                    *g_def%gmetric%grid(igrid)%jac(i,j,k)
           enddo
         enddo
       enddo
