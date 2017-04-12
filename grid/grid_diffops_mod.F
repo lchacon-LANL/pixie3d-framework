@@ -6654,12 +6654,11 @@ c     Compute advection
      .                                ,method,zip_vel=zv)
 
             !Find advective term
-
             advec(i,j,k) =( (flxip - flxim)/dxx
      .                    + (flxjp - flxjm)/dyy
      .                    + (flxkp - flxkm)/dzz )
 
-c$$$            !Old code
+c$$$            !Old advective code
 c$$$            advec(i,j,k) = flx_advec(g_def,i,j,k,nx,ny,nz,igrid,igrid
 c$$$     .                            ,igrid,v,arr,method,zip_vel=zv,vol=vw)
 c$$$     .                    *g_def%gmetric%grid(igrid)%jac(i,j,k)
