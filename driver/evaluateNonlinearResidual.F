@@ -12,6 +12,8 @@ c--------------------------------------------------------------------
 
       use timeStepping
 
+      use nk, ONLY: pseudo_dt,pdt,nk_conf
+
 #if defined(MK)
       use mk
 #endif
@@ -37,7 +39,11 @@ c Begin program
 
 c Evaluate nonlinear function Fi(Uj) at time level (n+1)
 
-      xdot = cnp*(x-x_old)/dt
+      if (pseudo_dt) then
+        xdot = (x-nk_conf%xk)/pdt
+      else
+        xdot = cnp*(x-x_old)/dt
+      endif
 
       call evaluateNonlinearFunction(igrid,ntot,x,f)
 

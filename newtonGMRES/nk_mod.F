@@ -45,7 +45,8 @@ c ###################################################################
 
       integer,private :: jit=0
 
-      logical :: pseudo_dt,prnt,is_matvec
+      logical :: pseudo_dt=.false.
+     .          ,prnt,is_matvec
      .          ,is_residual=.true.
 
       type :: nk_options  !Explanation below
@@ -565,13 +566,7 @@ c     Initialize variables
 
       if (out.ge.1 .and. prnt) write (*,200)
 
-      if (global == 2) then   !Activate pseudo-transient
-        pseudo_dt = .true.
-        call pstop('nk','Pseudo-t option not working')
-      else
-        pseudo_dt = .false.
-cc        pdt0      = 1d30
-      endif
+      pseudo_dt = (global == 2)   !Activate pseudo-transient
 
       check_lim = 1d30
 
@@ -647,8 +642,8 @@ cc      flimit= atol + rtol*f0
         nk_conf%nwt_it_out = jit
 
         !Check for error in GMRES
-        if (ierr.eq.1) then
-          if (prnt) write(*,*) 
+        if (ierr == 1) then
+          if (prnt) write(*,'(a,i3,a)') 
      .       '   WARNING: Exceeded maximum GMRES iterations (',gmmax,')'
           ierr = 0              !Use GMRES solution for Newton update regardless
         elseif (ierr.eq.-1) then !Got to atol in the Newton residual
@@ -676,6 +671,14 @@ cc      flimit= atol + rtol*f0
 
         etakm = etak
 
+        !Recompute pseudo-transient time step
+        if (pseudo_dt) then
+          if (abs(fkm/fk-1d0) < 1d-5) then 
+            pdt = 0.1*pdt
+          else
+            pdt = pdt*fkm/fk
+          endif
+        endif
       enddo       !End of Newton loop
 
 c     Check error in Newton convergence
@@ -1822,21 +1825,22 @@ c     Evaluate nonlinear residual
 
       call evaluateNonlinearResidual(ntot,x,f)
 
-c     Add pseudo-transient term
-
-cc      if (pseudo_dt) then
-cc        invpdt = 1d0/pdt
-cc        if (abs(invpdt) < 1d-5) invpdt = 0d0
-cc        f = (x - xk )*invpdt + f  !This doesn't really work for vol-weighed residuals!!!
-cccc        f = (x - xx0)*invpdt + f
-cc        if (nk_conf%vol_wgt) then
-cc          write (*,*) 'WARNING: psedo-transient term only works for'//
-cc     .               ' non-vol-weighed residuals'
-cc        endif
-cc      endif
+c$$$c     Add pseudo-transient term
+c$$$
+c$$$      if (pseudo_dt) then
+c$$$        invpdt = 1d0/pdt
+c$$$        if (abs(invpdt) < 1d-5) invpdt = 0d0
+c$$$        f = (x - xk )*invpdt + f  !This doesn't really work for vol-weighed residuals!!!
+c$$$cc        f = (x - xx0)*invpdt + f
+c$$$        if (nk_conf%vol_wgt) then
+c$$$          write (*,*) 'WARNING: psedo-transient term only works for'//
+c$$$     .               ' non-vol-weighed residuals'
+c$$$        endif
+c$$$      endif
 
 c     End program
 
       end subroutine evaluateNewtonResidual
+
 
       end module nk

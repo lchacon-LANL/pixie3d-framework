@@ -58,7 +58,7 @@ c     Newton-Krylov iteration
 
       nk_conf%eta0   = tolgm
       nk_conf%damp   = damp
-      nk_conf%pdt0   = dt0
+      nk_conf%pdt0   = dt
       if (atol  > 0d0) nk_conf%atol   = atol
       if (rtol  > 0d0) nk_conf%rtol   = rtol
       if (stol  > 0d0) nk_conf%stol   = stol

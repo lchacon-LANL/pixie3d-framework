@@ -39,7 +39,7 @@ c ######################################################################
 
 #if !defined(ADIOS_METHOD)
         !ADIOS method 
-        character(20),private :: ADIOS_METHOD="MPI"
+        character(20) :: ADIOS_METHOD="MPI"
 #endif
 
       contains
@@ -221,7 +221,7 @@ cc        enddo
 
           if (my_rank == 0) then
             write (*,"(a, i5)") " Number of vars: ", adios_varcount
-            write (*,*), "Variables:"
+            write (*,*) "Variables:"
             do i=1,adios_varcount
               write (*,"(i5, a, a)") i,")  ", trim(adios_varlist(i))
             enddo
@@ -383,7 +383,7 @@ c     Begin program
      .                             ,firstread,ierr)
 
           if (adios_debug) then
-            write (*,*), 'rank=',my_rank,' ADIOS read returns ierr',ierr
+            write (*,*) 'rank=',my_rank,' ADIOS read returns ierr',ierr
             write (*,*)
           endif
 
