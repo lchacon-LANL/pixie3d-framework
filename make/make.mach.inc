@@ -6,6 +6,8 @@ ARCH ?= $(shell uname -s)
 
 M_ARCH ?= native
 
+MACHINE ?= $(HOST)
+
 CPPFLAGS += $(PREPROC)$(ARCH)
 
 ############
@@ -68,7 +70,7 @@ endif
 
 ifeq ($(HOST),jetta)
 
-  MACHINE = jetta
+  override MACHINE = jetta
 
   FC = gfortran
 
@@ -857,7 +859,7 @@ ifeq ($(findstring helios,$(HOST)),helios)
     LIBS += -mkl
   endif
 
-  MACHINE = helios
+  override MACHINE = helios
 endif
 
 ################
@@ -929,7 +931,7 @@ endif
 
 ifeq ($(findstring wf,$(HOST)),wf)
 
-  MACHINE = wolf
+  override MACHINE = wolf
 
   ifeq ($(findstring gfortran,$(FC)),gfortran)
 
@@ -1019,7 +1021,7 @@ endif
 
 ifeq ($(findstring gr,$(HOST)),gr)
 
-  MACHINE = grizzly
+  override MACHINE = grizzly
 
   ifeq ($(findstring gfortran,$(FC)),gfortran)
 
@@ -1146,5 +1148,5 @@ ifeq ($(findstring marconi_work,$(WORK)),marconi_work)
     LIBS += -L$(LAPACK_LIB) -llapack -L$(BLAS_LIB) -lblas
   endif
 
-  MACHINE = marconi
+  override MACHINE = marconi
 endif 
