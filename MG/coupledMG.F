@@ -2692,15 +2692,12 @@ c     Perform average along azimuthal direction @ SP
 
           call getMGmap(mgctx%g_def,1,1,1,igc,igc,igc,ig,jg,kg)
 
-          write (*,*) 'here',order_int,ivar
-
           do ieq=1,3
 
             icomp = ieq+3*(ivar-1)
 
             do k=0,nzc+1
               arrayc(1,:,k,icomp) = sp_sum(k,ieq)/dv_sum(k,ieq)
-cc            arrayc(0,:,k,icomp) = arrayc(1,:,k,icomp)
             enddo
 
             arrayc(1,:,:,icomp) =

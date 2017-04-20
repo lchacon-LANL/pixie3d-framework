@@ -1342,7 +1342,7 @@ c     #####################################################################
 c     ---------------------------------------------------------------
 c     Calculates grad(div(A)) in general non-orthogonal
 c     coordinates in a compact form. The vector A
-c     is contravariant, and returns covariant components.
+c     is contravariant, and returns covariant components unless cnv=true.
 c     ---------------------------------------------------------------
 
       implicit none
