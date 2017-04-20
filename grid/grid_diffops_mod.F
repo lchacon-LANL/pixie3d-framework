@@ -6311,9 +6311,9 @@ c     Find X ZIP flux (used even if method /= ZIP)
         flxip = 0.25*(v(ip,j,k)*arr(i ,j,k)/jacip
      .              + v(i ,j,k)*arr(ip,j,k)/jac  )*(jac+jacip)
       else
-        if (   (v(ip,j,k) == -v(i,j,k))
-     .     .or.(isSP2(g_def,i+1,igr,ibc=1).and.spoint)) then
-c$$$        if (isSP2(g_def,i+1,igr,ibc=1).and.spoint) then
+c$$$        if (   (v(ip,j,k) == -v(i,j,k))
+c$$$     .     .or.(isSP2(g_def,i+1,igr,ibc=1).and.spoint)) then
+        if (isSP2(g_def,i+1,igr,ibc=1).and.spoint) then
           flxip = 0d0    !Shut off flux for vn=0 BC
         else
           flxip = 0.5*(v(ip,j,k)*arr(i,j,k)+v(i,j,k)*arr(ip,j,k))
@@ -6578,12 +6578,6 @@ c     Begin program
         njac = .false.
       endif
 
-      if (PRESENT(zip_vel)) then
-        zv = zip_vel
-      else
-        zv = (method == 2)
-      endif
-
 c     Compute difference arrays and communicate BCs
 
       darr(1:nx,:,:,1) = arr(2:nx+1,:,:)-arr(0:nx-1,:,:)
@@ -6634,26 +6628,27 @@ c     Compute advection
             !Find fluxes
             flxip = scl_advc_flx_x_new(g_def,i  ,j,k,nx,ny,nz,igrid
      $                                ,v(:,:,:,1),arr,darr(:,:,:,1)
-     .                                ,method,sp=sp,zip_vel=zv)
+     .                                ,method,sp=sp,zip_vel=zip_vel)
             flxim = scl_advc_flx_x_new(g_def,i-1,j,k,nx,ny,nz,igrid
      $                                ,v(:,:,:,1),arr,darr(:,:,:,1)
-     .                                ,method,sp=sp,zip_vel=zv)
+     .                                ,method,sp=sp,zip_vel=zip_vel)
 
             flxjp = scl_advc_flx_y_new(g_def,i,j  ,k,nx,ny,nz,igrid
      $                                ,v(:,:,:,2),arr,darr(:,:,:,2)
-     .                                ,method,zip_vel=zv)
+     .                                ,method,zip_vel=zip_vel)
             flxjm = scl_advc_flx_y_new(g_def,i,j-1,k,nx,ny,nz,igrid
      $                                ,v(:,:,:,2),arr,darr(:,:,:,2)
-     .                                ,method,zip_vel=zv)
+     .                                ,method,zip_vel=zip_vel)
 
             flxkp = scl_advc_flx_z_new(g_def,i,j,k  ,nx,ny,nz,igrid
      $                                ,v(:,:,:,3),arr,darr(:,:,:,3)
-     .                                ,method,zip_vel=zv)
+     .                                ,method,zip_vel=zip_vel)
             flxkm = scl_advc_flx_z_new(g_def,i,j,k-1,nx,ny,nz,igrid
      $                                ,v(:,:,:,3),arr,darr(:,:,:,3)
-     .                                ,method,zip_vel=zv)
+     .                                ,method,zip_vel=zip_vel)
 
             !Find advective term
+
             advec(i,j,k) =( (flxip - flxim)/dxx
      .                    + (flxjp - flxjm)/dyy
      .                    + (flxkp - flxkm)/dzz )
@@ -6662,6 +6657,7 @@ c$$$            !Old advective code
 c$$$            advec(i,j,k) = flx_advec(g_def,i,j,k,nx,ny,nz,igrid,igrid
 c$$$     .                            ,igrid,v,arr,method,zip_vel=zv,vol=vw)
 c$$$     .                    *g_def%gmetric%grid(igrid)%jac(i,j,k)
+
           enddo
         enddo
       enddo
