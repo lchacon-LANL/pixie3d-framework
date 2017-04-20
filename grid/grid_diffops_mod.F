@@ -7806,11 +7806,11 @@ c     Begin program
       vec(:,:,:,3) = v1(:,:,:,3)/g_def%gmetric%grid(igr)%jac
 
       vec(:,:,:,1) = flx_advec_mesh(g_def,igr,v0,vec(:,:,:,1),meth
-     .                             ,bcs(:,1),no_jac=.true.)
+     .                          ,bcs(:,1),no_jac=.true.,zip_vel=.false.)
       vec(:,:,:,2) = flx_advec_mesh(g_def,igr,v0,vec(:,:,:,2),meth
-     .                             ,bcs(:,2),no_jac=.true.)
+     .                          ,bcs(:,2),no_jac=.true.,zip_vel=.false.)
       vec(:,:,:,3) = flx_advec_mesh(g_def,igr,v0,vec(:,:,:,3),meth
-     .                             ,bcs(:,3),no_jac=.true.)
+     .                          ,bcs(:,3),no_jac=.true.,zip_vel=.false.)
 
       !Add geometric source
       vec1 => v0
