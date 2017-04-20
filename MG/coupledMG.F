@@ -2612,7 +2612,7 @@ c     Local variables
       real(8),allocatable :: sp_sum(:,:),dv_sum(:,:),l_sum(:,:)
 
       integer :: ic,jc,if,jf,iic,iif,i,j,k,ig,jg,kg,ieq,one,two,thr
-     .          ,order_int
+     .          ,order_int,icomp,ivar
 
       logical :: cartesian,isvec,iscnv
 
@@ -2620,7 +2620,7 @@ c     Local variables
 
 c     Begin program
 
-      isvec = (neq == 3)                !Initialize isvec (may be modified by setMGBC)
+      isvec = (neq == 3).or.(neq==6)    !Initialize isvec (may be modified by setMGBC)
 
       cartesian = (bcSP() .and. isvec)  !Return Cartesian variables for prolongation
 
@@ -2644,74 +2644,84 @@ c     Perform average along azimuthal direction @ SP
 
       if (isSP2(mgctx%g_def,1,igc) .and. cartesian) then
 
-        allocate(sp_sum(0:nzc+1,neq),dv_sum(0:nzc+1,neq))
+        allocate(sp_sum(0:nzc+1,3),dv_sum(0:nzc+1,3))
 
-        !Compute average
-        do ieq=1,neq
-          do k=0,nzc+1
-            sp_sum(k,ieq)= sum(arrayc(1,1:nyc,k,ieq)
-     .                 *mgctx%g_def%gmetric%grid(igc)%dlvol(1,1:nyc,k))
-            dv_sum(k,ieq)=
-     .              sum(mgctx%g_def%gmetric%grid(igc)%dlvol(1,1:nyc,k))
+        do ivar=1,neq/3
+
+          !Compute average
+          do ieq=1,3
+
+            icomp = ieq+3*(ivar-1)
+
+            do k=0,nzc+1
+              sp_sum(k,ieq)= sum(arrayc(1,1:nyc,k,icomp)
+     .                  *mgctx%g_def%gmetric%grid(igc)%dlvol(1,1:nyc,k))
+              dv_sum(k,ieq)=
+     .               sum(mgctx%g_def%gmetric%grid(igc)%dlvol(1,1:nyc,k))
+            enddo
           enddo
-        enddo
 
 #if defined(petsc)
-        allocate(l_sum(0:nzc+1,neq))
-        l_sum = sp_sum
-        call MPI_Allreduce(l_sum,sp_sum,neq*(nzc+2)
-     .                    ,MPI_DOUBLE_PRECISION
-     .                    ,MPI_SUM,mgctx%g_def%MPI_COMM_SP,mpierr)
+          allocate(l_sum(0:nzc+1,3))
+          l_sum = sp_sum
+          call MPI_Allreduce(l_sum,sp_sum,3*(nzc+2)
+     .                      ,MPI_DOUBLE_PRECISION
+     .                      ,MPI_SUM,mgctx%g_def%MPI_COMM_SP,mpierr)
 
-        l_sum = dv_sum
-        call MPI_Allreduce(l_sum,dv_sum,neq*(nzc+2)
-     .                    ,MPI_DOUBLE_PRECISION
-     .                    ,MPI_SUM,mgctx%g_def%MPI_COMM_SP,mpierr)
+          l_sum = dv_sum
+          call MPI_Allreduce(l_sum,dv_sum,3*(nzc+2)
+     .                      ,MPI_DOUBLE_PRECISION
+     .                      ,MPI_SUM,mgctx%g_def%MPI_COMM_SP,mpierr)
 
-        deallocate(l_sum)
+          deallocate(l_sum)
 #endif
 
-        !Assign back to innermost cell center
-        xx => mgctx%g_def%xx
+          !Assign back to innermost cell center
+          xx => mgctx%g_def%xx
 
-        order_int = min(order,nxc)
+          order_int = min(order,nxc)
 
-        one = 1 ; two = 2; thr = 3
+          one = 1 ; two = 2; thr = 3
 
-        if (order_int <= 1) then
-          two = one
-          thr = one
-        elseif (order_int == 2) then
-          thr = two
-        endif
+          if (order_int <= 1) then
+            two = one
+            thr = one
+          elseif (order_int == 2) then
+            thr = two
+          endif
 
-        call getMGmap(mgctx%g_def,1,1,1,igc,igc,igc,ig,jg,kg)
+          call getMGmap(mgctx%g_def,1,1,1,igc,igc,igc,ig,jg,kg)
 
-        do ieq=1,neq
-          do k=0,nzc+1
-            arrayc(1,:,k,ieq) = sp_sum(k,ieq)/dv_sum(k,ieq)
-c$$$            arrayc(0,:,k,ieq) = sp_sum(k,ieq)
+          write (*,*) 'here',order_int,ivar
+
+          do ieq=1,3
+
+            icomp = ieq+3*(ivar-1)
+
+            do k=0,nzc+1
+              arrayc(1,:,k,icomp) = sp_sum(k,ieq)/dv_sum(k,ieq)
+cc            arrayc(0,:,k,icomp) = arrayc(1,:,k,icomp)
+            enddo
+
+            arrayc(1,:,:,icomp) =
+     .          quad_int(0d0,xx(ig+one),xx(ig+two),xx(ig+thr)
+     .                  ,arrayc(1    ,:,:,icomp),arrayc(1+one,:,:,icomp)
+     .                  ,arrayc(1+two,:,:,icomp),arrayc(1+thr,:,:,icomp)
+     .                  ,xx(ig),order_int)
           enddo
 
-          arrayc(1,:,:,ieq) =
-     .              quad_int(0d0,xx(ig+one),xx(ig+two),xx(ig+thr)
-     .                      ,arrayc(1    ,:,:,ieq),arrayc(1+one,:,:,ieq)
-     .                      ,arrayc(1+two,:,:,ieq),arrayc(1+thr,:,:,ieq)
-     .                      ,xx(ig),order_int)
-
-c$$$            arrayc(1,:,k,ieq) = (2./3.)*sp_sum(k,ieq)
-c$$$     .                        + (1./3.)*arrayc(2,:,k,ieq)
         enddo
 
         deallocate(sp_sum,dv_sum)
+
       endif
 
 c     Impose SP boundary conditions
 
       if (cartesian) then
-        call scalarSingularBC(mgctx%g_def,arrayc(:,:,:,1))
-        call scalarSingularBC(mgctx%g_def,arrayc(:,:,:,2))
-        call scalarSingularBC(mgctx%g_def,arrayc(:,:,:,3))
+        do ieq=1,neq
+          call scalarSingularBC(mgctx%g_def,arrayc(:,:,:,ieq))
+        enddo
       endif
 
 c     Prolong arrays (use scalar prolongation)
@@ -2728,9 +2738,17 @@ c     Transform back to curvilinear (if isvec=.true. and cartesian=.true.)
 
       if (isvec .and. cartesian) then
         if (is__stg) then
-          arrayf = XformToCurv_stg_mesh(mgctx%g_def,igf,arrayf,iscnv)
+          do ivar=1,neq/3
+            arrayf(:,:,:,1+3*(ivar-1):3+3*(ivar-1))
+     .           = XformToCurv_stg_mesh(mgctx%g_def,igf
+     .                ,arrayf(:,:,:,1+3*(ivar-1):3+3*(ivar-1)),iscnv)
+          enddo
         else
-          arrayf = XformToCurv_mesh    (mgctx%g_def,igf,arrayf,iscnv)
+          do ivar=1,neq/3
+            arrayf(:,:,:,1+3*(ivar-1):3+3*(ivar-1))
+     .           = XformToCurv_mesh    (mgctx%g_def,igf
+     .                ,arrayf(:,:,:,1+3*(ivar-1):3+3*(ivar-1)),iscnv)
+          enddo
         endif
       endif
 
