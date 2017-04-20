@@ -53,7 +53,7 @@ c ---------------------------------------------------------------------
           module procedure XformVector_mesh!,XformVector_mesh2
         end INTERFACE
 
-        private :: transformFromCurvToCurv
+cc        private :: transformFromCurvToCurv
 cc     .             transformVectorToCartesian
 cc     .            ,transformVectorToCurvilinear
 
@@ -1464,22 +1464,18 @@ c     Call variables
 
 c     Local variables
 
-      type(MG_grid_metrics),pointer :: gmetric 
+      real(8)    :: ijac
 
 c     Begin program
 
-      gmetric => g_def%gmetric
-
       if (cnv_in) then  !Result is covariant
+        ijac = 1d0/g_def%gmetric%grid(igrid)%jac(i,j,k)
         vec3(1) = (vec1(2)*vec2(3)
-     .            -vec1(3)*vec2(2))
-     .            /gmetric%grid(igrid)%jac(i,j,k)
+     .            -vec1(3)*vec2(2))*ijac
         vec3(2) = (vec1(3)*vec2(1)
-     .            -vec1(1)*vec2(3))
-     .            /gmetric%grid(igrid)%jac(i,j,k)
+     .            -vec1(1)*vec2(3))*ijac
         vec3(3) = (vec1(1)*vec2(2)
-     .            -vec1(2)*vec2(1))
-     .            /gmetric%grid(igrid)%jac(i,j,k)
+     .            -vec1(2)*vec2(1))*ijac
       else           !Result is contravariant
         vec3(1) = (vec1(2)*vec2(3)
      .            -vec1(3)*vec2(2))

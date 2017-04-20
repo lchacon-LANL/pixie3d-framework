@@ -4365,7 +4365,7 @@ c     ###############################################################
 c     ---------------------------------------------------------------
 c     Calculates covariant components of lap(vfield) at cell
 c     centers in general non-orthogonal coordinates. Vector vfield
-c     in covariant representation.
+c     is in covariant representation.
 c     ---------------------------------------------------------------
 
       implicit none           !For safe fortran
