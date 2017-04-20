@@ -53,9 +53,9 @@ c ---------------------------------------------------------------------
           module procedure XformVector_mesh!,XformVector_mesh2
         end INTERFACE
 
-cc        private :: transformVectorToCartesian
+        private :: transformFromCurvToCurv
+cc     .             transformVectorToCartesian
 cc     .            ,transformVectorToCurvilinear
-cc     .            ,transformFromCurvToCurv
 
         logical :: no_map=.false.
 
@@ -479,7 +479,6 @@ c     Begin program
         enddo
 
       end subroutine XformToCurv_mesh2
-
 
 c     transformVectorToCurvilinear
 c     #################################################################
@@ -1050,7 +1049,6 @@ c     Begin program
 
       end function XformToCnv_ijk
 
-
 c     XformToCov_ijk
 c     #################################################################
       function XformToCov_ijk(g_def,i,j,k,igrid,cnv) result(cov)
@@ -1082,6 +1080,98 @@ c     Begin program
 
       end function XformToCov_ijk
 
+c     XformToCov_ijk_face
+c     #################################################################
+      function XformToCov_ijk_face(g_def,i,j,k,igrid,cnv,he)
+     .         result(cov)
+
+c     -----------------------------------------------------------------
+c     Transforms a curvilinear vector (c1,c2,c3) to Cartesian (cx,cy,cz)
+c     at grid coordinates (i,j,k). Curvilinear vector is covariant if
+c     covariant=.true., and contravariant otherwise.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        type(grid_mg_def),pointer :: g_def
+
+        integer    :: i,j,k,igrid,he,hex,hey,hez
+        real(8)    :: cov(3),cnv(3)
+
+c     Local variables
+
+c     Begin program
+
+        call transformFromCurvToCurv(g_def,i,j,k,igrid,igrid,igrid
+     .                              ,cov(1),cov(2),cov(3)
+     .                              ,cnv(1),cnv(2),cnv(3)
+     .                              ,.false.,half_elem=he)
+
+      end function XformToCov_ijk_face
+
+c     XformToCov_ijk_vrtx
+c     #################################################################
+      function XformToCov_ijk_vrtx(g_def,i,j,k,igrid,cnv)
+     .         result(cov)
+
+c     -----------------------------------------------------------------
+c     Transforms a curvilinear vector (c1,c2,c3) to Cartesian (cx,cy,cz)
+c     at grid coordinates (i,j,k). Curvilinear vector is covariant if
+c     covariant=.true., and contravariant otherwise.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        type(grid_mg_def),pointer :: g_def
+
+        integer    :: i,j,k,igrid
+        real(8)    :: cov(3),cnv(3)
+
+c     Local variables
+
+c     Begin program
+
+        call transformFromCurvToCurv(g_def,i,j,k,igrid,igrid,igrid
+     .                              ,cov(1),cov(2),cov(3)
+     .                              ,cnv(1),cnv(2),cnv(3)
+     .                              ,.false.,hex=1,hey=1,hez=1)
+
+      end function XformToCov_ijk_vrtx
+
+c     XformToCnv_ijk_face
+c     #################################################################
+      function XformToCnv_ijk_face(g_def,i,j,k,igrid,cov,he)
+     .         result(cnv)
+
+c     -----------------------------------------------------------------
+c     Transforms a curvilinear vector (c1,c2,c3) to Cartesian (cx,cy,cz)
+c     at grid coordinates (i,j,k). Curvilinear vector is covariant if
+c     covariant=.true., and contravariant otherwise.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        type(grid_mg_def),pointer :: g_def
+
+        integer    :: i,j,k,igrid,he
+        real(8)    :: cov(3),cnv(3)
+
+c     Local variables
+
+c     Begin program
+
+        call transformFromCurvToCurv(g_def,i,j,k,igrid,igrid,igrid
+     .                              ,cov(1),cov(2),cov(3)
+     .                              ,cnv(1),cnv(2),cnv(3)
+     .                              ,.true.,half_elem=he)
+
+      end function XformToCnv_ijk_face
 
 c     XformToCnv_mesh
 c     #################################################################

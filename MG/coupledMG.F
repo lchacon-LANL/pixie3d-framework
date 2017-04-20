@@ -2881,7 +2881,7 @@ c     ###################################################################
      .                 ,bc,arr0,is_vec,is_cnv,gpos,icomp,result_is_curv)
 
 c     -------------------------------------------------------------------
-c     Fills array arr (with BCs) using vector x.
+c     Fills array arr (with BCs) using vector x  (two dimensional).
 c     -------------------------------------------------------------------
 
         use setMGBC_interface
@@ -2986,7 +2986,7 @@ c     ###################################################################
      .                    ,arr0,is_vec,is_cnv,gpos,icomp,result_is_curv)
 
 c     -------------------------------------------------------------------
-c     Fills array arr (with BCs) using vector x.
+c     Fills array arr (with BCs) using vector x (one dimensional).
 c     -------------------------------------------------------------------
 
         use setMGBC_interface

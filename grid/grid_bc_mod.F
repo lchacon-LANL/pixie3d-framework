@@ -1659,11 +1659,8 @@ c     Begin program
             do k=kmin,kmax
               do j=jmin,jmax
                 do i=imin,imax
-                  call transformFromCurvToCurv(gbc_def,i,j,k
-     .                  ,igxbc,igybc,igzbc
-     .                  ,v_cov(i,j,k,1),v_cov(i,j,k,2),v_cov(i,j,k,3)
-     .                  ,v_cnv(i,j,k,1),v_cnv(i,j,k,2),v_cnv(i,j,k,3)
-     .                  ,.false.)
+                  v_cov(i,j,k,:) =
+     .                XformToCov_ijk(gbc_def,i,j,k,igxbc,v_cnv(i,j,k,:))
                 enddo
               enddo
             enddo
@@ -1701,12 +1698,8 @@ cc                if (.not.selectFace(gbc_def,ibc)) cycle
      .                        +gsuper(id,ic2)*v_cov(i,j,k,ic2)
      .                        -v_cnv(i,j,k,id))/gsuper(id,id)
 
-                        call transformFromCurvToCurv(gbc_def,i,j,k
-     .                    ,igxbc,igybc,igzbc
-     .                    ,v_cov(i,j,k,1),v_cov(i,j,k,2),v_cov(i,j,k,3)
-     .                    ,v_cnv(i,j,k,1),v_cnv(i,j,k,2),v_cnv(i,j,k,3)
-     .                    ,.true.)
-
+                        v_cnv(i,j,k,:) = XformToCnv_ijk(gbc_def,i,j,k
+     .                                           ,igxbc,v_cov(i,j,k,:))
                       enddo
                     enddo
                   enddo
@@ -1724,12 +1717,8 @@ cc                if (.not.selectFace(gbc_def,ibc)) cycle
      .                        +gsub(ic2,id )*v_cnv(i,j,k,id)
      .                        -v_cov(i,j,k,ic2))/gsub(ic2,ic2)
 
-                        call transformFromCurvToCurv(gbc_def,i,j,k
-     .                    ,igxbc,igybc,igzbc
-     .                    ,v_cov(i,j,k,1),v_cov(i,j,k,2),v_cov(i,j,k,3)
-     .                    ,v_cnv(i,j,k,1),v_cnv(i,j,k,2),v_cnv(i,j,k,3)
-     .                    ,.false.)
-
+                        v_cov(i,j,k,:) = XformToCov_ijk(gbc_def,i,j,k
+     .                                           ,igxbc,v_cnv(i,j,k,:))
                       enddo
                     enddo
                   enddo
@@ -1747,12 +1736,8 @@ cc                if (.not.selectFace(gbc_def,ibc)) cycle
      .                        +gsub(ic1,id )*v_cnv(i,j,k,id)
      .                        -v_cov(i,j,k,ic1))/gsub(ic1,ic1)
 
-                        call transformFromCurvToCurv(gbc_def,i,j,k
-     .                    ,igxbc,igybc,igzbc
-     .                    ,v_cov(i,j,k,1),v_cov(i,j,k,2),v_cov(i,j,k,3)
-     .                    ,v_cnv(i,j,k,1),v_cnv(i,j,k,2),v_cnv(i,j,k,3)
-     .                    ,.false.)
-
+                        v_cov(i,j,k,:) = XformToCov_ijk(gbc_def,i,j,k
+     .                                           ,igxbc,v_cnv(i,j,k,:))
                       enddo
                     enddo
                   enddo

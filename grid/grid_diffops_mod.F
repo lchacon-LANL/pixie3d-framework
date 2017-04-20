@@ -389,73 +389,6 @@ c     End program
 
       end function lap_vrtx
 
-c$$$c     curlcurl_vrtx_ndiff
-c$$$c     ###############################################################
-c$$$      function curlcurl_vrtx_ndiff(i,j,k,nx,ny,nz,igx,igy,igz,aa,vol)
-c$$$     .         result(cnv)
-c$$$
-c$$$c     ---------------------------------------------------------------
-c$$$c     Calculates curl(curl(A)) in general non-orthogonal
-c$$$c     coordinates, preserving the SPD property. The vector A is
-c$$$c     covariant, and returns contravariant components.
-c$$$c     ---------------------------------------------------------------
-c$$$
-c$$$      implicit none           !For safe fortran
-c$$$
-c$$$c     Call variables
-c$$$
-c$$$      integer    :: i,j,k,nx,ny,nz,igx,igy,igz
-c$$$
-c$$$      real(8)    :: aa(0:nx+1,0:ny+1,0:nz+1,3),cnv(3)
-c$$$
-c$$$      logical,optional,intent(IN) :: vol
-c$$$
-c$$$c     Local variables
-c$$$
-c$$$      integer    :: il,jl,kl,ii,jj,kk
-c$$$
-c$$$      real(8)    :: crl(2,2,2,3),cov(3)
-c$$$
-c$$$      logical    :: vol_wgt
-c$$$
-c$$$c     Begin program
-c$$$
-c$$$      vol_wgt = .false.
-c$$$      if (PRESENT(vol)) vol_wgt = vol
-c$$$
-c$$$c     Curl at vertices
-c$$$
-c$$$      do kl=1,2
-c$$$        do jl=1,2
-c$$$          do il=1,2
-c$$$            ii = i+il-2
-c$$$            jj = j+jl-2
-c$$$            kk = k+kl-2
-c$$$            cnv = curl_vrtx(ii,jj,kk,igx,igy,igz
-c$$$     .                     ,aa(ii:ii+1,jj:jj+1,kk:kk+1,:)
-c$$$     .                     ,.true.)
-c$$$
-c$$$            call transformFromCurvToCurv(ii,jj,kk,igx,igy,igz
-c$$$     .                                  ,cov(1),cov(2),cov(3)
-c$$$     .                                  ,cnv(1),cnv(2),cnv(3)
-c$$$     .                                  ,.false.
-c$$$     .                                  ,hex=1,hey=1,hez=1)
-c$$$
-c$$$            crl(il,jl,kl,:) = cov
-c$$$          enddo
-c$$$        enddo
-c$$$      enddo
-c$$$
-c$$$c     Curl at cell center
-c$$$
-c$$$      cnv = curl_vrtx(i,j,k,igx,igy,igz,crl,.false.)
-c$$$
-c$$$      if (vol_wgt) cnv=cnv*g_def%gmetric%grid(igx)%dvol(i,j,k)
-c$$$
-c$$$c     End program
-c$$$
-c$$$      end function curlcurl_vrtx_ndiff
-
 c     curlcurl_vrtx
 c     ###############################################################
       function curlcurl_vrtx(g_def,i,j,k,nx,ny,nz,igx,igy,igz,aa,diff
@@ -512,11 +445,7 @@ c     Curl at vertices
      .                     ,aa(ii:ii+1,jj:jj+1,kk:kk+1,:)
      .                     ,.true.)
 
-            call transformFromCurvToCurv(g_def,ii,jj,kk,igx,igy,igz
-     .                                  ,cov(1),cov(2),cov(3)
-     .                                  ,cnv(1),cnv(2),cnv(3)
-     .                                  ,.false.
-     .                                  ,hex=1,hey=1,hez=1)
+            cov = XformToCov_ijk_vrtx(g_def,ii,jj,kk,igx,cnv)
 
             if (have_coef) dff=0.125*sum(coef(ii:ii+1,jj:jj+1,kk:kk+1))
 
