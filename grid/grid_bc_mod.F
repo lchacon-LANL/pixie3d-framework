@@ -2702,13 +2702,13 @@ c     ################################################################
       if(ireq>0.and.flg==1) then
         call MPI_Waitall(ireq,request,status,mpierr)
 
-        if (pn( 0,-1, 0)/=nullp.and.dest/=currp)
+        if (pn( 0,-1, 0)/=nullp.and.pn( 0,-1, 0)/=currp)
      .       array(i,0     ,0:nzbc+1) = dumzout1
-        if (pn( 0, 1, 0)/=nullp.and.dest/=currp)
+        if (pn( 0, 1, 0)/=nullp.and.pn( 0, 1, 0)/=currp)
      .       array(i,nybc+1,0:nzbc+1) = dumzout2
-        if (pn( 0, 0,-1)/=nullp.and.dest/=currp)
+        if (pn( 0, 0,-1)/=nullp.and.pn( 0, 0,-1)/=currp)
      .       array(i,0:nybc+1,0     ) = dumyout1
-        if (pn( 0, 0, 1)/=nullp.and.dest/=currp)
+        if (pn( 0, 0, 1)/=nullp.and.pn( 0, 0, 1)/=currp)
      .       array(i,0:nybc+1,nzbc+1) = dumyout2
       endif
 
@@ -2803,13 +2803,13 @@ c     ################################################################
       if(ireq>0.and.flg==1) then
         call MPI_Waitall(ireq,request,status,mpierr)
 
-        if (pn( 0, 1, 0)/=nullp.and.dest/=currp)
+        if (pn( 0, 1, 0)/=nullp.and.pn( 0, 1, 0)/=currp)
      .       array(i,nybc+1,0:nzbc+1) = dumzout1
-        if (pn( 0,-1, 0)/=nullp.and.dest/=currp)
+        if (pn( 0,-1, 0)/=nullp.and.pn( 0,-1, 0)/=currp)
      .       array(i,0     ,0:nzbc+1) = dumzout2
-        if (pn( 0, 0, 1)/=nullp.and.dest/=currp)
+        if (pn( 0, 0, 1)/=nullp.and.pn( 0, 0, 1)/=currp)
      .       array(i,0:nybc+1,nzbc+1) = dumyout1
-        if (pn( 0, 0,-1)/=nullp.and.dest/=currp)
+        if (pn( 0, 0,-1)/=nullp.and.pn( 0, 0,-1)/=currp)
      .       array(i,0:nybc+1,0     ) = dumyout2
       endif
 
@@ -2904,13 +2904,13 @@ c     ################################################################
       if(ireq>0.and.flg==1) then
         call MPI_Waitall(ireq,request,status,mpierr)
 
-        if (pn(-1, 0, 0)/=nullp.and.dest/=currp)
+        if (pn(-1, 0, 0)/=nullp.and.pn(-1, 0, 0)/=currp)
      .       array(0     ,j,0:nzbc+1) = dumzout1
-        if (pn( 1, 0, 0)/=nullp.and.dest/=currp)
+        if (pn( 1, 0, 0)/=nullp.and.pn( 1, 0, 0)/=currp)
      .       array(nxbc+1,j,0:nzbc+1) = dumzout2
-        if (pn( 0, 0,-1)/=nullp.and.dest/=currp)
+        if (pn( 0, 0,-1)/=nullp.and.pn( 0, 0,-1)/=currp)
      .       array(0:nxbc+1,j,0     ) = dumxout1
-        if (pn( 0, 0, 1)/=nullp.and.dest/=currp)
+        if (pn( 0, 0, 1)/=nullp.and.pn( 0, 0, 1)/=currp)
      .       array(0:nxbc+1,j,nzbc+1) = dumxout2
       endif
 
@@ -3005,13 +3005,13 @@ c     ################################################################
       if(ireq>0.and.flg==1) then
         call MPI_Waitall(ireq,request,status,mpierr)
 
-        if (pn(-1, 0, 0)/=nullp.and.dest/=currp)
+        if (pn(-1, 0, 0)/=nullp.and.pn(-1, 0, 0)/=currp)
      .       array(0     ,j,0:nzbc+1) = dumzout1
-        if (pn( 1, 0, 0)/=nullp.and.dest/=currp)
+        if (pn( 1, 0, 0)/=nullp.and.pn( 1, 0, 0)/=currp)
      .       array(nxbc+1,j,0:nzbc+1) = dumzout2
-        if (pn( 0, 0,-1)/=nullp.and.dest/=currp)
+        if (pn( 0, 0,-1)/=nullp.and.pn( 0, 0,-1)/=currp)
      .       array(0:nxbc+1,j,0     ) = dumxout1
-        if (pn( 0, 0, 1)/=nullp.and.dest/=currp)
+        if (pn( 0, 0, 1)/=nullp.and.pn( 0, 0, 1)/=currp)
      .       array(0:nxbc+1,j,nzbc+1) = dumxout2
       endif
 
@@ -3106,13 +3106,13 @@ c     ################################################################
       if(ireq>0.and.flg==1) then
         call MPI_Waitall(ireq,request,status,mpierr)
  
-        if (pn(-1, 0, 0)/=nullp.and.dest/=currp)
+        if (pn(-1, 0, 0)/=nullp.and.pn(-1, 0, 0)/=currp)
      .       array(0     ,0:nybc+1,k) = dumyout1
-        if (pn( 1, 0, 0)/=nullp.and.dest/=currp)
+        if (pn( 1, 0, 0)/=nullp.and.pn( 1, 0, 0)/=currp)
      .       array(nxbc+1,0:nybc+1,k) = dumyout2
-        if (pn( 0,-1, 0)/=nullp.and.dest/=currp)
+        if (pn( 0,-1, 0)/=nullp.and.pn( 0,-1, 0)/=currp)
      .       array(0:nxbc+1,0     ,k) = dumxout1
-        if (pn( 0, 1, 0)/=nullp.and.dest/=currp)
+        if (pn( 0, 1, 0)/=nullp.and.pn( 0, 1, 0)/=currp)
      .       array(0:nxbc+1,nybc+1,k) = dumxout2
       endif
       
@@ -3207,13 +3207,13 @@ c     ################################################################
       if(ireq>0.and.flg==1) then
         call MPI_Waitall(ireq,request,status,mpierr)
 
-        if (pn(-1, 0, 0)/=nullp.and.dest/=currp)
+        if (pn(-1, 0, 0)/=nullp.and.pn(-1, 0, 0)/=currp)
      .       array(0     ,0:nybc+1,k) = dumyout1
-        if (pn( 1, 0, 0)/=nullp.and.dest/=currp)
+        if (pn( 1, 0, 0)/=nullp.and.pn( 1, 0, 0)/=currp)
      .       array(nxbc+1,0:nybc+1,k) = dumyout2
-        if (pn( 0,-1, 0)/=nullp.and.dest/=currp)
+        if (pn( 0,-1, 0)/=nullp.and.pn( 0,-1, 0)/=currp)
      .       array(0:nxbc+1,0     ,k) = dumxout1
-        if (pn( 0, 1, 0)/=nullp.and.dest/=currp)
+        if (pn( 0, 1, 0)/=nullp.and.pn( 0, 1, 0)/=currp)
      .       array(0:nxbc+1,nybc+1,k) = dumxout2
       endif
        
