@@ -6231,22 +6231,19 @@ c     Grid info
 
 c     Find X ZIP flux (used even if method /= ZIP)
 
-      flxip = 0d0
-
       at_bdry = (isBdry(g_def,i  ,igr,2).and.bcond(2)/=PER)
      .      .or.(isBdry(g_def,i+1,igr,1).and.bcond(1)/=PER)
 
-      if (.not.at_bdry) then               !Not at boundary
+c$$$      if ((v(ip,j,k) == -v(i,j,k)).and.at_bdry) then      !Impenetrable-wall bdry
+c$$$        flxip = 0d0
+c$$$      elseif(isSP2(g_def,i+1,igr,ibc=1).and.spoint) then  !SP boundary
+      if(isSP2(g_def,i+1,igr,ibc=1).and.spoint) then !SP boundary
+        flxip = 0d0
+      elseif(at_bdry) then                                !Other boundaries
+        flxip = 0.5*(v(ip,j,k)*arr(i,j,k)+v(i,j,k)*arr(ip,j,k))
+      else                                                !Not at boundary
         flxip = 0.25*(v(ip,j,k)*arr(i ,j,k)/jacip
      .              + v(i ,j,k)*arr(ip,j,k)/jac  )*(jac+jacip)
-      else
-c$$$        if (   (v(ip,j,k) == -v(i,j,k))
-c$$$     .     .or.(isSP2(g_def,i+1,igr,ibc=1).and.spoint)) then
-        if (isSP2(g_def,i+1,igr,ibc=1).and.spoint) then
-          flxip = 0d0    !Shut off flux for vn=0 BC
-        else
-          flxip = 0.5*(v(ip,j,k)*arr(i,j,k)+v(i,j,k)*arr(ip,j,k))
-        endif
       endif
 
 c     Other advective methods
@@ -6331,12 +6328,16 @@ c     Grid info
 
 c     Find X ZIP flux (used even if method /= ZIP)
 
-      flxjp = 0.5*(v(i,jp,k)*arr(i,j,k) + v(i,j,k)*arr(i,jp,k))
-
-c     Other advective methods
-
       at_bdry = (isBdry(g_def,j  ,igr,4).and.bcond(4)/=PER)
      .      .or.(isBdry(g_def,j+1,igr,3).and.bcond(3)/=PER)
+
+c$$$      if ((v(i,j,k) == -v(i,jp,k)).and.at_bdry) then
+c$$$        flxjp = 0d0             !Shut off flux for vn=0 BC
+c$$$      else
+        flxjp = 0.5*(v(i,jp,k)*arr(i,j,k) + v(i,j,k)*arr(i,jp,k))
+c$$$      endif
+
+c     Other advective methods
 
       if (method /= 2.and.(.not.at_bdry)) then
 
@@ -6418,12 +6419,16 @@ c     Grid info
 
 c     Find X ZIP flux (used even if method /= ZIP)
 
-      flxkp = 0.5*(v(i,j,kp)*arr(i,j,k) + v(i,j,k)*arr(i,j,kp))
-
-c     Other advective methods
-
       at_bdry = (isBdry(g_def,k  ,igr,6).and.bcond(6)/=PER)
      .      .or.(isBdry(g_def,k+1,igr,5).and.bcond(5)/=PER)
+
+c$$$      if ((v(i,j,k) == -v(i,j,kp)).and.at_bdry) then
+c$$$        flxkp = 0d0             !Shut off flux for vn=0 BC
+c$$$      else
+        flxkp = 0.5*(v(i,j,kp)*arr(i,j,k) + v(i,j,k)*arr(i,j,kp))
+c$$$      endif
+
+c     Other advective methods
 
       if (method /= 2.and.(.not.at_bdry)) then
 

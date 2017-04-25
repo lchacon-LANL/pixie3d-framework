@@ -1303,28 +1303,28 @@ c     Local variables
 c     Begin program
 
       !Periodic: order by dimension
-      if (only_per) then
-        do dim=1,3
-          do loc=0,1
-            ibc = (1+loc)+2*(dim-1)
-            if (abs(bcnd(ibc)) == PER) then
-              call FillGhostNodes_scl(gbc_def,ieq,1,dim,loc,PER,array
-     .                             ,array0)
-            endif
-          enddo
-        enddo
-      else
-        !Other: order by location
+      do dim=1,3
         do loc=0,1
-          do dim=1,3
-            ibc = (1+loc)+2*(dim-1)
-            if (abs(bcnd(ibc)) /= PER) then
-              call FillGhostNodes_scl(gbc_def,ieq,1,dim,loc,SYNC,array
+          ibc = (1+loc)+2*(dim-1)
+          if (abs(bcnd(ibc)) == PER) then
+            call FillGhostNodes_scl(gbc_def,ieq,1,dim,loc,PER,array
      .                             ,array0)
-            endif
-          enddo
+          endif
         enddo
-      endif
+      enddo
+
+      if (only_per) return
+
+      !Other: order by location
+      do loc=0,1
+        do dim=1,3
+          ibc = (1+loc)+2*(dim-1)
+          if (abs(bcnd(ibc)) /= PER) then
+            call FillGhostNodes_scl(gbc_def,ieq,1,dim,loc,SYNC,array
+     .                             ,array0)
+          endif
+        enddo
+      enddo
 
       end subroutine sync_bc
 
@@ -1545,45 +1545,45 @@ c     Local variables
       
 c     Begin program
 
-      if (only_per) then
-        !Periodic: order by dimension first
-        do dim=1,3
-          do loc=0,1
-            ibc = (1+loc)+2*(dim-1)
-
-            do ivar = 1,ncomp
-              ieq = ivar + fcomp - 1
-
-              if (abs(bcnd(ibc,ivar)) == PER) then
-                call FillGhostNodes_vec(gbc_def,ieq,ivar,ncomp,dim,loc
-     .                                 ,PER,v_cnv,var0)
-                call FillGhostNodes_vec(gbc_def,ieq,ivar,ncomp,dim,loc
-     .                                 ,PER,v_cov,var0,cnv=.false.)
-              endif
-            enddo
-
-          enddo
-        enddo
-      else
-        !Other: order by location first
+      !Periodic: order by dimension first
+      do dim=1,3
         do loc=0,1
-          do dim=1,3
-            ibc = (1+loc)+2*(dim-1)
+          ibc = (1+loc)+2*(dim-1)
 
-            do ivar = 1,ncomp
-              ieq = ivar + fcomp - 1
+          do ivar = 1,ncomp
+            ieq = ivar + fcomp - 1
 
-              if (abs(bcnd(ibc,ivar)) /= PER) then
-                call FillGhostNodes_vec(gbc_def,ieq,ivar,ncomp,dim,loc
-     .                                 ,SYNC,v_cnv,var0)
-                call FillGhostNodes_vec(gbc_def,ieq,ivar,ncomp,dim,loc
-     .                                 ,SYNC,v_cov,var0,cnv=.false.)
-              endif
-            enddo
-
+            if (abs(bcnd(ibc,ivar)) == PER) then
+              call FillGhostNodes_vec(gbc_def,ieq,ivar,ncomp,dim,loc
+     .                               ,PER,v_cnv,var0)
+              call FillGhostNodes_vec(gbc_def,ieq,ivar,ncomp,dim,loc
+     .                               ,PER,v_cov,var0,cnv=.false.)
+            endif
           enddo
+
         enddo
-      endif
+      enddo
+
+      if (only_per) return
+
+      !Other: order by location first
+      do loc=0,1
+        do dim=1,3
+          ibc = (1+loc)+2*(dim-1)
+
+          do ivar = 1,ncomp
+            ieq = ivar + fcomp - 1
+
+            if (abs(bcnd(ibc,ivar)) /= PER) then
+              call FillGhostNodes_vec(gbc_def,ieq,ivar,ncomp,dim,loc
+     .                               ,SYNC,v_cnv,var0)
+              call FillGhostNodes_vec(gbc_def,ieq,ivar,ncomp,dim,loc
+     .                               ,SYNC,v_cov,var0,cnv=.false.)
+            endif
+          enddo
+
+        enddo
+      enddo
 
       end subroutine sync_bc
 
