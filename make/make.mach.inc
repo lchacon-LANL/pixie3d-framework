@@ -943,7 +943,7 @@ ifeq ($(findstring wf,$(HOST)),wf)
      ifeq ($(BOPT),O)
       PETSC_ARCH = linux64_wolf_openmpi-1.10.5_gcc-5.3.0
      else
-      PETSC_ARCH = linux64_wolf_openmpi-1.10.5_gcc-5.3.0_dbg
+      PETSC_ARCH = linux64_wolf_openmpi-1.10.5_gcc-5.3.0_dgb
      endif
 
      HDF5 = f
