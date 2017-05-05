@@ -173,6 +173,18 @@ c     Begin program
           car(2) = xlog(2) + eps*sin(2*pi*xlog(1)/xmax)
      .                          *sin(2*pi*xlog(2)/ymax)
           car(3) = xlog(3)
+        case ('s3d')
+          eps = gp(1)
+
+          car(1) = xlog(1) + eps*sin(2*pi*xlog(1)/xmax)
+     .                          *sin(2*pi*xlog(2)/ymax)
+     .                          *sin(2*pi*xlog(3)/zmax)
+          car(2) = xlog(2) + eps*sin(2*pi*xlog(1)/xmax)
+     .                          *sin(2*pi*xlog(2)/ymax)
+     .                          *sin(2*pi*xlog(3)/zmax)
+          car(3) = xlog(3) + eps*sin(2*pi*xlog(1)/xmax)
+     .                          *sin(2*pi*xlog(2)/ymax)
+     .                          *sin(2*pi*xlog(3)/zmax)
         case default
           write (*,*) 'Grid not implemented in x_xi'
           write (*,*) 'Aborting...'
