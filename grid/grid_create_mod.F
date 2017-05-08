@@ -105,7 +105,7 @@ c     create_gdef
 c     ######################################################################
       subroutine create_gdef(nx,ny,nz,xmin,xmax,ymin,ymax,zmin,zmax
      .                    ,g_def,mpi_comm,coarsen_x,coarsen_y,coarsen_z
-     .                    ,np_x,np_y,np_z)
+     .                    ,np_x,np_y,np_z,pack_x,pack_y,pack_z)
  
       implicit none
 
@@ -119,6 +119,7 @@ c     Call variables
       type(grid_mg_def),pointer,INTENT(IN)  :: g_def
       real(8) :: xmin,xmax,ymin,ymax,zmin,zmax
       logical,optional :: coarsen_x,coarsen_y,coarsen_z
+     .                   ,pack_x,pack_y,pack_z
       integer,optional :: np_x,np_y,np_z
 
 c     Local variables
@@ -140,6 +141,14 @@ c     Begin program
 c     Initialize grid structure
 
       call get_grid_pack_config(g_pack)
+
+      if (PRESENT(pack_x)) g_pack(1)%pack = pack_x
+      if (PRESENT(pack_y)) g_pack(2)%pack = pack_y
+      if (PRESENT(pack_z)) g_pack(3)%pack = pack_z
+
+      if (nx == 1) g_pack(1)%pack = .false.
+      if (ny == 1) g_pack(2)%pack = .false.
+      if (nz == 1) g_pack(3)%pack = .false.
 
       call init_gdef(nx,ny,nz,xmin,xmax,ymin,ymax,zmin,zmax
      .               ,g_pack,gparams,g_def
@@ -195,9 +204,9 @@ c     Perform grid check
 
 c     End program
 
+#if defined(petsc) && defined(coarse_MG)
       contains
 
-#if defined(petsc) && defined(coarse_MG)
 c     coarse_mg_debug_io
 c     ######################################################################
       subroutine coarse_mg_debug_io
@@ -295,9 +304,7 @@ c     Init coarse mesh structure
      .               ,g_def%g_pack,g_def%params
      .               ,g_crse_def
      .               ,np_x=npx,np_y=npy,np_z=npz
-#if defined(petsc) || defined(samrai)
      .               ,mpi_comm=mpi_comm_splt
-#endif
      .               )
 
       g_crse_def%mpi_comm_crse = mpi_comm_crse
@@ -497,7 +504,7 @@ c     Find adequate number of grid levels (for MG)
           if (mx > nxg) call pstop('init_gdef','Too many procs in X')
 
           nxx = nxg/mx
-          ngrdx = MG_levels(nxx,mg_ratio)
+          ngrdx = MG_levels(nxx,mg_ratio,mx)
         else
           ngrdx = 1
         endif
@@ -509,7 +516,7 @@ c     Find adequate number of grid levels (for MG)
           if (my > nyg) call pstop('init_gdef','Too many procs in Y')
 
           nyy = nyg/my
-          ngrdy = MG_levels(nyy,mg_ratio)
+          ngrdy = MG_levels(nyy,mg_ratio,my)
         else
           ngrdy = 1
         endif
@@ -521,7 +528,7 @@ c     Find adequate number of grid levels (for MG)
           if (mz > nzg) call pstop('init_gdef','Too many procs in Z')
 
           nzz = nzg/mz
-          ngrdz = MG_levels(nzz,mg_ratio)
+          ngrdz = MG_levels(nzz,mg_ratio,mz)
         else
           ngrdz = 1
         endif

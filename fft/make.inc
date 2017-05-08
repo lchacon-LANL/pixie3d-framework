@@ -6,4 +6,6 @@ MESSAGE = "Compiling FFT modules"
 
 COMMONDIR = ..
 
-SUBDIRS = $(COMMONDIR)/interpolation/1d_int 
+SUBDIRS = $(COMMONDIR)/interpolation/1d_int \
+          $(COMMONDIR)/math \
+          $(COMMONDIR)/io

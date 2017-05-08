@@ -150,9 +150,11 @@ c     Local variables
 
         integer :: i
         real(8) :: ijac,dxi(nit),res(nit)
-        real(8) :: ll,dd,xbar,dx
+        real(8) :: ll,dd,xbar,dx,eps
 
 c     Begin program
+
+        eps = 10*findRoundOff()
 
         if (lambda == 0d0 .or. lambda == 1d0) then
           eta = 0d0
@@ -190,7 +192,7 @@ c         Newton iteration
 
 cc            write (*,*) abs(res(i)),dxi(i),ijac,eta
 
-            if (abs(res(i)) < 1d-10 .or. (abs(dxi(i)) < 1d-15) ) exit
+            if (abs(res(i))<1d-10.or.(abs(dxi(i))<eps)) exit
           enddo
 
 c         Convergence check
@@ -582,7 +584,7 @@ cc          endif
 cc          if (bcs1 == PER.and.bcs2 == PER) then !Sets angle origin at zero
             dh = length/ng
             lstart = lmin
-          elseif (bcs1 == SYM .and. bcs2 == SYM) then
+          elseif (bcs1 == SYM .and. bcs2 == SYM.and.ng > 1) then
             dh = length/(ng-1)
             lstart = lmin
           elseif (bcs1 == SYM .and. bcs2 /= SYM) then
@@ -692,9 +694,11 @@ c     Local variables
 
         integer   ,parameter :: nit=30
         integer    :: i
-        real(8)    :: ijac,dxi(nit),res(nit)
+        real(8)    :: ijac,dxi(nit),res(nit),eps
 
 c     Begin program
+
+        eps = 10*findRoundOff()
 
 c     Initial guess
 
@@ -721,7 +725,7 @@ cold            ijac = (xi-1)**2/((nn-1)*xi**nn-nn*xi**(nn-1)+1)
           dxi(i) = res(i)*ijac
           xi = xi + dxi(i)
 
-          if (abs(res(i)) < 1d-12 .or. (abs(dxi(i)) < 1d-15) ) exit
+          if (abs(res(i)) < 1d-12.or.(abs(dxi(i))<eps)) exit
         enddo
 
 c     Convergence check

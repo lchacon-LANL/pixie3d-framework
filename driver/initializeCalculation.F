@@ -145,10 +145,10 @@ c Initialize MK variables
 
 #if defined(MK)
       if (mk_grid) call MK_alloc
-#endif
 
-#if defined(MK)
       relax_init_grid = mk_grid.and.mk_init_relax.and.(.not.ts_restart)
+
+      if (relax_init_grid) init_grid_offset = 1
 #endif
 
 c Initialize computation
@@ -390,7 +390,7 @@ c     Read equilibrium
         call pstop('readCurrentState','Unable to read u_0')
       endif
 
-      call TS_update_timecounters(time,exclude_itime=.true.)
+      call TS_update_preCounters(time,exclude_itime=.true.)
 
 c     Read files
 
@@ -406,10 +406,10 @@ c     Read files
         ierr = readRecordFile(ufile,itime,time,dt,gammat,vmed)
 
         if (ierr /= 0) then !EOF: Rollback counters and exit
-          call TS_rollback_timecounters(exclude_itime=.true.)
+          call TS_rollback_counters(exclude_itime=.true.)
           exit
         else
-          call TS_update_timecounters(time,exclude_itime=.true.)
+          call TS_update_preCounters(time,exclude_itime=.true.)
           call equateDerivedType(u_n ,u_np)
           call equateDerivedType(u_np,vmed)
           if (   (itime > nrstrt.and.nrstrt > 0)

@@ -53,13 +53,13 @@ c Begin program
 
       call DR_init
 
-c Initialize counters
-
-      call TS_init_otherCounters
-
 c Initialize calculation
 
       call initializeCalculation
+
+c Initialize timers
+
+      call TS_init_timers
 
 c Initial output
 
@@ -100,7 +100,7 @@ c     Check for error in time stepping
           call equateDerivedType(u_np,u_n )
           call equateDerivedType(u_n ,u_nm)
 
-          call TS_rollback_timecounters()
+          call TS_rollback_counters()
 
           if (ts_adapt_dt) then
             cycle
@@ -126,7 +126,7 @@ c     Check for error in time stepping
 
 c     Update other TS counters
 
-        call TS_update_otherCounters
+        call TS_update_postCounters
 
 c     Postprocess solution
 
@@ -149,6 +149,10 @@ c     Exit if eigenvalue computation
         if (eigen) exit
 
       enddo       !End of time loop
+
+c End timers
+
+      call TS_end_timers
 
 c Final I/O
 
