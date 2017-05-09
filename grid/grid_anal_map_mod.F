@@ -34,7 +34,7 @@ c     Input variables
 c     Begin program
 
         select case(coords)
-        case('car','cyl','hel','hl2','tor','sin','lpk')
+        case('car','cyl','hel','hl2','tor','sin','lpk','s3d')
 
           anal_map = .true.
 
