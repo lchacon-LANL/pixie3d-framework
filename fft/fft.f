@@ -144,12 +144,11 @@ c Call variables
 c Local variables
 
       integer*4   i
-      real*8      pi,twopi,xmed,lx
+      real*8      twopi,xmed,lx
       real*8      psi_wrk(nv),x_wrk(nv),data(2*nv)
 
 c Begin program
 
-      pi   =acos(-1d0)
       twopi=2*pi
 
       lx   = (x(nx)-x(1))/(nx-1)*nx
@@ -245,7 +244,6 @@ c Local variables
 
 c Begin program
 
-      pi   =acos(-1d0)
       twopi=2*pi
 
       do i=1,nv

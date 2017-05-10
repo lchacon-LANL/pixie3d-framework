@@ -2,7 +2,15 @@ c module oned_int
 c ######################################################################
       module oned_int
 
+        use io
+
+        use math
+
 cc      private :: l_int,q_int
+
+        INTERFACE quad_int
+          module procedure quad_int_0,quad_int_1,quad_int_2
+        end INTERFACE
 
       contains
 
@@ -32,6 +40,8 @@ c     Local variables
       real(8) :: dxx
       integer :: i,j,derv
 
+      character(80) :: messg
+
 c     Begin program
 
       if (PRESENT(deriv)) then
@@ -48,8 +58,6 @@ c     Begin program
             call locatep (x,nx,x1(i),j)
             if (j == 0) then
               j = 1 !Extrapolation on the left
-cc            elseif (j == nx) then
-cc              j = nx !Extrapolation on the right
             endif
             vec1(i) = vec(j)
           enddo
@@ -60,24 +68,12 @@ cc              j = nx !Extrapolation on the right
       case (1) !Linear interpolation
 
         do i = 1,nv
-cc          call locatep (x,nx,x1(i),j)
-cc          if (j == 0) then
-cc            j = 1 !Extrapolation on the left
-cccc          elseif (j == nx) then
-cccc            j = nx !Extrapolation on the right
-cc          endif
           vec1(i) = lin_int(nx,vec,x,x1(i),derv)
         enddo
 
       case (2) !Quadratic interpolation
 
         do i = 1,nv
-cc          call locatep (x,nx,x1(i),j)
-cc          if (j == 0) then
-cc            j = 1 !Extrapolation on the left
-cccc          elseif (j == nx) then
-cccc            j = nx !Extrapolation on the right
-cc          endif
           vec1(i) = q_int(nx,vec,x,x1(i),derv)
         enddo
         
@@ -86,9 +82,8 @@ cc          endif
         if (   maxval(x1) > maxval(x)
      .     .or.minval(x1) < minval(x)) then  !Extrapolation needed
           if (derv > 1) then
-            write (*,*) 'Cannot compute this order derivative'
-            write (*,*) 'Aborting IntDriver1d...'
-            stop
+            messg = 'Cannot compute this order derivative'
+            call sstop(0,'IntDriver1d',messg)
           else
             call cubic_int
           endif
@@ -100,9 +95,8 @@ cc          endif
 
         if (   maxval(x1) > maxval(x)
      .     .or.minval(x1) < minval(x)) then  !Extrapolation needed
-          write (*,*) 'Cannot extrapolate at this order'
-          write (*,*) 'Aborting IntDriver1d...'
-          stop
+          messg = 'Cannot extrapolate at this order'
+          call sstop(0,'IntDriver1d',messg)
         else
           call slatec
         endif
@@ -189,9 +183,8 @@ c     Begin program
       call dpchsp(ic,vc,nx,x,f,d,incfd,wk,nwk,ierr)
 
       if (ierr.ne.0) then
-        write (*,*) 'Errors in cubic spline preparation'
-        write (*,*) 'Aborting..'
-        stop
+        messg = 'Errors in cubic spline preparation'
+        call sstop(0,'cubic_int',messg)
       endif
 
       skip = .false.
@@ -200,18 +193,14 @@ c     Begin program
       elseif (derv == 1) then
         call dpchfd(nx,x,f,d,incfd,skip,nv,x1,dummy,vec1,ierr)
       else
-        write (*,*) 'Cannot provide derivatives of this order'
-        write (*,*) 'Aborting...'
-        stop
+        messg = 'Cannot provide derivatives of this order'
+        call sstop(0,'cubic_int',messg)
       endif
 
       if (ierr.lt.0) then
-        write (*,*) 'Error',ierr,' in cubic spline interpolation'
-        write (*,*) 'Aborting..'
-        stop
-c$$$      elseif (ierr.gt.0) then
-c$$$        write (*,*) 'Warning: extrapolation in cubic spline in'
-c$$$   .                ,ierr,' points'
+        messg = 'Error'//int2char(ierr)
+     .         //' in cubic spline interpolation'
+        call sstop(0,'cubic_int',messg)
       endif
 
       deallocate(wk,f,d,dummy)
@@ -273,7 +262,8 @@ c     ##################################################################
       function q_int (nx,vec,x,x1,derv)
       implicit      none                          ! for safe FORTRAN
 c     ------------------------------------------------------------------
-c     Interpolate vec(x) at x1 using the nodes (j-1),j,(j+1).
+c     Quadratically interpolate vec(x) or its derivatives at x1 using
+c     the nodes (j-1),j,(j+1).
 c     ------------------------------------------------------------------
 
 c     Variables in call
@@ -336,7 +326,8 @@ c     ##################################################################
       function lin_int (nx,vec,x,x1,derv)
       implicit      none                          ! for safe FORTRAN
 c     ------------------------------------------------------------------
-c     Interpolate vec(x) at x1 using the nodes j,(j+1).
+c     Linearly interpolate vec(x) or its derivatives at x1 using the
+c     nodes j,(j+1).
 c     ------------------------------------------------------------------
 
 c     Variables in call
@@ -380,6 +371,141 @@ cc      if (j == nx) j = nx - 1  !Extrapolation on the right
 c     End
 
       end function lin_int
+
+c     quad_int_0
+c     #################################################################
+      function quad_int_0(x0,x1,x2,x3,y0,y1,y2,y3,x,order) result(y)
+c     -----------------------------------------------------------------
+c     Interpolation (extrapolation) routine, up to cubic order.
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: order
+      real(8) :: x0,x1,x2,x3,y0,y1,y2,y3,x,y
+
+c     Local variables
+
+      character(80) :: messg
+
+c     Begin program
+
+      select case (order)
+      case (3)
+        y = y0*(x-x1)*(x-x2)*(x-x3)/((x0-x1)*(x0-x2)*(x0-x3))
+     .     +y1*(x-x0)*(x-x2)*(x-x3)/((x1-x0)*(x1-x2)*(x1-x3))
+     .     +y2*(x-x0)*(x-x1)*(x-x3)/((x2-x0)*(x2-x1)*(x2-x3))
+     .     +y3*(x-x0)*(x-x1)*(x-x2)/((x3-x0)*(x3-x1)*(x3-x2))
+      case (2)
+        y = y0*(x-x1)*(x-x2)/((x0-x1)*(x0-x2))
+     .     +y1*(x-x0)*(x-x2)/((x1-x0)*(x1-x2))
+     .     +y2*(x-x0)*(x-x1)/((x2-x0)*(x2-x1))
+      case (1)
+        y = y0*(x-x1)/(x0-x1)
+     .     +y1*(x-x0)/(x1-x0)
+      case (0)
+        y = y0
+      case default
+        messg = 'Order of interpolation not implemented'
+        call sstop(0,'quad_int_0',messg)
+      end select
+
+c     End program
+
+      end function quad_int_0
+
+c     quad_int_1
+c     #################################################################
+      function quad_int_1(x0,x1,x2,x3,y0,y1,y2,y3,x,order) result(y)
+c     -----------------------------------------------------------------
+c     Interpolation (extrapolation) routine, up to cubic order.
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: order
+      real(8) :: x0,x1,x2,x3,x
+     .          ,y0(:),y1(:),y2(:),y3(:),y(size(y0))
+
+c     Local variables
+
+      character(80) :: messg
+
+c     Begin program
+
+      select case (order)
+      case (3)
+        y = y0*(x-x1)*(x-x2)*(x-x3)/((x0-x1)*(x0-x2)*(x0-x3))
+     .     +y1*(x-x0)*(x-x2)*(x-x3)/((x1-x0)*(x1-x2)*(x1-x3))
+     .     +y2*(x-x0)*(x-x1)*(x-x3)/((x2-x0)*(x2-x1)*(x2-x3))
+     .     +y3*(x-x0)*(x-x1)*(x-x2)/((x3-x0)*(x3-x1)*(x3-x2))
+      case (2)
+        y = y0*(x-x1)*(x-x2)/((x0-x1)*(x0-x2))
+     .     +y1*(x-x0)*(x-x2)/((x1-x0)*(x1-x2))
+     .     +y2*(x-x0)*(x-x1)/((x2-x0)*(x2-x1))
+      case (1)
+        y = y0*(x-x1)/(x0-x1)
+     .     +y1*(x-x0)/(x1-x0)
+      case (0)
+        y = y0
+      case default
+        messg = 'Order of interpolation not implemented'
+        call sstop(0,'quad_int_1',messg)
+      end select
+
+c     End program
+
+      end function quad_int_1
+
+c     quad_int_2
+c     #################################################################
+      function quad_int_2(x0,x1,x2,x3,y0,y1,y2,y3,x,order) result(y)
+c     -----------------------------------------------------------------
+c     Interpolation (extrapolation) routine, up to cubic order.
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: order
+      real(8) :: x0,x1,x2,x3,x
+     .          ,y0(:,:),y1(:,:),y2(:,:),y3(:,:)
+     .          ,y(size(y0,1),size(y0,2))
+
+c     Local variables
+
+      character(80) :: messg
+
+c     Begin program
+
+      select case (order)
+      case (3)
+        y = y0*(x-x1)*(x-x2)*(x-x3)/((x0-x1)*(x0-x2)*(x0-x3))
+     .     +y1*(x-x0)*(x-x2)*(x-x3)/((x1-x0)*(x1-x2)*(x1-x3))
+     .     +y2*(x-x0)*(x-x1)*(x-x3)/((x2-x0)*(x2-x1)*(x2-x3))
+     .     +y3*(x-x0)*(x-x1)*(x-x2)/((x3-x0)*(x3-x1)*(x3-x2))
+      case (2)
+        y = y0*(x-x1)*(x-x2)/((x0-x1)*(x0-x2))
+     .     +y1*(x-x0)*(x-x2)/((x1-x0)*(x1-x2))
+     .     +y2*(x-x0)*(x-x1)/((x2-x0)*(x2-x1))
+      case (1)
+        y = y0*(x-x1)/(x0-x1)
+     .     +y1*(x-x0)/(x1-x0)
+      case (0)
+        y = y0
+      case default
+        messg = 'Order of interpolation not implemented'
+        call sstop(0,'quad_int_2',messg)
+      end select
+
+c     End program
+
+      end function quad_int_2
 
       end module oned_int
 

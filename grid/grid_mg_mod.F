@@ -23,6 +23,8 @@ c######################################################################
 
         type(grid_mg_def),pointer,private :: g_mg_def
 
+        integer,private :: mg_coarse_size = 2     !Minimum coarse grid size (mg_ratio^mg_coarse_size)
+
 #if defined(coarse_MG)
         integer,private :: mg_proc_coarsen_factor=4  !Coarsening ratio in # procs/dim
                                                      !in parallel MG solve
@@ -35,7 +37,7 @@ c######################################################################
 
 c     MG_levels
 c     #################################################################
-      function MG_levels(nx,mgr) result(ngrd)
+      function MG_levels(nx,mgr,np) result(ngrd)
 
 c     -----------------------------------------------------------------
 c     Determines available MG levels based on grid resolution nx
@@ -46,7 +48,7 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer :: nx,mgr,ngrd
+      integer :: nx,mgr,ngrd,np
 
 c     Local variables
 
@@ -63,7 +65,11 @@ c     Begin program
         if (nl*mgr**(i-1) == nx) exit
       enddo
 
-      ngrd = i
+      if (np == 1) then
+        ngrd = i - mg_coarse_size + 2
+      else
+        ngrd = i
+      endif
 
       end function MG_levels
 
@@ -328,14 +334,57 @@ c     End program
 
       end subroutine limits
 
+c     MG_set_coarse_size
+c     #################################################################
+      subroutine MG_set_coarse_size(size)
+
+c     -----------------------------------------------------------------
+c     Sets MG coarse size (integer exponent of coarsening ratio)
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: size
+
+c     Local variables
+
+c     Begin program
+
+      mg_coarse_size = size
+
+      end subroutine MG_set_coarse_size
+
+c     MG_get_coarse_size
+c     #################################################################
+      subroutine MG_get_coarse_size(size)
+
+c     -----------------------------------------------------------------
+c     Gets MG coarse size (integer exponent of coarsening ratio)
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: size
+
+c     Local variables
+
+c     Begin program
+
+      size = mg_coarse_size
+
+      end subroutine MG_get_coarse_size
+
 #if defined(petsc) && defined(coarse_MG)
 c     MG_set_proc_coarsen_factor
 c     #################################################################
       subroutine MG_set_proc_coarsen_factor(mgcf)
 
 c     -----------------------------------------------------------------
-c     Determines available MG levels based on grid resolution nx
-c     and MG ratio mgr
+c     Sets processor MG coarsening ratio (number of procs to coarsen)
 c     -----------------------------------------------------------------
 
       implicit none
@@ -357,8 +406,7 @@ c     #################################################################
       function MG_get_proc_coarsen_factor() result(mgcf)
 
 c     -----------------------------------------------------------------
-c     Determines available MG levels based on grid resolution nx
-c     and MG ratio mgr
+c     Gets processor MG coarsening ratio (number of procs to coarsen)
 c     -----------------------------------------------------------------
 
       implicit none

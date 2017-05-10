@@ -9,7 +9,7 @@ c ######################################################################
 
         !!! ADIOS variables
         !!! Used to dump main record file (to be postprocessed)
-        character*(1024) :: recordfile='record.bp'
+        character*(1024) :: recordfile=ADIOS_FILE
 
         ! ADIOS needs a variable containing the MPI_WORLD_COMM communicator
         integer :: adios_world_comm
@@ -27,15 +27,21 @@ c ######################################################################
         integer   :: adios_err            ! error handler
         integer   :: adios_attrtype,adios_attrsize,adios_vartype
      .              ,adios_ndim,adios_tdim
-        integer*8,dimension(3) :: adios_vardims
+        integer*8,dimension(0:3) :: adios_vardims
 
         logical,private :: adios_debug=.false.
      $                    ,adios_append_recordfile=.false.
 
 #if !defined(ADIOS_BUFFER_MB)
-        !ADIOS IO buffer (for restart, postprocessing; main app set in adios_config.xml)
-        integer,private :: ADIOS_BUFFER_MB=100
+        !ADIOS IO buffer 
+        integer,private :: ADIOS_BUFFER_MB=100  !In MB
 #endif
+
+#if !defined(ADIOS_METHOD)
+        !ADIOS method 
+        character(20) :: ADIOS_METHOD="MPI"
+#endif
+
       contains
 
 c     setADIOSAppendIOMode
@@ -83,7 +89,12 @@ c     Initialize ADIOS for componentized I/O
      .              ,"Could not setup ADIOS buffer")
         endif
 
-        call ADIOS_init('adios_config.xml',adios_err)
+        if (set_adios_method(ADIOS_METHOD) /= 0) then
+          call pstop("init_ADIOS_IO"
+     .              ,"Could not setup ADIOS method")
+        endif
+        
+        call ADIOS_init('adios_config.xml',adios_world_comm,adios_err);
       endif
 
       contains
@@ -100,8 +111,7 @@ c     #################################################################
 
         if (my_rank == 0) then
           text = int2char(buffer)
-          line = '    <buffer size-MB=\"'//trim(text)
-     .          //'\" allocate-time=\"now\"/>'
+          line = '    <buffer size-MB=\"'//trim(text)//'\"/>'
           ierr = replace_line('adios_config.xml',"buffer size-MB",line)
         endif
 
@@ -110,6 +120,29 @@ c     #################################################################
 #endif
 
       end function set_adios_buffer
+
+c     set_adios_method
+c     #################################################################
+      function set_adios_method(method) result(ierr)
+
+        implicit none
+
+        character(*) :: method
+        integer :: ierr
+
+        character(60) :: line
+
+        if (my_rank == 0) then
+          line =
+     .   '    <method method=\"'//trim(method)//'\" group=\"record\"/>'
+          ierr = replace_line('adios_config.xml',"<method",line)
+        endif
+
+#if defined(petsc) || defined(petsc_c)
+        call MPI_Bcast(ierr,1,MPI_INTEGER,0,ADIOS_WORLD_COMM,mpierr)
+#endif
+
+      end function set_adios_method
 
       end function init_ADIOS_IO
 
@@ -156,32 +189,22 @@ c     Begin program
      .                   ,adios_varcount,adios_attrcount,ierr)
 
         !Inquire ADIOS group
-        if (ADIOS_VER == 1.31) then
-          call adios_inq_group(adios_gh,adios_varlist,adios_attrlist
-     .                        ,ts,lastts,ierr)
-        else
-          call adios_inq_group(adios_gh,adios_varlist,adios_attrlist
-     .                        ,ierr)
-        endif
+        call adios_inq_group(adios_gh,adios_varlist,adios_attrlist
+     .                      ,ts,lastts,ierr)
 
         ! count /var/ variables
         inq_adios_var = (PRESENT(nx).or.PRESENT(ny).or.PRESENT(nz))
         adios_nvar=0
         do i=1,adios_varcount
-            if (index(adios_varlist(i),"/var/") == 1) then
-                adios_nvar = adios_nvar+1
-                !Check problem size
-cc                if (inq_adios_var.and.(ADIOS_VER == 1.31)) then
-                  call adios_inq_var(adios_gh,trim(adios_varlist(i))
+          if (index(adios_varlist(i),"/var/") == 1) then
+            adios_nvar = adios_nvar+1
+            !Check problem size
+            call adios_inq_var(adios_gh,trim(adios_varlist(i))
      .               ,adios_vartype,adios_ndim,adios_vardims,adios_tdim
      .               ,ierr)
-cc                endif
-cc                ! get rid of trailing char(0) in names
-cc                nullidx=index(adios_varlist(i),char(0))
-cc                if (nullidx == 0) nullidx=len(trim(adios_varlist(i)))+1
-cc                adios_varnames(adios_nvar) = 
-cc     .                    adios_varlist(i)(1:nullidx-1)
-            endif
+c$$$                  write (*,*) "Var="//adios_varlist(i) //" Dimensions: "
+c$$$     .                 , adios_vardims,adios_ndim,adios_tdim 
+          endif
         enddo
         
 cc        do i=1,adios_attrcount
@@ -202,6 +225,7 @@ cc        enddo
             do i=1,adios_varcount
               write (*,"(i5, a, a)") i,")  ", trim(adios_varlist(i))
             enddo
+            write (*,"(a, 3i5)") " Dimensions: ", adios_vardims(1:3)
           endif
         endif
 
@@ -223,7 +247,7 @@ c     #################################################################
         call adios_gclose(adios_gh, ierr)
         call adios_fclose(adios_fh, ierr)
 
-        if (adios_debug) write (*,*), "Closed ", trim(recordfile)
+        if (adios_debug) write (*,*) "Closed ", trim(recordfile)
 
       end subroutine closeADIOSRecordFileForRead
 
@@ -249,10 +273,11 @@ c     Begin program
 cc      ufile = urecord
       ufile = find_unit(12345)
 
-      call adios_init_noxml (adios_err)
+      call MPI_Comm_dup (MPI_COMM_WORLD, adios_world_comm,adios_err)
+      call adios_init_noxml (adios_world_comm, adios_err)
 
       !allocate buffer for ADIOS
-      call adios_allocate_buffer (ADIOS_BUFFER_MB,adios_err)
+      call adios_set_max_buffer_size(ADIOS_BUFFER_MB,adios_err)
 
       call openADIOSRecordFileForRead(adios_err,file=file
      .                               ,nx=nxd,ny=nyd,nz=nzd)
@@ -298,7 +323,7 @@ c     Begin program
       !firstread = (adios_tread == 0)
 
       if (adios_debug)
-     .  write (*,"(a,i0,a,i5)"), "rank=",my_rank,
+     .  write (*,"(a,i0,a,i5)") "rank=",my_rank,
      .       " adios read time=", adios_tread
 
       if (adios_tread < adios_ntsteps) then
@@ -307,28 +332,28 @@ c     Begin program
           readcount = 1
 
           if (adios_debug)
-     .      write (*,"(a,i0,a,i5,a,i5)"), "rank=",my_rank,
+     .      write (*,"(a,i0,a,i5,a,i5)") "rank=",my_rank,
      .           ": read in time.  start=",start,"count=",readcount
 
           call adios_read_var(adios_gh,"time",start,readcount,time,m)
           start = adios_tread 
 
           if (adios_debug)
-     .      write (*,"(a,i0,a,i5,a,i5)"), "rank=",my_rank,
+     .      write (*,"(a,i0,a,i5,a,i5)") "rank=",my_rank,
      .           ": read in itime. start=",start,"count=",readcount
 
           call adios_read_var(adios_gh,"itime",start,readcount,itime,m)
           start = adios_tread 
 
           if (adios_debug)
-     .      write (*,"(a,i0,a,i5,a,i5)"), "rank=",my_rank,
+     .      write (*,"(a,i0,a,i5,a,i5)") "rank=",my_rank,
      .           ": read in dt.   start=",start,"count=",readcount
 
           call adios_read_var(adios_gh,"dt",start,readcount,dt,m)
           start = adios_tread 
 
           if (adios_debug)
-     .      write (*,"(a,i0,a,i5,a,i5)"), "rank=",my_rank,
+     .      write (*,"(a,i0,a,i5,a,i5)") "rank=",my_rank,
      .           ": read in gammat.   start=",start,"count=",readcount
 
           call adios_read_var(adios_gh,"gammat",start,readcount,gammat
@@ -341,7 +366,7 @@ c     Begin program
             varray%nvar = tmp(1)
             ! consistency check
             if (adios_nvar.ne.varray%nvar) then
-                write (*,"(a,i0,a,i2,a,i2)"), "rank=",my_rank,
+                write (*,"(a,i0,a,i2,a,i2)") "rank=",my_rank,
      .                 " ERROR: adios_nvar=",adios_nvar,
      .                 " != varray%nvar=",varray%nvar
             endif
@@ -816,7 +841,7 @@ c     .      ilomg,ihipg,jlomg,jhipg,klomg,khipg
             endif
 
             if (adios_debug)
-     .        write (*,"(a,a,a,i0)"), "read ",trim(vvar),"  bytes=",m
+     .        write (*,"(a,a,a,i0)") "read ",trim(vvar),"  bytes=",m
           enddo
 
           if (firstread) then

@@ -1218,13 +1218,13 @@ c     Take care of COARSER meshes
       mg_temp => mgarray%mg_crse_array
 
       if (PRESENT(mgvcov)) then
-         mgvcov_old  => mgvcov
-         mgvcov_temp => mgvcov%mg_crse_array
+        mgvcov_old  => mgvcov
+        mgvcov_temp => mgvcov%mg_crse_array
       endif
 
       if (PRESENT(equilb)) then
-         equilb_old  => equilb
-         equilb_temp => equilb%mg_crse_array
+        equilb_old  => equilb
+        equilb_temp => equilb%mg_crse_array
       endif
 
       do while (associated(mg_temp))
@@ -1235,6 +1235,24 @@ c     Take care of COARSER meshes
      .                  ,mpi_comm=mg_temp%g_def%mpi_comm_crse
 #endif
      .                  )
+
+        if (PRESENT(mgvcov)) then
+          call find_global(mgvcov_old %grid(igf)%array
+     .                    ,mgvcov_temp%grid(1  )%array
+#if defined(petsc)
+     .                    ,mpi_comm=mgvcov_temp%g_def%mpi_comm_crse
+#endif
+     .                    )
+        endif
+
+        if (PRESENT(equilb)) then
+          call find_global(equilb_old %grid(igf)%array
+     .                    ,equilb_temp%grid(1  )%array
+#if defined(petsc)
+     .                    ,mpi_comm=equilb_temp%g_def%mpi_comm_crse
+#endif
+     .                    )
+        endif
 
         !Restrict COARSE array
         do igc=2,mg_temp%g_def%ngrid
@@ -1284,13 +1302,13 @@ c     Take care of COARSER meshes
         mg_temp => mg_old%mg_crse_array
 
         if(PRESENT(mgvcov)) then
-           mgvcov_old  => mgvcov_temp
-           mgvcov_temp => mgvcov_old%mg_crse_array
+          mgvcov_old  => mgvcov_temp
+          mgvcov_temp => mgvcov_old%mg_crse_array
         endif
 
         if(PRESENT(equilb)) then
-           equilb_old  => equilb_temp
-           equilb_temp => equilb_old%mg_crse_array
+          equilb_old  => equilb_temp
+          equilb_temp => equilb_old%mg_crse_array
         endif
 
       enddo
@@ -2593,73 +2611,114 @@ c     Local variables
  
       real(8),allocatable :: sp_sum(:,:),dv_sum(:,:),l_sum(:,:)
 
-      integer :: ic,jc,if,jf,iic,iif,i,j,k,ig,jg,kg,ieq
+      integer :: ic,jc,if,jf,iic,iif,i,j,k,ig,jg,kg,ieq,one,two,thr
+     .          ,order_int,icomp,ivar
 
       logical :: cartesian,isvec,iscnv
 
+      real(8),pointer,dimension(:) :: xx
+
 c     Begin program
 
-c     Impose boundary conditions (external)
-
-      isvec = (neq == 3)                !Initialize isvec (may be modified by setMGBC)
+      isvec = (neq == 3).or.(neq==6)    !Initialize isvec (may be modified by setMGBC)
 
       cartesian = (bcSP() .and. isvec)  !Return Cartesian variables for prolongation
 
+c     Impose boundary conditions
+
       if (order > 0 .or. cartesian) then
-        if (isvec.and.is__stg) then
+        if (is__stg.and.isvec) then
           call setMGBC_stg(mgctx%g_def,0,neq,nxc,nyc,nzc,igc,arrayc,bcnd
-cc     .              ,iorder=min(order,3)             !now inherited from previous calls
      .              ,result_is_curv=(.not.cartesian)
      .              ,out_iscurv=isvec,out_iscnv=iscnv  !<= These define whether quantities are 
      .              )                                  !   vectors or scalars. 
-
         else
           call setMGBC(mgctx%g_def,0,neq,nxc,nyc,nzc,igc,arrayc,bcnd
-cc     .              ,iorder=min(order,3)             !now inherited from previous calls
      .              ,result_is_curv=(.not.cartesian)
      .              ,out_iscurv=isvec,out_iscnv=iscnv  !<= These define whether quantities are 
      .              )                                  !   vectors or scalars. 
         endif
       endif
 
-c     Perform average along azimuthal direction for SP configurations
+c     Perform average along azimuthal direction @ SP
 
-      if (isSP2(mgctx%g_def,1,igc) .and. isvec) then
+      if (isSP2(mgctx%g_def,1,igc) .and. cartesian) then
 
-        allocate(sp_sum(0:nzc+1,neq),dv_sum(0:nzc+1,neq))
+        allocate(sp_sum(0:nzc+1,3),dv_sum(0:nzc+1,3))
 
-        do ieq=1,neq
-          do k=0,nzc+1
-            sp_sum(k,ieq)= sum(arrayc(1,1:nyc,k,ieq)
-     .                 *mgctx%g_def%gmetric%grid(igc)%dlvol(1,1:nyc,k))
-            dv_sum(k,ieq)=
-     .              sum(mgctx%g_def%gmetric%grid(igc)%dlvol(1,1:nyc,k))
+        do ivar=1,neq/3
+
+          !Compute average
+          do ieq=1,3
+
+            icomp = ieq+3*(ivar-1)
+
+            do k=0,nzc+1
+              sp_sum(k,ieq)= sum(arrayc(1,1:nyc,k,icomp)
+     .                  *mgctx%g_def%gmetric%grid(igc)%dlvol(1,1:nyc,k))
+              dv_sum(k,ieq)=
+     .               sum(mgctx%g_def%gmetric%grid(igc)%dlvol(1,1:nyc,k))
+            enddo
           enddo
-        enddo
 
 #if defined(petsc)
-        allocate(l_sum(0:nzc+1,neq))
-        l_sum = sp_sum
-        call MPI_Allreduce(l_sum,sp_sum,neq*(nzc+2)
-     .                    ,MPI_DOUBLE_PRECISION
-     .                    ,MPI_SUM,mgctx%g_def%MPI_COMM_SP,mpierr)
+          allocate(l_sum(0:nzc+1,3))
+          l_sum = sp_sum
+          call MPI_Allreduce(l_sum,sp_sum,3*(nzc+2)
+     .                      ,MPI_DOUBLE_PRECISION
+     .                      ,MPI_SUM,mgctx%g_def%MPI_COMM_SP,mpierr)
 
-        l_sum = dv_sum
-        call MPI_Allreduce(l_sum,dv_sum,neq*(nzc+2)
-     .                    ,MPI_DOUBLE_PRECISION
-     .                    ,MPI_SUM,mgctx%g_def%MPI_COMM_SP,mpierr)
+          l_sum = dv_sum
+          call MPI_Allreduce(l_sum,dv_sum,3*(nzc+2)
+     .                      ,MPI_DOUBLE_PRECISION
+     .                      ,MPI_SUM,mgctx%g_def%MPI_COMM_SP,mpierr)
 
-        deallocate(l_sum)
+          deallocate(l_sum)
 #endif
 
-        do ieq=1,neq
-          do k=0,nzc+1
-            arrayc(1,:,k,ieq) = sp_sum(k,ieq)/dv_sum(k,ieq)
-            arrayc(0,:,k,ieq) = sp_sum(k,ieq)/dv_sum(k,ieq)
+          !Assign back to innermost cell center
+          xx => mgctx%g_def%xx
+
+          order_int = min(order,nxc)
+
+          one = 1 ; two = 2; thr = 3
+
+          if (order_int <= 1) then
+            two = one
+            thr = one
+          elseif (order_int == 2) then
+            thr = two
+          endif
+
+          call getMGmap(mgctx%g_def,1,1,1,igc,igc,igc,ig,jg,kg)
+
+          do ieq=1,3
+
+            icomp = ieq+3*(ivar-1)
+
+            do k=0,nzc+1
+              arrayc(1,:,k,icomp) = sp_sum(k,ieq)/dv_sum(k,ieq)
+            enddo
+
+            arrayc(1,:,:,icomp) =
+     .          quad_int(0d0,xx(ig+one),xx(ig+two),xx(ig+thr)
+     .                  ,arrayc(1    ,:,:,icomp),arrayc(1+one,:,:,icomp)
+     .                  ,arrayc(1+two,:,:,icomp),arrayc(1+thr,:,:,icomp)
+     .                  ,xx(ig),order_int)
           enddo
+
         enddo
 
         deallocate(sp_sum,dv_sum)
+
+      endif
+
+c     Impose SP boundary conditions
+
+      if (cartesian) then
+        do ieq=1,neq
+          call scalarSingularBC(mgctx%g_def,arrayc(:,:,:,ieq))
+        enddo
       endif
 
 c     Prolong arrays (use scalar prolongation)
@@ -2676,9 +2735,17 @@ c     Transform back to curvilinear (if isvec=.true. and cartesian=.true.)
 
       if (isvec .and. cartesian) then
         if (is__stg) then
-          arrayf = XformToCurv_stg_mesh(mgctx%g_def,igf,arrayf,iscnv)
+          do ivar=1,neq/3
+            arrayf(:,:,:,1+3*(ivar-1):3+3*(ivar-1))
+     .           = XformToCurv_stg_mesh(mgctx%g_def,igf
+     .                ,arrayf(:,:,:,1+3*(ivar-1):3+3*(ivar-1)),iscnv)
+          enddo
         else
-          arrayf = XformToCurv_mesh    (mgctx%g_def,igf,arrayf,iscnv)
+          do ivar=1,neq/3
+            arrayf(:,:,:,1+3*(ivar-1):3+3*(ivar-1))
+     .           = XformToCurv_mesh    (mgctx%g_def,igf
+     .                ,arrayf(:,:,:,1+3*(ivar-1):3+3*(ivar-1)),iscnv)
+          enddo
         endif
       endif
 
@@ -2829,7 +2896,7 @@ c     ###################################################################
      .                 ,bc,arr0,is_vec,is_cnv,gpos,icomp,result_is_curv)
 
 c     -------------------------------------------------------------------
-c     Fills array arr (with BCs) using vector x.
+c     Fills array arr (with BCs) using vector x  (two dimensional).
 c     -------------------------------------------------------------------
 
         use setMGBC_interface
@@ -2934,7 +3001,7 @@ c     ###################################################################
      .                    ,arr0,is_vec,is_cnv,gpos,icomp,result_is_curv)
 
 c     -------------------------------------------------------------------
-c     Fills array arr (with BCs) using vector x.
+c     Fills array arr (with BCs) using vector x (one dimensional).
 c     -------------------------------------------------------------------
 
         use setMGBC_interface
@@ -4136,7 +4203,7 @@ c     Call variables
 c     Local variables
 
         integer    :: ntot,iorder_res,iorder_prol,vcyc,mu_cyc,nclrs,smit
-     .               ,mgmin,mgminl,i,ieq,gmit,zit,zdir
+     .               ,mgminl,i,ieq,gmit,zit,zdir!,mgmin
         real(8)    :: xi(ntotp*neq),bi(ntotp*neq),omg,r_tol,a_tol,s_tol
      .               ,zomg
         real(8), target :: ddg(neq,2*neq*ntotp)
@@ -4149,7 +4216,11 @@ c     Begin program
 
         call MG_set_res_vol_wgt(vol_wgt) !Initialize volume-weighing variable
 
-        if (PRESENT(staggered)) call MG_set_vector_type(staggered)
+        if (PRESENT(staggered)) then
+          call MG_set_vector_type(staggered)
+        else
+          call MG_set_vector_type(.false.)
+        endif
 
 c     Check input integrity
 
@@ -4261,11 +4332,11 @@ c     Process optional arguments
           glkin = .false.
         endif
 
-        if (PRESENT(mg_coarse_grid_size)) then
-          mgmin = mg_coarse_grid_size
-        else
-          mgmin = 2
-        endif
+c$$$        if (PRESENT(mg_coarse_grid_size)) then
+c$$$          mgmin = mg_coarse_grid_size
+c$$$        else
+c$$$          mgmin = 2
+c$$$        endif
 
         if (PRESENT(mg_coarse_grid_level)) then
           mgminl = mg_coarse_grid_level
@@ -4461,7 +4532,7 @@ c       MG solver options
         else
           solverOptions%vcyc   = vcyc
         endif
-        solverOptions%mg_coarse_grid_res  = mgmin
+cc        solverOptions%mg_coarse_grid_res  = mgmin
         solverOptions%mg_coarse_grid_level= mgminl
         solverOptions%orderres       = iorder_res
         solverOptions%orderprol      = iorder_prol
@@ -4500,7 +4571,7 @@ cc        solverOptions%vertex_based_relax = .true.
 
         !Plane/line relaxation
         if (lrelax) then
-cc          solverOptions%mg_coarse_grid_res = mgmin
+cccc          solverOptions%mg_coarse_grid_res = mgmin
 cc          solverOptions%orderres        = ores
 cc          solverOptions%orderprol       = oprol
 cc          solverOptions%mg_mu           = mu_cyc
@@ -4560,7 +4631,7 @@ c       MG coarsest grid solve
 
         call solverOptionsInit
 
-        solverOptions%tol             = 1d-1!1d-5
+        solverOptions%tol             = 1d-5
         solverOptions%krylov_subspace = min(100,2*neq*ntotp)
         solverOptions%iter            = min(100,2*neq*ntotp)
         solverOptions%stp_test        = 1 
@@ -5636,7 +5707,7 @@ c Local variables
       type(grid_mg_def),pointer :: MGgrid
 
       !Initialized from outside
-      integer :: orderres,orderprol,igmin,igmax,vcyc,crsedpth,mu,ncolors
+      integer :: orderres,orderprol,igmax,vcyc,crsedpth,mu,ncolors
       real(8) :: mgtol,abstol
       real(8) :: xx(2*ntot),yy(2*ntot),wrk(2*ntot),rr(ntot),x0(ntot)
       logical :: fdiag,mg_debug,prnt,smooth_only
@@ -5668,7 +5739,7 @@ c Consistency check
 
 c Assign options
 
-      igmin           = options%mg_coarse_grid_res   !Resolution=mgratio^(igmin)
+cc      igmin           = options%mg_coarse_grid_res   !Resolution=mgratio^(igmin)
       igmax           = options%mg_coarse_grid_level !1-level, 2-level, 3-level, etc
       vcyc            = options%vcyc
       mgtol           = options%tol
@@ -5719,11 +5790,12 @@ c Set pointers and find ngrid
 c Check limits
 
       if (igmax == 0) then
-        igmax = (mgctx%ngrid+1) - (igmin-1)  !Determines maximum # of grid levels
-                                             !  (ngrid+1): total number of levels
-                                             !  igmin: coarsest level from below
+c$$$        igmax = (mgctx%ngrid+1) - (igmin-1)  !Determines maximum # of grid levels
+c$$$                                             !  (ngrid+1): total number of levels
+c$$$                                             !  igmin: coarsest level from below
+        igmax = mgctx%ngrid
       endif
-      
+
       mgctx%igmax = igmax
 
       if (igrid.gt.igmax) then
@@ -6923,7 +6995,7 @@ c     Configure recursive plane/line JB solve
 
         options%tol                         = line_tol
         options%vcyc                        = line_vcyc
-        options%mg_coarse_grid_res          = igmin
+cc        options%mg_coarse_grid_res          = igmin
         options%orderres                    = orderres
         options%orderprol                   = orderprol
         options%mg_mu                       = mu
@@ -7217,8 +7289,8 @@ c     Begin program
         nn   = mgctx%ntotv (igr)
 
 #if defined(petsc) && defined(coarse_MG)
-c$$$        write (*,*) (np > 1)                           !Parallel
-c$$$     .   ,(mgctx%g_def%ngrid == igr)         !Lowest level in grid hierarchy
+c$$$        write (*,*) (np > 1)                 !Parallel
+c$$$     .   ,mgctx%g_def%ngrid,igr              !Lowest level in grid hierarchy
 c$$$     .   ,associated(mgctx%g_def%g_crse_def) !Coarse grid defs are defined
 c$$$     .   ,MG_get_coarse_solve()
         if (  (np > 1)                           !Parallel
@@ -7285,6 +7357,9 @@ c$$$     .   ,MG_get_coarse_solve()
           optns_new%diag => null() !Reform diagonals in coarse mesh
           optns_new%vcyc = 1       !Only ONE vcycle in coarse solve
 
+cc          optns_new%mg_smooth_only = .true.
+cc          optns_new%mg_coarse_grid_level = 1
+
           !Call MG with new solver context
           call mg(neq,ng,yg,xg,matvec,optns_new,1,bcnd,guess2,out,depth)
 
@@ -7296,7 +7371,7 @@ c$$$     .                    ,"Coarse MG residual")
 c$$$          call vec_plot_gl(optns_new%mgctx%g_def,neq,xg,1,"coarse_sol"
 c$$$     .                    ,"Coarse MG solution")
 c$$$          call deallocMGPointers(fpointers,optns_new%mgctx)
-c$$$          call pstop("","")
+c$$$          call pstop("Debugging coarse solution","coarseSolve")
 cdiag ****
 
           !Recover MG context
@@ -7304,36 +7379,6 @@ cdiag ****
           MGgrid=> options%mg_grid_def
 
           !Scatter GLOBAL solution vectors
-c$$$          do kg = mgctx%g_def%klo(igr),mgctx%g_def%khi(igr)
-c$$$            do jg = mgctx%g_def%jlo(igr),mgctx%g_def%jhi(igr)
-c$$$              do ig = mgctx%g_def%ilo(igr),mgctx%g_def%ihi(igr)
-c$$$                !Local limits
-c$$$                igv = (/ig,jg,kg/)
-c$$$                ilv = localIndex(mgctx%g_def,igr,igv)
-c$$$                !Vector location
-c$$$                ii  = neq*vPos(mgctx%g_def,igr,ilv) + isig - 1
-c$$$                iig = neq*vPos(g_crse_def ,1  ,igv)
-c$$$                !Vector assignment
-c$$$                xx(ii+1:ii+neq) = xg(iig+1:iig+neq)
-c$$$              enddo
-c$$$            enddo
-c$$$          enddo
-
-c$$$          do kl = 1,nzl
-c$$$            do jl = 1,nyl
-c$$$              do il = 1,nxl
-c$$$                !Local limits and local vector index (coarsest mesh in fine grid st)
-c$$$                ilv = (/il,jl,kl/)
-c$$$                ii  = neq*vPos(mgctx%g_def,igr,ilv) + isig - 1
-c$$$                !Global limits (finest mesh in coarse grid st) and global vector location
-c$$$                igv = globalIndex(g_crse_def,1,ilv)
-c$$$                iig = neq*   vPos(g_crse_def,1,igv)
-c$$$                !Vector assignment
-c$$$                xx(ii+1:ii+neq) = xg(iig+1:iig+neq)
-c$$$              enddo
-c$$$            enddo
-c$$$          enddo
-
           do kg = 1,nzg
             do jg = 1,nyg
               do ig = 1,nxg
@@ -7355,8 +7400,6 @@ c$$$          enddo
      .               ,jmin*nyl+1:(jmin+1)*nyl
      .               ,kmin*nzl+1:(kmin+1)*nzl,:)
 
-c$$$          call find_local_field_vec(g_crse_def,1,arrayg,array)
-c$$$
           call mapArrayToMGVector(mgctx,array,xx,igr,.true.)
 
 c diag ****
@@ -7400,9 +7443,9 @@ cdiag ****
 
 c diag
 c$$$          if (np == 1) then
-c$$$          call vec_plot_gl(neq,yy,igr,"local_res_serial"
-c$$$     .                    ,"Coarse MG solution")
-c$$$          call vec_plot_gl(neq,xx,igr,"local_sol_serial"
+c$$$          call vec_plot_gl(mgctx%g_def,neq,yy,igr,"coarse_res"
+c$$$     .                    ,"Coarse MG residual")
+c$$$          call vec_plot_gl(mgctx%g_def,neq,xx,igr,"coarse_sol"
 c$$$     .                    ,"Coarse MG solution")
 c$$$          call pstop("","")
 c$$$          endif
