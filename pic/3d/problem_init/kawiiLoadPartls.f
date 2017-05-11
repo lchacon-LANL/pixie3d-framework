@@ -12,8 +12,8 @@
          tot_np = size(spcs(is)%pcles)*_Npg
          ipb = int(tot_np*r_b)
 
-!$OMP PARALLEL DEFAULT(SHARED) private(ip,ip_ng,rx,ry,rx1,rx2,rx3,cii
-!$OMP.                        ,xp,yp,vt,v0)
+!$OMP PARALLEL DEFAULT(SHARED) private(ip,ip_ng,rx,ry,rz
+!$OMP.                        ,rx1,rx2,rx3,cii,xp,yp,vt,v0)
 !$OMP DO
 c$$$!$OMP.REDUCTION(+:v_tot,vx2,vt2)
         do ip=1,size(spcs(is)%pcles)     !for every mpi-proc
@@ -22,13 +22,14 @@ c$$$!$OMP.REDUCTION(+:v_tot,vx2,vt2)
            do ip_ng=1,_Npg
              call unif_rng(rx(ip_ng))
              call unif_rng(ry(ip_ng))
+             call unif_rng(rz(ip_ng))
              call gauss2(rx1(ip_ng))
              call gauss2(rx2(ip_ng))
              call gauss2(rx3(ip_ng))
            enddo
 
            !Uniform particle allocation
-           cii = mod(ip-1,nxg*nyg) + 1
+           cii = mod(ip-1,nxg*nyg*nzg) + 1
            spcs(is)%pcles(ip)%ijk_np = cii
 
            xp = hx*rx;
@@ -37,7 +38,8 @@ c$$$!$OMP.REDUCTION(+:v_tot,vx2,vt2)
            yp = hy*ry
            spcs(is)%pcles(ip)%x_np(:,2) = yp
 
-           spcs(is)%pcles(ip)%x_np(:,3) = 0d0
+           zp = hz*rz
+           spcs(is)%pcles(ip)%x_np(:,3) = zp
         
            spcs(is)%pcles(ip)%w_np(:)   = 1d0
                 

@@ -25,8 +25,6 @@ c$$$!$OMP.    ,rx,rx1,rx2,rx3,vt,signx,signy,signz,ixyz,ipx,ipy,ipz)
 c$$$!$OMP DO
 c$$$!$OMP.REDUCTION(+:v_tot,vx2,vt2)
              do ipc = 1, npc_int(ii,is)
-!                write(*,*) r4(1:5,ipc)
-!                write(*,*) ' '
                rx = r4(1,ipc) 
                where (rx==0d0) rx = rx + 1d-16 !end with 1
                where (rx==1d0) rx = rx - 1d-16
@@ -40,7 +38,7 @@ c$$$!$OMP.REDUCTION(+:v_tot,vx2,vt2)
                rx = r4(3,ipc)
                where (rx==0d0) rx = rx + 1d-16 !end with 1                                             
                where (rx==1d0) rx = rx - 1d-16
-               zp = hz*rx!0.5204020201d0
+               zp = hz*rx
 
                rx1= dinvnorm((r4(4,ipc)+1d0)*0.5d0)  
                rx2= dinvnorm((r4(5,ipc)+1d0)*0.5d0)
@@ -58,7 +56,7 @@ c$$$!$OMP.REDUCTION(+:v_tot,vx2,vt2)
                  spcs(is)%pcles(ipl)%ijk_np(:) = ii
                  spcs(is)%pcles(ipl)%x_np(:,1) = xp
                  spcs(is)%pcles(ipl)%x_np(:,2) = yp
-                 spcs(is)%pcles(ipl)%x_np(:,3) = zp!0d0
+                 spcs(is)%pcles(ipl)%x_np(:,3) = zp
                  spcs(is)%pcles(ipl)%w_np(:)   = 1d0
 
 !                 write(*,*) xp
@@ -135,14 +133,14 @@ c$$$!$OMP.REDUCTION(+:v_tot,vx2,vt2)
 c$$$!$OMP END DO
 c$$$!$OMP END PARALLEL
              ipc0 = ipc0 + npc_int(ii,is)
-           end do               !cell
+           end do               !cell x
          end do                 !cell y
         end do                  !cell z
 cc         write (*,*) v_thx,v_thy,v_thz,v0_x,v0_y,v0_z
 cc         print *,is,v_tot,vx2,vt2
 
 
-         deallocate(r4)
+        deallocate(r4)
        end do !species
 
 !       stop

@@ -8,13 +8,14 @@
 
          ipc0 = 0
 
-         do j = 1,nyg
-           do i = 1,nxg
-             ii = i + nxg*(j-1) 
+         do k = 1,nzg
+            do j = 1,nyg
+               do i = 1,nxg
+                  ii = i + nxg*(j-1) + nxg*nyg*(k-1)
 
              call HamSeq(npc_int(ii,is),r4,dimt,npc_scan(ii,is))
 
-c$$$!$OMP PARALLEL DEFAULT(SHARED) private(ip,ipc,ipl,ip_ng,xp,yp
+c$$$!$OMP PARALLEL DEFAULT(SHARED) private(ip,ipc,ipl,ip_ng,xp,yp,zp
 c$$$!$OMP.    ,rx,rx1,rx2,rx3,signx,signy,signz,ixyz,ipx,ipy,ipz)
 c$$$!$OMP DO
 c$$$!$OMP.REDUCTION(+:v_tot,vx2,vt2)
@@ -30,9 +31,14 @@ c$$$!$OMP.REDUCTION(+:v_tot,vx2,vt2)
                where (rx==1d0) rx = rx - 1d-16
                yp = hy*rx 
 
-               rx1= dinvnorm((r4(3,ipc)+1d0)*0.5d0)  
-               rx2= dinvnorm((r4(4,ipc)+1d0)*0.5d0)
-               rx3= dinvnorm((r4(5,ipc)+1d0)*0.5d0)
+               rx = r4(3,ipc)
+               where (rx==0d0) rx = rx + 1d-16 !end with 1
+               where (rx==1d0) rx = rx - 1d-16
+               zp = hz*rx
+
+               rx1= dinvnorm((r4(4,ipc)+1d0)*0.5d0)  
+               rx2= dinvnorm((r4(5,ipc)+1d0)*0.5d0)
+               rx3= dinvnorm((r4(6,ipc)+1d0)*0.5d0)
 
                !Particle group index
                ip = ipc0+ipc
@@ -46,7 +52,7 @@ c$$$!$OMP.REDUCTION(+:v_tot,vx2,vt2)
                  spcs(is)%pcles(ipl)%ijk_np(:) = ii
                  spcs(is)%pcles(ipl)%x_np(:,1) = xp
                  spcs(is)%pcles(ipl)%x_np(:,2) = yp
-                 spcs(is)%pcles(ipl)%x_np(:,3) = 0d0
+                 spcs(is)%pcles(ipl)%x_np(:,3) = zp
                  spcs(is)%pcles(ipl)%w_np(:)   = 1d0
 
                  spcs(is)%pcles(ipl)%x_n   = spcs(is)%pcles(ipl)%x_np
@@ -106,8 +112,8 @@ c$$$!$OMP END DO
 c$$$!$OMP END PARALLEL
              ipc0 = ipc0 + npc_int(ii,is)             
            end do               !cell
-         end do                 !cell y
-
+          end do                !cell y
+         end do                 !cell z
 cc         write (*,*) v_thx,v_thy,v_thz,v0_x,v0_y,v0_z
 cc         print *,is,v_tot,vx2,vt2
 

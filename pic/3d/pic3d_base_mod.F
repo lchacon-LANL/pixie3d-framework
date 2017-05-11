@@ -4486,7 +4486,7 @@ c$$$c     End program
 c$$$
 c$$$      end function get_spline_order
 
-c     setup_pic_2d
+c     setup_pic_3d
 c     ##################################################################
       subroutine setup_pic_3d(inputfile,problem,nxin,xin,nyin
      $                       ,yin,nzin,zin,explicit_pic,no__map,dt
@@ -4754,9 +4754,10 @@ c     Local variables
      .           ,dimt,ipc0,ncall,i,j,k,ii,cii,offset
      .           ,ipx,ipy,ipz,ixyz,np3,npc_max(n_sp),igl,jgl,kgl
      .           ,tot_np_scan,npc_scan(nng,n_sp),numspcs,numpcles
-      real(8) :: rx1(_Npg),rx2(_Npg),rx3(_Npg),rx(_Npg),ry(_Npg)
-     .          ,xp(_Npg),dxp,vx2,vt2
-     .          ,yp(_Npg),zp(_Npg),signx,signy,signz,pp,pr,betaj
+      real(8) :: rx1(_Npg),rx2(_Npg),rx3(_Npg)
+     $          ,rx (_Npg),ry (_Npg),rz (_Npg)
+     .          ,xp(_Npg),yp(_Npg),zp(_Npg),dxp,vx2,vt2
+     .          ,signx,signy,signz,pp,pr,betaj
       real(8) :: v_tot(1:n_sp+n_b,_Dim)
       integer, save :: seed
       real(8) :: vt(3), v0(3)
