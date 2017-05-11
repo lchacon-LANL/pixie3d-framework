@@ -1844,8 +1844,9 @@ c     Local variables
       real(8) :: Sx2(_Npg,3,1,1),Sy2(_Npg,1,3,1),Sz2(_Npg,1,1,3)
       real(8) :: DSx(_Npg,3,1,1),DSy(_Npg,1,3,1),DSz(_Npg,1,1,3)
       real(8) :: DSxx(_Npg,3),DSyy(_Npg,3),DSzz(_Npg,3)
-      real(8) :: map_g_1(_Npg,3,3,3),map_g_2(_Npg,3,3,3),
-     .     map_g_3(_Npg,3,3,3)
+      real(8) :: map_g_1(_Npg,3,3,3)
+     .          ,map_g_2(_Npg,3,3,3)
+     .          ,map_g_3(_Npg,3,3,3)
       real(8) :: dum333(_Npg,3,3,3)
 
 c     Begin program
@@ -2736,9 +2737,6 @@ c     Local variables
       real(_prec) :: M_w_prod(3,3,3)
       real(_prec) :: dumA(3,1), dumB(1,3), dumC(1,3)
 
-
-!      real(8) :: My2(1,3),Mx2(3,1),My1(1,2)
-!      real(8) :: Mx1(2,1),Mxy2(3,3),My1_int(1,2)
       real(_prec) :: xp(_Npg),yp(_Npg),zp(_Npg),v2,w_pcle(_Npg)
       real(8) :: vcurv(_Npg,3)
       real(8) :: ihx,ihy,ihz
@@ -2764,8 +2762,8 @@ c     Begin program
         garr_vz2= 0d0
         
 !     note that there is some issue with valgrind and libgomp.
-!$omp parallel DEFAULT(SHARED) private(ip,xp,yp,zp,i_np,j_np,vcurv,i
-!$omp.                                ,Mx1,Mx2,My1,My2,Mz1,Mz2,Myz2
+!$omp parallel DEFAULT(SHARED) private(ip,xp,yp,zp,i_np,j_np,k_np,vcurv
+!$omp.                                ,i,Mx1,Mx2,My1,My2,Mz1,Mz2,Myz2
 !$omp.                                ,Mzx2,Mxy2,M_w_prod,v2,w_pcle)
 !$      call set_omp_thread_id()
 !$omp DO 
@@ -5465,14 +5463,14 @@ c     Begin program
           numpcles = size(spcs(is)%pcles)    
           q_sp = spcs(is)%q
           m_sp = spcs(is)%m
-!$OMP PARALLEL DEFAULT(SHARED) private(ip,xp,yp,i0,j0,i)
+!$OMP PARALLEL DEFAULT(SHARED) private(ip,xp,yp,i0,j0,k0,i)
 !$OMP DO 
 !$OMP.REDUCTION (+:cml)
           do ip=nip+1,numpcles
             xp = spcs(is)%pcles(ip)%x_np(:,1)*ihx
             yp = spcs(is)%pcles(ip)%x_np(:,2)*ihy
             call xform_pcle_idx(spcs(is)%pcles(ip)%ijk_np,nxg,nyg
-     .                                                  ,i0,j0,k0)
+     .                         ,i0,j0,k0)
             do i=1,_Npg
                cml = cml + cmp(q_sp,i0(i),j0(i),xp(i),yp(i),A) 
                cml = cml + m_sp*spcs(is)%pcles(ip)%v_np(i,:)

@@ -9,9 +9,9 @@
          ipc0 = 0
 
          do k = 1,nzg
-            do j = 1,nyg
-               do i = 1,nxg
-                  ii = i + nxg*(j-1) + nxg*nyg*(k-1)
+           do j = 1,nyg
+             do i = 1,nxg
+               ii = i + nxg*(j-1) + nxg*nyg*(k-1)
 
              call HamSeq(npc_int(ii,is),r4,dimt,npc_scan(ii,is))
 
@@ -111,7 +111,7 @@ c$$$!$OMP.REDUCTION(+:v_tot,vx2,vt2)
 c$$$!$OMP END DO
 c$$$!$OMP END PARALLEL
              ipc0 = ipc0 + npc_int(ii,is)             
-           end do               !cell
+           end do               !cell x
           end do                !cell y
          end do                 !cell z
 cc         write (*,*) v_thx,v_thy,v_thz,v0_x,v0_y,v0_z

@@ -72,7 +72,7 @@ c     Local variables
       real(_prec) :: Mx1(_Npg,2,1,1),My1(_Npg,1,2,1),Mz1(_Npg,1,1,2)
       real(_prec) :: Mx2(_Npg,3,1,1),My2(_Npg,1,3,1),Mz2(_Npg,1,1,3)
       real(_prec) :: Myz2(_Npg,3,3),Mzx2(_Npg,3,3),Mxy2(_Npg,3,3)
-      real(_prec) :: M_w_prod(_Npg,3,3,3)!,dum1(_Npg,3),dum2(_Npg,3)
+      real(_prec) :: M_w_prod(_Npg,3,3,3)
       real(_prec) :: dumA(_Npg,3,1), dumB(_Npg,1,3), dumC(_Npg,1,3)
 
       real(_prec) :: rhon,rho,jip,ji,ecc,cml(3),pml(3),cmex(3)
@@ -143,7 +143,7 @@ c     Move particles
          m_sp = spcs(isp)%m
          q_sp = spcs(isp)%q
 
-!     note that there is some issue with valgrind and libgomp. Adam: taken out unused dum1 and dum2.
+!     note that there is some issue with valgrind and libgomp.
 !$omp parallel DEFAULT(SHARED) private(ipc,it,v0,v2,dtp,dt_sub
 !$omp.              ,d_x,dx,xp,yp,zp,xfp,yfp,zfp,x_nh,dumA
 !$omp.              ,dumB,dumC,i,j,k,ii,i0,j0,k0,Mx1,Mx2,My1,My2,Mz1,Mz2
@@ -221,9 +221,6 @@ c$$$             end if
 
              call xform_pcle_idx(pcle_nu%ijk_n,nxg,nyg,i,j,k)
 
-!             write(*,*) dx
-!             stop
-
              x_nh = pcle_nu%x_n + dx*0.5d0
              xp = x_nh(:,1)*ihx
              yp = x_nh(:,2)*ihy
@@ -245,6 +242,7 @@ c$$$             end if
              call shape2_offset(yp,dumA(:,1:3,1))
              call shape2_offset(zp,dumB(:,1,1:3))
 
+             !VECTOR SIMD
              do ii=1,_Npg
               Myz2(ii,1:3,1:3)=opt_vecvec_3(dumA(ii,:,1) ! ADAM: REPLACE LOOP OVER PARTICLES WITH opt_vecvec_3_pcle?
      $               ,dumB(ii,1,:))*2d0
@@ -253,6 +251,7 @@ c$$$             end if
              dumC=dumB
              call shape2_offset(zfp,dumB(:,1,1:3))
 
+             !VECTOR SIMD
              do ii=1,_Npg                                                                                             
               Myz2(ii,1:3,1:3)=Myz2(ii,1:3,1:3)
      $               +opt_vecvec_3(dumA(ii,:,1),dumB(ii,1,:))
@@ -260,6 +259,7 @@ c$$$             end if
 
              call shape2_offset(yfp,dumA(:,1:3,1))
 
+             !VECTOR SIMD
              do ii=1,_Npg
               Myz2(ii,1:3,1:3)=Myz2(ii,1:3,1:3)
      $               +opt_vecvec_3(dumA(ii,:,1),dumC(ii,1,:))
@@ -270,6 +270,7 @@ c$$$             end if
              call shape2_offset(zp,dumA(:,1:3,1))
              call shape2_offset(xp,dumB(:,1,1:3))
 
+             !VECTOR SIMD
              do ii=1,_Npg
               Mzx2(ii,1:3,1:3)=opt_vecvec_3(dumA(ii,:,1)
      $               ,dumB(ii,1,:))*2d0
@@ -278,6 +279,7 @@ c$$$             end if
              dumC=dumB
              call shape2_offset(xfp,dumB(:,1,1:3))
 
+             !VECTOR SIMD
              do ii=1,_Npg
               Mzx2(ii,1:3,1:3)=Mzx2(ii,1:3,1:3)
      $               +opt_vecvec_3(dumA(ii,:,1),dumB(ii,1,:))
@@ -285,6 +287,7 @@ c$$$             end if
 
              call shape2_offset(zfp,dumA(:,1:3,1))
 
+             !VECTOR SIMD
              do ii=1,_Npg
               Mzx2(ii,1:3,1:3)=Mzx2(ii,1:3,1:3)
      $               +opt_vecvec_3(dumA(ii,:,1),dumC(ii,1,:))
@@ -295,6 +298,7 @@ c$$$             end if
              call shape2_offset(xp,dumA(:,1:3,1))
              call shape2_offset(yp,dumB(:,1,1:3))
 
+             !VECTOR SIMD
              do ii=1,_Npg
               Mxy2(ii,1:3,1:3)=opt_vecvec_3(dumA(ii,:,1)
      $               ,dumB(ii,1,:))*2d0
@@ -303,6 +307,7 @@ c$$$             end if
              dumC=dumB
              call shape2_offset(yfp,dumB(:,1,1:3))
 
+             !VECTOR SIMD
              do ii=1,_Npg
               Mxy2(ii,1:3,1:3)=Mxy2(ii,1:3,1:3)
      $               +opt_vecvec_3(dumA(ii,:,1),dumB(ii,1,:))
@@ -310,6 +315,7 @@ c$$$             end if
 
              call shape2_offset(xfp,dumA(:,1:3,1))
 
+             !VECTOR SIMD
              do ii=1,_Npg
               Mxy2(ii,1:3,1:3)=Mxy2(ii,1:3,1:3)
      $               +opt_vecvec_3(dumA(ii,:,1),dumC(ii,1,:))
@@ -392,7 +398,7 @@ c$$$             end if
            call shape2_offset(yp,My2(:,1,1:3,1))
            call shape2_offset(zp,Mz2(:,1,1,1:3))
 
-cccc!VECTORSIMD
+           !VECTOR SIMD
            do ii=1,_Npg
 !#ifdef __GNU
 !              Mxy2(ii,1:3,1:3)= opt_vecvec_3(Mx2(ii,:,:),My2(ii,:,:))
@@ -634,11 +640,10 @@ c     Initialize local registers
       x0_loc = pcle_nu%x_n
       v0_loc = pcle_nu%v_n
 
-
 c     Also define some insets of arrays for later use (C. Mikida)
+
       !VECTOR SIMD
       do i=1,_Npg
-
          DtA_1(i,:,:,:) = real(DtA(i0(i)-1:i0(i)  , j0(i)-1:j0(i)+1 
      $        ,k0(i)-1:k0(i)+1, 1),_prec)         
          DtA_2(i,:,:,:) = real(DtA(i0(i)-1:i0(i)+1, j0(i)-1:j0(i)  
@@ -660,7 +665,6 @@ c     Also define some insets of arrays for later use (C. Mikida)
 c     Estimate sub-time-step 
 
       dt_sub = dtp
-
 
       call estimate_dtp(dt_sub)
 
@@ -687,7 +691,6 @@ c     Initialize Picard
         substeps = substeps + _Npg
 
         call Boris_solve(it,x0_loc,v0_loc,dx,vh,dt_sub)
-
 
         !Check convergence (very expensive!!!; needs optimization)
 #if defined(L1_NORM)
@@ -1080,7 +1083,7 @@ c     Begin program
              end if
            end if
 
-           !z-direction                                                                                                                                                                                    
+           !z-direction                                                     
            dtb(i,3) = dt_sub(i)
            if((dx(i,3)<dxl(i,3)-eps) .or. dx(i,3)>dxr(i,3)+eps) then
 !              write(*,*) 'CROSSED Z CELL'
@@ -1296,6 +1299,7 @@ c     Find B
       
       dum1 = 0.5d0*dtau
 
+      !VECTOR SIMD
       do i=1,_Npg
          Az_nuh(i,:,:,:) = Az_nu0(i,:,:,:) + DtA_3(i,:,:,:)*dum1(i)
          Ay_nuh(i,:,:,:) = Ay_nu0(i,:,:,:) + DtA_2(i,:,:,:)*dum1(i)
