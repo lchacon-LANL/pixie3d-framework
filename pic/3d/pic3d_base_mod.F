@@ -4771,7 +4771,7 @@ c     Begin program
 
       call init_random_seed(nproc,my_rank_pic,.not.tst_flg)
 
-      dimt = 6!_Dim+_Dimx ! 2D3V !ADAM - used in problem_init files.
+      dimt = _Dim+_Dimx ! 2D3V !ADAM - used in problem_init files.
       numspcs = size(spcs)
       do is=1,numspcs
          call compute_pcle_spat_dist(is,npc_int(:,is),npc_scan(:,is)
@@ -4915,8 +4915,8 @@ cc               if(ii==8) print *,my_rank_pic,ii,mnpc_int_s(ii),mnpc_r
          end do
       end do
 
-
-cc      print *,"after arranging particles:",my_rank_pic,sum(npc_int_s),tot_np
+c$$$      print *,"after arranging particles:"
+c$$$     .     ,my_rank_pic,sum(npc_int_s),tot_np
 
 #if defined(petsc)
 !     find the index of counting particles per mpi process
@@ -5178,7 +5178,7 @@ c     Begin program
 
 c     Impose BCs
 
-      do dim=1,3!_Dimx
+      do dim=1,_Dimx
         do i=1,_Npg
           if(dx(i,dim)>0 .and. xnp(i,dim).ge.dh(dim)) then
             do while(xnp(i,dim).ge.dh(dim))

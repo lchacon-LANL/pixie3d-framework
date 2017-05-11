@@ -1,5 +1,5 @@
 #define _Dim 3
-#define _Dimx 2
+#define _Dimx 3
 
 c Norms (L1 fast)
 
