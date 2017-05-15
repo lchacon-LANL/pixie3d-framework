@@ -59,8 +59,8 @@ endif
 
 INITFILES = $(wildcard problem_init/*.[F,c,cpp,f]) 
 
-pic_base_mod.o: pic_defs.h $(INITFILES)
-pic_mod.o: pic_base_mod.o
+pic3d_base_mod.o: pic_defs.h $(INITFILES)
+pic3d_mod.o: pic3d_base_mod.o
 
 ifeq ($(PIC_CUDA),t) 
 pic.o : pic.cu pic_kernel.cuh

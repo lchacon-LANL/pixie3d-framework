@@ -13,7 +13,7 @@
              do i = 1,nxg
                ii = i + nxg*(j-1) + nxg*nyg*(k-1)
 
-             call HamSeq(npc_int(ii,is),r4,dimt,npc_scan(ii,is))
+               call HamSeq(npc_int(ii,is),r4,dimt,npc_scan(ii,is))
 
 c$$$!$OMP PARALLEL DEFAULT(SHARED) private(ip,ipc,ipl,ip_ng,xp,yp,zp
 c$$$!$OMP.    ,rx,rx1,rx2,rx3,signx,signy,signz,ixyz,ipx,ipy,ipz)
@@ -114,10 +114,11 @@ c$$$!$OMP END PARALLEL
            end do               !cell x
           end do                !cell y
          end do                 !cell z
-cc         write (*,*) v_thx,v_thy,v_thz,v0_x,v0_y,v0_z
-cc         print *,is,v_tot,vx2,vt2
+c$$$         print *,v_thx(is),v_thy(is),v_thz(is)
+c$$$     .          ,v0_x(is),v0_y(is),v0_z(is)
+c$$$         print *,is,v_tot,vx2,vt2
 
          deallocate(r4)
        end do                   !species
 
-cc       stop
+c$$$       stop

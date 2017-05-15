@@ -2735,7 +2735,7 @@ c     Local variables
       real(_prec) :: Mx2(3,1,1),My2(1,3,1),Mz2(1,1,3)
       real(_prec) :: Myz2(3,3),Mzx2(3,3),Mxy2(3,3)
       real(_prec) :: M_w_prod(3,3,3)
-      real(_prec) :: dumA(3,1), dumB(1,3), dumC(1,3)
+      real(_prec) :: dumA(3,1),dumB(1,3)
 
       real(_prec) :: xp(_Npg),yp(_Npg),zp(_Npg),v2,w_pcle(_Npg)
       real(8) :: vcurv(_Npg,3)
@@ -2763,8 +2763,8 @@ c     Begin program
         
 !     note that there is some issue with valgrind and libgomp.
 !$omp parallel DEFAULT(SHARED) private(ip,xp,yp,zp,i_np,j_np,k_np,vcurv
-!$omp.                                ,i,Mx1,Mx2,My1,My2,Mz1,Mz2,Myz2
-!$omp.                                ,Mzx2,Mxy2,M_w_prod,v2,w_pcle)
+!$omp.                             ,i,Mx1,Mx2,My1,My2,Mz1,Mz2,Myz2,dumA
+!$omp.                             ,dumB,Mzx2,Mxy2,M_w_prod,v2,w_pcle)
 !$      call set_omp_thread_id()
 !$omp DO 
 !$omp.reduction(+:garr_n,garr_vx,garr_vy,garr_vz
@@ -2785,7 +2785,7 @@ c     Begin program
              vcurv = spcs(isp)%pcles(ip)%v_np
           else
              vcurv = find_vcurv(i_np,j_np,k_np,spcs(isp)%pcles(ip)%x_n
-     .                                   ,spcs(isp)%pcles(ip)%v_n)
+     .                                        ,spcs(isp)%pcles(ip)%v_n)
           endif
 
           do i=1,_Npg
@@ -2816,8 +2816,6 @@ ccc!#endif
              Mzx2(:,:) = opt_vecvec_3(dumA,dumB)
 
              M_w_prod(:,:,:) = opt_vecvecvec_3(Mx2,My2,Mz2)
-
-
 
              !accumulate n (quadratic in x,y)
              garr_n(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)+1
@@ -2928,7 +2926,6 @@ c     Wrap moments around boundaries
 c     End program
 
       end subroutine gather_3d_moments
-
 
 c     wrap_moments_nodes
 c     ##################################################################
@@ -3073,8 +3070,6 @@ c     Begin program
      .                         +mments(:,0    ,:,Ins)
           mments(:,nyg,:,Ins) = mments(:,nyg  ,:,Ins)
      .                         +mments(:,nyg+1,:,Ins)
-#if defined(PIC_CM_DIAG)
-#endif
         endif
 
         !S11
@@ -3152,54 +3147,54 @@ c     Begin program
           !Jy
           if (pbcond(1) == pOPN)
      .      mments(1  ,:,:,:,Ipy) = mments(1    ,:,:,:,Ipy)
-     .                           -mments(0    ,:,:,:,Ipy)
+     .                             -mments(0    ,:,:,:,Ipy)
           if (pbcond(1) == pREF)
      .      mments(1  ,:,:,:,Ipy) = mments(1    ,:,:,:,Ipy)
-     .                           +mments(0    ,:,:,:,Ipy)
+     .                             +mments(0    ,:,:,:,Ipy)
           if (pbcond(2) == pOPN)
      .      mments(nxg,:,:,:,Ipy) = mments(nxg  ,:,:,:,Ipy)
-     .                           -mments(nxg+1,:,:,:,Ipy)
+     .                             -mments(nxg+1,:,:,:,Ipy)
           if (pbcond(2) == pREF)
      .      mments(nxg,:,:,:,Ipy) = mments(nxg  ,:,:,:,Ipy)
-     .                           +mments(nxg+1,:,:,:,Ipy)
+     .                             +mments(nxg+1,:,:,:,Ipy)
 
           !Jz
           if (pbcond(1) == pOPN)
      .      mments(1  ,:,:,:,Ipz) = mments(1    ,:,:,:,Ipz)
-     .                           -mments(0    ,:,:,:,Ipz)
+     .                             -mments(0    ,:,:,:,Ipz)
           if (pbcond(1) == pREF)
      .      mments(1  ,:,:,:,Ipz) = mments(1    ,:,:,:,Ipz)
-     .                           +mments(0    ,:,:,:,Ipz)
+     .                             +mments(0    ,:,:,:,Ipz)
 
           if (pbcond(2) == pOPN)
      .      mments(nxg,:,:,:,Ipz) = mments(nxg  ,:,:,:,Ipz)
-     .                           -mments(nxg+1,:,:,:,Ipz)
+     .                             -mments(nxg+1,:,:,:,Ipz)
           if (pbcond(2) == pREF)
      .      mments(nxg,:,:,:,Ipz) = mments(nxg  ,:,:,:,Ipz)
-     .                           +mments(nxg+1,:,:,:,Ipz)
+     .                             +mments(nxg+1,:,:,:,Ipz)
 
           !Rho
           mments(1  ,:,:,:,Ins) = mments(1    ,:,:,:,Ins)
-     .                         +mments(0    ,:,:,:,Ins)
+     .                           +mments(0    ,:,:,:,Ins)
           mments(nxg,:,:,:,Ins) = mments(nxg  ,:,:,:,Ins)
-     .                         +mments(nxg+1,:,:,:,Ins)
+     .                           +mments(nxg+1,:,:,:,Ins)
         endif
 
         !S11
         mments(1  ,:,:,:,IS11) = mments(1    ,:,:,:,IS11)
-     .                        +mments(0    ,:,:,:,IS11)
+     .                          +mments(0    ,:,:,:,IS11)
         mments(nxg,:,:,:,IS11) = mments(nxg  ,:,:,:,IS11)
-     .                        +mments(nxg+1,:,:,:,IS11)
+     .                          +mments(nxg+1,:,:,:,IS11)
         !S22
         mments(1  ,:,:,:,IS22) = mments(1    ,:,:,:,IS22)
-     .                        +mments(0    ,:,:,:,IS22)
+     .                          +mments(0    ,:,:,:,IS22)
         mments(nxg,:,:,:,IS22) = mments(nxg  ,:,:,:,IS22)
-     .                        +mments(nxg+1,:,:,:,IS22)
+     .                          +mments(nxg+1,:,:,:,IS22)
         !S33
         mments(1  ,:,:,:,IS33) = mments(1    ,:,:,:,IS33)
-     .                        +mments(0    ,:,:,:,IS33)
+     .                          +mments(0    ,:,:,:,IS33)
         mments(nxg,:,:,:,IS33) = mments(nxg  ,:,:,:,IS33)
-     .                        +mments(nxg+1,:,:,:,IS33)
+     .                          +mments(nxg+1,:,:,:,IS33)
 
       endif
 
@@ -3221,57 +3216,55 @@ c     Begin program
           !Jx
           if (pbcond(3) == pOPN)
      .      mments(:,1  ,:,:,Ipx) = mments(:,1    ,:,:,Ipx)
-     .                           -mments(:,0    ,:,:,Ipx)
+     .                             -mments(:,0    ,:,:,Ipx)
           if (pbcond(3) == pREF)
      .      mments(:,1  ,:,:,Ipx) = mments(:,1    ,:,:,Ipx)
-     .                           +mments(:,0    ,:,:,Ipx)
+     .                             +mments(:,0    ,:,:,Ipx)
 
           if (pbcond(4) == pOPN)
      .      mments(:,nyg,:,:,Ipx) = mments(:,nyg  ,:,:,Ipx)
-     .                           -mments(:,nyg+1,:,:,Ipx)
+     .                             -mments(:,nyg+1,:,:,Ipx)
           if (pbcond(4) == pREF)
      .      mments(:,nyg,:,:,Ipx) = mments(:,nyg  ,:,:,Ipx)
-     .                           +mments(:,nyg+1,:,:,Ipx)
+     .                             +mments(:,nyg+1,:,:,Ipx)
 
           !Jz
           if (pbcond(3) == pOPN)
      .      mments(:,1  ,:,:,Ipz) = mments(:,1    ,:,:,Ipz)
-     .                           -mments(:,0    ,:,:,Ipz)
+     .                             -mments(:,0    ,:,:,Ipz)
           if (pbcond(3) == pREF)
      .      mments(:,1  ,:,:,Ipz) = mments(:,1    ,:,:,Ipz)
-     .                           +mments(:,0    ,:,:,Ipz)
+     .                             +mments(:,0    ,:,:,Ipz)
 
           if (pbcond(4) == pOPN)
      .      mments(:,nyg,:,:,Ipz) = mments(:,nyg  ,:,:,Ipz)
-     .                           -mments(:,nyg+1,:,:,Ipz)
+     .                             -mments(:,nyg+1,:,:,Ipz)
           if (pbcond(4) == pREF)
      .      mments(:,nyg,:,:,Ipz) = mments(:,nyg  ,:,:,Ipz)
-     .                           +mments(:,nyg+1,:,:,Ipz)
+     .                             +mments(:,nyg+1,:,:,Ipz)
 
           !Rho
           mments(:,1  ,:,:,Ins) = mments(:,1    ,:,:,Ins)
-     .                         +mments(:,0    ,:,:,Ins)
+     .                           +mments(:,0    ,:,:,Ins)
           mments(:,nyg,:,:,Ins) = mments(:,nyg  ,:,:,Ins)
-     .                         +mments(:,nyg+1,:,:,Ins)
-#if defined(PIC_CM_DIAG)
-#endif
+     .                           +mments(:,nyg+1,:,:,Ins)
         endif
 
         !S11
         mments(:,1  ,:,:,IS11) = mments(:,1    ,:,:,IS11)
-     .                        +mments(:,0    ,:,:,IS11)
+     .                          +mments(:,0    ,:,:,IS11)
         mments(:,nyg,:,:,IS11) = mments(:,nyg  ,:,:,IS11)
-     .                        +mments(:,nyg+1,:,:,IS11)
+     .                          +mments(:,nyg+1,:,:,IS11)
         !S22                            
         mments(:,1  ,:,:,IS22) = mments(:,1    ,:,:,IS22)
-     .                        +mments(:,0    ,:,:,IS22)
+     .                          +mments(:,0    ,:,:,IS22)
         mments(:,nyg,:,:,IS22) = mments(:,nyg  ,:,:,IS22)
-     .                        +mments(:,nyg+1,:,:,IS22)
+     .                          +mments(:,nyg+1,:,:,IS22)
         !S33                            
         mments(:,1  ,:,:,IS33) = mments(:,1    ,:,:,IS33)
-     .                        +mments(:,0    ,:,:,IS33)
+     .                          +mments(:,0    ,:,:,IS33)
         mments(:,nyg,:,:,IS33) = mments(:,nyg  ,:,:,IS33)
-     .                        +mments(:,nyg+1,:,:,IS33)
+     .                          +mments(:,nyg+1,:,:,IS33)
 
       endif
 
@@ -4938,13 +4931,13 @@ c$$$     .     ,my_rank_pic,sum(npc_int_s),tot_np
 
 c     perturb_pcles_offset
 c     ##################################################################
-      subroutine perturb_pcles_offset(nh1,nh2)
+      subroutine perturb_pcles_offset(nh1,nh2,nh3)
 
       implicit none
 
 c     Call variables
 
-      integer :: nh1,nh2
+      integer :: nh1,nh2,nh3
 
 c     Local variables
 
@@ -4963,7 +4956,7 @@ c     Begin program
 c     Initialize particle new info
 
       numspcs = size(spcs)
-      do isp=1, numspcs
+      do isp=1,numspcs
          numpcles = size(spcs(isp)%pcles)
 !     note that there is some issue with valgrind and libgomp.
 !$omp parallel DEFAULT(SHARED) private(ip)
@@ -5002,10 +4995,10 @@ C    perturb particles after matching given equilibrium
       case('ic','tm')
 #include "problem_init/icPerturb.f"
       case('slow_shock')
-!#include "problem_init/slowShockPerturb.f"
+#include "problem_init/slowShockPerturb.f"
       case('kaw_ii')
         if(quiet_start) then
-!#include "problem_init/kawiiPerturb.f"
+#include "problem_init/kawiiPerturb.f"
         end if
 c$$$      case('bpnch')
 c$$$        if(quiet_start) then
@@ -5016,15 +5009,15 @@ c$$$     .                          ,(/0d0,0d0,eps_pic/))
 c$$$        end if
       case('weibel','wbl_bc','bpnch')
         if(quiet_start) then
-            call perturb_pcle_xv(1
-     .                          ,(/nh1,nh2,0/)
-     .                          ,(/0d0,0d0,0d0/)
-     .                          ,(/0d0,0d0,eps_pic/),delta_fun=.true.)
+          call perturb_pcle_xv(1
+     .                        ,(/nh1,nh2,nh3/)
+     .                        ,(/0d0,0d0,0d0/)
+     .                        ,(/0d0,0d0,eps_pic/),delta_fun=.true.)
         end if
       case('2strm','iaw','landau','langdon')
         do isp=1,n_sp
           call perturb_pcle_xv(isp
-     .                        ,(/nh1,nh2,0/)
+     .                        ,(/nh1,nh2,nh3/)
      .                        ,(/eps_pic,0d0,0d0/)
      .                        ,(/0d0,0d0,0d0/))
         enddo
@@ -5109,7 +5102,10 @@ c     Begin program
      .                                  + dx(j,:)
 
            if(delta) then
-             if (i_np(j)==nxg/2+1.and.j_np(j)==nyg/2+1) then
+             if (    i_np(j)==nxg/2+1
+     .          .and.j_np(j)==nyg/2+1
+     .          .and.k_np(j)==nzg/2+1
+     .          ) then
                spcs(isp)%pcles(ip)%v_n(j,:)
      .              = spcs(isp)%pcles(ip)%v_n(j,:) + eps_vel(:)
                spcs(isp)%pcles(ip)%v_np(j,:)
