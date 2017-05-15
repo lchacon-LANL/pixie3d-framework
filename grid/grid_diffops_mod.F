@@ -5319,9 +5319,9 @@ c     Assemble vector Laplacian on the mesh
      .                       +veclap(i,j,k,2)
             veclap(i,j,k,3) = lap_flx_z_ijk(g_def,i,j,k,igrid,divA)
      .                       +veclap(i,j,k,3)
-            if (vol_wgt)veclap(i,j,k,:)
-     .                 =veclap(i,j,k,:)
-     .                 *g_def%gmetric%grid(igrid)%dlvol(i,j,k)
+            if (vol_wgt) veclap(i,j,k,:)
+     .                  =veclap(i,j,k,:)
+     .                  *g_def%gmetric%grid(igrid)%dlvol(i,j,k)
           enddo
         enddo
       enddo
