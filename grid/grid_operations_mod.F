@@ -2114,14 +2114,14 @@ c     Input variables
 c     Local variables
 
         integer :: nx,ny,nz,ip,im,jp,jm,kp,km
-        real(8) :: gsup11,gsup22,gsup33
+
+        real(8) :: d_xx_ip,d_xy_ipjp,d_xy_ipjm,d_xz_ipkp,d_xz_ipkm
+        real(8) :: d_yy_jp,d_xy_imjp,d_yz_jpkp,d_yz_jpkm
+        real(8) :: d_zz_kp,d_xz_imkp,d_yz_jmkp
+
         real(8),pointer,dimension(:,:,:,:,:) :: gsup_v
 
-        type(MG_grid_metrics),pointer :: gmetric 
-
 c     Begin program
-
-        gmetric => g_def%gmetric
 
         cnv = 0d0
 
@@ -2134,155 +2134,90 @@ c     Begin program
         kp = min(k+1,size(cov,3)-1)
         km = k-1
 
-        gsup_v => gmetric%grid(igrid)%gsup_v
-
-c$$$        if (jm >= 0) then
-c$$$          gsup11 = 0.5*(gsup_v(i,jm,k,1,1)
-c$$$     .                 +gsup_v(i,j ,k,1,1))
-c$$$
-c$$$          cnv(1) = gsup11*cov(i,j,k,1)
-c$$$     .                +0.25*(gsup_v(i,j ,k,1,2)*(cov(i ,j ,k,2)
-c$$$     .                                          +cov(ip,j ,k,2))
-c$$$     .                      +gsup_v(i,jm,k,1,2)*(cov(i ,jm,k,2)
-c$$$     .                                          +cov(ip,jm,k,2)))
-c$$$        endif
+        gsup_v => g_def%gmetric%grid(igrid)%gsup_v
 
         if (jm >= 0.and.km >= 0) then
           !i+1/2,j,k
-          gsup11 = 0.25*(gsup_v(i,jm,k ,1,1)
-     .                  +gsup_v(i,j ,k ,1,1)
-     .                  +gsup_v(i,jm,km,1,1)
-     .                  +gsup_v(i,j ,km,1,1))
+          d_xx_ip = 0.25*(gsup_v(i,j ,k ,1,1)
+     .                   +gsup_v(i,jm,k ,1,1)
+     .                   +gsup_v(i,j ,km,1,1)
+     .                   +gsup_v(i,jm,km,1,1))
 
-          cnv(1) = gsup11*cov(i,j,k,1)
-     .            +0.25*(0.25*gsup_v(i,j ,k ,1,2)*(cov(i ,j ,k ,2)
-     .                                            +cov(ip,j ,k ,2)
-     .                                            +cov(i ,j ,kp,2)
-     .                                            +cov(ip,j ,kp,2))
-     .                  +0.25*gsup_v(i,jm,k ,1,2)*(cov(i ,jm,k ,2)
-     .                                            +cov(ip,jm,k ,2)
-     .                                            +cov(i ,jm,kp,2)
-     .                                            +cov(ip,jm,kp,2))
-     .                  +0.25*gsup_v(i,j ,km,1,2)*(cov(i ,j ,k ,2)
-     .                                            +cov(ip,j ,k ,2)
-     .                                            +cov(i ,j ,km,2)
-     .                                            +cov(ip,j ,km,2))
-     .                  +0.25*gsup_v(i,jm,km,1,2)*(cov(i ,jm,k ,2)
-     .                                            +cov(ip,jm,k ,2)
-     .                                            +cov(i ,jm,km,2)
-     .                                            +cov(ip,jm,km,2)))
-     .            +0.25*(0.25*gsup_v(i,j ,k ,1,3)*(cov(i ,j ,k ,3)
-     .                                            +cov(ip,j ,k ,3)
-     .                                            +cov(i ,jp,k ,3)
-     .                                            +cov(ip,jp,k ,3))
-     .                  +0.25*gsup_v(i,j ,km,1,3)*(cov(i ,j ,km,3)
-     .                                            +cov(ip,j ,km,3)
-     .                                            +cov(i ,jp,km,3)
-     .                                            +cov(ip,jp,km,3))
-     .                  +0.25*gsup_v(i,jm,k ,1,3)*(cov(i ,j ,k ,3)
-     .                                            +cov(ip,j ,k ,3)
-     .                                            +cov(i ,jm,k ,3)
-     .                                            +cov(ip,jm,k ,3))
-     .                  +0.25*gsup_v(i,jm,km,1,3)*(cov(i ,j ,km,3)
-     .                                            +cov(ip,j ,km,3)
-     .                                            +cov(i ,jm,km,3)
-     .                                            +cov(ip,jm,km,3)))
+          d_xy_ipjp = 0.5*(gsup_v(i,j ,k ,1,2)
+     .                    +gsup_v(i,j ,km,1,2))
+          d_xy_ipjm = 0.5*(gsup_v(i,jm,k ,1,2)
+     .                    +gsup_v(i,jm,km,1,2))
+
+          d_xz_ipkp = 0.5*(gsup_v(i,j ,k ,1,3)
+     .                    +gsup_v(i,jm,k ,1,3))
+          d_xz_ipkm = 0.5*(gsup_v(i,j ,km,1,3)
+     .                    +gsup_v(i,jm,km,1,3))
+
+          cnv(1) = d_xx_ip*cov(i,j,k,1)
+     .           +0.25*d_xy_ipjp*(cov(i ,j ,k ,2)
+     .                           +cov(ip,j ,k ,2))
+     .           +0.25*d_xy_ipjm*(cov(i ,jm,k ,2)
+     .                           +cov(ip,jm,k ,2))
+     .           +0.25*d_xz_ipkp*(cov(i ,j ,k ,3)
+     .                           +cov(ip,j ,k ,3))
+     .           +0.25*d_xz_ipkm*(cov(i ,j ,km,3)
+     .                           +cov(ip,j ,km,3))
         endif
-
-c$$$        if (im >= 0) then
-c$$$          gsup22 = 0.5*(gsup_v(im,j,k,2,2)
-c$$$     .                 +gsup_v(i ,j,k,2,2))
-c$$$
-c$$$          cnv(2) = gsup22*cov(i,j,k,2)
-c$$$     .                +0.25*(gsup_v(i ,j,k,2,1)*(cov(i ,j ,k,1)
-c$$$     .                                          +cov(i ,jp,k,1))
-c$$$     .                      +gsup_v(im,j,k,2,1)*(cov(im,j ,k,1)
-c$$$     .                                          +cov(im,jp,k,1)))
-c$$$        endif
 
         if (im >= 0.and.km >= 0) then
           !i,j+1/2,k
-          gsup22 = 0.25*(gsup_v(im,j,k ,2,2)
-     .                  +gsup_v(i ,j,k ,2,2)
-     .                  +gsup_v(im,j,km,2,2)
-     .                  +gsup_v(i ,j,km,2,2))
+          d_xy_ipjp = 0.5*(gsup_v(i ,j,k ,1,2)
+     .                    +gsup_v(i ,j,km,1,2))
+          d_xy_imjp = 0.5*(gsup_v(im,j,k ,1,2)
+     .                    +gsup_v(im,j,km,1,2))
 
-          cnv(2) = gsup22*cov(i,j,k,2)
-     .            +0.25*(0.25*gsup_v(i ,j,k ,2,1)*(cov(i ,j ,k ,1)
-     .                                            +cov(i ,jp,k ,1)
-     .                                            +cov(i ,j ,kp,1)
-     .                                            +cov(i ,jp,kp,1))
-     .                  +0.25*gsup_v(im,j,k ,2,1)*(cov(im,j ,k ,1)
-     .                                            +cov(im,jp,k ,1)
-     .                                            +cov(im,j ,kp,1)
-     .                                            +cov(im,jp,kp,1))
-     .                  +0.25*gsup_v(i ,j,km,2,1)*(cov(i ,j ,k ,1)
-     .                                            +cov(i ,jp,k ,1)
-     .                                            +cov(i ,j ,km,1)
-     .                                            +cov(i ,jp,km,1))
-     .                  +0.25*gsup_v(im,j,km,2,1)*(cov(im,j ,k ,1)
-     .                                            +cov(im,jp,k ,1)
-     .                                            +cov(im,j ,km,1)
-     .                                            +cov(im,jp,km,1)))
-     .            +0.25*(0.25*gsup_v(i ,j,k ,2,3)*(cov(i ,j ,k ,3)
-     .                                            +cov(ip,j ,k ,3)
-     .                                            +cov(i ,jp,k ,3)
-     .                                            +cov(ip,jp,k ,3))
-     .                  +0.25*gsup_v(i ,j,km,2,3)*(cov(i ,j ,km,3)
-     .                                            +cov(ip,j ,km,3)
-     .                                            +cov(i ,jp,km,3)
-     .                                            +cov(ip,jp,km,3))
-     .                  +0.25*gsup_v(im,j,k ,2,3)*(cov(i ,j ,k ,3)
-     .                                            +cov(im,j ,k ,3)
-     .                                            +cov(i ,jp,k ,3)
-     .                                            +cov(im,jp,k ,3))
-     .                  +0.25*gsup_v(im,j,km,2,3)*(cov(i ,j ,km,3)
-     .                                            +cov(im,j ,km,3)
-     .                                            +cov(i ,jp,km,3)
-     .                                            +cov(im,jp,km,3)))
+          d_yy_jp = 0.25*(gsup_v(i ,j,k ,2,2)
+     .                   +gsup_v(im,j,k ,2,2)
+     .                   +gsup_v(i ,j,km,2,2)
+     .                   +gsup_v(im,j,km,2,2))
+
+          d_yz_jpkp = 0.5*(gsup_v(i ,j,k ,2,3)
+     .                    +gsup_v(im,j,k ,2,3))
+          d_yz_jpkm = 0.5*(gsup_v(i ,j,km,2,3)
+     .                    +gsup_v(im,j,km,2,3))
+
+          cnv(2) = d_yy_jp*cov(i,j,k,2)
+     .        +0.25*d_xy_ipjp*(cov(i ,j ,k ,1)
+     .                        +cov(i ,jp,k ,1))
+     .        +0.25*d_xy_imjp*(cov(im,j ,k ,1)
+     .                        +cov(im,jp,k ,1))
+     .        +0.25*d_yz_jpkp*(cov(i ,j ,k ,3)
+     .                        +cov(i ,jp,k ,3))
+     .        +0.25*d_yz_jpkm*(cov(i ,j ,km,3)
+     .                        +cov(i ,jp,km,3))
         endif
 
-c$$$        cnv(3) = gmetric%grid(igrid)%gsup(i,j,k,3,3)*cov(i,j,k,3)
         if (im >= 0.and.jm >= 0) then
           !i,j,k+1/2
-          gsup33 = 0.25*(gsup_v(im,j ,k,3,3)
-     .                  +gsup_v(i ,j ,k,3,3)
-     .                  +gsup_v(im,jm,k,3,3)
-     .                  +gsup_v(i ,jm,k,3,3))
+          d_xz_ipkp = 0.5*(gsup_v(i ,j ,k,1,3)
+     .                    +gsup_v(i ,jm,k,1,3))
+          d_xz_imkp = 0.5*(gsup_v(im,j ,k,1,3)
+     .                    +gsup_v(im,jm,k,1,3))
 
-          cnv(3) = gsup33*cov(i,j,k,3)
-     .            +0.25*(0.25*gsup_v(i ,j ,k,3,1)*(cov(i ,j ,k ,1)
-     .                                            +cov(i ,j ,kp,1)
-     .                                            +cov(i ,jp,k ,1)
-     .                                            +cov(i ,jp,kp,1))
-     .                  +0.25*gsup_v(im,j ,k,3,1)*(cov(im,j ,k ,1)
-     .                                            +cov(im,j ,kp,1)
-     .                                            +cov(im,jp,k ,1)
-     .                                            +cov(im,jp,kp,1))
-     .                  +0.25*gsup_v(i ,jm,k,3,1)*(cov(i ,j ,k ,1)
-     .                                            +cov(i ,j ,kp,1)
-     .                                            +cov(i ,jm,k ,1)
-     .                                            +cov(i ,jm,kp,1))
-     .                  +0.25*gsup_v(im,jm,k,3,1)*(cov(im,j ,k ,1)
-     .                                            +cov(im,j ,kp,1)
-     .                                            +cov(im,jm,k ,1)
-     .                                            +cov(im,jm,kp,1)))
-     .            +0.25*(0.25*gsup_v(i ,j ,k,3,2)*(cov(i ,j ,k ,2)
-     .                                            +cov(ip,j ,k ,2)
-     .                                            +cov(i ,j ,kp,2)
-     .                                            +cov(ip,j ,kp,2))
-     .                  +0.25*gsup_v(i ,jm,k,3,2)*(cov(i ,jm,k ,2)
-     .                                            +cov(ip,jm,k ,2)
-     .                                            +cov(i ,jm,kp,2)
-     .                                            +cov(ip,jm,kp,2))
-     .                  +0.25*gsup_v(im,j ,k,3,2)*(cov(i ,j ,k ,2)
-     .                                            +cov(im,j ,k ,2)
-     .                                            +cov(i ,j ,kp,2)
-     .                                            +cov(im,j ,kp,2))
-     .                  +0.25*gsup_v(im,jm,k,3,2)*(cov(i ,jm,k ,2)
-     .                                            +cov(im,jm,k ,2)
-     .                                            +cov(i ,jm,kp,2)
-     .                                            +cov(im,jm,kp,2)))
+          d_yz_jpkp = 0.5*(gsup_v(i ,j ,k,2,3)
+     .                    +gsup_v(im,j ,k,2,3))
+          d_yz_jmkp = 0.5*(gsup_v(i ,jm,k,2,3)
+     .                    +gsup_v(im,jm,k,2,3))
+
+          d_zz_kp = 0.25*(gsup_v(i ,j ,k,3,3)
+     .                   +gsup_v(im,j ,k,3,3)
+     .                   +gsup_v(i ,jm,k,3,3)
+     .                   +gsup_v(im,jm,k,3,3))
+
+          cnv(3) = d_zz_kp*cov(i,j,k,3)
+     .        +0.25*d_xz_ipkp*(cov(i ,j ,k ,1)
+     .                        +cov(i ,j ,kp,1))
+     .        +0.25*d_xz_imkp*(cov(im,j ,k ,1)
+     .                        +cov(im,j ,kp,1))
+     .        +0.25*d_yz_jpkp*(cov(i ,j ,k ,2)
+     .                        +cov(i ,j ,kp,2))
+     .        +0.25*d_yz_jmkp*(cov(i ,jm,k ,2)
+     .                        +cov(i ,jm,kp,2))
         endif
 
       end function XformToCnv_stg_ijk
@@ -2292,7 +2227,7 @@ c     #################################################################
       function XformToCov_stg_ijk(g_def,i,j,k,igrid,cnv) result(cov)
 
 c     -----------------------------------------------------------------
-c     Transforms a staggered contravariant vector to a covariant
+c     Transforms a staggered contrariant vector to covariant
 c     representation at faces for cell (i,j,k).
 c     -----------------------------------------------------------------
 
@@ -2308,14 +2243,14 @@ c     Input variables
 c     Local variables
 
         integer :: nx,ny,nz,ip,im,jp,jm,kp,km
-        real(8) :: gsub11,gsub22,gsub33
+
+        real(8) :: d_xx_ip,d_xy_ipjp,d_xy_ipjm,d_xz_ipkp,d_xz_ipkm
+        real(8) :: d_yy_jp,d_xy_imjp,d_yz_jpkp,d_yz_jpkm
+        real(8) :: d_zz_kp,d_xz_imkp,d_yz_jmkp
+
         real(8),pointer,dimension(:,:,:,:,:) :: gsub_v
 
-        type(MG_grid_metrics),pointer :: gmetric 
-
 c     Begin program
-
-        gmetric => g_def%gmetric
 
         cov = 0d0
 
@@ -2328,156 +2263,285 @@ c     Begin program
         kp = min(k+1,size(cnv,3)-1)
         km = k-1
 
-        gsub_v => gmetric%grid(igrid)%gsub_v
+        gsub_v => g_def%gmetric%grid(igrid)%gsub_v
 
-c$$$        if (jm >= 0) then
-c$$$          gsub11 = 0.5*(gsub_v(i,jm,k,1,1)
-c$$$     .                 +gsub_v(i,j ,k,1,1))
-c$$$
-c$$$          cov(1) = gsub11*cnv(i,j,k,1)
-c$$$     .                +0.25*(gsub_v(i,j ,k,1,2)*(cnv(i ,j ,k,2)
-c$$$     .                                          +cnv(ip,j ,k,2))
-c$$$     .                      +gsub_v(i,jm,k,1,2)*(cnv(i ,jm,k,2)
-c$$$     .                                          +cnv(ip,jm,k,2)))
-c$$$        endif
         if (jm >= 0.and.km >= 0) then
           !i+1/2,j,k
-          gsub11 = 0.25*(gsub_v(i,jm,k ,1,1)
-     .                  +gsub_v(i,j ,k ,1,1)
-     .                  +gsub_v(i,jm,km,1,1)
-     .                  +gsub_v(i,j ,km,1,1))
+          d_xx_ip = 0.25*(gsub_v(i,j ,k ,1,1)
+     .                   +gsub_v(i,jm,k ,1,1)
+     .                   +gsub_v(i,j ,km,1,1)
+     .                   +gsub_v(i,jm,km,1,1))
 
-          cov(1) = gsub11*cnv(i,j,k,1)
-     .            +0.25*(0.25*gsub_v(i,j ,k ,1,2)*(cnv(i ,j ,k ,2)
-     .                                            +cnv(ip,j ,k ,2)
-     .                                            +cnv(i ,j ,kp,2)
-     .                                            +cnv(ip,j ,kp,2))
-     .                  +0.25*gsub_v(i,jm,k ,1,2)*(cnv(i ,jm,k ,2)
-     .                                            +cnv(ip,jm,k ,2)
-     .                                            +cnv(i ,jm,kp,2)
-     .                                            +cnv(ip,jm,kp,2))
-     .                  +0.25*gsub_v(i,j ,km,1,2)*(cnv(i ,j ,k ,2)
-     .                                            +cnv(ip,j ,k ,2)
-     .                                            +cnv(i ,j ,km,2)
-     .                                            +cnv(ip,j ,km,2))
-     .                  +0.25*gsub_v(i,jm,km,1,2)*(cnv(i ,jm,k ,2)
-     .                                            +cnv(ip,jm,k ,2)
-     .                                            +cnv(i ,jm,km,2)
-     .                                            +cnv(ip,jm,km,2)))
-     .            +0.25*(0.25*gsub_v(i,j ,k ,1,3)*(cnv(i ,j ,k ,3)
-     .                                            +cnv(ip,j ,k ,3)
-     .                                            +cnv(i ,jp,k ,3)
-     .                                            +cnv(ip,jp,k ,3))
-     .                  +0.25*gsub_v(i,j ,km,1,3)*(cnv(i ,j ,km,3)
-     .                                            +cnv(ip,j ,km,3)
-     .                                            +cnv(i ,jp,km,3)
-     .                                            +cnv(ip,jp,km,3))
-     .                  +0.25*gsub_v(i,jm,k ,1,3)*(cnv(i ,j ,k ,3)
-     .                                            +cnv(ip,j ,k ,3)
-     .                                            +cnv(i ,jm,k ,3)
-     .                                            +cnv(ip,jm,k ,3))
-     .                  +0.25*gsub_v(i,jm,km,1,3)*(cnv(i ,j ,km,3)
-     .                                            +cnv(ip,j ,km,3)
-     .                                            +cnv(i ,jm,km,3)
-     .                                            +cnv(ip,jm,km,3)))
+          d_xy_ipjp = 0.5*(gsub_v(i,j ,k ,1,2)
+     .                    +gsub_v(i,j ,km,1,2))
+          d_xy_ipjm = 0.5*(gsub_v(i,jm,k ,1,2)
+     .                    +gsub_v(i,jm,km,1,2))
+
+          d_xz_ipkp = 0.5*(gsub_v(i,j ,k ,1,3)
+     .                    +gsub_v(i,jm,k ,1,3))
+          d_xz_ipkm = 0.5*(gsub_v(i,j ,km,1,3)
+     .                    +gsub_v(i,jm,km,1,3))
+
+          cov(1) = d_xx_ip*cnv(i,j,k,1)
+     .           +0.25*d_xy_ipjp*(cnv(i ,j ,k ,2)
+     .                           +cnv(ip,j ,k ,2))
+     .           +0.25*d_xy_ipjm*(cnv(i ,jm,k ,2)
+     .                           +cnv(ip,jm,k ,2))
+     .           +0.25*d_xz_ipkp*(cnv(i ,j ,k ,3)
+     .                           +cnv(ip,j ,k ,3))
+     .           +0.25*d_xz_ipkm*(cnv(i ,j ,km,3)
+     .                           +cnv(ip,j ,km,3))
         endif
 
-c$$$        if (im >= 0) then
-c$$$          gsub22 = 0.5*(gsub_v(im,j,k,2,2)
-c$$$     .                 +gsub_v(i ,j,k,2,2))
-c$$$
-c$$$          cov(2) = gsub22*cnv(i,j,k,2)
-c$$$     .                +0.25*(gsub_v(i ,j,k,2,1)*(cnv(i ,j ,k,1)
-c$$$     .                                          +cnv(i ,jp,k,1))
-c$$$     .                      +gsub_v(im,j,k,2,1)*(cnv(im,j ,k,1)
-c$$$     .                                          +cnv(im,jp,k,1)))
-c$$$        endif
         if (im >= 0.and.km >= 0) then
           !i,j+1/2,k
-          gsub22 = 0.25*(gsub_v(im,j,k ,2,2)
-     .                  +gsub_v(i ,j,k ,2,2)
-     .                  +gsub_v(im,j,km,2,2)
-     .                  +gsub_v(i ,j,km,2,2))
+          d_xy_ipjp = 0.5*(gsub_v(i ,j,k ,1,2)
+     .                    +gsub_v(i ,j,km,1,2))
+          d_xy_imjp = 0.5*(gsub_v(im,j,k ,1,2)
+     .                    +gsub_v(im,j,km,1,2))
 
-          cov(2) = gsub22*cnv(i,j,k,2)
-     .            +0.25*(0.25*gsub_v(i ,j,k ,2,1)*(cnv(i ,j ,k ,1)
-     .                                            +cnv(i ,jp,k ,1)
-     .                                            +cnv(i ,j ,kp,1)
-     .                                            +cnv(i ,jp,kp,1))
-     .                  +0.25*gsub_v(im,j,k ,2,1)*(cnv(im,j ,k ,1)
-     .                                            +cnv(im,jp,k ,1)
-     .                                            +cnv(im,j ,kp,1)
-     .                                            +cnv(im,jp,kp,1))
-     .                  +0.25*gsub_v(i ,j,km,2,1)*(cnv(i ,j ,k ,1)
-     .                                            +cnv(i ,jp,k ,1)
-     .                                            +cnv(i ,j ,km,1)
-     .                                            +cnv(i ,jp,km,1))
-     .                  +0.25*gsub_v(im,j,km,2,1)*(cnv(im,j ,k ,1)
-     .                                            +cnv(im,jp,k ,1)
-     .                                            +cnv(im,j ,km,1)
-     .                                            +cnv(im,jp,km,1)))
-     .            +0.25*(0.25*gsub_v(i ,j,k ,2,3)*(cnv(i ,j ,k ,3)
-     .                                            +cnv(ip,j ,k ,3)
-     .                                            +cnv(i ,jp,k ,3)
-     .                                            +cnv(ip,jp,k ,3))
-     .                  +0.25*gsub_v(i ,j,km,2,3)*(cnv(i ,j ,km,3)
-     .                                            +cnv(ip,j ,km,3)
-     .                                            +cnv(i ,jp,km,3)
-     .                                            +cnv(ip,jp,km,3))
-     .                  +0.25*gsub_v(im,j,k ,2,3)*(cnv(i ,j ,k ,3)
-     .                                            +cnv(im,j ,k ,3)
-     .                                            +cnv(i ,jp,k ,3)
-     .                                            +cnv(im,jp,k ,3))
-     .                  +0.25*gsub_v(im,j,km,2,3)*(cnv(i ,j ,km,3)
-     .                                            +cnv(im,j ,km,3)
-     .                                            +cnv(i ,jp,km,3)
-     .                                            +cnv(im,jp,km,3)))
+          d_yy_jp = 0.25*(gsub_v(i ,j,k ,2,2)
+     .                   +gsub_v(im,j,k ,2,2)
+     .                   +gsub_v(i ,j,km,2,2)
+     .                   +gsub_v(im,j,km,2,2))
+
+          d_yz_jpkp = 0.5*(gsub_v(i ,j,k ,2,3)
+     .                    +gsub_v(im,j,k ,2,3))
+          d_yz_jpkm = 0.5*(gsub_v(i ,j,km,2,3)
+     .                    +gsub_v(im,j,km,2,3))
+
+          cov(2) = d_yy_jp*cnv(i,j,k,2)
+     .        +0.25*d_xy_ipjp*(cnv(i ,j ,k ,1)
+     .                        +cnv(i ,jp,k ,1))
+     .        +0.25*d_xy_imjp*(cnv(im,j ,k ,1)
+     .                        +cnv(im,jp,k ,1))
+     .        +0.25*d_yz_jpkp*(cnv(i ,j ,k ,3)
+     .                        +cnv(i ,jp,k ,3))
+     .        +0.25*d_yz_jpkm*(cnv(i ,j ,km,3)
+     .                        +cnv(i ,jp,km,3))
         endif
 
-cc        cov(3) = gmetric%grid(igrid)%gsub(i,j,k,3,3)*cnv(i,j,k,3)
         if (im >= 0.and.jm >= 0) then
           !i,j,k+1/2
-          gsub33 = 0.25*(gsub_v(im,j ,k,3,3)
-     .                  +gsub_v(i ,j ,k,3,3)
-     .                  +gsub_v(im,jm,k,3,3)
-     .                  +gsub_v(i ,jm,k,3,3))
+          d_xz_ipkp = 0.5*(gsub_v(i ,j ,k,1,3)
+     .                    +gsub_v(i ,jm,k,1,3))
+          d_xz_imkp = 0.5*(gsub_v(im,j ,k,1,3)
+     .                    +gsub_v(im,jm,k,1,3))
 
-          cov(3) = gsub33*cnv(i,j,k,3)
-     .            +0.25*(0.25*gsub_v(i ,j ,k,3,1)*(cnv(i ,j ,k ,1)
-     .                                            +cnv(i ,j ,kp,1)
-     .                                            +cnv(i ,jp,k ,1)
-     .                                            +cnv(i ,jp,kp,1))
-     .                  +0.25*gsub_v(im,j ,k,3,1)*(cnv(im,j ,k ,1)
-     .                                            +cnv(im,j ,kp,1)
-     .                                            +cnv(im,jp,k ,1)
-     .                                            +cnv(im,jp,kp,1))
-     .                  +0.25*gsub_v(i ,jm,k,3,1)*(cnv(i ,j ,k ,1)
-     .                                            +cnv(i ,j ,kp,1)
-     .                                            +cnv(i ,jm,k ,1)
-     .                                            +cnv(i ,jm,kp,1))
-     .                  +0.25*gsub_v(im,jm,k,3,1)*(cnv(im,j ,k ,1)
-     .                                            +cnv(im,j ,kp,1)
-     .                                            +cnv(im,jm,k ,1)
-     .                                            +cnv(im,jm,kp,1)))
-     .            +0.25*(0.25*gsub_v(i ,j ,k,3,2)*(cnv(i ,j ,k ,2)
-     .                                            +cnv(ip,j ,k ,2)
-     .                                            +cnv(i ,j ,kp,2)
-     .                                            +cnv(ip,j ,kp,2))
-     .                  +0.25*gsub_v(i ,jm,k,3,2)*(cnv(i ,jm,k ,2)
-     .                                            +cnv(ip,jm,k ,2)
-     .                                            +cnv(i ,jm,kp,2)
-     .                                            +cnv(ip,jm,kp,2))
-     .                  +0.25*gsub_v(im,j ,k,3,2)*(cnv(i ,j ,k ,2)
-     .                                            +cnv(im,j ,k ,2)
-     .                                            +cnv(i ,j ,kp,2)
-     .                                            +cnv(im,j ,kp,2))
-     .                  +0.25*gsub_v(im,jm,k,3,2)*(cnv(i ,jm,k ,2)
-     .                                            +cnv(im,jm,k ,2)
-     .                                            +cnv(i ,jm,kp,2)
-     .                                            +cnv(im,jm,kp,2)))
+          d_yz_jpkp = 0.5*(gsub_v(i ,j ,k,2,3)
+     .                    +gsub_v(im,j ,k,2,3))
+          d_yz_jmkp = 0.5*(gsub_v(i ,jm,k,2,3)
+     .                    +gsub_v(im,jm,k,2,3))
+
+          d_zz_kp = 0.25*(gsub_v(i ,j ,k,3,3)
+     .                   +gsub_v(im,j ,k,3,3)
+     .                   +gsub_v(i ,jm,k,3,3)
+     .                   +gsub_v(im,jm,k,3,3))
+
+          cov(3) = d_zz_kp*cnv(i,j,k,3)
+     .        +0.25*d_xz_ipkp*(cnv(i ,j ,k ,1)
+     .                        +cnv(i ,j ,kp,1))
+     .        +0.25*d_xz_imkp*(cnv(im,j ,k ,1)
+     .                        +cnv(im,j ,kp,1))
+     .        +0.25*d_yz_jpkp*(cnv(i ,j ,k ,2)
+     .                        +cnv(i ,j ,kp,2))
+     .        +0.25*d_yz_jmkp*(cnv(i ,jm,k ,2)
+     .                        +cnv(i ,jm,kp,2))
         endif
 
       end function XformToCov_stg_ijk
+
+c$$$c     XformToCov_stg_ijk
+c$$$c     #################################################################
+c$$$      function XformToCov_stg_ijk(g_def,i,j,k,igrid,cnv) result(cov)
+c$$$
+c$$$c     -----------------------------------------------------------------
+c$$$c     Transforms a staggered contravariant vector to a covariant
+c$$$c     representation at faces for cell (i,j,k).
+c$$$c     -----------------------------------------------------------------
+c$$$
+c$$$        implicit none
+c$$$
+c$$$c     Input variables
+c$$$
+c$$$        type(grid_mg_def),pointer :: g_def
+c$$$
+c$$$        integer :: i,j,k,igrid
+c$$$        real(8) :: cnv(0:,0:,0:,:),cov(3)
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$        integer :: nx,ny,nz,ip,im,jp,jm,kp,km
+c$$$        real(8) :: gsub11,gsub22,gsub33
+c$$$        real(8),pointer,dimension(:,:,:,:,:) :: gsub_v
+c$$$
+c$$$        type(MG_grid_metrics),pointer :: gmetric 
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$        gmetric => g_def%gmetric
+c$$$
+c$$$        cov = 0d0
+c$$$
+c$$$        ip = min(i+1,size(cnv,1)-1)
+c$$$        im = i-1
+c$$$
+c$$$        jp = min(j+1,size(cnv,2)-1)
+c$$$        jm = j-1
+c$$$
+c$$$        kp = min(k+1,size(cnv,3)-1)
+c$$$        km = k-1
+c$$$
+c$$$        gsub_v => gmetric%grid(igrid)%gsub_v
+c$$$
+c$$$c$$$        if (jm >= 0) then
+c$$$c$$$          gsub11 = 0.5*(gsub_v(i,jm,k,1,1)
+c$$$c$$$     .                 +gsub_v(i,j ,k,1,1))
+c$$$c$$$
+c$$$c$$$          cov(1) = gsub11*cnv(i,j,k,1)
+c$$$c$$$     .                +0.25*(gsub_v(i,j ,k,1,2)*(cnv(i ,j ,k,2)
+c$$$c$$$     .                                          +cnv(ip,j ,k,2))
+c$$$c$$$     .                      +gsub_v(i,jm,k,1,2)*(cnv(i ,jm,k,2)
+c$$$c$$$     .                                          +cnv(ip,jm,k,2)))
+c$$$c$$$        endif
+c$$$        if (jm >= 0.and.km >= 0) then
+c$$$          !i+1/2,j,k
+c$$$          gsub11 = 0.25*(gsub_v(i,jm,k ,1,1)
+c$$$     .                  +gsub_v(i,j ,k ,1,1)
+c$$$     .                  +gsub_v(i,jm,km,1,1)
+c$$$     .                  +gsub_v(i,j ,km,1,1))
+c$$$
+c$$$          cov(1) = gsub11*cnv(i,j,k,1)
+c$$$     .            +0.25*(0.25*gsub_v(i,j ,k ,1,2)*(cnv(i ,j ,k ,2)
+c$$$     .                                            +cnv(ip,j ,k ,2)
+c$$$     .                                            +cnv(i ,j ,kp,2)
+c$$$     .                                            +cnv(ip,j ,kp,2))
+c$$$     .                  +0.25*gsub_v(i,jm,k ,1,2)*(cnv(i ,jm,k ,2)
+c$$$     .                                            +cnv(ip,jm,k ,2)
+c$$$     .                                            +cnv(i ,jm,kp,2)
+c$$$     .                                            +cnv(ip,jm,kp,2))
+c$$$     .                  +0.25*gsub_v(i,j ,km,1,2)*(cnv(i ,j ,k ,2)
+c$$$     .                                            +cnv(ip,j ,k ,2)
+c$$$     .                                            +cnv(i ,j ,km,2)
+c$$$     .                                            +cnv(ip,j ,km,2))
+c$$$     .                  +0.25*gsub_v(i,jm,km,1,2)*(cnv(i ,jm,k ,2)
+c$$$     .                                            +cnv(ip,jm,k ,2)
+c$$$     .                                            +cnv(i ,jm,km,2)
+c$$$     .                                            +cnv(ip,jm,km,2)))
+c$$$     .            +0.25*(0.25*gsub_v(i,j ,k ,1,3)*(cnv(i ,j ,k ,3)
+c$$$     .                                            +cnv(ip,j ,k ,3)
+c$$$     .                                            +cnv(i ,jp,k ,3)
+c$$$     .                                            +cnv(ip,jp,k ,3))
+c$$$     .                  +0.25*gsub_v(i,j ,km,1,3)*(cnv(i ,j ,km,3)
+c$$$     .                                            +cnv(ip,j ,km,3)
+c$$$     .                                            +cnv(i ,jp,km,3)
+c$$$     .                                            +cnv(ip,jp,km,3))
+c$$$     .                  +0.25*gsub_v(i,jm,k ,1,3)*(cnv(i ,j ,k ,3)
+c$$$     .                                            +cnv(ip,j ,k ,3)
+c$$$     .                                            +cnv(i ,jm,k ,3)
+c$$$     .                                            +cnv(ip,jm,k ,3))
+c$$$     .                  +0.25*gsub_v(i,jm,km,1,3)*(cnv(i ,j ,km,3)
+c$$$     .                                            +cnv(ip,j ,km,3)
+c$$$     .                                            +cnv(i ,jm,km,3)
+c$$$     .                                            +cnv(ip,jm,km,3)))
+c$$$        endif
+c$$$
+c$$$c$$$        if (im >= 0) then
+c$$$c$$$          gsub22 = 0.5*(gsub_v(im,j,k,2,2)
+c$$$c$$$     .                 +gsub_v(i ,j,k,2,2))
+c$$$c$$$
+c$$$c$$$          cov(2) = gsub22*cnv(i,j,k,2)
+c$$$c$$$     .                +0.25*(gsub_v(i ,j,k,2,1)*(cnv(i ,j ,k,1)
+c$$$c$$$     .                                          +cnv(i ,jp,k,1))
+c$$$c$$$     .                      +gsub_v(im,j,k,2,1)*(cnv(im,j ,k,1)
+c$$$c$$$     .                                          +cnv(im,jp,k,1)))
+c$$$c$$$        endif
+c$$$        if (im >= 0.and.km >= 0) then
+c$$$          !i,j+1/2,k
+c$$$          gsub22 = 0.25*(gsub_v(im,j,k ,2,2)
+c$$$     .                  +gsub_v(i ,j,k ,2,2)
+c$$$     .                  +gsub_v(im,j,km,2,2)
+c$$$     .                  +gsub_v(i ,j,km,2,2))
+c$$$
+c$$$          cov(2) = gsub22*cnv(i,j,k,2)
+c$$$     .            +0.25*(0.25*gsub_v(i ,j,k ,2,1)*(cnv(i ,j ,k ,1)
+c$$$     .                                            +cnv(i ,jp,k ,1)
+c$$$     .                                            +cnv(i ,j ,kp,1)
+c$$$     .                                            +cnv(i ,jp,kp,1))
+c$$$     .                  +0.25*gsub_v(im,j,k ,2,1)*(cnv(im,j ,k ,1)
+c$$$     .                                            +cnv(im,jp,k ,1)
+c$$$     .                                            +cnv(im,j ,kp,1)
+c$$$     .                                            +cnv(im,jp,kp,1))
+c$$$     .                  +0.25*gsub_v(i ,j,km,2,1)*(cnv(i ,j ,k ,1)
+c$$$     .                                            +cnv(i ,jp,k ,1)
+c$$$     .                                            +cnv(i ,j ,km,1)
+c$$$     .                                            +cnv(i ,jp,km,1))
+c$$$     .                  +0.25*gsub_v(im,j,km,2,1)*(cnv(im,j ,k ,1)
+c$$$     .                                            +cnv(im,jp,k ,1)
+c$$$     .                                            +cnv(im,j ,km,1)
+c$$$     .                                            +cnv(im,jp,km,1)))
+c$$$     .            +0.25*(0.25*gsub_v(i ,j,k ,2,3)*(cnv(i ,j ,k ,3)
+c$$$     .                                            +cnv(ip,j ,k ,3)
+c$$$     .                                            +cnv(i ,jp,k ,3)
+c$$$     .                                            +cnv(ip,jp,k ,3))
+c$$$     .                  +0.25*gsub_v(i ,j,km,2,3)*(cnv(i ,j ,km,3)
+c$$$     .                                            +cnv(ip,j ,km,3)
+c$$$     .                                            +cnv(i ,jp,km,3)
+c$$$     .                                            +cnv(ip,jp,km,3))
+c$$$     .                  +0.25*gsub_v(im,j,k ,2,3)*(cnv(i ,j ,k ,3)
+c$$$     .                                            +cnv(im,j ,k ,3)
+c$$$     .                                            +cnv(i ,jp,k ,3)
+c$$$     .                                            +cnv(im,jp,k ,3))
+c$$$     .                  +0.25*gsub_v(im,j,km,2,3)*(cnv(i ,j ,km,3)
+c$$$     .                                            +cnv(im,j ,km,3)
+c$$$     .                                            +cnv(i ,jp,km,3)
+c$$$     .                                            +cnv(im,jp,km,3)))
+c$$$        endif
+c$$$
+c$$$cc        cov(3) = gmetric%grid(igrid)%gsub(i,j,k,3,3)*cnv(i,j,k,3)
+c$$$        if (im >= 0.and.jm >= 0) then
+c$$$          !i,j,k+1/2
+c$$$          gsub33 = 0.25*(gsub_v(im,j ,k,3,3)
+c$$$     .                  +gsub_v(i ,j ,k,3,3)
+c$$$     .                  +gsub_v(im,jm,k,3,3)
+c$$$     .                  +gsub_v(i ,jm,k,3,3))
+c$$$
+c$$$          cov(3) = gsub33*cnv(i,j,k,3)
+c$$$     .            +0.25*(0.25*gsub_v(i ,j ,k,3,1)*(cnv(i ,j ,k ,1)
+c$$$     .                                            +cnv(i ,j ,kp,1)
+c$$$     .                                            +cnv(i ,jp,k ,1)
+c$$$     .                                            +cnv(i ,jp,kp,1))
+c$$$     .                  +0.25*gsub_v(im,j ,k,3,1)*(cnv(im,j ,k ,1)
+c$$$     .                                            +cnv(im,j ,kp,1)
+c$$$     .                                            +cnv(im,jp,k ,1)
+c$$$     .                                            +cnv(im,jp,kp,1))
+c$$$     .                  +0.25*gsub_v(i ,jm,k,3,1)*(cnv(i ,j ,k ,1)
+c$$$     .                                            +cnv(i ,j ,kp,1)
+c$$$     .                                            +cnv(i ,jm,k ,1)
+c$$$     .                                            +cnv(i ,jm,kp,1))
+c$$$     .                  +0.25*gsub_v(im,jm,k,3,1)*(cnv(im,j ,k ,1)
+c$$$     .                                            +cnv(im,j ,kp,1)
+c$$$     .                                            +cnv(im,jm,k ,1)
+c$$$     .                                            +cnv(im,jm,kp,1)))
+c$$$     .            +0.25*(0.25*gsub_v(i ,j ,k,3,2)*(cnv(i ,j ,k ,2)
+c$$$     .                                            +cnv(ip,j ,k ,2)
+c$$$     .                                            +cnv(i ,j ,kp,2)
+c$$$     .                                            +cnv(ip,j ,kp,2))
+c$$$     .                  +0.25*gsub_v(i ,jm,k,3,2)*(cnv(i ,jm,k ,2)
+c$$$     .                                            +cnv(ip,jm,k ,2)
+c$$$     .                                            +cnv(i ,jm,kp,2)
+c$$$     .                                            +cnv(ip,jm,kp,2))
+c$$$     .                  +0.25*gsub_v(im,j ,k,3,2)*(cnv(i ,j ,k ,2)
+c$$$     .                                            +cnv(im,j ,k ,2)
+c$$$     .                                            +cnv(i ,j ,kp,2)
+c$$$     .                                            +cnv(im,j ,kp,2))
+c$$$     .                  +0.25*gsub_v(im,jm,k,3,2)*(cnv(i ,jm,k ,2)
+c$$$     .                                            +cnv(im,jm,k ,2)
+c$$$     .                                            +cnv(i ,jm,kp,2)
+c$$$     .                                            +cnv(im,jm,kp,2)))
+c$$$        endif
+c$$$
+c$$$      end function XformToCov_stg_ijk
 
 c     XformToCov_vrtx_stg_ijk
 c     #################################################################

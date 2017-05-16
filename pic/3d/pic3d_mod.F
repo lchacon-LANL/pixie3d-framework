@@ -123,8 +123,6 @@ c     Move particles
 
       ntot_pcles = 0
       
-!      write(*,*) 'a'
-
       do isp=1, numspcs
          numpcles = size(spcs(isp)%pcles)
 
@@ -183,8 +181,6 @@ c$$$               print *,"xn ",pcle_nu%x_n
 c$$$               print *,"vn ",pcle_nu%v_n
 c$$$               print *
 c$$$             end if
-
-!             write(*,*) 'b'
 
              !Perform pcle substep
              call ACC_CN_incell_offset(spcs(isp)%q_m

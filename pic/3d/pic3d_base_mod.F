@@ -1648,9 +1648,9 @@ c     Call variables
 
       no_map  = no__map
 
-      nxg = nxd;
-      nyg = nyd;
-      nzg = nzd;
+      nxg = nxd
+      nyg = nyd
+      nzg = nzd
 
       call alloc_map(nxg,nyg,nzg,nxl,nyl,nzl)
 
@@ -3480,8 +3480,6 @@ c     Call variables
 
 c     Begin program
 
-      write(*,*) 'b'
-
       call get_inverse_h(ihx,ihy,ihz)
 
       n_sp = size(spcs)
@@ -3532,8 +3530,6 @@ c     Call variables
 c     Begin program
 
 c     Build GLOBAL 9-point stencil Mass Matrix
-      write(*,*) 'c'
-
 
       call build_mass_matrix(.false.)
 
@@ -4845,7 +4841,7 @@ c     Begin program
      .       'Not enough particles to satisfy minimum per cell of'
      .       ,min_pcles*pgroup
         write (*,'(a,i8,a)')
-     .       ,'Need at least', min_pcles*nxg*nyg*nzg*pgroup,' pcles'
+     .       'Need at least', min_pcles*nxg*nyg*nzg*pgroup,' pcles'
         stop
       endif
 
@@ -4861,8 +4857,8 @@ c     Begin program
      .                     + bnpc_avg! *jac(i,j,k)**(betaj-1d0) + bnpc_avg
             end do
          end do
-      end do      
-      
+      end do
+
 !     Check the total accumulated particles
 
       if(nint(npc_acm(ii)).ne.gtot_np/pgroup) then
@@ -5082,7 +5078,7 @@ c     Begin program
       do ip=1,numpcles
 
         call xform_pcle_idx(spcs(isp)%pcles(ip)%ijk_n,nxg,nyg
-     .                                        ,i_np,j_np,k_np)
+     .                     ,i_np,j_np,k_np)
 
         !VECTOR SIMD
         do j=1,_Npg
@@ -5104,7 +5100,7 @@ c     Begin program
            if(delta) then
              if (    i_np(j)==nxg/2+1
      .          .and.j_np(j)==nyg/2+1
-     .          .and.k_np(j)==nzg/2+1
+cc     .          .and.k_np(j)==nzg/2+1
      .          ) then
                spcs(isp)%pcles(ip)%v_n(j,:)
      .              = spcs(isp)%pcles(ip)%v_n(j,:) + eps_vel(:)
