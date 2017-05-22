@@ -5290,7 +5290,7 @@ c     Begin program
 
 c     Compute div(cov)
 
-      divA = div_stg_mesh(g_def,igrid,cov,iscnv=.false.,bc=.true.)
+      divA = div_stg(g_def,igrid,cov,iscnv=.false.,bc=.true.)
 
 c     Assemble curl(curl) on the mesh
 

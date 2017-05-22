@@ -1606,7 +1606,7 @@ c     Begin program
         jm = max(j-1,0)
         km = max(k-1,0)
 
-        if (covariant) then
+        if (covariant) then  !Covariant
           !i+1/2,j,k
           curv_l(1) = curv(i,j,k,1)
           curv_l(2) = 0.25*(curv(i  ,jm,k,2)
@@ -1676,7 +1676,7 @@ c     Begin program
             cov = cov*jac
           endif
           car(3) = dot_product(curv_l,cov)
-        else
+        else  !Contravariant
           !i+1/2,j,k
           curv_l(1) = curv(i,j,k,1)
           curv_l(2) = 0.25*(curv(i  ,jm,k,2)
