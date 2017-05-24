@@ -96,6 +96,7 @@ c #####################################################################
      .              ,MPI_COMM_Y     =MPI_COMM_NULL
      .              ,MPI_COMM_Z     =MPI_COMM_NULL
      .              ,MPI_COMM_XY    =MPI_COMM_NULL
+     .              ,MPI_COMM_XZ    =MPI_COMM_NULL
      .              ,MPI_COMM_YZ    =MPI_COMM_NULL
      .              ,MPI_COMM_PER(3)=MPI_COMM_NULL
      .              ,MPI_COMM_CRSE  =MPI_COMM_NULL  !Groups procs for coarse MG solve
@@ -643,6 +644,7 @@ c       Copy values
         grid_st2%MPI_COMM_Y   = grid_st1%MPI_COMM_Y     
         grid_st2%MPI_COMM_Z   = grid_st1%MPI_COMM_Z     
         grid_st2%MPI_COMM_XY  = grid_st1%MPI_COMM_XY    
+        grid_st2%MPI_COMM_XZ  = grid_st1%MPI_COMM_XZ    
         grid_st2%MPI_COMM_YZ  = grid_st1%MPI_COMM_YZ    
         grid_st2%MPI_COMM_PER = grid_st2%MPI_COMM_PER
         grid_st2%MPI_COMM_CRSE= grid_st2%MPI_COMM_CRSE
