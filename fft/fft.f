@@ -149,7 +149,6 @@ c Local variables
 
 c Begin program
 
-      pi   =acos(-1d0)
       twopi=2*pi
 
       lx   = (x(nx)-x(1))/(nx-1)*nx
@@ -245,7 +244,6 @@ c Local variables
 
 c Begin program
 
-      pi   =acos(-1d0)
       twopi=2*pi
 
       do i=1,nv

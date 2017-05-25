@@ -25,26 +25,32 @@ cc                print *,i,gip, nint(npc_acm(i))*1
            do ip_ng=1,_Npg
              call unif_rng(rx(ip_ng))
              call unif_rng(ry(ip_ng))
+             call unif_rng(rz(ip_ng))
              call gauss2(rx1(ip_ng))
              call gauss2(rx2(ip_ng))
              call gauss2(rx3(ip_ng))
            enddo
 
            if(ip.le.nip) then
-cc                   xp = 0.00856d0*dtf*rx
              xp = 1d-16
              spcs(is)%pcles(ip)%x_np(:,1) = xp
 
-             yp = hy*rx         !temporary
+             yp = hy*ry
              spcs(is)%pcles(ip)%x_np(:,2) = yp
+
+             zp = hz*rz
+             spcs(is)%pcles(ip)%x_np(:,3) = zp
 
              i = 1
            else
-             xp = hx*rx;
+             xp = hx*rx
              spcs(is)%pcles(ip)%x_np(:,1) = xp
 
-             yp = hy*rx         !temporary
+             yp = hy*ry
              spcs(is)%pcles(ip)%x_np(:,2) = yp
+
+             zp = hz*rz
+             spcs(is)%pcles(ip)%x_np(:,3) = zp
            end if
 
            spcs(is)%pcles(ip)%w_np(:) = 1d0

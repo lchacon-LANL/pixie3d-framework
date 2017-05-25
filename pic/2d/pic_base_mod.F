@@ -3960,7 +3960,7 @@ c     Begin program
      .       'Not enough particles to satisfy minimum per cell of'
      .       ,min_pcles*pgroup
         write (*,'(a,i8,a)')
-     .       ,'Need at least', min_pcles*nxg*nyg*nzg*pgroup,' pcles'
+     .       'Need at least', min_pcles*nxg*nyg*nzg*pgroup,' pcles'
         stop
       endif
 

@@ -10,18 +10,20 @@
 
          ipc0 = 0
 
-         do j = 1,nyg
-           do i = 1,nxg
-             ii = i + nxg*(j-1) 
+         do k = 1,nzg
+           do j = 1,nyg
+             do i = 1,nxg
+               ii = i + nxg*(j-1) + nxg*nyg*(k-1)
 
-!$OMP PARALLEL DEFAULT(SHARED) private(ip,ipc,ip_ng,xp,yp
+!$OMP PARALLEL DEFAULT(SHARED) private(ip,ipc,ip_ng,xp,yp,zp
 !$OMP.                                ,rx1,rx2,rx3)
 !$OMP DO
 cc!$OMP.REDUCTION(+:v_tot,vx2,vt2)
              do ipc = 1, npc_int(ii,is)
 
                xp = hx/npc_int(ii,is)*(ipc-0.5)
-               yp = 0.5*hy
+               yp = hy/npc_int(ii,is)*(ipc-0.5)
+               zp = hz/npc_int(ii,is)*(ipc-0.5)
 
                !Fill particle properties
                ip = ipc0+ipc
@@ -39,7 +41,7 @@ cc!$OMP.REDUCTION(+:v_tot,vx2,vt2)
                    
                spcs(is)%pcles(ip)%x_np(:,2) = yp
 
-               spcs(is)%pcles(ip)%x_np(:,3) = 0d0
+               spcs(is)%pcles(ip)%x_np(:,3) = zp
                    
                spcs(is)%pcles(ip)%w_np(:)   = 1d0
                   
@@ -72,7 +74,8 @@ c$$$     .                   + spcs(is)%pcles(ip)%v_n(3)*spcs(is)%pcles(ip)%v_n(
 !$OMP END DO
 !$OMP END PARALLEL
              ipc0 = ipc0 + npc_int(ii,is)
-           end do               !cell
+           end do               !cell x
          end do                 !cell y
+        end do                  !cell z
        end do !species
 

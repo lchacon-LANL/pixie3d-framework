@@ -919,6 +919,8 @@ c     Coordinate-specific checks
         if (map_grid_pack) numerical_grid = .true.
 
         select case (coords)
+        case ('s3d')
+          numerical_grid = .true.
         case ('car')
           no_map = .not.map_grid_pack
           if (no_map) numerical_grid = .false.
