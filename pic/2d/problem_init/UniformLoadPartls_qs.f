@@ -13,7 +13,8 @@ cc       v_tot = 0d0
            do i = 1,nxg
              ii = i + nxg*(j-1) 
 
-             call HamSeq(npc_int(ii,is),r4,dimt,npc_scan(ii,is))
+             call HamSeq(npc_int(ii,is),r4,dimt,npc_scan(ii,is)
+     $                  ,rank=my_rank,nproc=np)
 
 !$OMP PARALLEL DEFAULT(SHARED) private(ip,ipc,ipl,ip_ng,xp,yp
 !$OMP.    ,rx,rx1,rx2,rx3,vt,signx,signy,signz,ixyz,ipx,ipy,ipz)

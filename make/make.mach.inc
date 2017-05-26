@@ -961,8 +961,17 @@ ifeq ($(findstring wf,$(HOST)),wf)
      ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.10.0/lib-wolf-gcc-5.3.0_openmpi-1.10.5
      ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -llustreapi
      ADIOS_VER  = 1.10.0
-    endif
 
+     SPRNG = f
+
+     SPRNG_PAR_HOME = /turquoise/usr/projects/magreconn/soft/sprng5/lib/wolf-gcc5.3.0-openmpi1.10.5
+     SPRNG_LIBS = $(SPRNG_PAR_HOME)/lib -lsprng -lstdc++ -lm
+     SPRNG_INC  = $(SPRNG_PAR_HOME)/include
+    else
+     HDF5 = f
+     ADIOS = f
+     LIBS += -llapack -lblas
+    endif
   endif
 
   ifeq ($(findstring ifort,$(FC)),ifort)
@@ -993,7 +1002,18 @@ ifeq ($(findstring wf,$(HOST)),wf)
        ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.10.0/lib-wolf-intel-17.0.1_openmpi-1.10.5
        ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -llustreapi
        ADIOS_VER  = 1.10.0
-   endif
+
+       SPRNG = f
+
+       SPRNG_PAR_HOME = /turquoise/usr/projects/magreconn/soft/sprng5/lib/wolf-intel17.0.1-openmpi1.10.5
+       SPRNG_LIBS = $(SPRNG_PAR_HOME)/lib -lsprng -lstdc++ -lm
+       SPRNG_INC  = $(SPRNG_PAR_HOME)/include
+
+    else
+      HDF5 = f
+      ADIOS = f
+      LIBS += -llapack -lblas
+    endif
 
   endif
 
