@@ -1,10 +1,11 @@
-      kx = 2d0*pi*nh1/Lx
-      ky =     pi    /Ly
-
-c$$$      if (bcPER(1)) kx = 2d0*kx
-c$$$      if (bcPER(2)) ky = 2d0*ky
 
       if (eps_pic /= 0d0) then
+
+        kx = 2d0*pi*nh1/Lx
+        ky =     pi    /Ly
+c$$$      if (bcPER(1)) kx = 2d0*kx
+c$$$      if (bcPER(2)) ky = 2d0*ky
+        
         if (mass_matrix_solve) then
 
           !Perturb the momenta
