@@ -1,3 +1,8 @@
+      kx = 2d0*pi*nh1/Lx
+      ky =     pi    /Ly
+
+c$$$      if (bcPER(1)) kx = 2d0*kx
+c$$$      if (bcPER(2)) ky = 2d0*ky
 
       if (eps_pic /= 0d0) then
         if (mass_matrix_solve) then
@@ -10,8 +15,8 @@
      .            + 0.5*eps_pic*sign(1d0,spcs(isp)%q)
      .                     *((2d0*dble(nh1)/Lx)**2
      $                     + (    dble(nh2)/Ly)**2)*pi*pi
-     $             *sin(    pi    *(pyy(j)-ymin)/Ly)
-     .             *cos(2d0*pi*nh1*(pxx(i)-xmin)/Lx)
+     $             *sin(ky*(pyy(j)-ymin))
+     .             *cos(kx*(pxx(i)-xmin))
               enddo
             end do
           end do
@@ -20,12 +25,6 @@
 
           !Perturb particles
           do isp = 1,n_sp
-
-            kx = pi*dble(nh1)/Lx
-            ky = pi*dble(nh2)/Ly
-
-            if (bcPER(1)) kx = 2d0*kx
-            if (bcPER(2)) ky = 2d0*ky
 
             do ip=1,size(spcs(isp)%pcles)
              
