@@ -3465,7 +3465,7 @@ cc      use pic_io
 
       real(8) :: C_bkgrnd(nsp_max)=0d0     !Density percentage of background particles
 
-      real(8) :: v_thx(nsp_max)=0d0        !Thermal velocity
+      real(8) :: v_thx(nsp_max)=0d0        !Thermal velocity (sqrt(T/m))
      .          ,v_thy(nsp_max)=0d0        !Thermal velocity
      .          ,v_thz(nsp_max)=0d0        !Thermal velocity
      .          ,v0_x (nsp_max)=0d0        !Drift velocity
