@@ -1437,11 +1437,11 @@ c     Output
       write(funit,*)
 
       if (my_rank == 0) then
-        write(*    ,*)
-        write(*    ,*) '**********************************'
-        write(*    ,*) 'Dumping grid debugging graphics...'
-        write(*    ,*) '**********************************'
-        write(*    ,*)
+        write(*  ,*)
+        write(*  ,*) '**********************************'
+        write(*  ,*) 'Dumping grid debugging graphics...'
+        write(*  ,*) '**********************************'
+        write(*  ,*)
       endif
 
       dump_diff = anal_map.and.numerical_grid.and.(.not.map_grid_pack)
@@ -1648,9 +1648,16 @@ cc     .              *gdef%gmetric%grid(igrid)%jac_v(i,j,k)
      .                          ,drawfile)
         endif
 
-        enddo
-      enddo
+        enddo      !k loop
+     
+      enddo        !Grid level loop
 
+      if (my_rank == 0) then
+        write(*,*)
+        write(*,*) 'Done!'
+        write(*,*) 
+      endif
+      
       write(funit,*)
       write(funit,*) 'Done!'
       write(funit,*) 

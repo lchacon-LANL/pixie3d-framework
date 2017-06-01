@@ -1232,7 +1232,13 @@ c     ---------------------------------------------------------------
 
         implicit none
 
+c     Call variables
+
         character(*)  :: routine, message
+
+c     Local variables
+
+        integer :: ierr
 
 c     Begin program
 
@@ -1247,10 +1253,12 @@ c     Call SAMRAI's error handler
         end interface
         call pstop_samrai(trim(routine),trim(message))
 #else
-c     Call error handler
+c     Call local error handler
         
+#if defined(petsc)
+        call PetscFinalize(ierr)
+#endif
         call sstop(my_rank,routine,message)
-
 #endif
 
       end subroutine pstop
