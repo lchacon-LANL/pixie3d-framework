@@ -1024,6 +1024,16 @@ c     Begin program
           write (funit,*)
           write (funit,*)
 
+          if (my_rank == 0) then
+            write (*,*)
+            write (*,*)'*************************************'
+            write (*,*)'Grid check in COARSE grid level '
+     .             //trim(int2char(il))
+            write (*,*)'*************************************'
+            write (*,*)
+            write (*,*)
+          endif
+          
           call MGcheck
 
           call numericalGridCoeffsCheck
@@ -1431,16 +1441,12 @@ c     Begin program
 c     Output
 
       write(funit,*)
-      write(funit,*) '**********************************'
       write(funit,*) 'Dumping grid debugging graphics...'
-      write(funit,*) '**********************************'
       write(funit,*)
 
       if (my_rank == 0) then
         write(*  ,*)
-        write(*  ,*) '**********************************'
         write(*  ,*) 'Dumping grid debugging graphics...'
-        write(*  ,*) '**********************************'
         write(*  ,*)
       endif
 
@@ -1449,17 +1455,19 @@ cc      dump_diff = .false.
 
       if (dump_diff) then
         if (my_rank == 0)
-     .    write(*    ,*)'Analytical mapping available; dumping diffs...'
-        write(funit,*)'Analytical mapping available; dumping diffs...'
+     .    write(*    ,*)
+     .       '>> Analytical mapping available; dumping diffs...'
+        write(funit,*)
+     .       '>> Analytical mapping available; dumping diffs...'
       else
         if (.not.numerical_grid) then
           if (my_rank == 0)
-     .      write(*    ,*)'Dumping analytical qtys...'
-          write(funit,*)'Dumping analytical qtys...'
+     .      write(*    ,*)'>> Dumping analytical qtys...'
+          write(funit,*)'>> Dumping analytical qtys...'
         else
           if (my_rank == 0)
-     .      write(*    ,*)'Dumping numerical qtys...'
-          write(funit,*)'Dumping numerical qtys...'
+     .      write(*    ,*)'>> Dumping numerical qtys...'
+          write(funit,*)'>> Dumping numerical qtys...'
         endif
       endif
       write(funit,*)

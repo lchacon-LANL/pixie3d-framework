@@ -100,7 +100,7 @@ c     -----------------------------------------------------------------
 
       type(grid_mg_def),pointer :: gdef
 
-      integer :: nn(3),dim,ibc
+      integer :: nn(3),dim
       real(8) :: lmin(3),lmax(3),idh
 
       nn(1) = gdef%nglx
@@ -125,8 +125,7 @@ c     -----------------------------------------------------------------
 
           g_pack(dim) = gdef%g_pack(dim) !Save config
 
-          ibc  = 1+2*(dim-1)
-          if ((bcond(ibc)/=PER).and.(.not.g_pack(dim)%pack_both_bdrys))
+          if ((.not.bcPER(dim)).and.(.not.g_pack(dim)%pack_both_bdrys))
      .       eta(dim)=find_eta(lmin(dim),lmax(dim)
      .                        ,g_pack(dim)%xp,g_pack(dim)%slope)
         endif
@@ -239,7 +238,7 @@ c     Call variables
 
 c     Local variables
 
-        integer :: ibc,nn
+        integer :: nn
 
         real(8) :: gp(2),lmin,lmax,TT,bb
 
@@ -251,8 +250,6 @@ c     Begin program
           xlog = x1
           return
         endif
-
-        ibc  = 1+2*(dim-1)
 
 c     Grid packing configuration: slope gp(2) at given position gp(1)
 
@@ -285,7 +282,7 @@ c     Grid packing configuration: slope gp(2) at given position gp(1)
 
 c     Packing
 
-        if (bcond(ibc) == PER) then !cosine jacobian
+        if (bcPER(dim)) then !cosine jacobian
           bb = abs(1.-gp(2))
           if (bb >= 1d0) then
             write (*,*) 'Slope too small along ',dim,' coordinate'
