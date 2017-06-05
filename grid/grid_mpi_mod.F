@@ -2188,7 +2188,7 @@ c$$$      end subroutine find_global_vec
 c     dumpGlobalField
 c     #################################################################
       subroutine dumpGlobalField(g_def,file,nx,ny,nz,nxg,nyg,nzg,arr
-     .                          ,flg)
+     .                          ,flg,no_bc)
 
       use io, ONLY: find_unit
 
@@ -2208,14 +2208,22 @@ c     Call variables
       integer :: nx,ny,nz,nxg,nyg,nzg,flg,mpi_comm
       real(8) :: arr(0:nx+1,0:ny+1,0:nz+1)
       character(*) :: file
+      logical, optional :: no_bc
 
 c     Local variables
 
       integer :: unit
       real(8),allocatable,dimension(:,:,:) :: dbg
       real(8) :: xmin,xmax,ymin,ymax,zmin,zmax
+      logical :: nobc
 
 c     Begin program
+
+      if (PRESENT(no_bc)) then
+        nobc = no_bc
+      else
+        nobc = .true.
+      endif
 
       xmin = g_def%gxmin
       xmax = g_def%gxmax
@@ -2241,16 +2249,27 @@ c     Begin program
         
       allocate(dbg(0:nxg+1,0:nyg+1,0:nzg+1))
 
-      call find_global_nobc(arr(1:nx ,1:ny ,1:nz )
-     .                     ,dbg(1:nxg,1:nyg,1:nzg)
+      if (nobc) then
+        call find_global_nobc(arr(1:nx ,1:ny ,1:nz )
+     .                       ,dbg(1:nxg,1:nyg,1:nzg)
 #if defined(petsc)
-     .                     ,mpi_comm=g_def%mpi_comm
+     .                       ,mpi_comm=g_def%mpi_comm
 #endif
-     .                     )
-
-      if (my_rank == 0) then
-        call contour(dbg(1:nxg,1:nyg,1),nxg,nyg
-     .              ,xmin,xmax,ymin,ymax,flg,unit)
+     .                       )
+        if (my_rank == 0) then
+          call contour(dbg(1:nxg,1:nyg,1),nxg,nyg
+     .                ,xmin,xmax,ymin,ymax,flg,unit)
+        endif
+      else
+        call find_global(arr,dbg
+#if defined(petsc)
+     .                  ,mpi_comm=g_def%mpi_comm
+#endif
+     .                  )
+        if (my_rank == 0) then
+          call contour(dbg(:,:,1),nxg+2,nyg+2
+     .                ,xmin,xmax,ymin,ymax,flg,unit)
+        endif
       endif
 
       deallocate(dbg)

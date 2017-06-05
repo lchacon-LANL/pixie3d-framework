@@ -1758,6 +1758,196 @@ c     End program
 
       end subroutine imposeBConVector
 
+c     imposeBConVector_ez
+c     #################################################################
+      subroutine imposeBConVector_ez(gbc_def,igrid,vec,is_cnv,bcnd
+     .                              ,iorder)
+c     -----------------------------------------------------------------
+c     Imposes BC on vector field (easy interface: no cov-cnv coupling)
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: gbc_def
+
+      integer :: bcnd(:,:),igrid,iorder
+      real(8) :: vec (0:,0:,0:,:)
+
+      logical :: is_cnv
+
+c     Local variables
+
+      integer    :: i,j,k,imax,imin,jmax,jmin,kmax,kmin,nx,ny,nz
+      integer    :: ncomp,ivar,ibc,loc,dim,bctype,xtrap_o
+     .             ,ilmin,jlmin,klmin,ilmax,jlmax,klmax
+      logical    :: petsc__bc
+
+      real(8),pointer :: vec0(:,:,:,:)
+
+#if defined(petsc)
+      type(petsc_da_ctx),pointer :: da_ctx
+#endif
+
+c     Begin program
+
+      nx = size(vec,1)-2
+      ny = size(vec,2)-2
+      nz = size(vec,3)-2
+      ncomp = size(vec,4)
+
+      allocate(vec0(0:nx+1,0:ny+1,0:nz+1,3))
+      vec0 = 0d0
+
+c     Initialize BC grid quantities
+
+      igxbc = igrid
+      igybc = igrid
+      igzbc = igrid
+
+      nxbc = nx
+      nybc = ny
+      nzbc = nz
+
+c     Initialize GLOBAL limits
+
+      iimin = gbc_def%ilo(igxbc)
+      iimax = gbc_def%ihi(igxbc)
+      jjmin = gbc_def%jlo(igybc)
+      jjmax = gbc_def%jhi(igybc)
+      kkmin = gbc_def%klo(igzbc)
+      kkmax = gbc_def%khi(igzbc)
+
+#if defined(samrai)
+      iimnm =  iimin 
+      iimxp =  iimax
+      jjmnm =  jjmin
+      jjmxp =  jjmax
+      kkmnm =  kkmin
+      kkmxp =  kkmax
+#else
+      iimnm =  max(iimin - 1,0)  
+      iimxp =  min(iimax + 1,gbc_def%nxgl(igxbc)+1)
+      jjmnm =  max(jjmin - 1,0)  
+      jjmxp =  min(jjmax + 1,gbc_def%nygl(igybc)+1)
+      kkmnm =  max(kkmin - 1,0)  
+      kkmxp =  min(kkmax + 1,gbc_def%nzgl(igzbc)+1)
+#endif
+
+c     Fill PETSc ghost cells and PER BCs
+
+#if defined(petsc) && !defined(samrai)
+      !Determine whether we need to fill ghost cells using PETSc
+      petsc__bc = (.not.asm)
+
+      !Fill ghost cells
+      if (petsc__bc) then
+        da_ctx => gbc_def%dactx(igxbc)
+
+        do ivar=1,ncomp
+          call fillPetscGhostCells(da_ctx,vec(:,:,:,ivar))
+        enddo
+      endif
+#elif !defined(samrai)
+      call sync_bc(.true.)
+#endif
+
+      if (bcPER(1).and.bcPER(2).and.bcPER(3)) return
+
+c     Impose physical BCs
+
+      do bctype=2,BCLIM             !Do not do PER=1; already done 
+        do dim=1,3
+          do loc=0,1
+            ibc = (1+loc)+2*(dim-1)
+
+            do ivar = 1,ncomp
+              if (abs(bcnd(ibc,ivar)) == bctype) then
+                call FillGhostNodes_vec(gbc_def,0,ivar,ncomp,dim,loc
+     .                                 ,bctype,vec,vec0,cnv=is_cnv)
+              endif
+            enddo
+
+          enddo
+        enddo
+      enddo
+
+c     Fill edges 
+
+      xtrap_o = max(2,order)
+
+      do ivar=1,ncomp
+        call fillEdges(gbc_def,vec(:,:,:,ivar),vec0(:,:,:,ivar)
+     .                ,bcnd(:,ivar),xtrap_o)
+      enddo
+
+c     Fill corners 
+
+      do ivar=1,ncomp
+        call fillCorners(gbc_def,vec(:,:,:,ivar),bcnd(:,ivar),xtrap_o)
+      enddo
+
+c     Periodic boundary synchronizing
+
+#if defined(PER_BC_SYNC) && !defined(samrai)
+      call sync_bc(.false.)
+#endif
+
+      deallocate(vec0)
+
+c     End program
+
+      contains
+
+c     sync_bc
+c     #################################################################
+      subroutine sync_bc(only_per)
+
+c     Call variables
+
+      logical :: only_per
+
+c     Local variables
+      
+c     Begin program
+
+      !Periodic: order by dimension first
+      do dim=1,3
+        do loc=0,1
+          ibc = (1+loc)+2*(dim-1)
+
+          do ivar = 1,ncomp
+            if (abs(bcnd(ibc,ivar)) == PER) then
+              call FillGhostNodes_vec(gbc_def,0,ivar,ncomp,dim,loc
+     .                               ,PER,vec,vec0,cnv=is_cnv)
+            endif
+          enddo
+
+        enddo
+      enddo
+
+      if (only_per) return
+
+      !Other: order by location first
+      do loc=0,1
+        do dim=1,3
+          ibc = (1+loc)+2*(dim-1)
+
+          do ivar = 1,ncomp
+            if (abs(bcnd(ibc,ivar)) /= PER) then
+              call FillGhostNodes_vec(gbc_def,0,ivar,ncomp,dim,loc
+     .                               ,SYNC,vec,vec0,cnv=is_cnv)
+            endif
+          enddo
+
+        enddo
+      enddo
+
+      end subroutine sync_bc
+
+      end subroutine imposeBConVector_ez
+
 c     imposeBConVector_stg
 c     #################################################################
       subroutine imposeBConVector_stg(gbc_def,fcomp,ncomp,nx,ny,nz
@@ -2358,7 +2548,7 @@ c     End
 c     fillGhostNodes_vec
 c     ###############################################################
       subroutine fillGhostNodes_vec(gbc_def,ieq,ivar,nvar,dim,loc,bctype
-     .                         ,array,array0,cnv)
+     .                             ,array,array0,cnv)
 
 c     ---------------------------------------------------------------
 c     Sets adequate boundary conditions on array.
@@ -2621,11 +2811,16 @@ c     ################################################################
 
       integer :: flg,i
 
+      logical :: down,up,top,bottom
+
       i = 0
 
+      down = .false. ; up = .false. ; top = .false. ; bottom = .false.
+      
       !Down
       dest = pn(0,-1,0)
       if (dest /= currp) then
+        down = (dest /= nullp)
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumzout1,(nzbc+2)
@@ -2645,6 +2840,7 @@ c     ################################################################
       !Up
       dest = pn(0,1,0)
       if (dest /= currp) then
+        up = (dest /= nullp)
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumzout2,(nzbc+2)
@@ -2664,6 +2860,7 @@ c     ################################################################
       !Bottom
       dest = pn(0,0,-1)
       if (dest /= currp) then
+        bottom = (dest /= nullp)
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumyout1,(nybc+2)
@@ -2683,6 +2880,7 @@ c     ################################################################
       !Top
       dest = pn(0,0,1)
       if (dest /= currp) then
+        top = (dest /= nullp)
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumyout2,(nybc+2)
@@ -2702,14 +2900,47 @@ c     ################################################################
       if(ireq>0.and.flg==1) then
         call MPI_Waitall(ireq,request,status,mpierr)
 
-        if (pn( 0,-1, 0)/=nullp.and.pn( 0,-1, 0)/=currp)
-     .       array(i,0     ,0:nzbc+1) = dumzout1
-        if (pn( 0, 1, 0)/=nullp.and.pn( 0, 1, 0)/=currp)
-     .       array(i,nybc+1,0:nzbc+1) = dumzout2
-        if (pn( 0, 0,-1)/=nullp.and.pn( 0, 0,-1)/=currp)
-     .       array(i,0:nybc+1,0     ) = dumyout1
-        if (pn( 0, 0, 1)/=nullp.and.pn( 0, 0, 1)/=currp)
-     .       array(i,0:nybc+1,nzbc+1) = dumyout2
+c$$$        if (pn( 0,-1, 0)/=nullp.and.pn( 0,-1, 0)/=currp)
+c$$$     .       array(i,0     ,0:nzbc+1) = dumzout1
+c$$$        if (pn( 0, 1, 0)/=nullp.and.pn( 0, 1, 0)/=currp)
+c$$$     .       array(i,nybc+1,0:nzbc+1) = dumzout2
+c$$$        if (pn( 0, 0,-1)/=nullp.and.pn( 0, 0,-1)/=currp)
+c$$$     .       array(i,0:nybc+1,0     ) = dumyout1
+c$$$        if (pn( 0, 0, 1)/=nullp.and.pn( 0, 0, 1)/=currp)
+c$$$     .       array(i,0:nybc+1,nzbc+1) = dumyout2
+
+        if (down) then
+          if (pn(0,-1,0)==pn(0,1,0)) then  !Special case where both neighbors are same proc (PER)
+            array(i,0     ,0:nzbc+1) = dumzout2
+          else
+            array(i,0     ,0:nzbc+1) = dumzout1
+          endif
+        endif
+
+        if (up) then
+          if (pn(0,-1,0)==pn(0,1,0)) then
+            array(i,nybc+1,0:nzbc+1) = dumzout1
+          else
+            array(i,nybc+1,0:nzbc+1) = dumzout2
+          endif
+        endif
+
+        if (bottom) then
+          if (pn(0,0,-1)==pn(0,0,1)) then
+            array(i,0:nybc+1,0     ) = dumyout2
+          else
+            array(i,0:nybc+1,0     ) = dumyout1
+          endif
+        endif
+
+        if (top) then
+          if (pn(0,0,-1)==pn(0,0,1)) then
+            array(i,0:nybc+1,nzbc+1) = dumyout1
+          else
+            array(i,0:nybc+1,nzbc+1) = dumyout2
+          endif
+        endif
+
       endif
 
       end subroutine l0d1
@@ -2722,11 +2953,16 @@ c     ################################################################
 
       integer :: flg,i
 
+      logical :: down,up,top,bottom
+
       i = nxbc+1
+
+      down = .false. ; up = .false. ; top = .false. ; bottom = .false.
 
       !Up
       dest = pn(0,1,0)
       if (dest /= currp) then
+        up = (dest /= nullp)
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumzout1,(nzbc+2)
@@ -2746,6 +2982,7 @@ c     ################################################################
       !Down
       dest = pn(0,-1,0)
       if (dest /= currp) then
+        down = (dest /= nullp)
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumzout2,(nzbc+2)
@@ -2765,6 +3002,7 @@ c     ################################################################
       !Top
       dest = pn(0,0,1)
       if (dest /= currp) then
+        top = (dest /= nullp)
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumyout1,(nybc+2)
@@ -2784,6 +3022,7 @@ c     ################################################################
       !Bottom
       dest = pn(0,0,-1)
       if (dest /= currp) then
+        bottom = (dest /= nullp)
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumyout2,(nybc+2)
@@ -2803,14 +3042,47 @@ c     ################################################################
       if(ireq>0.and.flg==1) then
         call MPI_Waitall(ireq,request,status,mpierr)
 
-        if (pn( 0, 1, 0)/=nullp.and.pn( 0, 1, 0)/=currp)
-     .       array(i,nybc+1,0:nzbc+1) = dumzout1
-        if (pn( 0,-1, 0)/=nullp.and.pn( 0,-1, 0)/=currp)
-     .       array(i,0     ,0:nzbc+1) = dumzout2
-        if (pn( 0, 0, 1)/=nullp.and.pn( 0, 0, 1)/=currp)
-     .       array(i,0:nybc+1,nzbc+1) = dumyout1
-        if (pn( 0, 0,-1)/=nullp.and.pn( 0, 0,-1)/=currp)
-     .       array(i,0:nybc+1,0     ) = dumyout2
+c$$$        if (pn( 0, 1, 0)/=nullp.and.pn( 0, 1, 0)/=currp)
+c$$$     .       array(i,nybc+1,0:nzbc+1) = dumzout1
+c$$$        if (pn( 0,-1, 0)/=nullp.and.pn( 0,-1, 0)/=currp)
+c$$$     .       array(i,0     ,0:nzbc+1) = dumzout2
+c$$$        if (pn( 0, 0, 1)/=nullp.and.pn( 0, 0, 1)/=currp)
+c$$$     .       array(i,0:nybc+1,nzbc+1) = dumyout1
+c$$$        if (pn( 0, 0,-1)/=nullp.and.pn( 0, 0,-1)/=currp)
+c$$$     .       array(i,0:nybc+1,0     ) = dumyout2
+
+        if (down) then
+          if (pn(0,-1,0)==pn(0,1,0)) then
+            array(i,0     ,0:nzbc+1) = dumzout2
+          else
+            array(i,0     ,0:nzbc+1) = dumzout1
+          endif
+        endif
+
+        if (up) then
+          if (pn(0,-1,0)==pn(0,1,0)) then
+            array(i,nybc+1,0:nzbc+1) = dumzout1
+          else
+            array(i,nybc+1,0:nzbc+1) = dumzout2
+          endif
+        endif
+
+        if (bottom) then
+          if (pn(0,0,-1)==pn(0,0,1)) then
+            array(i,0:nybc+1,0     ) = dumyout2
+          else
+            array(i,0:nybc+1,0     ) = dumyout1
+          endif
+        endif
+
+        if (top) then
+          if (pn(0,0,-1)==pn(0,0,1)) then
+            array(i,0:nybc+1,nzbc+1) = dumyout1
+          else
+            array(i,0:nybc+1,nzbc+1) = dumyout2
+          endif
+        endif
+
       endif
 
       end subroutine l1d1
@@ -2823,11 +3095,16 @@ c     ################################################################
       
       integer :: flg,j
 
+      logical :: left,right,top,bottom
+
       j = 0
+
+      left = .false. ; right = .false. ; top = .false. ; bottom =.false.
 
       !Left
       dest = pn(-1,0,0)
       if (dest /= currp) then
+        left = (dest /= nullp)
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumzout1,(nzbc+2)
@@ -2847,6 +3124,7 @@ c     ################################################################
       !Right
       dest = pn(1,0,0)
       if (dest /= currp) then
+        right = (dest /= nullp)
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumzout2,(nzbc+2)
@@ -2866,6 +3144,7 @@ c     ################################################################
       !Bottom
       dest = pn(0,0,-1)
       if (dest /= currp) then
+        bottom = (dest /= nullp)
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumxout1,(nxbc+2)
@@ -2885,6 +3164,7 @@ c     ################################################################
       !Top
       dest = pn(0,0,1)
       if (dest /= currp) then
+        top = (dest /= nullp)
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumxout2,(nxbc+2)
@@ -2904,14 +3184,46 @@ c     ################################################################
       if(ireq>0.and.flg==1) then
         call MPI_Waitall(ireq,request,status,mpierr)
 
-        if (pn(-1, 0, 0)/=nullp.and.pn(-1, 0, 0)/=currp)
-     .       array(0     ,j,0:nzbc+1) = dumzout1
-        if (pn( 1, 0, 0)/=nullp.and.pn( 1, 0, 0)/=currp)
-     .       array(nxbc+1,j,0:nzbc+1) = dumzout2
-        if (pn( 0, 0,-1)/=nullp.and.pn( 0, 0,-1)/=currp)
-     .       array(0:nxbc+1,j,0     ) = dumxout1
-        if (pn( 0, 0, 1)/=nullp.and.pn( 0, 0, 1)/=currp)
-     .       array(0:nxbc+1,j,nzbc+1) = dumxout2
+c$$$        if (pn(-1, 0, 0)/=nullp.and.pn(-1, 0, 0)/=currp)
+c$$$     .       array(0     ,j,0:nzbc+1) = dumzout1
+c$$$        if (pn( 1, 0, 0)/=nullp.and.pn( 1, 0, 0)/=currp)
+c$$$     .       array(nxbc+1,j,0:nzbc+1) = dumzout2
+c$$$        if (pn( 0, 0,-1)/=nullp.and.pn( 0, 0,-1)/=currp)
+c$$$     .       array(0:nxbc+1,j,0     ) = dumxout1
+c$$$        if (pn( 0, 0, 1)/=nullp.and.pn( 0, 0, 1)/=currp)
+c$$$     .       array(0:nxbc+1,j,nzbc+1) = dumxout2
+
+        if (left) then
+          if (pn(-1,0,0)==pn(1,0,0)) then
+            array(0     ,j,0:nzbc+1) = dumzout2
+          else
+            array(0     ,j,0:nzbc+1) = dumzout1
+          endif
+        endif
+
+        if (right) then
+          if (pn(-1,0,0)==pn(1,0,0)) then
+            array(nxbc+1,j,0:nzbc+1) = dumzout1
+          else
+            array(nxbc+1,j,0:nzbc+1) = dumzout2
+          endif
+        endif
+
+        if (bottom) then
+          if (pn(0,0,-1)==pn(0,0,1)) then
+            array(0:nxbc+1,j,0     ) = dumxout2
+          else
+            array(0:nxbc+1,j,0     ) = dumxout1
+          endif
+        endif
+
+        if (top) then
+          if (pn(0,0,-1)==pn(0,0,1)) then
+            array(0:nxbc+1,j,nzbc+1) = dumxout1
+          else
+            array(0:nxbc+1,j,nzbc+1) = dumxout2
+          endif
+        endif
       endif
 
       end subroutine l0d2
@@ -2924,11 +3236,16 @@ c     ################################################################
 
       integer :: flg,j
  
+      logical :: left,right,top,bottom
+
       j = nybc+1
+
+      left = .false. ; right = .false. ; top = .false. ; bottom =.false.
 
       !Left
       dest = pn(-1,0,0)
       if (dest /= currp) then
+        left = (dest /= nullp)
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumzout1,(nzbc+2)
@@ -2948,6 +3265,7 @@ c     ################################################################
       !Right
       dest = pn(1,0,0)
       if (dest /= currp) then
+        right = (dest /= nullp)
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumzout2,(nzbc+2)
@@ -2967,6 +3285,7 @@ c     ################################################################
       !Bottom
       dest = pn(0,0,-1)
       if (dest /= currp) then
+        bottom = (dest /= nullp)
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumxout1,(nxbc+2)
@@ -2986,6 +3305,7 @@ c     ################################################################
       !Top
       dest = pn(0,0,1)
       if (dest /= currp) then
+        top = (dest /= nullp)
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumxout2,(nxbc+2)
@@ -3005,14 +3325,47 @@ c     ################################################################
       if(ireq>0.and.flg==1) then
         call MPI_Waitall(ireq,request,status,mpierr)
 
-        if (pn(-1, 0, 0)/=nullp.and.pn(-1, 0, 0)/=currp)
-     .       array(0     ,j,0:nzbc+1) = dumzout1
-        if (pn( 1, 0, 0)/=nullp.and.pn( 1, 0, 0)/=currp)
-     .       array(nxbc+1,j,0:nzbc+1) = dumzout2
-        if (pn( 0, 0,-1)/=nullp.and.pn( 0, 0,-1)/=currp)
-     .       array(0:nxbc+1,j,0     ) = dumxout1
-        if (pn( 0, 0, 1)/=nullp.and.pn( 0, 0, 1)/=currp)
-     .       array(0:nxbc+1,j,nzbc+1) = dumxout2
+c$$$        if (pn(-1, 0, 0)/=nullp.and.pn(-1, 0, 0)/=currp)
+c$$$     .       array(0     ,j,0:nzbc+1) = dumzout1
+c$$$        if (pn( 1, 0, 0)/=nullp.and.pn( 1, 0, 0)/=currp)
+c$$$     .       array(nxbc+1,j,0:nzbc+1) = dumzout2
+c$$$        if (pn( 0, 0,-1)/=nullp.and.pn( 0, 0,-1)/=currp)
+c$$$     .       array(0:nxbc+1,j,0     ) = dumxout1
+c$$$        if (pn( 0, 0, 1)/=nullp.and.pn( 0, 0, 1)/=currp)
+c$$$     .       array(0:nxbc+1,j,nzbc+1) = dumxout2
+
+        if (left) then
+          if (pn(-1,0,0)==pn(1,0,0)) then
+            array(0     ,j,0:nzbc+1) = dumzout2
+          else
+            array(0     ,j,0:nzbc+1) = dumzout1
+          endif
+        endif
+
+        if (right) then
+          if (pn(-1,0,0)==pn(1,0,0)) then
+            array(nxbc+1,j,0:nzbc+1) = dumzout1
+          else
+            array(nxbc+1,j,0:nzbc+1) = dumzout2
+          endif
+        endif
+
+        if (bottom) then
+          if (pn(0,0,-1)==pn(0,0,1)) then
+            array(0:nxbc+1,j,0     ) = dumxout2
+          else
+            array(0:nxbc+1,j,0     ) = dumxout1
+          endif
+        endif
+
+        if (top) then
+          if (pn(0,0,-1)==pn(0,0,1)) then
+            array(0:nxbc+1,j,nzbc+1) = dumxout1
+          else
+            array(0:nxbc+1,j,nzbc+1) = dumxout2
+          endif
+        endif
+
       endif
 
       end subroutine l1d2
@@ -3025,11 +3378,16 @@ c     ################################################################
 
       integer :: flg,k
 
+      logical :: left,right,down,up
+
       k = 0
+
+      left = .false. ; right = .false. ; down = .false. ; up = .false.
 
       !Left
       dest = pn(-1,0,0)
       if (dest /= currp) then
+        left = (dest /= nullp)
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumyout1,(nybc+2)
@@ -3049,6 +3407,7 @@ c     ################################################################
       !Right
       dest = pn(1,0,0)
       if (dest /= currp) then
+        right = (dest /= nullp)
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumyout2,(nybc+2)
@@ -3068,6 +3427,7 @@ c     ################################################################
       !Down
       dest = pn(0,-1,0)
       if (dest /= currp) then
+        down = (dest /= nullp)
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumxout1,(nxbc+2)
@@ -3087,6 +3447,7 @@ c     ################################################################
       !Up
       dest = pn(0,1,0)
       if (dest /= currp) then
+        up = (dest /= nullp)
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumxout2,(nxbc+2)
@@ -3106,14 +3467,47 @@ c     ################################################################
       if(ireq>0.and.flg==1) then
         call MPI_Waitall(ireq,request,status,mpierr)
  
-        if (pn(-1, 0, 0)/=nullp.and.pn(-1, 0, 0)/=currp)
-     .       array(0     ,0:nybc+1,k) = dumyout1
-        if (pn( 1, 0, 0)/=nullp.and.pn( 1, 0, 0)/=currp)
-     .       array(nxbc+1,0:nybc+1,k) = dumyout2
-        if (pn( 0,-1, 0)/=nullp.and.pn( 0,-1, 0)/=currp)
-     .       array(0:nxbc+1,0     ,k) = dumxout1
-        if (pn( 0, 1, 0)/=nullp.and.pn( 0, 1, 0)/=currp)
-     .       array(0:nxbc+1,nybc+1,k) = dumxout2
+c$$$        if (pn(-1, 0, 0)/=nullp.and.pn(-1, 0, 0)/=currp)
+c$$$     .       array(0     ,0:nybc+1,k) = dumyout1
+c$$$        if (pn( 1, 0, 0)/=nullp.and.pn( 1, 0, 0)/=currp)
+c$$$     .       array(nxbc+1,0:nybc+1,k) = dumyout2
+c$$$        if (pn( 0,-1, 0)/=nullp.and.pn( 0,-1, 0)/=currp)
+c$$$     .       array(0:nxbc+1,0     ,k) = dumxout1
+c$$$        if (pn( 0, 1, 0)/=nullp.and.pn( 0, 1, 0)/=currp)
+c$$$     .       array(0:nxbc+1,nybc+1,k) = dumxout2
+
+        if (left) then
+          if (pn(-1,0,0)==pn(1,0,0)) then
+            array(0     ,0:nybc+1,k) = dumyout2
+          else
+            array(0     ,0:nybc+1,k) = dumyout1
+          endif
+        endif
+
+        if (right) then
+          if (pn(-1,0,0)==pn(1,0,0)) then
+            array(nxbc+1,0:nybc+1,k) = dumyout1
+          else
+            array(nxbc+1,0:nybc+1,k) = dumyout2
+          endif
+        endif
+
+        if (down) then
+          if (pn(0,-1,0)==pn(0,1,0)) then
+            array(0:nxbc+1,0     ,k) = dumxout2
+          else
+            array(0:nxbc+1,0     ,k) = dumxout1
+          endif
+        endif
+
+        if (up) then
+          if (pn(0,-1,0)==pn(0,1,0)) then
+            array(0:nxbc+1,nybc+1,k) = dumxout1
+          else
+            array(0:nxbc+1,nybc+1,k) = dumxout2
+          endif
+        endif
+
       endif
       
       end subroutine l0d3
@@ -3126,11 +3520,16 @@ c     ################################################################
 
       integer :: flg,k
 
+      logical :: left,right,down,up
+
       k = nzbc+1
+
+      left = .false. ; right = .false. ; down = .false. ; up = .false.
 
       !Left
       dest = pn(-1,0,0)
       if (dest /= currp) then
+        left = (dest /= nullp)
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumyout1,(nybc+2)
@@ -3150,6 +3549,7 @@ c     ################################################################
       !Right
       dest = pn(1,0,0)
       if (dest /= currp) then
+        right = (dest /= nullp)
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumyout2,(nybc+2)
@@ -3169,6 +3569,7 @@ c     ################################################################
       !Down
       dest = pn(0,-1,0)
       if (dest /= currp) then
+        down = (dest /= nullp)
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumxout1,(nxbc+2)
@@ -3188,6 +3589,7 @@ c     ################################################################
       !Up
       dest = pn(0,1,0)
       if (dest /= currp) then
+        up = (dest /= nullp)
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumxout2,(nxbc+2)
@@ -3207,14 +3609,47 @@ c     ################################################################
       if(ireq>0.and.flg==1) then
         call MPI_Waitall(ireq,request,status,mpierr)
 
-        if (pn(-1, 0, 0)/=nullp.and.pn(-1, 0, 0)/=currp)
-     .       array(0     ,0:nybc+1,k) = dumyout1
-        if (pn( 1, 0, 0)/=nullp.and.pn( 1, 0, 0)/=currp)
-     .       array(nxbc+1,0:nybc+1,k) = dumyout2
-        if (pn( 0,-1, 0)/=nullp.and.pn( 0,-1, 0)/=currp)
-     .       array(0:nxbc+1,0     ,k) = dumxout1
-        if (pn( 0, 1, 0)/=nullp.and.pn( 0, 1, 0)/=currp)
-     .       array(0:nxbc+1,nybc+1,k) = dumxout2
+c$$$        if (pn(-1, 0, 0)/=nullp.and.pn(-1, 0, 0)/=currp)
+c$$$     .       array(0     ,0:nybc+1,k) = dumyout1
+c$$$        if (pn( 1, 0, 0)/=nullp.and.pn( 1, 0, 0)/=currp)
+c$$$     .       array(nxbc+1,0:nybc+1,k) = dumyout2
+c$$$        if (pn( 0,-1, 0)/=nullp.and.pn( 0,-1, 0)/=currp)
+c$$$     .       array(0:nxbc+1,0     ,k) = dumxout1
+c$$$        if (pn( 0, 1, 0)/=nullp.and.pn( 0, 1, 0)/=currp)
+c$$$     .       array(0:nxbc+1,nybc+1,k) = dumxout2
+
+        if (left) then
+          if (pn(-1,0,0)==pn(1,0,0)) then
+            array(0     ,0:nybc+1,k) = dumyout2
+          else
+            array(0     ,0:nybc+1,k) = dumyout1
+          endif
+        endif
+
+        if (right) then
+          if (pn(-1,0,0)==pn(1,0,0)) then
+            array(nxbc+1,0:nybc+1,k) = dumyout1
+          else
+            array(nxbc+1,0:nybc+1,k) = dumyout2
+          endif
+        endif
+
+        if (down) then
+          if (pn(0,-1,0)==pn(0,1,0)) then
+            array(0:nxbc+1,0     ,k) = dumxout2
+          else
+            array(0:nxbc+1,0     ,k) = dumxout1
+          endif
+        endif
+
+        if (up) then
+          if (pn(0,-1,0)==pn(0,1,0)) then
+            array(0:nxbc+1,nybc+1,k) = dumxout1
+          else
+            array(0:nxbc+1,nybc+1,k) = dumxout2
+          endif
+        endif
+
       endif
        
       end subroutine l1d3
