@@ -845,8 +845,8 @@ c     Call variables
 
 c     Local variables
 
-        integer :: he,imin,imax,jmin,jmax,kmin,kmax,nx,ny,nz,bcs(6)
-     .            ,bcond_sv(6)
+        integer :: he,imin,imax,jmin,jmax,kmin,kmax,nx,ny,nz
+     .            ,bcond_sv(6),bcs(6)
 
         real(8) :: r(3,3),cnv(3,3),cov(3,3),gsub(3,3),gsup(3,3),jac,ijac
      .            ,gamma(3,3,3),d2r(3,3)
@@ -890,38 +890,7 @@ c     Evaluate dr=dx/dxi vectors at vertices
           enddo
         enddo
 
-        !Modify BC setup to do staggered
-        bcond_sv = bcond
-        bcs = bcond
-        !Do no overwrite i=j=k=0
-        if (bcs(2) == DEF) bcs(2) = EXT
-        if (bcs(4) == DEF) bcs(4) = EXT 
-        if (bcs(6) == DEF) bcs(6) = EXT 
-        if (bcs(2) == FSYM .or. bcs(2) == SYM) then
-          bcs  (2) = NEU
-          bcond(2) = SYM  !Set BCs to do NEU across face
-        endif
-        if (bcs(4) == FSYM .or. bcs(4) == SYM) then
-          bcs  (4) = NEU 
-          bcond(4) = SYM  !Set BCs to do NEU across face
-        endif
-        if (bcs(6) == FSYM .or. bcs(6) == SYM) then
-          bcs  (6) = NEU
-          bcond(6) = SYM  !Set BCs to do NEU across face
-        endif
-
-        call set_force_corners(.true.)
-
-        do i=1,3
-          do j=1,3
-            call setMGBC(g_def,0,1,nx,ny,nz,igrid,dr(:,:,:,i,j),bcs
-     .                  ,iorder=2)
-          enddo
-        enddo
-
-        !Recover original setup
-        call set_force_corners(.false.)
-        bcond = bcond_sv
+        call dr_bc_vrtx(g_def,igrid,dr)
 
 c     Evaluate grid quantities (at vertices)
 
@@ -951,7 +920,6 @@ c     Evaluate grid quantities (at vertices)
                   lerr = 1 ; exit
                 endif
               elseif (isSP2(g_def,i+1,igrid,ibc=1)) then
-cc              if (isSP2(i+1,igrid,ibc=1)) then
                 ijac = 0d0
               else
                 ijac = 1d0/jac
@@ -1097,24 +1065,26 @@ c     Evaluate dr=dx/dxi vectors
           enddo
         endif
 
-c     Enforce topological constraints on dr (including SP)
+c     Apply BCs on dr (including SP)
 
-        do i=1,3
-          do j=1,3
-            call topol_bc(g_def,igrid,nx,ny,nz,dr(:,:,:,i,j))
-            if (bcSP()) then
-              igxbc = igrid
-              igybc = igrid
-              igzbc = igrid
-
-              nxbc = nx
-              nybc = ny
-              nzbc = nz
-              !dr behaves like a covariant vector
-              call vectorSingularBC(g_def,j,dr(:,:,:,i,j),.true.)
-            endif
-          enddo
-        enddo
+        call dr_bc(g_def,igrid,dr)
+        
+c$$$        do i=1,3
+c$$$          do j=1,3
+c$$$            call topol_bc(g_def,igrid,nx,ny,nz,dr(:,:,:,i,j))
+c$$$            if (bcSP()) then
+c$$$              igxbc = igrid
+c$$$              igybc = igrid
+c$$$              igzbc = igrid
+c$$$
+c$$$              nxbc = nx
+c$$$              nybc = ny
+c$$$              nzbc = nz
+c$$$              !dr behaves like a covariant vector
+c$$$              call vectorSingularBC(g_def,j,dr(:,:,:,i,j),.true.)
+c$$$            endif
+c$$$          enddo
+c$$$        enddo
 
 c     Evaluate grid quantities
 
@@ -1630,67 +1600,123 @@ c     Begin program
 c     End program
 
       end subroutine topol_bc
+      
+c     dr_bc
+c     #################################################################
+      subroutine dr_bc(g_def,igrid,dr)
 
-ccc     topol_bc_vrtx
-ccc     #################################################################
-cc      subroutine topol_bc_vrtx(igrid,nxl,nyl,nzl,array)
-cc
-ccc     -----------------------------------------------------------------
-ccc     Enforce topological constraints on array
-ccc     -----------------------------------------------------------------
-cc
-cc        implicit  none
-cc
-ccc     Call variables
-cc
-cc        integer    :: igrid,nxl,nyl,nzl
-cc        real(8)    :: array(0:nxl+1,0:nyl+1,0:nzl+1)
-cc
-ccc     Local variables
-cc
-cc#if defined(petsc)
-cc        type(petsc_da_ctx),pointer :: da_ctx
-cc#endif
-cc
-ccc     External
-cc
-ccc     Begin program
-cc
-cc#if !defined(petsc)
-cc        if (bcond(1) == PER .or. bcond(2) == PER) then
-cccc          array(0    ,:,:) = array(nxl,:,:)
-cccc          array(nxl+1,:,:) = array(1,:,:)
-cc          array(1,:,:) = array(nxl+1,:,:)
-cc        endif
-cc
-cc        if (bcond(3) == PER .or. bcond(4) == PER) then
-cccc          array(:,0    ,:) = array(:,nyl,:)
-cccc          array(:,nyl+1,:) = array(:,1,:)
-cc          array(:,1,:) = array(:,nyl+1,:)
-cc        endif
-cc        
-cc        if (bcond(5) == PER .or. bcond(6) == PER) then
-cccc          array(:,:,0    ) = array(:,:,nzl)
-cccc          array(:,:,nzl+1) = array(:,:,1)
-cc          array(:,:,1) = array(:,:,nzl+1)
-cc        endif
-cc#else
-cc#if !defined(samrai)
-cc          write(*,*) 'WARNING: vertex metrics in PETSc are not being'
-cc     .              ,' communicated yet.'
-cccccc        if (igrid == 1) then
-cccc          da_ctx => grid_params%dactx(igrid)
-cccc          call fillPetscGhostCells(da_ctx,array)
-cccccc        endif
-cc#else
-cc          write(*,*) 'WARNING: metrics in SAMRAI are not being'
-cc     .              ,' communicated yet.'
-cc#endif
-cc#endif
-cc
-ccc     End program
-cc
-cc      end subroutine topol_bc_vrtx
+c     -----------------------------------------------------------------
+c     Apply BCs on dr/dxi vector
+c     -----------------------------------------------------------------
+
+        implicit  none
+
+c     Call variables
+
+        type(grid_mg_def),pointer :: g_def
+
+        integer    :: igrid
+        real(8)    :: dr(0:,0:,0:,:,:)
+
+c     Local variables
+
+        integer :: i,j,bcs(6,3)!,nxl,nyl,nzl,ibc,bcond_sv(6)
+
+c     External
+
+c     Begin program
+
+        !Modify BC setup
+        bcs(:,1) = bcond
+        bcs(:,2) = bcond
+        bcs(:,3) = bcond
+
+cc        bcond_sv = bcond
+cc        where (bcs == DEF) bcs = EXT
+cc        where (bcs == FSYM .or. bcs == SYM) bcs   = NEU
+cc        where (bcond == FSYM .or. bcond == SYM) bcond = SYM    !Set BCs to do NEU across face
+
+cc        call set_force_corners(.true.)
+
+        do i=1,3
+          call imposeBConVector_ez(g_def,igrid,dr(:,:,:,i,:)
+     .                            ,.false.,bcs,2)
+        enddo
+cc        write (*,*) 'after',my_rank,dr(:,0,1,1,1)
+
+        !Recover original setup
+cc        call set_force_corners(.false.)
+cc        bcond = bcond_sv
+
+c     End program
+
+      end subroutine dr_bc
+
+c     dr_bc_vrtx
+c     #################################################################
+      subroutine dr_bc_vrtx(g_def,igrid,dr)
+
+c     -----------------------------------------------------------------
+c     Enforce topological constraints on array
+c     -----------------------------------------------------------------
+
+        implicit  none
+
+c     Call variables
+
+        type(grid_mg_def),pointer :: g_def
+
+        integer    :: igrid
+        real(8)    :: dr(0:,0:,0:,:,:)
+
+c     Local variables
+
+        integer :: i,j,bcond_sv(6),bcs(6),nxl,nyl,nzl
+
+c     External
+
+c     Begin program
+
+        nxl = size(dr,1)-2
+        nyl = size(dr,2)-2
+        nzl = size(dr,3)-2
+        
+        !Modify BC setup to do staggered
+        bcond_sv = bcond
+        bcs = bcond
+        !Do no overwrite i=j=k=0
+        if (bcs(2) == DEF) bcs(2) = EXT
+        if (bcs(4) == DEF) bcs(4) = EXT 
+        if (bcs(6) == DEF) bcs(6) = EXT 
+        if (bcs(2) == FSYM .or. bcs(2) == SYM) then
+          bcs  (2) = NEU
+          bcond(2) = SYM  !Set BCs to do NEU across face
+        endif
+        if (bcs(4) == FSYM .or. bcs(4) == SYM) then
+          bcs  (4) = NEU 
+          bcond(4) = SYM  !Set BCs to do NEU across face
+        endif
+        if (bcs(6) == FSYM .or. bcs(6) == SYM) then
+          bcs  (6) = NEU
+          bcond(6) = SYM  !Set BCs to do NEU across face
+        endif
+
+cc        call set_force_corners(.true.)
+        
+        do i=1,3
+          do j=1,3
+            call setMGBC(g_def,0,1,nxl,nyl,nzl,igrid,dr(:,:,:,i,j),bcs
+     .                  ,iorder=2)
+          enddo
+        enddo
+
+        !Recover original setup
+cc        call set_force_corners(.false.)
+        bcond = bcond_sv
+
+c     End program
+
+      end subroutine dr_bc_vrtx
 
 c     defineGridMetric
 c     #################################################################

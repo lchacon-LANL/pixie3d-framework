@@ -19,19 +19,23 @@ c     Local variables
 c      integer ( kind = 4 ), save :: ncall = 0
       integer ( kind = 4 ) lrank,lnproc
 
-      if(present(nproc)) then
+      if(present(rank)) then
          lrank = rank
-         lnproc= nproc
       else
          lrank = 0
+      end if
+
+      if(present(nproc)) then
+         lnproc= nproc
+      else
          lnproc= 1
       end if
 
       step = n !start with 0
       do i = 1, dim_num
-         seed(i) = 1 !lrank+1
+         seed(i) = lrank+1
       end do
-      leap(1:dim_num) = 1 !lnproc
+      leap(1:dim_num) = lnproc
 
       do i = 1, dim_num
          base(i) = prime (i)

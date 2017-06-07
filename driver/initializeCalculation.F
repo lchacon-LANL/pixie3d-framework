@@ -119,10 +119,6 @@ c Read PETSc runtime options
 !!$  call get_command_argument(4, ofile)
 #endif
 
-ccc Check for autoinitializing parameters
-cc
-cc      pi = acos(-1d0)
-
 c Allocate global variables
 
       call allocateGlobalVar(gv)

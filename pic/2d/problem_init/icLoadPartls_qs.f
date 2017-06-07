@@ -17,10 +17,11 @@
            do i = 1,nxg
              ii = i + nxg*(j-1) 
 
-             call HamSeq(npc_int(ii,is),r4,dimt,npc_scan(ii,is))
+             call HamSeq(npc_int(ii,is),r4,dimt,npc_scan(ii,is)
+     $                  ,rank=my_rank,nproc=np)
 
 c$$$!$OMP PARALLEL DEFAULT(SHARED) private(ip,ipc,ipl,ip_ng,xp,yp
-c$$$!$OMP.    ,rx,rx1,rx2,rx3,vt,signx,signy,signz,ixyz,ipx,ipy,ipz)
+c$$$!$OMP.    ,rx,rx1,rx2,rx3,signx,signy,signz,ixyz,ipx,ipy,ipz)
 c$$$!$OMP DO
 c$$$!$OMP.REDUCTION(+:v_tot,vx2,vt2)
              do ipc = 1, npc_int(ii,is)
@@ -60,10 +61,6 @@ c$$$!$OMP.REDUCTION(+:v_tot,vx2,vt2)
                enddo
 
                !Initialize particle velocity (anisotropic Maxwellian)   
-               vt(1) = v_thx(is)
-               vt(2) = v_thy(is)
-               vt(3) = v_thz(is)
-
                signx = -1 
                signy = -1
                signz = -1

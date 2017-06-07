@@ -151,6 +151,13 @@ c     XY MPI communicator (domains that share same Z slices)
         if (chk_mpi_comm)
      .       call check_MPI_COMM(g_mpi_def%MPI_COMM_XY,'MPI_COMM_XY')
 
+c     XZ MPI communicator (domains that share same Y slices)
+
+        call splitMPIComm(g_mpi_def%MPI_COMM_XZ,selectRank_XZ
+     .                     ,MPI_COMM_ORIG=g_mpi_def%mpi_comm)
+        if (chk_mpi_comm)
+     .       call check_MPI_COMM(g_mpi_def%MPI_COMM_XZ,'MPI_COMM_XZ')
+
 c     YZ MPI communicator (domains that share same X slices)
 
         call splitMPIComm(g_mpi_def%MPI_COMM_YZ,selectRank_YZ
@@ -883,6 +890,63 @@ c     End program
 
       end subroutine selectRank_XY
 
+c     selectRank_XZ
+c     #####################################################################
+      subroutine selectRank_XZ(split_key)
+
+c     ---------------------------------------------------------------------
+c     Groups processors based on shared Y position in processor mesh.
+c     ---------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer    :: split_key
+
+c     Local variables
+
+        integer :: npx,npy,npz
+
+c     Begin program
+
+        if (split_key == MPI_UNDEFINED) then
+          split_key = 1
+        endif
+
+c     Set global limits of local domain l_lim(dim,loc)
+
+        l_lim(1,0) = g_mpi_def%ilo(1)
+        l_lim(2,0) = g_mpi_def%jlo(1)
+        l_lim(3,0) = g_mpi_def%klo(1)
+        l_lim(1,1) = g_mpi_def%ihi(1)
+        l_lim(2,1) = g_mpi_def%jhi(1)
+        l_lim(3,1) = g_mpi_def%khi(1)
+
+c     Set global limits of global domain g_lim(dim,loc)
+
+        g_lim(1,0) = 1
+        g_lim(2,0) = 1
+        g_lim(3,0) = 1
+        g_lim(1,1) = g_mpi_def%nxgl(1)
+        g_lim(2,1) = g_mpi_def%nygl(1)
+        g_lim(3,1) = g_mpi_def%nzgl(1)
+
+c     Select rank
+
+        npx = g_mpi_def%mx
+        npy = g_mpi_def%my
+        npz = g_mpi_def%mz
+
+        !Group processors based on location in x direction
+        !(x and z directions are shared; 
+        ! organize in 1D processor mesh: j
+        split_key = split_key + npy*l_lim(2,1)/g_lim(2,1)
+
+c     End program
+
+      end subroutine selectRank_XZ
+
 c     selectRank_YZ
 c     #####################################################################
       subroutine selectRank_YZ(split_key)
@@ -1168,7 +1232,13 @@ c     ---------------------------------------------------------------
 
         implicit none
 
+c     Call variables
+
         character(*)  :: routine, message
+
+c     Local variables
+
+        integer :: ierr
 
 c     Begin program
 
@@ -1183,10 +1253,12 @@ c     Call SAMRAI's error handler
         end interface
         call pstop_samrai(trim(routine),trim(message))
 #else
-c     Call error handler
+c     Call local error handler
         
+#if defined(petsc)
+        call PetscFinalize(ierr)
+#endif
         call sstop(my_rank,routine,message)
-
 #endif
 
       end subroutine pstop
@@ -2116,7 +2188,7 @@ c$$$      end subroutine find_global_vec
 c     dumpGlobalField
 c     #################################################################
       subroutine dumpGlobalField(g_def,file,nx,ny,nz,nxg,nyg,nzg,arr
-     .                          ,flg)
+     .                          ,flg,no_bc)
 
       use io, ONLY: find_unit
 
@@ -2136,14 +2208,22 @@ c     Call variables
       integer :: nx,ny,nz,nxg,nyg,nzg,flg,mpi_comm
       real(8) :: arr(0:nx+1,0:ny+1,0:nz+1)
       character(*) :: file
+      logical, optional :: no_bc
 
 c     Local variables
 
       integer :: unit
       real(8),allocatable,dimension(:,:,:) :: dbg
       real(8) :: xmin,xmax,ymin,ymax,zmin,zmax
+      logical :: nobc
 
 c     Begin program
+
+      if (PRESENT(no_bc)) then
+        nobc = no_bc
+      else
+        nobc = .true.
+      endif
 
       xmin = g_def%gxmin
       xmax = g_def%gxmax
@@ -2169,16 +2249,27 @@ c     Begin program
         
       allocate(dbg(0:nxg+1,0:nyg+1,0:nzg+1))
 
-      call find_global_nobc(arr(1:nx ,1:ny ,1:nz )
-     .                     ,dbg(1:nxg,1:nyg,1:nzg)
+      if (nobc) then
+        call find_global_nobc(arr(1:nx ,1:ny ,1:nz )
+     .                       ,dbg(1:nxg,1:nyg,1:nzg)
 #if defined(petsc)
-     .                     ,mpi_comm=g_def%mpi_comm
+     .                       ,mpi_comm=g_def%mpi_comm
 #endif
-     .                     )
-
-      if (my_rank == 0) then
-        call contour(dbg(1:nxg,1:nyg,1),nxg,nyg
-     .              ,xmin,xmax,ymin,ymax,flg,unit)
+     .                       )
+        if (my_rank == 0) then
+          call contour(dbg(1:nxg,1:nyg,1),nxg,nyg
+     .                ,xmin,xmax,ymin,ymax,flg,unit)
+        endif
+      else
+        call find_global(arr,dbg
+#if defined(petsc)
+     .                  ,mpi_comm=g_def%mpi_comm
+#endif
+     .                  )
+        if (my_rank == 0) then
+          call contour(dbg(:,:,1),nxg+2,nyg+2
+     .                ,xmin,xmax,ymin,ymax,flg,unit)
+        endif
       endif
 
       deallocate(dbg)

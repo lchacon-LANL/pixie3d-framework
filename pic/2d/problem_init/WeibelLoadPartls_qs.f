@@ -24,8 +24,8 @@ c$$$         npc = tot_np/(nnl*8) !8 samples for each Gaussian random number
              ii = i + nxg*(j-1) 
 
              ipc0 = nint(npc_acm(ii-1))
-             call HamSeq(npc_int(ii),r4,dimt,ipc0*nproc,my_rank_pic
-     $            ,nproc)
+             call HamSeq(npc_int(ii),r4,dimt,ipc0*nproc
+     $                  ,rank=my_rank,nproc=np)
 
              do ipc = 1, npc_int(ii)
                !without worries about parallel run #
