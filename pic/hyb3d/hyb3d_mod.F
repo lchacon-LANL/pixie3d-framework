@@ -179,7 +179,7 @@ c$$$               print *
 c$$$             end if
 
              !Perform pcle substep
-             call ACC_CN_incell_offset_hyb(spcs(isp)%q_m
+             call ACC_CN_incell_offset(spcs(isp)%q_m
      .                                    ,spcs(isp)%pcles(ipc),pcle_nu
      $                                    ,dt,dtp,dt_sub
      $                                    ,Estar,B,B0,dx
@@ -369,7 +369,7 @@ c     Append to particle pusher timer/counters
 
 c     Synchronize moments
 
-      call wrap_moments_nodes3d_hyb(moms_g(:,:,:,:,:)) ! Adam: Currently only for periodic.
+      call wrap_moments_nodes3d(moms_g(:,:,:,:,:)) ! Adam: Currently only for periodic.
 
 !      write(*,*) moms_g(:,:,:,1,Ipz)
 !      stop
@@ -382,7 +382,7 @@ c     Scatter moments to local mesh
 
 c     Apply BCs to moments
 
-      call applyBC_hyb_moms
+      call applyBC_moms
 
 c     Output info
 
@@ -421,9 +421,9 @@ c     End program
 
       end subroutine hybrid_mover_3d
 
-c     ACC_CN_incell_offset_hyb
+c     ACC_CN_incell_offset
 c     ##################################################################
-      subroutine ACC_CN_incell_offset_hyb(q_m,pcle,pcle_nu,dt,dtp,dt_sub
+      subroutine ACC_CN_incell_offset(q_m,pcle,pcle_nu,dt,dtp,dt_sub
      $                                ,Estar,B,B0,dx,substeps,it)
 
       implicit none
@@ -560,13 +560,13 @@ c     Estimate sub-time-step
       dt_sub = dtp
 
 
-      call estimate_dtp_hyb(dt_sub)
+      call estimate_dtp(dt_sub)
 
 !      write(*,*) dt_sub
 
 c     Initialize Picard
 
-      call initialize_it_hyb(dx_err)
+      call initialize_it(dx_err)
 
       it=0
 
@@ -584,7 +584,7 @@ c     Initialize Picard
 
         substeps = substeps + _Npg
 
-        call Boris_solve_hyb(it,x0_loc,v0_loc,dx,vh,dt_sub)
+        call Boris_solve(it,x0_loc,v0_loc,dx,vh,dt_sub)
 
 
         !Check convergence (very expensive!!!; needs optimization)
@@ -622,9 +622,9 @@ c     End program
 
       contains
 
-c     initialize_it_hyb
+c     initialize_it
 c     ######################################################################
-      subroutine initialize_it_hyb(dx_pn)
+      subroutine initialize_it(dx_pn)
 
       implicit none
       
@@ -655,7 +655,7 @@ c     ######################################################################
       dx = 0d0 !dt_sub*vh
 
       if (no_map) then
-        call scatter_fields_nomap_hyb(x0_loc,scatter_zeroes,dx,Ep,Bp)
+        call scatter_fields_nomap(x0_loc,scatter_zeroes,dx,Ep,Bp)
       else
        call pstop('initialize_it','No curvilinear currently')
 !        call scatter_fields_curv (x0_loc,scatter_zeroes,dx,Ep,Bp)
@@ -711,11 +711,11 @@ c     ######################################################################
       dv_pn = max(dt_sub*vha + 0.5*dt_sub**2*ama,dv_pn)
       dx_pn = maxval(dv_pn)
 
-      end subroutine initialize_it_hyb
+      end subroutine initialize_it
 
-c     estimate_dtp_hyb
+c     estimate_dtp
 c     ######################################################################
-      subroutine estimate_dtp_hyb(dt_sub)
+      subroutine estimate_dtp(dt_sub)
 
       implicit none
       
@@ -746,7 +746,7 @@ c     Initial acceleration
 
         dx = 0d0
         if (no_map) then
-          call scatter_fields_nomap_hyb(x0_loc,scatter_zeroes,dx,Ep,Bp)
+          call scatter_fields_nomap(x0_loc,scatter_zeroes,dx,Ep,Bp)
         else
           call pstop('estimate_dtp','No curvilinear currently')
 !          call scatter_fields_curv (x0_loc,scatter_zeroes,dx,Ep,Bp)
@@ -789,7 +789,7 @@ c     test for dts (presumably no cell-crossing with a small timestep)
         dx(:,3) = dts*vhcurv(:,3) !+ 0.5d0*dts*dts*a0curv
 
         if (no_map) then
-          call scatter_fields_nomap_hyb(x0_loc,dts,dx,Ep,Bp) !mid-point
+          call scatter_fields_nomap(x0_loc,dts,dx,Ep,Bp) !mid-point
         else
           call pstop('estimate_dtp','No curvilinear currently')
 !          call scatter_fields_curv (x0_loc,dts,dx,Ep,Bp) !mid-point
@@ -861,11 +861,11 @@ c$$$           end do
         dt_sub = min(dt_sub,(6d0*xtoll*dts/(anup+1d-300*dts))
      $                      **(0.333333333333333d0))
 
-      end subroutine estimate_dtp_hyb
+      end subroutine estimate_dtp
 
-c     Boris_solve_hyb
+c     Boris_solve
 c     ######################################################################
-      subroutine Boris_solve_hyb(it,x0,v0,dx,vh,dt_sub) 
+      subroutine Boris_solve(it,x0,v0,dx,vh,dt_sub) 
 
       implicit none
       
@@ -886,7 +886,7 @@ c     Logical variables
 c     Begin program
 
         if (no_map) then
-          call scatter_fields_nomap_hyb(x0,dt_sub,dx,Ep,Bp)
+          call scatter_fields_nomap(x0,dt_sub,dx,Ep,Bp)
         else
            call pstop('Boris_solve','No curvilinear currently')
 !          call scatter_fields_curv (x0,dt_sub,dx,Ep,Bp)
@@ -1002,11 +1002,11 @@ c     Begin program
 
 c     End program
 
-      end subroutine Boris_solve_hyb
+      end subroutine Boris_solve
 
-c     scatter_fields_nomap_hyb
+c     scatter_fields_nomap
 c     ######################################################################
-      subroutine scatter_fields_nomap_hyb(x0,dtau,dx,Ep,Bp)
+      subroutine scatter_fields_nomap(x0,dtau,dx,Ep,Bp)
 
       implicit none
 
@@ -1054,11 +1054,11 @@ c     Calculate Bp
 
 c     End program
 
-      end subroutine scatter_fields_nomap_hyb
+      end subroutine scatter_fields_nomap
 
-c     scatter_fields_curv_hyb
+c     scatter_fields_curv
 c     ######################################################################
-      subroutine scatter_fields_curv_hyb(x0,dtau,dx,Ep,Bp)
+      subroutine scatter_fields_curv(x0,dtau,dx,Ep,Bp)
 
       implicit none
 
@@ -1316,9 +1316,9 @@ c$$$      Bp(:,3) = Bp(:,3) + B0(3)
 c$$$
 c$$$c     End program
 
-      end subroutine scatter_fields_curv_hyb
+      end subroutine scatter_fields_curv
 
-      end subroutine ACC_CN_incell_offset_hyb
+      end subroutine ACC_CN_incell_offset
 
       end module hybrid_mover
 
