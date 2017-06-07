@@ -3496,7 +3496,7 @@ c     ##################################################################
 
 c     defineBCs_moms
 c     ###############################################################
-      subroutine defineBCs_moms
+      subroutine defineBCs_moms(bc_rho,bc_vx,bc_vy,bc_vz,bc_T)
 c     ---------------------------------------------------------------
 c     Defines boundary conditions of physical quantities.
 c     On input:
@@ -3518,42 +3518,25 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
+      integer :: bc_rho(6),bc_T(6),bc_vx(6),bc_vy(6),bc_vz(6)
+
 c     Local variables
 
 c     Begin program
+
       order_moms = 1
 
       mom_bcs = DEF
 
-      !for cell-centered moments
-      mom_bcs(:,Ins) = pbcond
-      where (mom_bcs(:,Ins)==pOPN) mom_bcs(:,Ins ) = NEU !Cell centered
-      where (mom_bcs(:,Ins)==pREF) mom_bcs(:,Ins ) = NEU !Cell centered
+      mom_bcs(:,Ins) = bc_rho
 
-      mom_bcs(:,IS11) = pbcond
-      where (mom_bcs(:,IS11)==pOPN
-     .   .or.mom_bcs(:,IS11)==pREF) mom_bcs(:,IS11) = NEU !Cell centered
+      mom_bcs(:,IS11)= bc_T
+      mom_bcs(:,IS22)= bc_T
+      mom_bcs(:,IS33)= bc_T
 
-      mom_bcs(:,IS22) = pbcond
-      where (mom_bcs(:,IS22)==pOPN
-     .   .or.mom_bcs(:,IS22)==pREF) mom_bcs(:,IS22) = NEU !Cell centered
-
-      mom_bcs(:,IS33) = pbcond
-      where (mom_bcs(:,IS33)==pOPN
-     .   .or.mom_bcs(:,IS33)==pREF) mom_bcs(:,IS33) = NEU !Cell centered
-
-      ! ADAM: Have not changed these from dpic.
-      mom_bcs(:,Ipx) = pbcond
-      where (mom_bcs(:,Ipx) == pOPN) mom_bcs(:,Ipx) = DIR !All
-      where (mom_bcs(:,Ipx) == pREF) mom_bcs(:,Ipx) = DIR !All
-
-      mom_bcs(:,Ipy) = pbcond
-      where (mom_bcs(:,Ipy) == pOPN) mom_bcs(:,Ipy) = DIR !All
-      where (mom_bcs(:,Ipy) == pREF) mom_bcs(:,Ipy) = DIR !All
-
-      mom_bcs(:,Ipz) = pbcond
-      where (mom_bcs(:,Ipz) == pOPN) mom_bcs(:,Ipz) = DIR !All
-      where (mom_bcs(:,Ipz) == pREF) mom_bcs(:,Ipz) = DIR !All
+      mom_bcs(:,Ipx) = bc_vx
+      mom_bcs(:,Ipy) = bc_vy
+      mom_bcs(:,Ipz) = bc_vz
 
 c     End program
 
@@ -3766,7 +3749,7 @@ c     Begin program
 
       else
          call pstop('wrap_moments_nodes3d'
-                   ,'Currently only pPER for hybrid bounds')
+     .             ,'Currently only pPER for hybrid bounds')
       endif
 
       if (pbcond(3) == pPER) then
@@ -3776,7 +3759,7 @@ c     Begin program
          mments(:,0    ,:,:,:) = mments(:,nyg,:,:,:)
       else
          call pstop('wrap_moments_nodes3d'
-                   ,'Currently only pPER for hybrid bounds')
+     .             ,'Currently only pPER for hybrid bounds')
       endif
 
       if (pbcond(5) == pPER) then
@@ -3786,7 +3769,7 @@ c     Begin program
          mments(:,:,0    ,:,:) = mments(:,:,nzg,:,:)
       else
          call pstop('wrap_moments_nodes3d'
-                   ,'Currently only pPER for hybrid bounds')
+     .             ,'Currently only pPER for hybrid bounds')
       endif
 
 #if defined(petsc)
@@ -3840,7 +3823,7 @@ c     Begin program
      .          ,igrid,igrid,igrid,iorder=order_moms)
       enddo
 
-     !Momenta
+      !Momenta
       do isp = 1,n_sp
         call setMGBC(gv%gparams,0,3,nx,ny,nz,igrid
      $              ,moms(:,:,:,isp,IPx:IPz)
@@ -3849,7 +3832,7 @@ c     Begin program
      .              ,iorder=order_moms)
       enddo
 
-     !Temperatures
+      !Temperatures
       do im=IS11,IS33
         do isp = 1,n_sp
           call setBC(gv%gparams,icomp,nx,ny,nz
@@ -3866,7 +3849,7 @@ c     Begin program
 
 c     find_rho_from_pcles
 c     ##################################################################
-      subroutine find_rho_from_pcles(rho) ! Adam: Unchanged for now. Choose ion q=1.
+      subroutine find_rho_from_pcles(rho)
 
       implicit none
 
@@ -3887,20 +3870,20 @@ c     Define current
 
       rho(:,:,:) = 0d0
       do isp = 1,n_sp
-        rho = rho + spcs(isp)%q*moms(:,:,:,isp,Ins)*idlvol
+        rho = rho + spcs(isp)%m*moms(:,:,:,isp,Ins)*idlvol
       enddo
 
       end subroutine find_rho_from_pcles
 
-c     find_J_from_pcles
+c     find_P_from_pcles
 c     ############################################################
-      subroutine find_J_from_pcles(jcnv) ! Adam: Unchanged for now. Choose ion q=1.
+      subroutine find_P_from_pcles(pcnv)
 
       implicit none
 
 c     Call variables
 
-      real(8) :: jcnv(0:,0:,0:,:)
+      real(8) :: pcnv(0:,0:,0:,:)
 
 c     Local variables
 
@@ -3913,17 +3896,17 @@ c     Define current
 
       idlvol = ihx*ihy*ihz
 
-      jcnv = 0d0
+      pcnv = 0d0
       do isp = 1,n_sp
-        jcnv(:,:,:,1) = jcnv(:,:,:,1)
-     .                + spcs(isp)%q*moms(:,:,:,isp,Ipx)*idlvol
-        jcnv(:,:,:,2) = jcnv(:,:,:,2)
-     .                + spcs(isp)%q*moms(:,:,:,isp,Ipy)*idlvol
-        jcnv(:,:,:,3) = jcnv(:,:,:,3)
-     .                + spcs(isp)%q*moms(:,:,:,isp,Ipz)*idlvol
+        pcnv(:,:,:,1) = pcnv(:,:,:,1)
+     .                + spcs(isp)%m*moms(:,:,:,isp,Ipx)*idlvol
+        pcnv(:,:,:,2) = pcnv(:,:,:,2)
+     .                + spcs(isp)%m*moms(:,:,:,isp,Ipy)*idlvol
+        pcnv(:,:,:,3) = pcnv(:,:,:,3)
+     .                + spcs(isp)%m*moms(:,:,:,isp,Ipz)*idlvol
       enddo
 
-      end subroutine find_J_from_pcles
+      end subroutine find_P_from_pcles
 
       end module hybrid_moments
 
@@ -4996,7 +4979,7 @@ c     ##################################################################
 
 c     Call variables
 
-      character(20) :: problem
+      character(*) :: problem
       integer :: nxin,nyin,nzin
       real(8) :: xin(0:nxin+1),yin(0:nyin+1),zin(0:nzin+1),dt
       logical :: explicit_pic,pcle_rstrt,no__map
@@ -5140,8 +5123,10 @@ c     Find PIC physical quantities
          Jnpc_avg(isp) = (nps(isp))/sum(Jns(1:nxg,1:nyg,1:nzg,isp))
          n0 = Jnpc_avg(isp)/(hx*hy*hz)     !Add volume factor
 
-         charge(isp) = sign(1d0,q_m(isp))/n0
-         mass(isp) = charge(isp)/q_m(isp)
+c$$$         charge(isp) = sign(1d0,q_m(isp))/n0
+c$$$         mass(isp) = charge(isp)/q_m(isp)
+         mass(isp) = 1d0/n0
+         charge(isp) = mass(isp)*q_m(isp)
 
          if (tot_bp > 0) then
            w_bp(isp) = nps(isp)*C_bkgrnd(isp)/tot_bp !This stems from defining n_b = C_b*int(Jns)/int(J)
@@ -5218,19 +5203,18 @@ c     ##################################################################
       if (.not.no_map) call killSplines
 
       end subroutine kill_pic
-      
-c     defineBCs_PIC
-c     ##################################################################
-      subroutine defineBCs_PIC
 
-      implicit none
-
-      call defineBCs_pcles
-
-!      call defineBCs_moms
-      call defineBCs_moms ! Adam: Put flag here.
-
-      end subroutine defineBCs_PIC
+c$$$c     defineBCs_PIC
+c$$$c     ##################################################################
+c$$$      subroutine defineBCs_PIC
+c$$$
+c$$$      implicit none
+c$$$
+c$$$      call defineBCs_pcles
+c$$$
+c$$$      call defineBCs_moms
+c$$$
+c$$$      end subroutine defineBCs_PIC
 
 c     load_pcles_offset  
 c     ##################################################################

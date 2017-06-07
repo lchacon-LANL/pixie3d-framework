@@ -30,17 +30,16 @@ c ######################################################################
 
       contains
 
-c     hybrid_mover_3d
+c     pic_mover_3d
 c     ##################################################################
-c      subroutine hybrid_mover_3d(dt,A,phi,DtA,B0,tfv,tfx,cm,pm,cm_exch) 
-     subroutine hybrid_mover_3d(dt,Estar,B,B0,tfv,tfx,cm,pm,cm_exch)
+      subroutine pic_mover_3d(dt,E,B,tfv,tfx,cm,pm,cm_exch)
         
       implicit none
         
 c     Call variables
 
-      real(8),intent(inout) :: Estar(0:,0:,0:,:),B(0:,0:,0:,:)
-      real(8),intent(inout) :: B0(3),dt
+      real(8),intent(inout) :: E(0:,0:,0:,:),B(0:,0:,0:,:)
+      real(8),intent(inout) :: dt
       real(8),intent(in),optional :: tfv,tfx
       real(8),intent(out),optional :: cm(3),pm(3),cm_exch(3)
 
@@ -61,13 +60,13 @@ c     Local variables
       real(_prec) :: xp(_Npg),yp(_Npg),zp(_Npg),xfp(_Npg),yfp(_Npg)
      .              ,zfp(_Npg),v2(_Npg),w_pcle(_Npg),m_sp,q_sp
 
-      real(_prec) :: garr_n  (0:size(A,1)-1,0:size(A,2)-1,0:size(A,3)-1)
-     $              ,garr_vx (0:size(A,1)-1,0:size(A,2)-1,0:size(A,3)-1)
-     $              ,garr_vy (0:size(A,1)-1,0:size(A,2)-1,0:size(A,3)-1)
-     $              ,garr_vz (0:size(A,1)-1,0:size(A,2)-1,0:size(A,3)-1)
-     $              ,garr_vx2(0:size(A,1)-1,0:size(A,2)-1,0:size(A,3)-1)
-     $              ,garr_vy2(0:size(A,1)-1,0:size(A,2)-1,0:size(A,3)-1)
-     $              ,garr_vz2(0:size(A,1)-1,0:size(A,2)-1,0:size(A,3)-1)
+      real(_prec) :: garr_n  (0:size(E,1)-1,0:size(E,2)-1,0:size(E,3)-1)
+     $              ,garr_vx (0:size(E,1)-1,0:size(E,2)-1,0:size(E,3)-1)
+     $              ,garr_vy (0:size(E,1)-1,0:size(E,2)-1,0:size(E,3)-1)
+     $              ,garr_vz (0:size(E,1)-1,0:size(E,2)-1,0:size(E,3)-1)
+     $              ,garr_vx2(0:size(E,1)-1,0:size(E,2)-1,0:size(E,3)-1)
+     $              ,garr_vy2(0:size(E,1)-1,0:size(E,2)-1,0:size(E,3)-1)
+     $              ,garr_vz2(0:size(E,1)-1,0:size(E,2)-1,0:size(E,3)-1)
 
       real(_prec) :: Mx1(_Npg,2,1,1),My1(_Npg,1,2,1),Mz1(_Npg,1,1,2)
       real(_prec) :: Mx2(_Npg,3,1,1),My2(_Npg,1,3,1),Mz2(_Npg,1,1,3)
@@ -182,7 +181,7 @@ c$$$             end if
              call ACC_CN_incell_offset(spcs(isp)%q_m
      .                                    ,spcs(isp)%pcles(ipc),pcle_nu
      $                                    ,dt,dtp,dt_sub
-     $                                    ,Estar,B,B0,dx
+     $                                    ,E,B,dx
      $                                    ,psts,pits)
 
 c$$$             !Check convergence
@@ -419,12 +418,12 @@ c     Substep counter
 
 c     End program
 
-      end subroutine hybrid_mover_3d
+      end subroutine pic_mover_3d
 
 c     ACC_CN_incell_offset
 c     ##################################################################
       subroutine ACC_CN_incell_offset(q_m,pcle,pcle_nu,dt,dtp,dt_sub
-     $                                ,Estar,B,B0,dx,substeps,it)
+     $                                ,E,B,dx,substeps,it)
 
       implicit none
       
@@ -433,7 +432,7 @@ c     Call variables
       type(particle), intent(inout) :: pcle,pcle_nu
 
       real(8),intent(in) :: dt,q_m
-      real(8),intent(in) :: Estar(0:,0:,0:,:),B(0:,0:,0:,:),B0(3)
+      real(8),intent(in) :: E(0:,0:,0:,:),B(0:,0:,0:,:)
 
       real(_prec),intent(inout) :: dtp(:)
       real(_prec),intent(out)   :: dt_sub(:),dx(:,:)
@@ -518,13 +517,13 @@ c     Also define some insets of arrays for later use (C. Mikida)
       !VECTOR SIMD
       do i=1,_Npg
 
-         E_1(i,:,:,:) = real(Estar(i0(i)-1:i0(i)+1,j0(i)-1:j0(i)+1
+         E_1(i,:,:,:) = real(E(i0(i)-1:i0(i)+1,j0(i)-1:j0(i)+1
      $        ,k0(i)-1:k0(i)+1, 1),_prec)
 
-         E_2(i,:,:,:) = real(Estar(i0(i)-1:i0(i)+1,j0(i)-1:j0(i)+1
+         E_2(i,:,:,:) = real(E(i0(i)-1:i0(i)+1,j0(i)-1:j0(i)+1
      $        ,k0(i)-1:k0(i)+1, 2),_prec)
 
-         E_3(i,:,:,:) = real(Estar(i0(i)-1:i0(i)+1,j0(i)-1:j0(i)+1
+         E_3(i,:,:,:) = real(E(i0(i)-1:i0(i)+1,j0(i)-1:j0(i)+1
      $        ,k0(i)-1:k0(i)+1, 3),_prec)
 
          B_1(i,:,:,:) = real(B(i0(i)-1:i0(i)+1,j0(i)-1:j0(i)+1
@@ -1047,9 +1046,9 @@ c     Calculate Ep
 
 c     Calculate Bp
 
-      Bp(:,1) = opt_matmat_333_xyz_pcle(dum333,B_1) + B0(1)
-      Bp(:,2) = opt_matmat_333_xyz_pcle(dum333,B_2) + B0(2)
-      Bp(:,3) = opt_matmat_333_xyz_pcle(dum333,B_3) + B0(3)
+      Bp(:,1) = opt_matmat_333_xyz_pcle(dum333,B_1)
+      Bp(:,2) = opt_matmat_333_xyz_pcle(dum333,B_2)
+      Bp(:,3) = opt_matmat_333_xyz_pcle(dum333,B_3)
 
 
 c     End program
