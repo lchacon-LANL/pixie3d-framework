@@ -409,7 +409,7 @@ ifeq ($(HOST),Marias-MacBook-Air)
     ifeq ($(BOPT),O)
       PETSC_ARCH = macosx_openmpi_gcc5_O
     else
-      PETSC_ARCH = macosx_openmpi_gcc6_g
+      PETSC_ARCH = macosx_openmpi_gcc5_g
     endif
 
     HDF5 = t
