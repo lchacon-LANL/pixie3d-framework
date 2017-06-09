@@ -391,6 +391,8 @@ ifeq ($(HOST),Marias-MacBook-Air)
 
   FC=gfortran
 
+  MACHINE=Macbook-Air
+
   NETCDF=f
   NETCDF_LIBS = -lnetcdff -lnetcdf
   NETCDF_INC  = -I/usr/include/netcdf
@@ -405,9 +407,9 @@ ifeq ($(HOST),Marias-MacBook-Air)
     PETSC_DIR =$(WORKDIR)/lib/petsc-3.0.0-p7
 
     ifeq ($(BOPT),O)
-      PETSC_ARCH = macosx_openmpi_O
+      PETSC_ARCH = macosx_openmpi_gcc5_O
     else
-      PETSC_ARCH = macosx_openmpi_g
+      PETSC_ARCH = macosx_openmpi_gcc6_g
     endif
 
     HDF5 = t
@@ -420,16 +422,17 @@ ifeq ($(HOST),Marias-MacBook-Air)
 #    ADIOS = f
     ADIOS = t
 
-    ADIOS_HOME = $(WORKDIR)/lib/adios-1.3.1
-    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L$(WORKDIR)/lib/mxml-2.7/lib -lmxml
-    ADIOS_VER  = 1.31
+    ADIOS_HOME = $(WORKDIR)/lib/adios-1.10.0
+    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1
+    ADIOS_VER  = 1.10.0
 
+    LIBS += -latlas
   else
     LIBS += -L/usr/lib -llapack -lblas
 
     HDF5 = t
 
-    HDF5_HOME = $(WORKDIR)/lib/hdf5-1.8.7/gfortran/serial
+    HDF5_HOME = $(WORKDIR)/lib/hdf5-1.8.7/gcc6/serial
     HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
     HDF5_MOD  =$(HDF5_HOME)/include
     HDF5_INC  =$(HDF5_HOME)/include
