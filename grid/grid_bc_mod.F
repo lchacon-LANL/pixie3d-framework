@@ -2425,6 +2425,194 @@ c     End program
 
       end subroutine imposeBConVector_stg
 
+c     imposeBConVector_stg_ez
+c     #################################################################
+      subroutine imposeBConVector_stg_ez(gbc_def,igrid,vec,is_cnv,bcnd
+     .                                  ,iorder)
+c     -----------------------------------------------------------------
+c     Imposes BC on vector field (easy interface: no cov-cnv coupling)
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: gbc_def
+
+      integer :: bcnd(:,:),igrid,iorder
+      real(8) :: vec (0:,0:,0:,:)
+
+      logical :: is_cnv
+
+c     Local variables
+
+      integer    :: i,j,k,imax,imin,jmax,jmin,kmax,kmin,nx,ny,nz
+      integer    :: ncomp,ivar,ibc,loc,dim,bctype,xtrap_o
+     .             ,ilmin,jlmin,klmin,ilmax,jlmax,klmax
+      logical    :: petsc__bc,flg_sc
+
+      real(8),pointer :: vec0(:,:,:,:)
+
+#if defined(petsc)
+      type(petsc_da_ctx),pointer :: da_ctx
+#endif
+
+c     Begin program
+
+      !Indicate staggered vector treatment
+      stg_vector = .true.
+
+      !Skip BC corner treatment
+      flg_sc = .false.
+      if (.not.skip_corners) then
+        skip_corners=.true.
+        flg_sc = .true.
+      endif
+
+c     Initialize BC grid quantities
+
+      nx = size(vec,1)-2
+      ny = size(vec,2)-2
+      nz = size(vec,3)-2
+      ncomp = size(vec,4)
+
+      igxbc = igrid
+      igybc = igrid
+      igzbc = igrid
+
+      nxbc = nx
+      nybc = ny
+      nzbc = nz
+
+c     Initialize GLOBAL limits
+
+      iimin = gbc_def%ilo(igxbc)
+      iimax = gbc_def%ihi(igxbc)
+      jjmin = gbc_def%jlo(igybc)
+      jjmax = gbc_def%jhi(igybc)
+      kkmin = gbc_def%klo(igzbc)
+      kkmax = gbc_def%khi(igzbc)
+
+#if defined(samrai)
+      iimnm =  iimin 
+      iimxp =  iimax
+      jjmnm =  jjmin
+      jjmxp =  jjmax
+      kkmnm =  kkmin
+      kkmxp =  kkmax
+#else
+      iimnm =  max(iimin - 1,0)  
+      iimxp =  min(iimax + 1,gbc_def%nxgl(igxbc)+1)
+      jjmnm =  max(jjmin - 1,0)  
+      jjmxp =  min(jjmax + 1,gbc_def%nygl(igybc)+1)
+      kkmnm =  max(kkmin - 1,0)  
+      kkmxp =  min(kkmax + 1,gbc_def%nzgl(igzbc)+1)
+#endif
+
+c     Fill PETSc ghost cells and PER BCs
+
+#if defined(petsc) && !defined(samrai)
+      !Determine whether we need to fill ghost cells using PETSc
+      petsc__bc = (.not.asm)
+
+      !Fill ghost cells
+      if (petsc__bc) then
+        da_ctx => gbc_def%dactx(igxbc)
+
+        do ivar=1,ncomp
+          call fillPetscGhostCells(da_ctx,vec(:,:,:,ivar))
+        enddo
+      endif
+#elif !defined(samrai)
+      call sync_bc(PER)
+#endif
+
+      !Exit if all periodic domains 
+      if (bcPER(1).and.bcPER(2).and.bcPER(3)) then
+        stg_vector = .false.
+        if (flg_sc) skip_corners=.false. !Reset skip_corners
+        return
+      endif
+
+c     Fill SP ghost cells independently on cnv and cov staggered vectors
+
+      call sync_bc(SP)
+
+c     Impose physical BCs
+
+      allocate(vec0(0:nx+1,0:ny+1,0:nz+1,3))
+      vec0 = 0d0
+
+      do bctype=2,BCLIM             !Do not do PER=1; already done 
+        do dim=1,3
+          do loc=0,1
+            ibc = (1+loc)+2*(dim-1)
+
+            do ivar = 1,ncomp
+              if (abs(bcnd(ibc,ivar)) == bctype) then
+                call FillGhostNodes_vec(gbc_def,0,ivar,ncomp,dim,loc
+     .                                 ,bctype,vec,vec0,cnv=is_cnv)
+              endif
+            enddo
+
+          enddo
+        enddo
+      enddo
+
+c     Fill edges 
+
+      xtrap_o = max(2,order)
+
+      do ivar=1,ncomp
+        call fillEdges(gbc_def,vec(:,:,:,ivar),vec0(:,:,:,ivar)
+     .                ,bcnd(:,ivar),xtrap_o)
+      enddo
+
+c     Fill corners 
+
+      do ivar=1,ncomp
+        call fillCorners(gbc_def,vec(:,:,:,ivar),bcnd(:,ivar),xtrap_o)
+      enddo
+
+c     Periodic boundary synchronizing
+
+#if defined(PER_BC_SYNC) && !defined(samrai)
+      call sync_bc(PER)
+#endif
+
+      deallocate(vec0)
+
+c     End program
+
+      stg_vector = .false.
+      if (flg_sc) skip_corners=.false. !Reset skip_corners
+
+      contains
+
+c     sync_bc
+c     #################################################################
+      subroutine sync_bc(bctype)
+
+      integer :: bctype
+
+      do dim=1,3
+        do loc=0,1
+          ibc = (1+loc)+2*(dim-1)
+
+          do ivar = 1,ncomp
+            if (abs(bcnd(ibc,ivar)) == bctype) then
+              call FillGhostNodes_vec(gbc_def,0,ivar,ncomp,dim,loc
+     .                               ,bctype,vec,vec0,cnv=is_cnv)
+            endif
+          enddo
+
+        enddo
+      enddo
+
+      end subroutine sync_bc
+
+      end subroutine imposeBConVector_stg_ez
+
 c     fillGhostNodes_scl
 c     ###############################################################
       subroutine fillGhostNodes_scl(gbc_def,ieq,ivar,dim,loc,bctype
@@ -2757,6 +2945,13 @@ cc      if (bcPER(dim)) call per_BC(ibc,array)
 
 cc      if (bcPER(dim)) return
 
+      dumxin1 = 0d0 ; dumxout1 = 0d0
+      dumyin1 = 0d0 ; dumyout1 = 0d0
+      dumzin1 = 0d0 ; dumzout1 = 0d0
+      dumxin2 = 0d0 ; dumxout2 = 0d0
+      dumyin2 = 0d0 ; dumyout2 = 0d0
+      dumzin2 = 0d0 ; dumzout2 = 0d0
+      
       pn = gbc_def%dactx(igxbc)%proc_neighbors
 
       nullp = MPI_PROC_NULL
@@ -2770,21 +2965,21 @@ cc      if (bcPER(dim)) return
         case(0)
 
           if     (dim==1.and.isBdry(gbc_def,1,igxbc,ibc)) then
-            call l0d1(flg)
+            call d1(0,flg)
           elseif (dim==2.and.isBdry(gbc_def,1,igybc,ibc)) then
-            call l0d2(flg)
+            call d2(0,flg)
           elseif (dim==3.and.isBdry(gbc_def,1,igzbc,ibc)) then
-            call l0d3(flg)
+            call d3(0,flg)
           endif
           
         case(1)
 
           if     (dim==1.and.isBdry(gbc_def,nxbc,igxbc,ibc)) then
-            call l1d1(flg)
+            call d1(nxbc+1,flg)
           elseif (dim==2.and.isBdry(gbc_def,nybc,igybc,ibc)) then
-            call l1d2(flg)
+            call d2(nybc+1,flg)
           elseif (dim==3.and.isBdry(gbc_def,nzbc,igzbc,ibc)) then
-            call l1d3(flg)
+            call d3(nzbc+1,flg)
           endif
 
         end select
@@ -2803,17 +2998,21 @@ c     End program
 
       contains
 
-c     l0d1
+c     d1
 c     ################################################################
-      subroutine l0d1(flg)
+      subroutine d1(i,flg)
 
       implicit none
 
+c     Call variables
+      
       integer :: flg,i
+
+c     Local variables
 
       logical :: down,up,top,bottom
 
-      i = 0
+c     Begin program
 
       down = .false. ; up = .false. ; top = .false. ; bottom = .false.
       
@@ -2943,161 +3142,23 @@ c$$$     .       array(i,0:nybc+1,nzbc+1) = dumyout2
 
       endif
 
-      end subroutine l0d1
+      end subroutine d1
 
-c     l1d1
+c     d2
 c     ################################################################
-      subroutine l1d1(flg)
+      subroutine d2(j,flg)
 
       implicit none
 
-      integer :: flg,i
-
-      logical :: down,up,top,bottom
-
-      i = nxbc+1
-
-      down = .false. ; up = .false. ; top = .false. ; bottom = .false.
-
-      !Up
-      dest = pn(0,1,0)
-      if (dest /= currp) then
-        up = (dest /= nullp)
-        if (flg == 0) then
-          ireq = ireq+1
-          call MPI_Irecv(dumzout1,(nzbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-        else
-          ireq = ireq+1
-          dumzin1 = array(i,nybc,0:nzbc+1)
-          call MPI_Isend(dumzin1,(nzbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-        endif
-      endif
-
-      !Down
-      dest = pn(0,-1,0)
-      if (dest /= currp) then
-        down = (dest /= nullp)
-        if (flg == 0) then
-          ireq = ireq+1
-          call MPI_Irecv(dumzout2,(nzbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-        else
-          ireq = ireq+1
-          dumzin2 = array(i,1,0:nzbc+1)
-          call MPI_Isend(dumzin2,(nzbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-        endif
-      endif
-
-      !Top
-      dest = pn(0,0,1)
-      if (dest /= currp) then
-        top = (dest /= nullp)
-        if (flg == 0) then
-          ireq = ireq+1
-          call MPI_Irecv(dumyout1,(nybc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-        else
-          ireq = ireq+1
-          dumyin1 = array(i,0:nybc+1,nzbc)
-          call MPI_Isend(dumyin1,(nybc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-        endif
-      endif
-
-      !Bottom
-      dest = pn(0,0,-1)
-      if (dest /= currp) then
-        bottom = (dest /= nullp)
-        if (flg == 0) then
-          ireq = ireq+1
-          call MPI_Irecv(dumyout2,(nybc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-        else
-          ireq = ireq+1
-          dumyin2 = array(i,0:nybc+1,1)
-          call MPI_Isend(dumyin2,(nybc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-        endif
-      endif
-
-      if(ireq>0.and.flg==1) then
-        call MPI_Waitall(ireq,request,status,mpierr)
-
-c$$$        if (pn( 0, 1, 0)/=nullp.and.pn( 0, 1, 0)/=currp)
-c$$$     .       array(i,nybc+1,0:nzbc+1) = dumzout1
-c$$$        if (pn( 0,-1, 0)/=nullp.and.pn( 0,-1, 0)/=currp)
-c$$$     .       array(i,0     ,0:nzbc+1) = dumzout2
-c$$$        if (pn( 0, 0, 1)/=nullp.and.pn( 0, 0, 1)/=currp)
-c$$$     .       array(i,0:nybc+1,nzbc+1) = dumyout1
-c$$$        if (pn( 0, 0,-1)/=nullp.and.pn( 0, 0,-1)/=currp)
-c$$$     .       array(i,0:nybc+1,0     ) = dumyout2
-
-        if (down) then
-          if (pn(0,-1,0)==pn(0,1,0)) then
-            array(i,0     ,0:nzbc+1) = dumzout2
-          else
-            array(i,0     ,0:nzbc+1) = dumzout1
-          endif
-        endif
-
-        if (up) then
-          if (pn(0,-1,0)==pn(0,1,0)) then
-            array(i,nybc+1,0:nzbc+1) = dumzout1
-          else
-            array(i,nybc+1,0:nzbc+1) = dumzout2
-          endif
-        endif
-
-        if (bottom) then
-          if (pn(0,0,-1)==pn(0,0,1)) then
-            array(i,0:nybc+1,0     ) = dumyout2
-          else
-            array(i,0:nybc+1,0     ) = dumyout1
-          endif
-        endif
-
-        if (top) then
-          if (pn(0,0,-1)==pn(0,0,1)) then
-            array(i,0:nybc+1,nzbc+1) = dumyout1
-          else
-            array(i,0:nybc+1,nzbc+1) = dumyout2
-          endif
-        endif
-
-      endif
-
-      end subroutine l1d1
-
-c     l0d2
-c     ################################################################
-      subroutine l0d2(flg)
-
-      implicit none
+c     Call variables
       
       integer :: flg,j
 
+c     Local variables
+      
       logical :: left,right,top,bottom
 
-      j = 0
+c     Begin program
 
       left = .false. ; right = .false. ; top = .false. ; bottom =.false.
 
@@ -3226,161 +3287,23 @@ c$$$     .       array(0:nxbc+1,j,nzbc+1) = dumxout2
         endif
       endif
 
-      end subroutine l0d2
+      end subroutine d2
 
-c     l1d2
+c     d3
 c     ################################################################
-      subroutine l1d2(flg)
+      subroutine d3(k,flg)
 
       implicit none
 
-      integer :: flg,j
- 
-      logical :: left,right,top,bottom
-
-      j = nybc+1
-
-      left = .false. ; right = .false. ; top = .false. ; bottom =.false.
-
-      !Left
-      dest = pn(-1,0,0)
-      if (dest /= currp) then
-        left = (dest /= nullp)
-        if (flg == 0) then
-          ireq = ireq+1
-          call MPI_Irecv(dumzout1,(nzbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-        else
-          ireq = ireq+1
-          dumzin1 = array(1,j,0:nzbc+1)
-          call MPI_Isend(dumzin1,(nzbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-        endif
-      endif
-
-      !Right
-      dest = pn(1,0,0)
-      if (dest /= currp) then
-        right = (dest /= nullp)
-        if (flg == 0) then
-          ireq = ireq+1
-          call MPI_Irecv(dumzout2,(nzbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-        else
-          ireq = ireq+1
-          dumzin2 = array(nxbc,j,0:nzbc+1)
-          call MPI_Isend(dumzin2,(nzbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-        endif
-      endif
-
-      !Bottom
-      dest = pn(0,0,-1)
-      if (dest /= currp) then
-        bottom = (dest /= nullp)
-        if (flg == 0) then
-          ireq = ireq+1
-          call MPI_Irecv(dumxout1,(nxbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-        else
-          ireq = ireq+1
-          dumxin1 = array(0:nxbc+1,j,1)
-          call MPI_Isend(dumxin1,(nxbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-        endif
-      endif
-
-      !Top
-      dest = pn(0,0,1)
-      if (dest /= currp) then
-        top = (dest /= nullp)
-        if (flg == 0) then
-          ireq = ireq+1
-          call MPI_Irecv(dumxout2,(nxbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-        else
-          ireq = ireq+1
-          dumxin2 = array(0:nxbc+1,j,nzbc)
-          call MPI_Isend(dumxin2,(nxbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
-     .         ,gbc_def%MPI_COMM,request(ireq)
-     .         ,mpierr)
-        endif
-      endif
-
-      if(ireq>0.and.flg==1) then
-        call MPI_Waitall(ireq,request,status,mpierr)
-
-c$$$        if (pn(-1, 0, 0)/=nullp.and.pn(-1, 0, 0)/=currp)
-c$$$     .       array(0     ,j,0:nzbc+1) = dumzout1
-c$$$        if (pn( 1, 0, 0)/=nullp.and.pn( 1, 0, 0)/=currp)
-c$$$     .       array(nxbc+1,j,0:nzbc+1) = dumzout2
-c$$$        if (pn( 0, 0,-1)/=nullp.and.pn( 0, 0,-1)/=currp)
-c$$$     .       array(0:nxbc+1,j,0     ) = dumxout1
-c$$$        if (pn( 0, 0, 1)/=nullp.and.pn( 0, 0, 1)/=currp)
-c$$$     .       array(0:nxbc+1,j,nzbc+1) = dumxout2
-
-        if (left) then
-          if (pn(-1,0,0)==pn(1,0,0)) then
-            array(0     ,j,0:nzbc+1) = dumzout2
-          else
-            array(0     ,j,0:nzbc+1) = dumzout1
-          endif
-        endif
-
-        if (right) then
-          if (pn(-1,0,0)==pn(1,0,0)) then
-            array(nxbc+1,j,0:nzbc+1) = dumzout1
-          else
-            array(nxbc+1,j,0:nzbc+1) = dumzout2
-          endif
-        endif
-
-        if (bottom) then
-          if (pn(0,0,-1)==pn(0,0,1)) then
-            array(0:nxbc+1,j,0     ) = dumxout2
-          else
-            array(0:nxbc+1,j,0     ) = dumxout1
-          endif
-        endif
-
-        if (top) then
-          if (pn(0,0,-1)==pn(0,0,1)) then
-            array(0:nxbc+1,j,nzbc+1) = dumxout1
-          else
-            array(0:nxbc+1,j,nzbc+1) = dumxout2
-          endif
-        endif
-
-      endif
-
-      end subroutine l1d2
-
-c     l0d3
-c     ################################################################
-      subroutine l0d3(flg)
-
-      implicit none
+c     Call variables
 
       integer :: flg,k
 
+c     Local variables
+      
       logical :: left,right,down,up
 
-      k = 0
+c     Begin program
 
       left = .false. ; right = .false. ; down = .false. ; up = .false.
 
@@ -3510,149 +3433,7 @@ c$$$     .       array(0:nxbc+1,nybc+1,k) = dumxout2
 
       endif
       
-      end subroutine l0d3
-
-c     l1d3
-c     ################################################################
-      subroutine l1d3(flg)
-
-      implicit none
-
-      integer :: flg,k
-
-      logical :: left,right,down,up
-
-      k = nzbc+1
-
-      left = .false. ; right = .false. ; down = .false. ; up = .false.
-
-      !Left
-      dest = pn(-1,0,0)
-      if (dest /= currp) then
-        left = (dest /= nullp)
-        if (flg == 0) then
-          ireq = ireq+1
-          call MPI_Irecv(dumyout1,(nybc+2)
-     .          ,MPI_DOUBLE_PRECISION,dest,ibc
-     .          ,gbc_def%MPI_COMM,request(ireq)
-     .          ,mpierr)
-        else
-          ireq = ireq+1
-          dumyin1 = array(1,0:nybc+1,k)
-          call MPI_Isend(dumyin1,(nybc+2)
-     .          ,MPI_DOUBLE_PRECISION,dest,ibc
-     .          ,gbc_def%MPI_COMM,request(ireq)
-     .          ,mpierr)
-        endif
-      endif
-
-      !Right
-      dest = pn(1,0,0)
-      if (dest /= currp) then
-        right = (dest /= nullp)
-        if (flg == 0) then
-          ireq = ireq+1
-          call MPI_Irecv(dumyout2,(nybc+2)
-     .          ,MPI_DOUBLE_PRECISION,dest,ibc
-     .          ,gbc_def%MPI_COMM,request(ireq)
-     .          ,mpierr)
-        else
-          ireq = ireq+1
-          dumyin2 = array(nxbc,0:nybc+1,k)
-          call MPI_Isend(dumyin2,(nybc+2)
-     .          ,MPI_DOUBLE_PRECISION,dest,ibc
-     .          ,gbc_def%MPI_COMM,request(ireq)
-     .          ,mpierr)
-        endif
-      endif
-
-      !Down
-      dest = pn(0,-1,0)
-      if (dest /= currp) then
-        down = (dest /= nullp)
-        if (flg == 0) then
-          ireq = ireq+1
-          call MPI_Irecv(dumxout1,(nxbc+2)
-     .          ,MPI_DOUBLE_PRECISION,dest,ibc
-     .          ,gbc_def%MPI_COMM,request(ireq)
-     .          ,mpierr)
-        else
-          ireq = ireq+1
-          dumxin1 = array(0:nxbc+1,1,k)
-          call MPI_Isend(dumxin1,(nxbc+2)
-     .          ,MPI_DOUBLE_PRECISION,dest,ibc
-     .          ,gbc_def%MPI_COMM,request(ireq)
-     .          ,mpierr)
-        endif
-      endif
-
-      !Up
-      dest = pn(0,1,0)
-      if (dest /= currp) then
-        up = (dest /= nullp)
-        if (flg == 0) then
-          ireq = ireq+1
-          call MPI_Irecv(dumxout2,(nxbc+2)
-     .          ,MPI_DOUBLE_PRECISION,dest,ibc
-     .          ,gbc_def%MPI_COMM,request(ireq)
-     .          ,mpierr)
-        else
-          ireq = ireq+1
-          dumxin2 = array(0:nxbc+1,nybc,k) 
-          call MPI_Isend(dumxin2,(nxbc+2)
-     .          ,MPI_DOUBLE_PRECISION,dest,ibc
-     .          ,gbc_def%MPI_COMM,request(ireq)
-     .          ,mpierr)
-        endif
-      endif
-       
-      if(ireq>0.and.flg==1) then
-        call MPI_Waitall(ireq,request,status,mpierr)
-
-c$$$        if (pn(-1, 0, 0)/=nullp.and.pn(-1, 0, 0)/=currp)
-c$$$     .       array(0     ,0:nybc+1,k) = dumyout1
-c$$$        if (pn( 1, 0, 0)/=nullp.and.pn( 1, 0, 0)/=currp)
-c$$$     .       array(nxbc+1,0:nybc+1,k) = dumyout2
-c$$$        if (pn( 0,-1, 0)/=nullp.and.pn( 0,-1, 0)/=currp)
-c$$$     .       array(0:nxbc+1,0     ,k) = dumxout1
-c$$$        if (pn( 0, 1, 0)/=nullp.and.pn( 0, 1, 0)/=currp)
-c$$$     .       array(0:nxbc+1,nybc+1,k) = dumxout2
-
-        if (left) then
-          if (pn(-1,0,0)==pn(1,0,0)) then
-            array(0     ,0:nybc+1,k) = dumyout2
-          else
-            array(0     ,0:nybc+1,k) = dumyout1
-          endif
-        endif
-
-        if (right) then
-          if (pn(-1,0,0)==pn(1,0,0)) then
-            array(nxbc+1,0:nybc+1,k) = dumyout1
-          else
-            array(nxbc+1,0:nybc+1,k) = dumyout2
-          endif
-        endif
-
-        if (down) then
-          if (pn(0,-1,0)==pn(0,1,0)) then
-            array(0:nxbc+1,0     ,k) = dumxout2
-          else
-            array(0:nxbc+1,0     ,k) = dumxout1
-          endif
-        endif
-
-        if (up) then
-          if (pn(0,-1,0)==pn(0,1,0)) then
-            array(0:nxbc+1,nybc+1,k) = dumxout1
-          else
-            array(0:nxbc+1,nybc+1,k) = dumxout2
-          endif
-        endif
-
-      endif
-       
-      end subroutine l1d3
+      end subroutine d3
 
 #endif
 
