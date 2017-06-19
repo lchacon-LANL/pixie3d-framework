@@ -387,15 +387,15 @@ endif
 # Maria's Macbook Air #
 #######################
 
-ifeq ($(HOST),Marias-MacBook-Air)
+ifeq ($(findstring Marias,$(HOST)),Marias)
 
   FC=gfortran
 
   MACHINE=Macbook-Air
 
-  NETCDF=f
-  NETCDF_LIBS = -lnetcdff -lnetcdf
-  NETCDF_INC  = -I/usr/include/netcdf
+  NETCDF=t
+  NETCDF_LIBS = -L/opt/local/lib -lnetcdff -lnetcdf
+  NETCDF_INC  = -I/opt/local/include
 
 #  ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
 
@@ -428,7 +428,7 @@ ifeq ($(HOST),Marias-MacBook-Air)
 
     LIBS += -latlas
   else
-    LIBS += -L/usr/lib -llapack -lblas
+    LIBS += -L/usr/lib -llapack -lblas -latlas
 
     HDF5 = t
 
