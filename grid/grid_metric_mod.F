@@ -1671,8 +1671,8 @@ c     Call variables
 
         type(grid_mg_def),pointer :: g_def
 
-        integer    :: igrid
-        real(8)    :: dr(0:,0:,0:,:,:)
+        integer :: igrid
+        real(8) :: dr(0:,0:,0:,:,:)
 
 c     Local variables
 

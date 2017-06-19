@@ -2446,10 +2446,10 @@ c     Call variables
 
 c     Local variables
 
-      integer    :: i,j,k,imax,imin,jmax,jmin,kmax,kmin,nx,ny,nz
-      integer    :: ncomp,ivar,ibc,loc,dim,bctype,xtrap_o
-     .             ,ilmin,jlmin,klmin,ilmax,jlmax,klmax
-      logical    :: petsc__bc,flg_sc
+      integer :: i,j,k,imax,imin,jmax,jmin,kmax,kmin,nx,ny,nz
+      integer :: ncomp,ivar,ibc,loc,dim,bctype,xtrap_o
+     .          ,ilmin,jlmin,klmin,ilmax,jlmax,klmax
+      logical :: petsc__bc,flg_sc
 
       real(8),pointer :: vec0(:,:,:,:)
 
@@ -2534,7 +2534,7 @@ c     Fill PETSc ghost cells and PER BCs
         return
       endif
 
-c     Fill SP ghost cells independently on cnv and cov staggered vectors
+c     Fill SP ghost cells
 
       call sync_bc(SP)
 
@@ -2592,6 +2592,8 @@ c     End program
 c     sync_bc
 c     #################################################################
       subroutine sync_bc(bctype)
+
+      implicit none
 
       integer :: bctype
 

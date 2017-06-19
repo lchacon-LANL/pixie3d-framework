@@ -432,7 +432,7 @@ ifeq ($(HOST),Marias-MacBook-Air)
 
     HDF5 = t
 
-    HDF5_HOME = $(WORKDIR)/lib/hdf5-1.8.7/gcc6/serial
+    HDF5_HOME = $(WORKDIR)/lib/hdf5-1.8.7/gcc5/serial
     HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
     HDF5_MOD  =$(HDF5_HOME)/include
     HDF5_INC  =$(HDF5_HOME)/include
