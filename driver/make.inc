@@ -1,6 +1,6 @@
 # Define message
 
-MESSAGE = "Compiling f90 driver"
+MESSAGE = "Compiling program driver"
 
 # Define subdirectories for common code
 
@@ -15,16 +15,13 @@ SUBDIRS = $(COMMONDIR)/math \
           $(COMMONDIR)/newtonGMRES\
 	  $(COMMONDIR)/matrixLightSolver\
           $(COMMONDIR)/MG\
+          $(COMMONDIR)/OMP\
           $(COMMONDIR)/orbit\
           $(COMMONDIR)/eigen
 
 ifeq ($(MK),t)
   SUBDIRS += $(COMMONDIR)/mk
 endif
-
-# Module order
-
-MODS = newtongm_mod.F
 
 #Setup defs.
 

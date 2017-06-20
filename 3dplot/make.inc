@@ -11,9 +11,11 @@ SUBDIRS = $(COMMONDIR)/math\
 	  $(COMMONDIR)/io\
 	  $(COMMONDIR)/grid\
 	  $(COMMONDIR)/var_setup\
+	  $(COMMONDIR)/newtonGMRES\
 	  $(COMMONDIR)/driver_setup\
 	  $(COMMONDIR)/matrixLightSolver\
           $(COMMONDIR)/MG\
+          $(COMMONDIR)/OMP\
           $(COMMONDIR)/orbit
 
 ifeq ($(MK),t)

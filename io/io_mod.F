@@ -11,6 +11,10 @@ c ########################################################################
      .       qp = (1+sign(1,qp_preferred))/2*qp_preferred
      .           +(1-sign(1,qp_preferred))/2*dp
 
+        INTERFACE is_open
+          module procedure is_open_file,is_open_unit
+        END INTERFACE
+
 #if defined(Darwin)
         character(4) :: sed='gsed'
 #else
@@ -31,6 +35,8 @@ c     ##################################################################
 c     -----------------------------------------------------------------
 c     Gets files from command input.
 c     -----------------------------------------------------------------
+
+      implicit none
 
 c     Call variables
 
@@ -59,15 +65,7 @@ c     --------------------------------------------------------------------
 c     Runs shell command from fortran.
 c     --------------------------------------------------------------------
 
-#if defined(samrai)
-      use iso_c_binding
-      interface
-         integer(c_int) function system(sysin) bind(c)
-         use iso_c_binding
-         character(kind=c_char), dimension(*) :: sysin
-         end function system
-         end interface
-#endif
+      implicit none
       
 c     Call variables
          
@@ -95,6 +93,8 @@ c     --------------------------------------------------------------------
 c     Checks whether "file" exists.
 c     --------------------------------------------------------------------
 
+      implicit none
+
 c     Call variables
 
       logical :: is_file
@@ -108,12 +108,89 @@ c     Begin program
 
       INQUIRE(FILE=trim(file),exist=is_file)
 
-cc      ierr = shellcmd('test -f '//trim(file))
-cc      is_file = (ierr == 0)
-
 c     End program
 
       end function is_file
+
+c     is_open_file
+c     ####################################################################
+      function is_open_file(file)
+
+c     --------------------------------------------------------------------
+c     Checks whether "file" has been opened.
+c     --------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      logical :: is_open_file
+      character(*) :: file
+
+c     Local variables
+
+      integer :: ierr
+
+c     Begin program
+
+      INQUIRE(FILE=trim(file),opened=is_open_file)
+
+c     End program
+
+      end function is_open_file
+
+c     is_open_unit
+c     ####################################################################
+      function is_open_unit(ufile)
+
+c     --------------------------------------------------------------------
+c     Checks whether unit "ufile" has been opened.
+c     --------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      logical :: is_open_unit
+      integer :: ufile
+
+c     Local variables
+
+c     Begin program
+
+      INQUIRE(unit=ufile,opened=is_open_unit)
+
+c     End program
+
+      end function is_open_unit
+
+c     find_unit
+c     ####################################################################
+      function find_unit(seed) result(ufile)
+
+c     --------------------------------------------------------------------
+c     Finds available file unit to open.
+c     --------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: seed
+      integer :: ufile
+
+c     Local variables
+
+c     Begin program
+
+      ufile = seed
+      do while(is_open_unit(ufile))
+        ufile = ufile+1
+      enddo
+
+c     End program
+
+      end function find_unit
 
 c     rm_files
 c     ####################################################################
@@ -122,6 +199,8 @@ c     ####################################################################
 c     --------------------------------------------------------------------
 c     Removes all files starting with "file".
 c     --------------------------------------------------------------------
+
+      implicit none
 
 c     Call variables
 
@@ -155,6 +234,8 @@ c     --------------------------------------------------------------------
 c     Adds line "line" after text "text" in ascii file "file"
 c     --------------------------------------------------------------------
 
+      implicit none
+
       integer :: ierr
 
       character(*) :: file,text,line
@@ -163,7 +244,7 @@ c     --------------------------------------------------------------------
 
 c     Begin program
 
-        command=
+      command=
      .       sed //' '//trim(sed_options)//' -e"/'
      .                //trim(text)//'/{" -e' // achar(39)
 #if defined(pgf90) || defined(xlf)
@@ -186,6 +267,8 @@ c     --------------------------------------------------------------------
 c     Replaces line containing "text" with line "line" in ascii file "file"
 c     --------------------------------------------------------------------
 
+      implicit none
+
       integer :: ierr
 
       character(*) :: file,text,line
@@ -194,8 +277,8 @@ c     --------------------------------------------------------------------
 
 c     Begin program
 
-          command=sed //' '//trim(sed_options)//' -e"/'
-     .                     //trim(text)//'/{" -e' // achar(39)
+      command=sed //' '//trim(sed_options)//' -e"/'
+     .                 //trim(text)//'/{" -e' // achar(39)
 #if defined(pgf90) || defined(xlf)
      .       // 'c\\' // achar(39) //' -e"'
 #else
@@ -204,7 +287,7 @@ c     Begin program
      .       // trim(line)   // '" -e"}" '
      .       // trim(file)
 
-        ierr = shellcmd(trim(command))
+      ierr = shellcmd(trim(command))
 
       end function replace_line
 
@@ -216,18 +299,20 @@ c     --------------------------------------------------------------------
 c     Deletes line containing "text" in ascii file "file"
 c     --------------------------------------------------------------------
 
-        integer :: ierr
+      implicit none
 
-        character(*) :: file,text
+      integer :: ierr
 
-        character(200):: command
+      character(*) :: file,text
+
+      character(200):: command
 
 c     Begin program
 
-        command=sed //' '// trim(sed_options)//' /'//trim(text)//'/d '
-     $                   // trim(file)
+      command=sed //' '// trim(sed_options)//' /'//trim(text)//'/d '
+     $                 // trim(file)
 
-        ierr = shellcmd(trim(command))
+      ierr = shellcmd(trim(command))
 
       end function delete_line
 

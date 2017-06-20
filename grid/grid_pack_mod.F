@@ -84,9 +84,6 @@ c     Packing
             if (bbz == 0d0) bbz= find_eta(xmin,xmax,gp(1),gp(2))
             xlog = scl_coord(x1,bbz,xmin,xmax,gp(1),gp(2))
           end select
-
-cc          bbx= find_eta(xmin,xmax,gp(1),gp(2))
-cc          xlog = scl_coord(x1,bbx,xmin,xmax,gp(1),gp(2))
         endif
 
       contains
@@ -360,28 +357,12 @@ cc          endif
 
             n2 = ng - n1
 
-cc            if (crse_ratio > 1 .and. xil /= 1d0) then
-cc              alphal = alphal*(xil**crse_ratio-1d0)/(xil-1d0)
-cc            else
-cc              alphal = alphal
-cc            endif
-cc
-cc            dxl = alphal*dxl  !Modify initial interval for coarser grids
-
             if (n1 > 1) then
               call packGrid(n1,lstart,xp-0.5*dxl,-dxl,xg(1:n1),xil,fv_l)
             else
               xg(1) = xp-0.5*dxl
               xil = 1d0
             endif
-
-cc            if (crse_ratio > 1 .and. xir /= 1d0) then
-cc              alphar = alphar*(xir**crse_ratio-1d0)/(xir-1d0)
-cc            else
-cc              alphar = alphar
-cc            endif
-cc
-cc            dxr = alphar*dxr  !Modify initial interval for coarser grids
 
             if (n2 > 1) then
               call packGrid(n2,xp+0.5*dxr,lend,dxr,xg(n1+1:ng),xir,fv_r)
@@ -390,23 +371,7 @@ cc            dxr = alphar*dxr  !Modify initial interval for coarser grids
               xir = 1d0
             endif
 
-cc            write (*,*) 'alphar,alphal=',alphar,alphal
-
-cc            if (abs(bcs1) == SP) then
-cccc              dxl = alphar*dxl
-cc              dxl = crse_ratio*dxl
-cc              dpack%xp = lstart + dxl
-cc            endif
-
           else
-
-cc            if (crse_ratio > 1 .and. xi /= 1d0) then
-cc              alphal = alphal*(xi**crse_ratio-1d0)/(xi-1d0)
-cc            else
-cc              alphal = alphal
-cc            endif
-cc
-cc            dx0 = alphal*dx0  !Modify initial interval for coarser grids
 
             if (xp == lstart) then  !Pack to the right
               pack_r = .true.
@@ -464,10 +429,10 @@ cc            dx0 = alphal*dx0  !Modify initial interval for coarser grids
         else  !Uniform grid
 
           if (bcs1 == PER.and.bcs2 == PER.and.ng == 1) then !Single layer dimension
+cc          if (bcs1 == PER.and.bcs2 == PER) then !Sets angle origin at zero
             dh = length/ng
             lstart = lmin
           elseif (bcs1 == SYM .and. bcs2 == SYM) then
-cc          if (bcs1 == SYM .and. bcs2 == SYM) then
             dh = length/(ng-1)
             lstart = lmin
           elseif (bcs1 == SYM .and. bcs2 /= SYM) then
@@ -478,11 +443,7 @@ cc          if (bcs1 == SYM .and. bcs2 == SYM) then
             lstart = lmin+0.5d0*dh
           else
             dh = length/ng
-cc            if (bcs1 == PER.and.bcs2 == PER.and.ng == 1) then 
-cc              lstart = lmin
-cc            else
-              lstart = lmin+0.5d0*dh
-cc            endif
+            lstart = lmin+0.5d0*dh
           endif
 
           xg(1) = lstart

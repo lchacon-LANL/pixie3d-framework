@@ -2,9 +2,13 @@ c module grid_mpi
 c ######################################################################
       module grid_mpi
 
-        use grid_def
+        use grid_operations
 
         use xdraw_io, ONLY: contour
+
+#if defined(use_pic_mpi)
+        use mpi
+#endif
 
         implicit none
 
@@ -17,13 +21,19 @@ c ######################################################################
      .                    ,find_global_field_scl_nobc
         END INTERFACE
 
+        INTERFACE find_local
+          module procedure find_local_field_vec,find_local_field_scl
+        END INTERFACE
+
+        integer :: mpierr
+
 #if defined(petsc)
 
 #include "finclude/petscdef.h"
 #include "finclude/petscvecdef.h"
 #include "finclude/petscdadef.h"
 
-        integer    :: np,inp,my_rank,mpierr,group_world
+        integer    :: np,inp,my_rank,group_world
      .               ,group_sp,tag=0,dest=0,root=0
      .               ,status(MPI_STATUS_SIZE)
      .               ,tag_send,tag_recv,request
@@ -54,31 +64,32 @@ cc     $            ,createPETScFortranDA,destroyPETScFortranDA
 
       contains
 
-c     initFortranMPI
-c     #####################################################################
-      subroutine initFortranMPI(mpi_comm,nxg,nyg,nzg)
-
-c     ---------------------------------------------------------------------
-c     Initializes MPI variables.
-c     ---------------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-        integer    :: nxg,nyg,nzg,mpi_comm
-
-c     Local variables
-
-c     Begin program
-
-        call initMPI(mpi_comm,np,my_rank)
-
-c     Allocate processors
-
-        call processorAlloc(nxg,nyg,nzg)
-
-      end subroutine initFortranMPI
+ccc     initFortranMPI
+ccc     #####################################################################
+cc      subroutine initFortranMPI(mpi_comm,nxg,nyg,nzg,mx,my,mz)
+cc
+ccc     ---------------------------------------------------------------------
+ccc     Initializes MPI variables.
+ccc     ---------------------------------------------------------------------
+cc
+cc        implicit none
+cc
+ccc     Call variables
+cc
+cc        integer,INTENT(IN) :: nxg,nyg,nzg,mpi_comm
+cc        integer,INTENT(OUT):: mx,my,mz
+cc
+ccc     Local variables
+cc
+ccc     Begin program
+cc
+cc        call initMPI(mpi_comm,np,my_rank)
+cc
+ccc     Allocate processors
+cc
+cc        call processorAlloc(nxg,nyg,nzg,mx,my,mz)
+cc
+cc      end subroutine initFortranMPI
 
 c     create_MPI_comms
 c     #################################################################
@@ -272,108 +283,12 @@ c     End program
 
       end subroutine fillPetscGhostCells
 
-c     pstop
-c     ################################################################
-      subroutine pstop(routine,message)
-
-c     ---------------------------------------------------------------
-c     Stops program at "routine" with "message"
-c     ---------------------------------------------------------------
-
-        implicit none
-
-        character(*)  :: routine, message
-
-c     Begin program
-
-        if (my_rank == 0) then
-          write (*,*)
-          write (*,*) trim(message)
-          write (*,*) 'Program stopped at routine ',trim(routine)
-        endif
-
-        call PetscEnd(mpierr)
-
-        stop
-
-      end subroutine pstop
-
-c     dot2
-c     ###################################################################
-      function dot2(vec1,vec2)
-
-c     -------------------------------------------------------------------
-c     Performs parallel scalar product (vec1,vec2). In call:
-c       * vec1: vector, first term of scalar product.
-c       * vec2: vector, second term of scalar product.
-c     -------------------------------------------------------------------
-
-      implicit none
-
-c     Call variables
-
-      integer    :: ntot
-      real(8)    :: dot2
-      real(8),INTENT(IN) :: vec1(:),vec2(:)
-
-c     Local variables
-
-      real(8)    :: ldot
-
-c     Begin program
-
-      dot2 = dot_product(vec1,vec2)
-
-      if (.not.asm) then
-        ldot = dot2
-        call MPI_Allreduce(ldot,dot2,1,MPI_DOUBLE_PRECISION
-     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-      endif
-
-      end function dot2
-
-c     dot
-c     ###################################################################
-      function dot(ntot,vec1,vec2)
-
-c     -------------------------------------------------------------------
-c     Performs parallel scalar product (vec1,vec2). In call:
-c       * ntot: vector dimension
-c       * vec1: vector, first term of scalar product.
-c       * vec2: vector, second term of scalar product.
-c     -------------------------------------------------------------------
-
-      implicit none
-
-c     Call variables
-
-      integer    :: ntot
-      real(8)    :: vec1(ntot),vec2(ntot),dot
-
-c     Local variables
-
-      integer    :: imin,imax,jmin,jmax,kmin,kmax
-     .             ,i,j,k,iii,ieq
-      real(8)    :: ldot
-
-c     Begin program
-
-      dot = dot_product(vec1,vec2)
-
-      if (.not.asm) then
-        ldot = dot
-        call MPI_Allreduce(ldot,dot,1,MPI_DOUBLE_PRECISION
-     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-      endif
-
-      end function dot
-
 c     psum
 c     ###################################################################
       function psum(vec1,mpi_comm)
 
 c     -------------------------------------------------------------------
-c     Performs parallel sum of element of a 1d-array using communicator
+c     Performs parallel sum of elements of a 1d-array using communicator
 c     mpi_comm. On input:
 c       * vec1: vector
 c       * mpi_comm: MPI communicator
@@ -446,13 +361,13 @@ c     ---------------------------------------------------------------------
 
 c     Call variables
 
-        integer    :: MPI_COMM
+        integer :: MPI_COMM
 
         external   selProc
 
 c     Local variables
 
-        integer    :: split_key,my_sp_rank,np_sp
+        integer :: split_key,my_sp_rank,np_sp
 
 c     Begin program
 
@@ -993,7 +908,7 @@ c     #####################################################################
       subroutine selectRank_XY(split_key)
 
 c     ---------------------------------------------------------------------
-c     Groups processors based on shared X position in processor mesh.
+c     Groups processors based on shared Z position in processor mesh.
 c     ---------------------------------------------------------------------
 
         implicit none
@@ -1034,9 +949,9 @@ c     Set global limits of global domain g_lim(dim,loc)
 
 c     Select rank
 
-        !Group processors based on location in x direction
-        !(y and z directions are shared; 
-        ! organize in 1D processor mesh: i
+        !Group processors based on location in z direction
+        !(y and x directions are shared; 
+        ! organize in 1D processor mesh: k
         split_key = split_key + npz*l_lim(3,1)/g_lim(3,1)
 
 c     End program
@@ -1314,9 +1229,50 @@ c     End program
 
       contains
 
+#endif
+
 c     pstop
 c     ################################################################
       subroutine pstop(routine,message)
+
+c     ---------------------------------------------------------------
+c     Stops program at "routine" with "message"
+c     ---------------------------------------------------------------
+
+        implicit none
+
+        character(*)  :: routine, message
+
+c     Begin program
+
+#if defined(samrai)
+c     Call SAMRAI's error handler
+        interface
+           subroutine pstop_samrai(fun,msg) 
+     .                bind(C, name="pstop_samrai")
+              use iso_c_binding, only: c_char
+              character(kind=c_char) :: fun(*), msg(*)
+           end subroutine pstop_samrai
+        end interface
+        call pstop_samrai(trim(routine),trim(message))
+#else
+
+#if defined(petsc)
+        if (my_rank == 0) then
+          write (*,*)
+          write (*,*) trim(message)
+          write (*,*) 'Program stopped at routine ',trim(routine)
+        endif
+        call PetscEnd(mpierr)
+#endif
+        call sstop(routine, message)
+#endif
+
+      end subroutine pstop
+
+c     sstop
+c     ################################################################
+      subroutine sstop(routine,message)
 
 c     ---------------------------------------------------------------
 c     Stops program at "routine" with "message"
@@ -1332,9 +1288,50 @@ c     Begin program
         write (*,*) trim(message)
         write (*,*) 'Program stopped at routine ',trim(routine)
 
+        call abort
         stop
 
-      end subroutine pstop
+c     End program
+
+      end subroutine sstop
+
+c     dot
+c     ###################################################################
+      function dot(ntot,vec1,vec2)
+
+c     -------------------------------------------------------------------
+c     Performs parallel scalar product (vec1,vec2). In call:
+c       * ntot: vector dimension
+c       * vec1: vector, first term of scalar product.
+c       * vec2: vector, second term of scalar product.
+c     -------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer    :: ntot
+      real(8)    :: vec1(ntot),vec2(ntot),dot
+
+c     Local variables
+
+      integer    :: imin,imax,jmin,jmax,kmin,kmax
+     .             ,i,j,k,iii,ieq
+      real(8)    :: ldot
+
+c     Begin program
+
+      dot = dot_product(vec1,vec2)
+
+#if defined(petsc)
+      if (.not.asm) then
+        ldot = dot
+        call MPI_Allreduce(ldot,dot,1,MPI_DOUBLE_PRECISION
+     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+      endif
+#endif
+
+      end function dot
 
 c     dot2
 c     ###################################################################
@@ -1351,23 +1348,33 @@ c     -------------------------------------------------------------------
 c     Call variables
 
       real(8) :: dot2
-      real(8), INTENT(IN) :: vec1(:),vec2(:)
+      real(8),INTENT(IN) :: vec1(:),vec2(:)
 
 c     Local variables
+
+      integer :: nn,lnn
+      real(8) :: ldot
 
 c     Begin program
 
       dot2 = dot_product(vec1,vec2)
 
+#if defined(petsc)
+      if (.not.asm) then
+        ldot = dot2
+        call MPI_Allreduce(ldot,dot2,1,MPI_DOUBLE_PRECISION
+     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+      endif
+#endif
+
       end function dot2
 
-c     dot
+c     dot3
 c     ###################################################################
-      function dot(ntot,vec1,vec2)
+      function dot3(vec1,vec2,mpi_comm)
 
 c     -------------------------------------------------------------------
-c     Performs scalar product (vec1,vec2). In call:
-c       * ntot: vector dimension
+c     Performs parallel scalar product (vec1,vec2). In call:
 c       * vec1: vector, first term of scalar product.
 c       * vec2: vector, second term of scalar product.
 c     -------------------------------------------------------------------
@@ -1376,18 +1383,85 @@ c     -------------------------------------------------------------------
 
 c     Call variables
 
-      integer    :: ntot
-      real(8)    :: vec1(ntot),vec2(ntot),dot
+      real(8) :: dot3
+      real(8),INTENT(IN) :: vec1(:),vec2(:)
+      integer,optional :: mpi_comm
 
 c     Local variables
 
+      integer :: mpicomm
+      real(8) :: ldot
+
 c     Begin program
 
-      dot = dot_product(vec1,vec2)
+      dot3 = dot_product(vec1,vec2)
 
-      end function dot
+#if defined(petsc)
+      if (PRESENT(mpi_comm)) then
+        mpicomm = mpi_comm
+      else
+        mpicomm = MPI_COMM_WORLD
+      endif
 
+      if (.not.asm) then
+        ldot = dot3
+        call MPI_Allreduce(ldot,dot3,1,MPI_DOUBLE_PRECISION
+     .                    ,MPI_SUM,mpicomm,mpierr)
+      endif
 #endif
+
+      end function dot3
+
+c     rms
+c     ###################################################################
+      function rms(vec1,mpi_comm)
+
+c     -------------------------------------------------------------------
+c     Performs parallel root mean square. In call:
+c       * vec1: vector
+c     -------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      real(8) :: rms
+      real(8),INTENT(IN) :: vec1(:)
+      integer,optional :: mpi_comm
+
+c     Local variables
+
+      integer :: nn,lnn,mpicomm
+      real(8) :: lrms
+
+c     Begin program
+
+      if (PRESENT(mpi_comm)) then
+        mpicomm = mpi_comm
+      else
+#if defined(petsc)
+        mpicomm = MPI_COMM_WORLD
+#endif
+      endif
+
+      nn = size(vec1)
+      rms = dot_product(vec1,vec1)
+
+#if defined(petsc)
+      if (.not.asm) then
+        lrms = rms
+        call MPI_Allreduce(lrms,rms,1,MPI_DOUBLE_PRECISION
+     .                    ,MPI_SUM,mpicomm,mpierr)
+
+        lnn = nn
+        call MPI_Allreduce(lnn,nn,1,MPI_INTEGER
+     .                    ,MPI_SUM,mpicomm,mpierr)
+      endif
+#endif
+
+      rms=sqrt(rms/nn)
+
+      end function rms
 
 c     isProc
 c     #################################################################
@@ -1418,8 +1492,8 @@ c     #################################################################
 
 c     Call variables
 
-        integer    :: igl,jgl,kgl,igx,igy,igz
-        logical    :: inProc
+        integer :: igl,jgl,kgl,igx,igy,igz
+        logical :: inProc
 
 c     Local variables
 
@@ -1435,7 +1509,7 @@ c     End program
 
 c     find_global_field_vec
 c     ##############################################################
-      subroutine find_global_field_vec(lf,gf,dump,map_bc)
+      subroutine find_global_field_vec(lf,gf,dump,map_bc,mpi_comm)
 
       use xdraw_io
 
@@ -1451,15 +1525,16 @@ c     Call variables
 
       logical,optional :: dump,map_bc
 
+      integer,optional :: mpi_comm
+
 c     Local variables
 
       integer :: i,j,k,dl(4),dg(4),lsize,gsize,ibc,ieq,dim,loc
-     .          ,igmin,igmax,jgmin,jgmax,kgmin,kgmax
-     .          ,ilmin,ilmax,jlmin,jlmax,klmin,klmax
       real(8),pointer,dimension(:) :: local_x,global_x
-      real(8),pointer,dimension(:,:,:,:) :: dum_lx
 
       logical :: dmp,mapbc
+
+      integer :: mpicomm,npxl,npyl,npzl,npl
 
 c     Begin program
 
@@ -1472,7 +1547,15 @@ c     Begin program
       if (PRESENT(map_bc)) then
          mapbc = map_bc
       else
-         mapbc = .false.
+         mapbc = .true.
+      endif
+
+      if (PRESENT(mpi_comm)) then
+        mpicomm = mpi_comm
+      else
+#if defined(petsc)
+        mpicomm = MPI_COMM_WORLD
+#endif
       endif
 
 c     Calculate array sizes
@@ -1483,81 +1566,51 @@ c     Calculate array sizes
 
       lsize = dl(1)*dl(2)*dl(3)*dl(4)
 
-      gsize = dl(1)*npx*dl(2)*npy*dl(3)*npz*dl(4)
+      npxl = (dg(1)-2)/(dl(1)-2)
+      npyl = (dg(2)-2)/(dl(2)-2)
+      npzl = (dg(3)-2)/(dl(3)-2)
+
+      gsize = dl(1)*npxl*dl(2)*npyl*dl(3)*npzl*dl(4)
+
+#if defined(petsc)
+      call MPI_Comm_size(mpicomm,npl,mpierr)
+
+      if (npl /= npxl*npyl*npzl) then
+        call pstop('find_global_field_vec'
+     .            ,'Processor number does not agree')
+      endif
+#endif
 
 c     Communicate
 
 #if defined(petsc)
       allocate(local_x(lsize),global_x(gsize))
 
-      allocate(dum_lx(0:dl(1)-1,0:dl(2)-1,0:dl(3)-1,dl(4)))
-
       local_x = reshape(lf, (/ lsize /))
 
       call MPI_Allgather(local_x ,lsize,MPI_DOUBLE_PRECISION
      .                  ,global_x,lsize,MPI_DOUBLE_PRECISION
-     .                  ,MPI_COMM_WORLD,mpierr)
+     .                  ,mpicomm,mpierr)
 
+      do k=1,npzl
+        do j=1,npyl
+          do i=1,npxl
 
-      do k=1,npz
-        do j=1,npy
-          do i=1,npx
-
-cc            gf((dl(1)-2)*(i-1):(dl(1)-2)*i+1
-cc     .        ,(dl(2)-2)*(j-1):(dl(2)-2)*j+1
-cc     .           ,(dl(3)-2)*(k-1):(dl(3)-2)*k+1,1:dg(4))
-            dum_lx
-     .        = reshape(global_x(1+lsize*(        (i-1)
-     .                                   +npx    *(j-1)
-     .                                   +npx*npy*(k-1))
-     .                          :  lsize*(         i
-     .                                   +npx    *(j-1)
-     .                                   +npx*npy*(k-1)) )
+            gf((dl(1)-2)*(i-1):(dl(1)-2)*i+1
+     .        ,(dl(2)-2)*(j-1):(dl(2)-2)*j+1
+     .        ,(dl(3)-2)*(k-1):(dl(3)-2)*k+1,1:dg(4))
+     .        = reshape(global_x(1+lsize*(          (i-1)
+     .                                   +npxl     *(j-1)
+     .                                   +npxl*npyl*(k-1))
+     .                          :  lsize*(           i
+     .                                   +npxl     *(j-1)
+     .                                   +npxl*npyl*(k-1)) )
      .                 ,dl )
-
-            !Define global and local limits
-            ilmin = 0
-            ilmax = dl(1)-1
-            jlmin = 0
-            jlmax = dl(2)-1
-            klmin = 0
-            klmax = dl(3)-1
-
-            igmin = (dl(1)-2)*(i-1)
-            igmax = (dl(1)-2)*i+1
-            jgmin = (dl(2)-2)*(j-1)
-            jgmax = (dl(2)-2)*j+1
-            kgmin = (dl(3)-2)*(k-1)
-            kgmax = (dl(3)-2)*k+1
-
-            !Exclude boundaries in interior domains
-            if (i>1  ) then
-              igmin = igmin+1 ; ilmin = ilmin + 1
-            endif
-            if (i<npx) then
-              igmax = igmax-1 ; ilmax = ilmax - 1
-            endif
-            if (j>1  ) then
-              jgmin = jgmin+1 ; jlmin = jlmin + 1
-            endif
-            if (j<npy) then
-              jgmax = jgmax-1 ; jlmax = jlmax - 1
-            endif
-            if (k>1  ) then
-              kgmin = kgmin+1 ; klmin = klmin + 1
-            endif
-            if (k<npz) then
-              kgmax = kgmax-1 ; klmax = klmax - 1
-            endif
-
-            gf(igmin:igmax,jgmin:jgmax,kgmin:kgmax,1:dg(4))
-     .           = dum_lx(ilmin:ilmax,jlmin:jlmax,klmin:klmax,1:dg(4))
-            
           enddo
         enddo
       enddo
 
-      deallocate(local_x,global_x,dum_lx)
+      deallocate(local_x,global_x)
 #else
       gf = lf
 #endif
@@ -1612,7 +1665,7 @@ c     End program
 
 c     find_global_field_vec_nobc
 c     ##############################################################
-      subroutine find_global_field_vec_nobc(lf,gf)
+      subroutine find_global_field_vec_nobc(lf,gf,mpi_comm)
 
       implicit none
 
@@ -1622,6 +1675,7 @@ c     --------------------------------------------------------------
 
 c     Call variables
 
+      integer,optional :: mpi_comm
       real(8),dimension(:,:,:,:) :: lf,gf
 
 c     Local variables
@@ -1631,7 +1685,17 @@ c     Local variables
 
       logical :: dmp,mapbc
 
+      integer :: mpicomm,npxl,npyl,npzl,npl
+
 c     Begin program
+
+#if defined(petsc)
+      if (PRESENT(mpi_comm)) then
+        mpicomm = mpi_comm
+      else
+        mpicomm = MPI_COMM_WORLD
+      endif
+#endif
 
 c     Calculate array sizes
 
@@ -1641,7 +1705,21 @@ c     Calculate array sizes
 
       lsize = dl(1)*dl(2)*dl(3)*dl(4)
 
-      gsize = dl(1)*npx*dl(2)*npy*dl(3)*npz*dl(4)
+cc      gsize = dl(1)*npx*dl(2)*npy*dl(3)*npz*dl(4)
+      gsize = dg(1)*dg(2)*dg(3)*dg(4)
+
+      npxl = dg(1)/dl(1)
+      npyl = dg(2)/dl(2)
+      npzl = dg(3)/dl(3)
+
+#if defined(petsc)
+      call MPI_Comm_size(mpicomm,npl,mpierr)
+
+      if (npl /= npxl*npyl*npzl) then
+        call pstop('find_global_field_vec_nobc'
+     .            ,'Processor number does not agree')
+      endif
+#endif
 
 c     Communicate
 
@@ -1652,22 +1730,22 @@ c     Communicate
 
       call MPI_Allgather(local_x ,lsize,MPI_DOUBLE_PRECISION
      .                  ,global_x,lsize,MPI_DOUBLE_PRECISION
-     .                  ,MPI_COMM_WORLD,mpierr)
+     .                  ,mpicomm,mpierr)
 
 
-      do k=1,npz
-        do j=1,npy
-          do i=1,npx
+      do k=1,npzl
+        do j=1,npyl
+          do i=1,npxl
 
             gf(dl(1)*(i-1)+1:dl(1)*i
      .        ,dl(2)*(j-1)+1:dl(2)*j
      .        ,dl(3)*(k-1)+1:dl(3)*k,1:dg(4))
-     .        = reshape(global_x(1+lsize*(        (i-1)
-     .                                   +npx    *(j-1)
-     .                                   +npx*npy*(k-1))
-     .                          :  lsize*(         i
-     .                                   +npx    *(j-1)
-     .                                   +npx*npy*(k-1)) )
+     .        = reshape(global_x(1+lsize*(          (i-1)
+     .                                   +npxl     *(j-1)
+     .                                   +npxl*npyl*(k-1))
+     .                          :  lsize*(           i
+     .                                   +npxl     *(j-1)
+     .                                   +npxl*npyl*(k-1)) )
      .                 ,dl )
           enddo
         enddo
@@ -1684,7 +1762,7 @@ c     End program
 
 c     find_global_field_scl
 c     ##############################################################
-      subroutine find_global_field_scl(lf,gf,dump)
+      subroutine find_global_field_scl(lf,gf,dump,mpi_comm)
 
       use xdraw_io
 
@@ -1699,16 +1777,16 @@ c     Call variables
       real(8),dimension(0:,0:,0:) :: lf,gf
 
       logical,optional :: dump
+      integer,optional :: mpi_comm
 
 c     Local variables
 
       integer :: i,j,k,dl(3),dg(3),lsize,gsize,ibc
-     .          ,igmin,igmax,jgmin,jgmax,kgmin,kgmax
-     .          ,ilmin,ilmax,jlmin,jlmax,klmin,klmax
       real(8),pointer,dimension(:) :: local_x,global_x
-      real(8),pointer,dimension(:,:,:) :: dum_lx
 
       logical :: dmp
+
+      integer :: mpicomm,npxl,npyl,npzl,npl
 
 c     Begin program
 
@@ -1718,6 +1796,14 @@ c     Begin program
         dmp=.false.
       endif
 
+#if defined(petsc)
+      if (PRESENT(mpi_comm)) then
+        mpicomm = mpi_comm
+      else
+        mpicomm = MPI_COMM_WORLD
+      endif
+#endif
+
 c     Calculate array sizes
 
       dl = shape(lf)
@@ -1726,88 +1812,58 @@ c     Calculate array sizes
 
       lsize = dl(1)*dl(2)*dl(3)
 
-      gsize = dl(1)*npx*dl(2)*npy*dl(3)*npz
+      npxl = (dg(1)-2)/(dl(1)-2)
+      npyl = (dg(2)-2)/(dl(2)-2)
+      npzl = (dg(3)-2)/(dl(3)-2)
+
+      gsize = dl(1)*npxl*dl(2)*npyl*dl(3)*npzl
+
+#if defined(petsc)
+      call MPI_Comm_size(mpicomm,npl,mpierr)
+
+      if (npl /= npxl*npyl*npzl) then
+        call pstop('find_global_field_scl'
+     .            ,'Processor number does not agree')
+      endif
+#endif
 
 c     Communicate
 
 #if defined(petsc)
       allocate(local_x(lsize),global_x(gsize))
 
-      allocate(dum_lx(0:dl(1)-1,0:dl(2)-1,0:dl(3)-1))
-
       local_x = reshape(lf, (/ lsize /))
 
       call MPI_Allgather(local_x ,lsize,MPI_DOUBLE_PRECISION
      .                  ,global_x,lsize,MPI_DOUBLE_PRECISION
-     .                  ,MPI_COMM_WORLD,mpierr)
+     .                  ,mpicomm,mpierr)
 
-      do k=1,npz
-        do j=1,npy
-          do i=1,npx
-cc            gf((dl(1)-2)*(i-1):(dl(1)-2)*i+1
-cc     .        ,(dl(2)-2)*(j-1):(dl(2)-2)*j+1
-cc     .        ,(dl(3)-2)*(k-1):(dl(3)-2)*k+1)
-            dum_lx
-     .        = reshape(global_x(1+lsize*(        (i-1)
-     .                                   +npx    *(j-1)
-     .                                   +npx*npy*(k-1))
-     .                          :  lsize*(         i
-     .                                   +npx    *(j-1)
-     .                                   +npx*npy*(k-1)) )
+      do k=1,npzl
+        do j=1,npyl
+          do i=1,npxl
+            gf((dl(1)-2)*(i-1):(dl(1)-2)*i+1
+     .        ,(dl(2)-2)*(j-1):(dl(2)-2)*j+1
+     .        ,(dl(3)-2)*(k-1):(dl(3)-2)*k+1)
+     .        = reshape(global_x(1+lsize*(          (i-1)
+     .                                   +npxl     *(j-1)
+     .                                   +npxl*npyl*(k-1))
+     .                          :  lsize*(           i
+     .                                   +npxl     *(j-1)
+     .                                   +npxl*npyl*(k-1)) )
      .                 ,dl )
-
-            !Define global and local limits
-            ilmin = 0
-            ilmax = dl(1)-1
-            jlmin = 0
-            jlmax = dl(2)-1
-            klmin = 0
-            klmax = dl(3)-1
-
-            igmin = (dl(1)-2)*(i-1)
-            igmax = (dl(1)-2)*i+1
-            jgmin = (dl(2)-2)*(j-1)
-            jgmax = (dl(2)-2)*j+1
-            kgmin = (dl(3)-2)*(k-1)
-            kgmax = (dl(3)-2)*k+1
-
-            !Exclude boundaries in interior domains
-            if (i>1  ) then
-              igmin = igmin+1 ; ilmin = ilmin + 1
-            endif
-            if (i<npx) then
-              igmax = igmax-1 ; ilmax = ilmax - 1
-            endif
-            if (j>1  ) then
-              jgmin = jgmin+1 ; jlmin = jlmin + 1
-            endif
-            if (j<npy) then
-              jgmax = jgmax-1 ; jlmax = jlmax - 1
-            endif
-            if (k>1  ) then
-              kgmin = kgmin+1 ; klmin = klmin + 1
-            endif
-            if (k<npz) then
-              kgmax = kgmax-1 ; klmax = klmax - 1
-            endif
-
-            gf(igmin:igmax,jgmin:jgmax,kgmin:kgmax)
-     .           = dum_lx(ilmin:ilmax,jlmin:jlmax,klmin:klmax)
-
           enddo
         enddo
       enddo
 
-      deallocate(local_x,global_x,dum_lx)
-#else
-      gf = lf
-#endif
+      deallocate(local_x,global_x)
 
-c     Synchronize global periodic boundaries
-
+      !Synchronize global periodic boundaries
       do ibc =1,6
         if (bcond(ibc) == PER) call per_bc(ibc,gf)
       enddo
+#else
+      gf = lf
+#endif
 
 c     Dump global array
 
@@ -1829,7 +1885,7 @@ c     End program
 
 c     find_global_field_scl_nobc
 c     ##############################################################
-      subroutine find_global_field_scl_nobc(lf,gf)
+      subroutine find_global_field_scl_nobc(lf,gf,mpi_comm)
 
       implicit none
 
@@ -1840,13 +1896,23 @@ c     --------------------------------------------------------------
 c     Call variables
 
       real(8),dimension(:,:,:) :: lf,gf
+      integer,optional :: mpi_comm
 
 c     Local variables
 
       integer :: i,j,k,dl(3),dg(3),lsize,gsize,ibc
       real(8),pointer,dimension(:) :: local_x,global_x
+      integer :: mpicomm,npxl,npyl,npzl,npl
 
 c     Begin program
+
+#if defined(petsc)
+      if (PRESENT(mpi_comm)) then
+        mpicomm = mpi_comm
+      else
+        mpicomm = MPI_COMM_WORLD
+      endif
+#endif
 
 c     Calculate array sizes
 
@@ -1856,7 +1922,21 @@ c     Calculate array sizes
 
       lsize = dl(1)*dl(2)*dl(3)
 
-      gsize = dl(1)*npx*dl(2)*npy*dl(3)*npz
+cc      gsize = dl(1)*npx*dl(2)*npy*dl(3)*npz
+      gsize = dg(1)*dg(2)*dg(3)
+
+      npxl = dg(1)/dl(1)
+      npyl = dg(2)/dl(2)
+      npzl = dg(3)/dl(3)
+
+#if defined(petsc)
+      call MPI_Comm_size(mpicomm,npl,mpierr)
+
+      if (npl /= npxl*npyl*npzl) then
+        call pstop('find_global_field_scl_nobc'
+     .            ,'Processor number does not agree')
+      endif
+#endif
 
 c     Communicate
 
@@ -1867,20 +1947,20 @@ c     Communicate
 
       call MPI_Allgather(local_x ,lsize,MPI_DOUBLE_PRECISION
      .                  ,global_x,lsize,MPI_DOUBLE_PRECISION
-     .                  ,MPI_COMM_WORLD,mpierr)
+     .                  ,mpicomm,mpierr)
 
-      do k=1,npz
-        do j=1,npy
-          do i=1,npx
+      do k=1,npzl
+        do j=1,npyl
+          do i=1,npxl
             gf(dl(1)*(i-1)+1:dl(1)*i
      .        ,dl(2)*(j-1)+1:dl(2)*j
      .        ,dl(3)*(k-1)+1:dl(3)*k)
-     .        = reshape(global_x(1+lsize*(        (i-1)
-     .                                   +npx    *(j-1)
-     .                                   +npx*npy*(k-1))
-     .                          :  lsize*(         i
-     .                                   +npx    *(j-1)
-     .                                   +npx*npy*(k-1)) )
+     .        = reshape(global_x(1+lsize*(          (i-1)
+     .                                   +npxl     *(j-1)
+     .                                   +npxl*npyl*(k-1))
+     .                          :  lsize*(           i
+     .                                   +npxl     *(j-1)
+     .                                   +npxl*npyl*(k-1)) )
      .                 ,dl )
           enddo
         enddo
@@ -1894,6 +1974,95 @@ c     Communicate
 c     End program
 
       end subroutine find_global_field_scl_nobc
+
+c     find_local_field_vec
+c     ##############################################################
+      subroutine find_local_field_vec(igrid,gf,lf)
+
+      implicit none
+
+c     --------------------------------------------------------------
+c     Performs parallel reduction to find global field.
+c     --------------------------------------------------------------
+
+c     Call variables
+
+      integer :: igrid
+      real(8),dimension(0:,0:,0:,:) :: lf,gf
+
+c     Local variables
+
+      integer :: i,j,k,dl(4),igl(3),ilc(3)
+
+c     Begin program
+
+c     Calculate array sizes
+
+      dl = shape(lf)
+
+c     Transfer field to local mesh
+
+      do k=0,dl(3)-1
+        do j=0,dl(2)-1
+          do i=0,dl(1)-1
+
+            !Find global limits
+            ilc = (/i,j,k/)
+            igl = globalIndex(igrid,ilc)
+
+            !Map field
+            lf(i,j,k,:) = gf(igl(1),igl(2),igl(3),:)
+          enddo
+        enddo
+      enddo
+
+c     End program
+
+      end subroutine find_local_field_vec
+
+c     find_local_field_scl
+c     ##############################################################
+      subroutine find_local_field_scl(igrid,gf,lf)
+
+      implicit none
+
+c     --------------------------------------------------------------
+c     Performs parallel reduction to find global field.
+c     --------------------------------------------------------------
+
+c     Call variables
+
+      integer :: igrid
+      real(8),dimension(0:,0:,0:) :: lf,gf
+
+c     Local variables
+
+      integer :: i,j,k,dl(3),igl(3)
+
+c     Begin program
+
+c     Calculate array sizes
+
+      dl = shape(lf)
+
+c     Transfer field to local mesh
+
+      do k=0,dl(3)-1
+        do j=0,dl(2)-1
+          do i=0,dl(1)-1
+
+            !Find global limits
+            igl = globalIndex(igrid,(/i,j,k/))
+
+            !Map field
+            lf(i,j,k) = gf(igl(1),igl(2),igl(3))
+          enddo
+        enddo
+      enddo
+
+c     End program
+
+      end subroutine find_local_field_scl
 
 c     per_BC
 c     #################################################################
@@ -1909,7 +2078,7 @@ c     -----------------------------------------------------------------
 c     Call variables
 
       integer :: ibc
-      real(8) :: array (0:,0:,0:)
+      real(8) :: array(0:,0:,0:)
 
 c     Local variables
 
@@ -1945,7 +2114,7 @@ c     End program
 
 c     processorAlloc
 c     ######################################################################
-      subroutine processorAlloc(nx1,ny1,nz1)
+      subroutine processorAlloc(nx1,ny1,nz1,npx,npy,npz)
 
 c     ----------------------------------------------------------------------
 c     Finds processor allocation (npx,npy,npz; defined in module) in the
@@ -1958,7 +2127,7 @@ c     ----------------------------------------------------------------------
 
 c     Call variables
 
-      integer :: nx1,ny1,nz1
+      integer :: nx1,ny1,nz1,npx,npy,npz
 
 c     Local variables
 
@@ -2043,30 +2212,33 @@ c     Find dimensionality
       navg = int((1d0*(nx*ny*nz)/nprocs)**(1./nd))
 
       npt = (/nx,ny,nz/)
-      exp = int(log(max(1d0*npt/navg,1d0))/log(2d0) + 0.3)
+      exp = log(max(1d0*npt/navg,1d0))/log(2d0) + 0.3
 
 cc      write (*,*) 'DIAG -- procAlloc, my_rank=',my_rank,' exp=',exp
-cc     .           ,' sum_exp=',sum_exp
+cc     .           ,' sum_exp 0=',sum(exp)
 
       !Consistency check (1st layer)
       if (sum(exp) /= sum_exp) then
         if (exp(1) /= maxval(exp).and. nx > 1) then
-          exp(1) = sum_exp - exp(2) - exp(3)
+          exp(1) = max(sum_exp - exp(2) - exp(3),0)
         elseif (exp(2) /= maxval(exp).and. ny > 1) then
-          exp(2) = sum_exp - exp(1) - exp(3)
+          exp(2) = max(sum_exp - exp(1) - exp(3),0)
         elseif (exp(3) /= maxval(exp).and. nz > 1) then
-          exp(3) = sum_exp - exp(1) - exp(2)
+          exp(3) = max(sum_exp - exp(1) - exp(2),0)
         endif
       endif
+
+cc      write (*,*) 'DIAG -- procAlloc, my_rank=',my_rank,' exp=',exp
+cc     .           ,' sum_exp 1=',sum(exp)
 
       !Consistency check (2nd layer)
       if (sum(exp) /= sum_exp) then
         if (nx >= ny .and. nx >= nz) then
-          exp(1) = sum_exp - exp(2) - exp(3)
+          exp(1) = max(sum_exp - exp(2) - exp(3),0)
         elseif (ny >= nx .and. ny >= nz) then
-          exp(2) = sum_exp - exp(1) - exp(3)
+          exp(2) = max(sum_exp - exp(1) - exp(3),0)
         else
-          exp(3) = sum_exp - exp(1) - exp(2)
+          exp(3) = max(sum_exp - exp(1) - exp(2),0)
         endif
       endif
 

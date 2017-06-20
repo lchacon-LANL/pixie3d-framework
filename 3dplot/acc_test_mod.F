@@ -6,15 +6,44 @@ c ###########################################################################
 
         use variables
 
-        use iosetup
+        use var_io
 
-        use timeStepping
+        use ts_setup
 
         logical :: temp_acc=.false.,spat_acc=.false.
 
-        character(200) :: acc_ref_file
+        character(200) :: acc_ref_file=''
 
       contains
+
+c     readAccTestConfig
+c     ######################################################################
+      function readAccTestConfig(file) result(ioerr)
+
+c     -----------------------------------------------------------------
+c     Initializes grid parameters
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: ioerr
+      character(*) :: file
+
+c     Local variables
+
+      namelist /acc_test/ temp_acc,spat_acc,acc_ref_file
+
+c     Read graphics initialization parameters
+
+      open(unit=25,file=trim(file),status='old')
+      read(25,acc_test,iostat=ioerr)
+      close(unit=25)
+
+c     End program
+
+      end function readAccTestConfig
 
 c     acc_test_space
 c     #######################################################################
@@ -44,7 +73,7 @@ c     Interpolation
       real(8)    :: xp,yp,zp,interp
       real(8),allocatable,dimension(:) :: xx,yy,zz
 
-      integer    :: kx,ky,kz,nxs,nys,nzs,dim,flg,order
+      integer    :: kx,ky,kz,nxs,nys,nzs,dim,flg,order,ufile
 
       real(8), dimension(:),allocatable:: tx,ty,tz,work
       real(8), dimension(:,:,:),allocatable:: bcoef
@@ -60,9 +89,9 @@ c     Begin program
 
       if (my_rank == 0) then
         write (*,*)
-        write (*,*) '>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>'
-        write (*,*) 'Starting temporal convergence test...'
-        write (*,*) '>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>'
+        write (*,*) '>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>'
+        write (*,*) 'Starting spatial convergence test...'
+        write (*,*) '>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>'
       endif
 
       igx = 1
@@ -78,19 +107,11 @@ c     Read reference grid info
       nullify(grid_params)
       call destroyGrid(gv%gparams)
 
+      ufile=openRestartFileForRead(file=acc_ref_file)
+
       if (my_rank == 0) then
         write (*,*)
         write (*,*) ' Reading reference file...'
-      endif
-
-      call openRecordFiles(urecord,acc_ref_file,murecord
-     .                    ,ilog,ihig,jlog,jhig,klog,khig)
-
-      nx = ihig-ilog+1
-      ny = jhig-jlog+1
-      nz = khig-klog+1
-
-      if (my_rank == 0) then
         write (*,*) ' Grid: ',nxd,'x',nyd,'x',nzd
       endif
 
@@ -103,15 +124,19 @@ c     Read reference grid info
       call allocateDerivedType(vref)
 
       do
-        call readTimeStep(vref,ierr)
+        call readTimeStep(ufile,itime,time,dt,vref,ierr)
         if (ierr /= 0) exit
       enddo
 
       tref = time
 
-      call closeRecordFiles
+      call closeRestartFileForRead(ufile)
 
 c Spline reference solution
+
+      nx = ihig-ilog+1
+      ny = jhig-jlog+1
+      nz = khig-klog+1
 
       order = 2  !Order of interpolation of ref solution
 
@@ -150,19 +175,11 @@ c Initialize current grid info and read current grid solution
       igy = 1
       igz = 1
 
+      ufile=openRestartFileForRead(file=recordfile)
+
       if (my_rank == 0) then
         write (*,*)
         write (*,*) ' Reading solution file...'
-      endif
-
-      call openRecordFiles(urecord,recordfile,murecord
-     .                    ,ilog,ihig,jlog,jhig,klog,khig)
-
-      nx = ihig-ilog+1
-      ny = jhig-jlog+1
-      nz = khig-klog+1
-
-      if (my_rank == 0) then
         write (*,*) ' Grid: ',nxd,'x',nyd,'x',nzd
       endif
 
@@ -173,13 +190,11 @@ c Initialize current grid info and read current grid solution
       call allocateDerivedType(vsol)
 
       do
-        call readTimeStep(vsol,ierr)
+        call readTimeStep(ufile,itime,time,dt,vsol,ierr)
         if (ierr /= 0) exit
       enddo
 
       tsol = time
-
-      call closeRecordFiles
 
 c Calculate difference
 
@@ -190,6 +205,10 @@ c Calculate difference
       endif
 
       if (my_rank == 0) write (*,*)
+
+      nx = ihig-ilog+1
+      ny = jhig-jlog+1
+      nz = khig-klog+1
 
       do ivar=1,vref%nvar
 
@@ -295,7 +314,7 @@ c     Call variables
 c     Local variables
 
       integer :: i,j,k,ig,jg,kg,nx,ny,nz,ivar,nxs,nys,nzs
-      integer :: ierr,system,nplot,igx,igy,igz
+      integer :: ierr,system,nplot,igx,igy,igz,ufile
 
       real(8) :: mag,mag0,jac,tref,tsol,lmax
       real(8),allocatable,dimension(:,:,:,:) :: pos 
@@ -320,6 +339,10 @@ c     Begin program
       igy = 1
       igz = 1
 
+      nxs = nxd
+      nys = nyd
+      nzs = nzd
+
       call closeRecordFiles
 
       time = 0d0
@@ -331,27 +354,31 @@ c     Read reference field
         write (*,*) '>>>>> Reading reference file...'
       endif
 
-      call openRecordFiles(urecord,acc_ref_file,murecord
-     .                    ,ilog,ihig,jlog,jhig,klog,khig)
+      !This redefines nxd,nyd,nzd
+      ufile=openRestartFileForRead(file=acc_ref_file)
+
+      !Consistency check
+      if (nxd /= nxs .or. nyd /= nys .or. nzd /= nzs) then
+         call pstop('acc_test_time'
+     .   ,'Reference and solution are at different spatial resolutions')
+      endif
 
       call allocateDerivedType(vref)
 
       do
-        call readTimeStep(vref,ierr)
-        if (ierr /= 0 .or. abs(time-tmax)<1d-8 ) exit
+        call readTimeStep(ufile,itime,time,dt,vref,ierr)
+        if (ierr /= 0
+     .     .or. (abs(time-tmax)<1d-10.and.tmax > 0d0)
+     .     .or. (numtime == itime.and.numtime > 0)) exit
       enddo
 
-      nx = ihig-ilog+1
-      ny = jhig-jlog+1
-      nz = khig-klog+1
-
       if (my_rank == 0) then
-        write (*,*) 'Grid size =',nx,ny,nz
+        write (*,*) 'Grid size =',nxd,nyd,nzd
         write (*,*) 'Final time=',time
         write (*,*)
       endif
 
-      call closeRecordFiles
+      call closeRestartFileForRead(ufile)
 
       tref = time
 
@@ -362,36 +389,32 @@ c     Read current solution
         write (*,*) '>>>>> Reading solution file...'
       endif
 
-      call openRecordFiles(urecord,recordfile,murecord
-     .                    ,ilog,ihig,jlog,jhig,klog,khig)
+      !This redefines nxd,nyd,nzd
+      ufile=openRestartFileForRead(file=recordfile)
 
       call allocateDerivedType(vsol)
 
       do
-        call readTimeStep(vsol,ierr)
-        if (ierr /= 0 .or. abs(time-tmax)<1d-10) exit
+        call readTimeStep(ufile,itime,time,dt,vsol,ierr)
+        if (ierr /= 0
+     .     .or. (abs(time-tmax)<1d-10.and.tmax > 0d0)
+     .     .or. (numtime == itime.and.numtime > 0)) exit
       enddo
 
-      nxs = ihig-ilog+1
-      nys = jhig-jlog+1
-      nzs = khig-klog+1
-
       if (my_rank == 0) then
-        write (*,*) 'Grid size =',nxs,nys,nzs
+        write (*,*) 'Grid size =',nxd,nyd,nzd
         write (*,*) 'Final time=',time
         write (*,*)
       endif
-
-      call closeRecordFiles
 
       tsol = time
 
 c     Consistency checks
 
-      if (nx /= nxs .or. ny /= nys .or. nz /= nzs) then
-         call pstop('acc_test_time'
-     .   ,'Reference and solution are at different spatial resolutions')
-      endif
+cc      if (nx /= nxs .or. ny /= nys .or. nz /= nzs) then
+cc         call pstop('acc_test_time'
+cc     .   ,'Reference and solution are at different spatial resolutions')
+cc      endif
 
       if (abs(tref-tsol)>1d-10) then
         if (my_rank == 0) write (*,*) 'T_ref-T_sol=',tref-tsol
@@ -399,7 +422,11 @@ c     Consistency checks
      .            ,'Reference and solution are not at same time')
       endif
 
-c     Calculate difference
+c     Calculate solution differences
+
+      nx = ihig-ilog+1
+      ny = jhig-jlog+1
+      nz = khig-klog+1
 
       if (my_rank == 0) then
         write (*,*) '>>>>> Temporal errors...'

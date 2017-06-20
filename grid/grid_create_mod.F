@@ -6,10 +6,15 @@ c #####################################################################
 
         implicit none
 
-        integer :: mg_ratio
+        integer :: mg_ratio=2  !Default MG coarsening ratio
 
-        private :: initGridSt,createLogicalGrid
-     $            ,consistencyCheck,checkGrid
+        logical :: coarsen_X=.true.
+     .            ,coarsen_Y=.true.
+     .            ,coarsen_Z=.true.
+
+        private :: createLogicalGrid
+     .            ,createMGgrid
+     $            ,consistencyCheck!,initGridSt,checkGrid
 
       contains
 
@@ -26,12 +31,13 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
+        integer :: nx,ny,nz
         type(grid_mg_def),pointer :: gdef
 
 c     Local variables
 
         integer :: imin,imax,jmin,jmax,kmin,kmax
-        integer :: nx,ny,nz,mpi_comm
+        integer :: mpi_comm
 
 c     Begin program
 
@@ -44,19 +50,29 @@ c     Initialize global quantities (from gdef, if existing) and MPI
           ny = gdef%ngly
           nz = gdef%nglz
 #if defined(petsc)
-          call initFortranMPI(gdef%mpi_comm,nx,ny,nz)
           mpi_comm = gdef%mpi_comm
+          call processorAlloc(nx,ny,nz,gdef%mx,gdef%my,gdef%mz)
+#endif
         else
-          call initFortranMPI(MPI_COMM_WORLD,nx,ny,nz)
+cc          nx = nxd
+cc          ny = nyd
+cc          nz = nzd
+#if defined(petsc)
           mpi_comm = MPI_COMM_WORLD
-#else
-          npx = 1 ; npy = 1 ; npz = 1
 #endif
         endif
 
+ccc     Allocate processors
+cc
+cc#if defined(petsc)
+cc        call initFortranMPI(mpi_comm,nx,ny,nz,npx,npy,npz)
+cc        call processorAlloc(nx,ny,nz,npx,npy,npz)
+cc#endif
+
 c     Initialize grid structure
 
-        call initGridSt(nx,ny,nz,gdef
+        call initGridSt(nx,ny,nz
+     .                 ,xmin,xmax,ymin,ymax,zmin,zmax,gdef
 #if defined(petsc) || defined(samrai)
      .                 ,mpi_comm=mpi_comm
 #endif
@@ -67,9 +83,29 @@ c     Initialize grid structure
 #endif
      .                 )
 
+        grid_params => gdef  !Backward compatibility
+
+c     Create MPI communicators (requires grid_params; needed by defineGridMetric)
+
+#if defined(petsc)
+        call create_MPI_comms
+#endif
+
+c     Store grid metric parameters in grid metric structure
+
+cc        if (checkAnalMapDatabase() .or. coords == 'lpk') then
+        if (checkAnalMapDatabase()) then
+          call defineGridMetric(gdef)
+          gmetric => gdef%gmetric  !For backward compatibility
+        else
+          if (my_rank == 0 .and. coords /= 'ext') then
+            write (*,*) 'WARNING: Map "',coords,'" not in database'
+          endif
+        endif
+
 c     Perform grid check
 
-        if (check_grid) call checkGrid(gdef)
+        if (check_grid.and.checkAnalMapDatabase()) call checkGrid(gdef)
 
       end subroutine createGrid
 
@@ -89,16 +125,7 @@ c     Call variables
 
 c     Local variables
 
-        integer :: imin,imax,jmin,jmax,kmin,kmax
-        integer :: nx,ny,nz
-
 c     Begin program
-
-ccc     Destroy metrics storage
-cc
-cc        call deallocateGridMetric(gdef%gmetric)
-cc
-ccc     Destroy MG grid hierarchy
 
         call deallocateGridStructure(gdef)
 
@@ -106,14 +133,21 @@ ccc     Destroy MG grid hierarchy
 
 c     initGridSt
 c     #################################################################
-      subroutine initGridSt(nxg,nyg,nzg,gdef,mpi_comm
-     .                     ,coarsen_in_x,coarsen_in_y,coarsen_in_z)
+      subroutine initGridSt(nxg,nyg,nzg,gxmin,gxmax,gymin,gymax,gzmin
+     .     ,gzmax,gdef,mpi_comm,np_x,np_y,np_z,coarsen_in_x,coarsen_in_y
+     .     ,coarsen_in_z)
 
 c     -----------------------------------------------------------------
 c     Initializes grid structure, including MG pointers and PETSc
 c     hierarchical mesh. On input:
-c       * nx,ny,nz: global grid size
+c       * nxg,nyg,nzg: global grid size
+c       * gxmin,gxmax,gymin,gymax,gzmin,gzmax: global grid size
 c       * gdef (type grid_mg_def): variable that stores grid definition.
+c     Optional parameters:
+c       * mpi_comm: MPI communicator
+c       * np_x,np_y,np_z: processor distribution
+c       * coarsen_in_x,coarsen_in_y,coarsen_in_z: whether to coarsen
+c         mesh in a given axis
 c     In parallel, local grid sizes are read from PETSc's DA context.
 c     -----------------------------------------------------------------
 
@@ -125,12 +159,14 @@ c     Call variables
 
         type(grid_mg_def),pointer :: gdef
 
-        integer,optional :: mpi_comm
+        integer,optional :: mpi_comm,np_x,np_y,np_z
         logical,optional :: coarsen_in_x,coarsen_in_y,coarsen_in_z
+
+        real(8) :: gxmin,gxmax,gymin,gymax,gzmin,gzmax
 
 c     Local variables
 
-        integer :: i,n1,n2,n3,nxx,nyy,nzz
+        integer :: i,n1,n2,n3,nxx,nyy,nzz,mx,my,mz
         integer :: ngrdx,ngrdy,ngrdz
         logical :: cx,cy,cz
 
@@ -155,33 +191,57 @@ cc          cx = .not.bcSP()
           cz = .true.
         endif
 
+        if (PRESENT(np_x)) then
+          mx = np_x
+        else
+          mx = npx
+        endif
+
+        if (PRESENT(np_y)) then
+          my = np_y
+        else
+          my = npy
+        endif
+
+        if (PRESENT(np_z)) then
+          mz = np_z
+        else
+          mz = npz
+        endif
+
 c     Find adequate number of grid levels (for MG)
 
         if (cx) then
-          if (npx == 0)
+          if (mx == 0)
      .         call pstop('initGridSt','Undefined proc. alloc. in X')
 
-          nxx = nxg/npx
+          if (mx > nxg) call pstop('initGridSt','Too many procs in X')
+
+          nxx = nxg/mx
           ngrdx = MG_levels(nxx,mg_ratio)
         else
           ngrdx = 1
         endif
 
         if (cy) then
-          if (npy == 0)
+          if (my == 0)
      .         call pstop('initGridSt','Undefined proc. alloc. in Y')
 
-          nyy = nyg/npy
+          if (my > nyg) call pstop('initGridSt','Too many procs in Y')
+
+          nyy = nyg/my
           ngrdy = MG_levels(nyy,mg_ratio)
         else
           ngrdy = 1
         endif
 
         if (cz) then
-          if (npz == 0)
+          if (mz == 0)
      .         call pstop('initGridSt','Undefined proc. alloc. in Z')
 
-          nzz = nzg/npz
+          if (mz > nzg) call pstop('initGridSt','Too many procs in Z')
+
+          nzz = nzg/mz
           ngrdz = MG_levels(nzz,mg_ratio)
         else
           ngrdz = 1
@@ -189,8 +249,48 @@ c     Find adequate number of grid levels (for MG)
 
 c     Allocate grid storage structure
 
-        call allocateGridStructure(ngrdx,ngrdy,ngrdz
+        call allocateGridStructure(ngrdx,ngrdy,ngrdz,mx,my,mz
      .                            ,nxg,nyg,nzg,gdef,mpi_comm=mpi_comm)
+
+c     Adjust domain size
+
+        !Default sizes
+        if (gxmin == 0d0 .and. gxmax == 0d0) then
+          gxmax = 2*pi
+          gxmin = 0d0
+        endif
+
+        if (gzmin == 0d0 .and. gymax == 0d0) then
+          gymax = 2*pi
+          gymin = 0d0
+        endif
+
+        if (gzmin == 0d0 .and. gzmax == 0d0) then
+          gzmax = 2*pi
+          gzmin = 0d0
+        endif
+
+c$$$        if (mx == 1 .and. (.not.cx)) then
+c$$$          gdef%gxmin = xmin
+c$$$          gdef%gxmax = xmax/npx
+c$$$        endif
+c$$$
+c$$$        if (my == 1 .and. (.not.cy)) then
+c$$$          gdef%gymin = ymin
+c$$$          gdef%gymax = ymax/npy
+c$$$        endif
+c$$$
+c$$$        if (mz == 1 .and. (.not.cz)) then
+c$$$          gdef%gzmin = zmin
+c$$$          gdef%gzmax = zmax/npz
+c$$$        endif
+
+        if (gdef%gxmin == UNDEF_DP) gdef%gxmin = gxmin
+        if (gdef%gxmax == UNDEF_DP) gdef%gxmax = gxmax
+        if (gdef%gymin == UNDEF_DP) gdef%gymin = gymin
+        if (gdef%gymax == UNDEF_DP) gdef%gymax = gymax
+        if (gdef%gzmin == UNDEF_DP) gdef%gzmin = gzmin
+        if (gdef%gzmax == UNDEF_DP) gdef%gzmax = gzmax
 
 c     Create MG grid hierarchy
 
@@ -199,68 +299,12 @@ c     Create MG grid hierarchy
 
         call createMGgrid(gdef)
 
-        grid_params => gdef  !For backward compatibility
-
-c     Create MPI communicators (requires grid_params; needed by defineGridMetric)
-
-#if defined(petsc)
-        call create_MPI_comms
-#endif
-
 c     Create fortran PETSc parallel grid hierarchy (parallel version)
 
 #if defined(petsc)
         call createPETScGrid(gdef,0)
         call setup_petsc_BC   !Set PETSc BC flags
 #endif
-
-c     Store grid metric parameters in grid metric structure
-
-cc        if (checkAnalMapDatabase() .or. coords == 'lpk') then
-        if (checkAnalMapDatabase()) then
-          call defineGridMetric(gdef)
-          gmetric => gdef%gmetric  !For backward compatibility
-        else
-          if (my_rank == 0 .and. coords /= 'ext') then
-            write (*,*) 'WARNING: Map "',coords,'" not in database'
-          endif
-        endif
-
-      contains
-
-c     MG_levels
-c     #################################################################
-      function MG_levels(nx,mgr) result(ngrd)
-
-c     -----------------------------------------------------------------
-c     Determines available MG levels based on fine grid resolution nx
-c     and MG ratio mgr
-c     -----------------------------------------------------------------
-
-      implicit none
-
-c     Call variables
-
-      integer :: nx,mgr,ngrd
-
-c     Local variables
-
-      integer :: nl,i
-
-c     Begin program
-
-      nl = int(dlog(1d0*nx)/dlog(1d0*mgr)+0.001)
-
-      ngrd = max(nl-1,1)
-
-      do i = ngrd,1,-1
-        nl = nx/mgr**(i-1)
-        if (nl*mgr**(i-1) == nx) exit
-      enddo
-
-      ngrd = i
-
-      end function MG_levels
 
       end subroutine initGridSt
 
@@ -278,7 +322,6 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer    :: imin,imax,jmin,jmax,kmin,kmax,nx,ny,nz
         type(grid_mg_def),pointer :: gdef
 
 c     Local variables
@@ -376,29 +419,6 @@ c     Initialize MG pointer arrays
      .                            *gdef%nzv(i-1)
         enddo
 
-c     Set grid parameters
-
-        !Default sizes
-        if (xmax == 0d0) then
-          xmax = 2*pi
-          xmin = 0d0
-        endif
-        if (ymax == 0d0) then
-          ymax = 2*pi
-          ymin = 0d0
-        endif
-        if (zmax == 0d0) then
-          zmax = 2*pi
-          zmin = 0d0
-        endif
-
-        if (gdef%gxmin == UNDEF_DP) gdef%gxmin = xmin
-        if (gdef%gxmax == UNDEF_DP) gdef%gxmax = xmax
-        if (gdef%gymin == UNDEF_DP) gdef%gymin = ymin
-        if (gdef%gymax == UNDEF_DP) gdef%gymax = ymax
-        if (gdef%gzmin == UNDEF_DP) gdef%gzmin = zmin
-        if (gdef%gzmax == UNDEF_DP) gdef%gzmax = zmax
-
 c     Consistency checks
 
         call consistencyCheck(gdef)
@@ -406,12 +426,16 @@ c     Consistency checks
 c     Define uniform logical LOCAL grid on ALL grid levels
 
         call createLogicalGrid(gdef%nxgl,gdef%mg_ratio_x
-     .                     ,gdef%xg,gdef%xx,gdef%dx
-     .                     ,gdef%dxh,gdef%nxv
-     .                     ,gdef%ngrid,gdef%istartx
-     .                     ,gdef%ilo,gdef%ihi
-     .                     ,gdef%gxmin,gdef%gxmax,bcond(1),bcond(2)
-     .                     ,gdef%g_pack(1))
+     .                        ,gdef%xg,gdef%xx,gdef%dx
+     .                        ,gdef%dxh,gdef%nxv
+     .                        ,gdef%ngrid,gdef%istartx
+     .                        ,gdef%ilo,gdef%ihi
+     .                        ,gdef%gxmin,gdef%gxmax
+     .                        ,bcond(1),bcond(2)
+     .                        ,gdef%g_pack(1))
+
+        gdef%lxmin = gdef%xx(1)
+        gdef%lxmax = gdef%xx(gdef%nxv(1)+2)
 
         call createLogicalGrid(gdef%nygl,gdef%mg_ratio_y
      .                     ,gdef%yg,gdef%yy,gdef%dy
@@ -421,6 +445,9 @@ c     Define uniform logical LOCAL grid on ALL grid levels
      .                     ,gdef%gymin,gdef%gymax,bcond(3),bcond(4)
      .                     ,gdef%g_pack(2))
 
+        gdef%lymin = gdef%yy(1)
+        gdef%lymax = gdef%yy(gdef%nyv(1)+2)
+
         call createLogicalGrid(gdef%nzgl,gdef%mg_ratio_z
      .                     ,gdef%zg,gdef%zz,gdef%dz
      .                     ,gdef%dzh,gdef%nzv
@@ -428,6 +455,9 @@ c     Define uniform logical LOCAL grid on ALL grid levels
      .                     ,gdef%klo,gdef%khi
      .                     ,gdef%gzmin,gdef%gzmax,bcond(5),bcond(6)
      .                     ,gdef%g_pack(3))
+
+        gdef%lzmin = gdef%zz(1)
+        gdef%lzmax = gdef%zz(gdef%nzv(1)+2)
 
       end subroutine createMGgrid
 
@@ -528,18 +558,22 @@ c     Begin program
           coarse_rat = 1
         else
           coarse_rat = coarse_rat*mgr(ig-1)
+          !Failsafe to avoid overextending domain
+          if (lpack%dx0*coarse_rat > lmax-lmin) then
+            coarse_rat = coarse_rat/mgr(ig-1)
+          endif
         endif
 
 c     Find global grid
 
         call findGlobalGrid(lmin,lmax,bcs1,bcs2,xxg,lpack,coarse_rat)
 
-cc        write (*,*) 'Coarsening ratios=',mgr
-cc        write (*,*) 'Grid level=',ig
-cc        write (*,*) 'Domain limits=',lmin,lmax
-cc        write (*,*) xxg
-cc        write (*,*)
-cc        pause
+c$$$        write (*,*) 'Coarsening ratios=',mgr
+c$$$        write (*,*) 'Grid level=',ig
+c$$$        write (*,*) 'Domain limits=',lmin,lmax
+c$$$        write (*,*) xxg
+c$$$        write (*,*)
+c$$$        pause
 
 c     Assign global grid
 
@@ -651,10 +685,12 @@ c     Coordinate-specific checks
 
         !Ensure ignorable directions are small for numerical computation
         !  of grid parameters
-        if (numerical_grid) then
+        if (numerical_grid .and. coords /= 'car') then
           if    ((nxx == 1 .and. ((xmax-xmin)>1d-3))
      .       .or.(nyy == 1 .and. ((ymax-ymin)>1d-3))
      .       .or.(nzz == 1 .and. ((zmax-zmin)>1d-3))) then
+            write (*,*) nxx,nyy,nzz
+            write (*,*) xmax,xmin,ymax,ymin,zmax,zmin
             call pstop('consistencyCheck'
      .                ,'Error: large grid spacing in'//
      .                 ' ignorable direction')
@@ -1102,7 +1138,7 @@ c     Output
       write(*    ,*) '**********************************'
       write(*    ,*)
 
-      dump_diff = anal_map.and.numerical_grid
+      dump_diff = anal_map.and.numerical_grid.and.(.not.map_grid_pack)
 cc      dump_diff = .false.
 
       if (dump_diff) then
@@ -1138,8 +1174,8 @@ c     Dump quantities
 
         !Open .bin file
         debugfile = 'grid_gl'//trim(int2char(igrid))
-     .                 //'k='//trim(int2char(k))
-     .                 //'p' //trim(int2char(my_rank))//'.bin'
+     .                 //'_k='//trim(int2char(k))
+     .                 //'_p' //trim(int2char(my_rank))//'.bin'
         drawfile = 'drawgl'//trim(int2char(igrid))
      .              //'_k='//trim(int2char(k))
      .               //'_p'//trim(int2char(my_rank))//'.in'

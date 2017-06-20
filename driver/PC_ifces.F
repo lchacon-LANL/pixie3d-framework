@@ -1,6 +1,6 @@
 c setupPC
 c####################################################################
-      subroutine setupPC(ntot,x,nwt_it)
+      subroutine setupPC(ntot,x)
 
 c--------------------------------------------------------------------
 c     Finds velocity and magnetic field components in all grids
@@ -16,13 +16,13 @@ c--------------------------------------------------------------------
       use variables
 #endif
 
-      use nk_setup
+      use ts_setup
 
       implicit none
 
 c Call variables
 
-      integer :: ntot,nwt_it
+      integer :: ntot
       real(8) :: x(ntot)
 
 c Local variables
@@ -32,9 +32,9 @@ c Local variables
       type (var_array),pointer :: varray => null()
 
       INTERFACE
-        subroutine setup_app_PC(igrid,varray,nwt_it)
-        use variable_setup
-        integer    :: igrid,nwt_it
+        subroutine setup_app_PC(igrid,varray)
+        use var_setup
+        integer    :: igrid
         type(var_array),pointer :: varray
         end subroutine setup_app_PC
       END INTERFACE
@@ -44,6 +44,12 @@ c Begin program
       if (pc_id) return
 
       igrid = 1
+
+c Change profiling stage
+
+#if defined(petsc)
+      call switch_profile_stage(iPCSTP)
+#endif
 
 c Copy solution state info
 
@@ -60,11 +66,17 @@ c Setup MK preconditioner
 
 c Setup application PC
 
-      call setup_app_PC(igrid,varray,nwt_it)
+      call setup_app_PC(igrid,varray)
 
 c Free memory
 
       call deallocateDerivedType(varray)
+
+c End PC setup profiling
+
+#if defined(petsc)
+      call switch_profile_stage(iNL)
+#endif
 
 c End program
 
@@ -81,9 +93,7 @@ c       * iout <= 0 --> No output
 c       * iout >  0 --> Level of output design by user.
 c-------------------------------------------------------------------
 
-      use iosetup
-
-      use variables
+      use var_io
 
       use timeStepping
 
@@ -93,9 +103,9 @@ c-------------------------------------------------------------------
       use nk
 #endif
 
-      use nk_setup
-
       use mg_io
+
+      use profile_petsc
 
       implicit none
 
@@ -121,6 +131,11 @@ c Begin program
       nz = grid_params%nzv(igrid)
 
       nn = nx*ny*nz
+
+#if defined(petsc)
+      !Profiling stage PC
+      call switch_profile_stage(iPCSLV)
+#endif
 
 c *******************************************************************
 c     Identity preconditioner
@@ -231,6 +246,13 @@ c     PC diagnostics
         if (pc_diag) call PCdiagnostics
       endif
 
+c     End PC profiling
+
+#if defined(petsc)
+      !Begin profiling NL solver
+      call switch_profile_stage(iNL)
+#endif
+
 c End program
 
       contains
@@ -251,36 +273,35 @@ c     Begin program
 
 c     Plot PC solution
 
-        call vec_plot(neqd,x,igrid,'sol','Solution')
+        call vec_plot_gl(neqd,x,igrid,'sol','Solution')
 
 c     Plot PC RHS
 
-        call vec_plot(neqd,y,igrid,'rhs','RHS')
+        call vec_plot_gl(neqd,y,igrid,'rhs','RHS')
 
 c     Plot corresponding linear residual to PC solution
 
 #if !defined(petsc_c)
-        mag0 = sqrt(dot2(y,y))
+        mag0 = rms(y)
 
         call matrixFreeMatVec(ntot,x,rr)
         y = y - rr
-        mag = sqrt(dot2(y,y))
+        mag = rms(y)
 
-        call vec_plot(neqd,y,igrid,'res','Residual')
+        call vec_plot_gl(neqd,y,igrid,'res','Residual')
 
         if (my_rank == 0) then
            write (*,*)
            write (*,*) 'LINEAR RESIDUAL'
-           write (*,*) 'abs res=',mag
-           write (*,*) 'abs res (per node)=',mag/ntot
-     $                ,', rel res=',mag/mag0
+           write (*,*) 'RMS res=',mag
+           write (*,*) 'Rel res=',mag/mag0
         endif
 
         !Compute magnitude of individual residual eqs
         call scatterVector(yyy,y)
         do ieq=1,neqd
-          mag = sqrt(dot2(yyy(:,ieq),yyy(:,ieq)))
-          if (my_rank == 0) write (*,*) 'Res. eqn',ieq,':',mag
+          mag = rms(yyy(:,ieq))
+          if (my_rank == 0) write (*,*) 'RMS residual eqn',ieq,':',mag
         enddo
 #endif
 
@@ -298,8 +319,10 @@ c###########################################################################
       use mk_pc
 #endif
 
-      use nk_setup
+      use ts_setup
 
+      implicit none
+      
 c     Deallocate variables
 
       if (pc_id) return

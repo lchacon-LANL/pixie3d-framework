@@ -240,12 +240,21 @@ c     Orbit initialization on global array
      .                  ,jacg
      .                  ,carg
      .                  ,bcnd
+     .                  ,tmax=tmax
+     .                  ,smax=smax
      .                  ,dtime=dtime
+     .                  ,niter=niter
      .                  ,atol=atol
      .                  ,rtol=rtol
+     .                  ,order=odeorder
      .                  ,solen=solen
+     .                  ,picard=picard
      .                  ,spline_order=sporder
-     .                  )
+     .                  ,gauge=a_gauge
+     .                  ,lsode_neq=5
+!#! Marco, 06/05/2013, limited the maximum time step that can be
+!performed. It's maximum value will be set to dtime.
+     .                  ,lsode_dt_lim=.true.)
 
 c     Deallocate memory
 
@@ -291,7 +300,7 @@ c     Begin program
 
         write (*,*)
         write (*,*) '***********************************************'
-        write (*,*) 'Opening file ',trim(poincfile),'...(sync)'
+        write (*,*) 'Opening file ',trim(poincfile),'...(read files)'
         write (*,*) '***********************************************'
         write (*,*)
 
@@ -492,14 +501,6 @@ c     Read setup info
           read (mupixie(ifl)) nxg,nyg,nzg,bcnd,tor
 
         enddo
-
-#if defined(use_mpi)
-        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
-#endif
-        if (my_rank == 0) then
-          write (*,*) '*****************************************'
-          write (*,*)
-        endif
 
 cc        if (tor .and. (coords /= 'vmc' .and. coords /= 'tor')) then
 cc          call closeFiles(mupixie)

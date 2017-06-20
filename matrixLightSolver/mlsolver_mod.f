@@ -28,11 +28,12 @@ cc          logical    :: vol_res
           logical    :: singular_matrix
 
           !MG quantities
-          integer      :: mg_gmin
           integer      :: vcyc
           integer      :: orderres
           integer      :: orderprol
           integer      :: mg_coarse_solver_depth
+          integer      :: mg_coarse_grid_level
+          integer      :: mg_coarse_grid_res
           integer      :: mg_mu
 
           logical      :: mg_line_relax
@@ -55,7 +56,6 @@ cc          logical    :: vol_res
 
           logical      :: mg_galerkin
           logical      :: mg_debug
-
 
           type(grid_mg_def),pointer  :: mg_grid_def
 
@@ -134,12 +134,13 @@ c       Initializes solver options
 
           !MG and smoother options
           solverOptions%vcyc     = 1               !Number of V-cycles (MG)
-          solverOptions%mg_gmin  = 2               !Minimum grid level considered (MG)
+          solverOptions%mg_coarse_grid_res = 2     !Minimum grid level considered (mg_ratio^()) (MG)
+          solverOptions%mg_coarse_grid_level = 0   !Grid level considered to be coarsest (MG)
           solverOptions%orderres = 0               !Interpolation order in restriction (MG)
           solverOptions%orderprol= 0               !Interpolation order in prolongation (MG)
           solverOptions%fdiag    = .true.          !Whether to form matrix diagonal
                                                    !  for smoothing
-cc          solverOptions%vol_res  = volf            !Whether residual contains volume information
+cc          solverOptions%vol_res  = .true.          !Whether residual contains volume information
           nullify(solverOptions%diag)              !Diagonal not provided externally
           solverOptions%omega = 1d0                !Relaxation parameter
           solverOptions%omega10= 0d0               !Weighed Jacobi relaxation parameter
@@ -174,10 +175,9 @@ cc          solverOptions%vol_res  = volf            !Whether residual contains 
                                                    !  or rediscretization (false)
           solverOptions%mg_debug       =.false.    !Whether to turn on MG graphic debugging
 
-cc          solverOptions%mg_grid_def = grid_params  !Defines default MG grid levels def.
-          solverOptions%mg_grid_def => grid_params  !Defines default MG grid levels def.
-cc          call equateGridStructure(solverOptions%mg_grid_def
-cc     .                            ,grid_params)    !Defines default MG grid levels def.
+          solverOptions%mg_grid_def => grid_params !Defines default MG grid levels def.
+
+          solverOptions%mgctx => null()            !Nullify MG context
 
           !Krylov methods options
           solverOptions%stp_test = 0               !Stopping criterion (CG, GMRES)

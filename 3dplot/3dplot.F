@@ -15,7 +15,7 @@ c##########################################################################
 
       use grid
 
-      use iosetup
+      use var_io
 
       use acc_tests
 
@@ -30,13 +30,13 @@ c Local variables
       integer        :: i,j,k,ig,jg,kg
       integer        :: ierr,gierr,nplot,igx,igy,igz
       character*(40) :: command
-      logical        :: exitloop
+      logical        :: exitloop,petsc_flg
 
 c Interfaces
 
       INTERFACE
         subroutine evaluateDiagnostics(varray,iigx,iigy,iigz,init)
-        use variable_setup
+        use var_setup
         integer    :: iigx,iigy,iigz
         logical    :: init
         type(var_array),pointer :: varray
@@ -49,9 +49,23 @@ c Begin program
       igy = 1
       igz = 1
 
-c Initialize 
+c Initialize PETSc (parallel version)
 
-      call initializeCalculation(igx,igy,igz)
+#if defined(petsc)
+      call PetscInitialize(PETSC_NULL_CHARACTER,mpierr)
+
+      !Read PETSc runtime options
+      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-npx',npx
+     .                       ,petsc_flg,ierr)
+      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-npy',npy
+     .                       ,petsc_flg,ierr)
+      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-npz',npz
+     .                       ,petsc_flg,ierr)
+#endif
+
+c Initialize computation
+
+      call initializeCalculation
 
 c Initialize counters
 
@@ -62,15 +76,13 @@ c Time loop
 
       do
 
-c diag ***** Redefine perturbations for preconditioner debugging
-cc        write (*,*) 'Redefined perts for PC debugging in 3dplot'
-cc        call equateDerivedType(u_ic,u_n)
-cc        call applyBC(u_ic,igx,igy,igz)
-c diag *****
+c     Update counters
+
+        call TS_update_timecounters(time)
 
 c     Read next record
 
-        call readTimeStep(u_np,ierr)
+        call readTimeStep(urecord,itime,time,dt,u_np,ierr)
 
 c     Gather error info
 
@@ -92,7 +104,9 @@ c     Update counters
 
 c     Time level plots (xdraw)
 
-        plot = .false.
+        plot = ( nplot        == ndplot       .and. nplot > 0)
+     .     .or.((time-tmplot) >= dplot-0.9*dt .and. dplot > 0d0)
+     .     .or. time         == 0d0
 
 #if defined(MK)
         !Setup MK grid
@@ -114,33 +128,36 @@ cc          endif
           call MK_xfer_equ(igx,u_ic)
         endif
 #endif
-        !Post-process solution for diagnostics
-        call evaluateDiagnostics(u_np,igx,igy,igz,.false.)
 
-        if (    nplot        == ndplot
-     .     .or.(time-tmplot) >= dplot-0.9*dt
-     .     .or. time         == 0d0) then
+        !Post-process solution for diagnostics
+        if (.not.skip_diag)
+     .       call evaluateDiagnostics(u_np,igx,igy,igz,.false.)
+
+        if (plot) then
+
+          if (skip_diag) 
+     .       call evaluateDiagnostics(u_np,igx,igy,igz,.false.)
 
           !Dump time step plots
-          plot  = .true.
           nplot = 0
           if (itime.gt.0) tmplot = time
           call dumpTimeStepPlots
 
         endif
 
-        !Store previous record (for time derivatives in diagnostics)
-        call equateDerivedType(u_n,u_np)
-
 c     Output per time step
 
         call output(plot)
+
+c     Store previous record (for time derivatives in diagnostics)
+
+        call equateDerivedType(u_n,u_np)
 
 c     Check for tmax
 
 cc        if ((tmax > 0d0 .and. time.ge.tmax*0.99999)
 cc     .      .or. (tmax < 0d0 .and. itime == numtime))  exit
-        if ((tmax > 0d0 .and. time.ge.tmax*0.99999))  exit
+        if ((tmax > 0d0 .and. time.ge.tmax))  exit
 
       enddo       !End of time loop
 
@@ -231,7 +248,7 @@ c End program
 
 c initializeCalculation
 c######################################################################
-      subroutine initializeCalculation(igx,igy,igz)
+      subroutine initializeCalculation
 
 c----------------------------------------------------------------------
 c     Initializes MG and creates grid
@@ -245,7 +262,7 @@ c----------------------------------------------------------------------
 
       use ts_setup
 
-      use iosetup
+      use var_io
 
       use graphics
 
@@ -257,55 +274,33 @@ c----------------------------------------------------------------------
 
 c Call variables
 
-      integer    :: igx,igy,igz
-
 c Local variables
 
-      integer    :: ierr
-      logical    :: petsc_flg
+      integer :: ierr,igx,igy,igz
+      logical :: petsc_flg
 
 c Interfaces
 
       INTERFACE
         subroutine initializeDiagnostics(varray,iigx,iigy,iigz)
-        use variable_setup
-        integer          :: iigx,iigy,iigz
+        use var_setup
+        integer :: iigx,iigy,iigz
         type(var_array),pointer :: varray
         end subroutine initializeDiagnostics
       END INTERFACE
 
       INTERFACE
         subroutine evaluateDiagnostics(varray,iigx,iigy,iigz,init)
-        use variable_setup
-        integer    :: iigx,iigy,iigz
-        logical    :: init
+        use var_setup
+        integer :: iigx,iigy,iigz
+        logical :: init
         type(var_array),pointer :: varray
         end subroutine evaluateDiagnostics
       END INTERFACE
 
 c Begin program
 
-c Initialize PETSc (parallel version)
-
-#if defined(petsc)
-      call PetscInitialize(PETSC_NULL_CHARACTER,mpierr)
-
-      !Read PETSc runtime options
-      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-npx',npx
-     .                       ,petsc_flg,ierr)
-      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-npy',npy
-     .                       ,petsc_flg,ierr)
-      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-npz',npz
-     .                       ,petsc_flg,ierr)
-#endif
-
-c Initialize ADIOS
-
-#if defined(adios) && defined(petsc)
-      call adios_init_noxml (adios_err)
-      ! allocate 100MB buffer for ADIOS
-      call adios_allocate_buffer (100,adios_err)
-#endif
+      igx = 1 ; igy = 1 ; igz = 1
 
 c Read user initializations
 
@@ -318,28 +313,27 @@ c Read user initializations
 c Allocate global variable
 
       call allocateGlobalVar(gv)
-cc      allocate(gv)
-cc      nullify(gv%bc_grp)
-cc      nullify(gv%u_np,gv%u_n,gv%u_nm,gv%u_0)
-cc      nullify(gv%gparams)
-cc      nullify(gv%aux)
-cc
-ccc Initialize MG and create grid
-cc
-cc      call createGrid(nxd,nyd,nzd,gv%gparams)
 
 c Open graphics files (this initializes local limits, among other things)
 
 #if defined(adios)
+      call adios_init_noxml (adios_err)
+      ! allocate 100MB buffer for ADIOS
+      call adios_allocate_buffer (100,adios_err)
+
       call openRecordFileAdiosForRead(adios_err)
 #else
-      call openRecordFiles(urecord,recordfile,murecord
+      call openRecordFiles(urecord,recordfile
      .                    ,ilog,ihig,jlog,jhig,klog,khig)
 #endif
 
+c Read geometry (if appropriate)
+
+      if (coords == 'ext') call readExtMap
+
 c Read equilibrium u_0 (Do NOT postprocess for BC)
 
-      call readTimeStep(u_0,ierr)
+      call readTimeStep(urecord,itime,time,dt,u_0,ierr)
 
       if (ierr /= 0) call pstop('initializeCalculation',
      .                          'Unable to read equilibrium')
@@ -354,17 +348,19 @@ c Initialize MK grid
       if (mk_grid) then
         call MK_alloc
         call MK_initGrid(igx,bcs=bcond)
-cc        call MK_initGrid(1)
       endif
 #endif
 
 c Set plotting range
 
-      call setGraphicsRange(igx,igy,igz)
+      call setGraphicsRange
+
+c Read perturbed solution u_ic
+
+c$$$      call readTimeStep(urecord,itime,time,dt,u_ic,ierr)
+      call equateDerivedType(u_ic,u_0)
 
 c Initialize diagnostics and related variables
-
-      call equateDerivedType(u_ic,u_0)
 
 #if defined(MK)
       if (mk_grid) then
@@ -373,7 +369,7 @@ c Initialize diagnostics and related variables
       endif
 #endif
 
-      call equateDerivedType(u_n ,u_0)
+      call equateDerivedType(u_n,u_ic)
 
 #if defined(MK)
       if (mk_grid) u_ic%nvar = u_ic%nvar-1
@@ -385,12 +381,53 @@ c Initialize diagnostics and related variables
 #endif
 
       call equateDerivedType(u_np,u_ic)
-      call equateDerivedType(u_n ,u_ic)
 
 c Initialize graphics
 
-      call initializeGraphics(igx,igy,igz,bcond)
+      call initializeGraphics
 
 c End program
 
       end subroutine initializeCalculation
+
+c fortranDestroy
+c ######################################################################
+      subroutine fortranDestroy
+
+      use variables
+
+      use var_io
+
+      use grid
+
+      use graphics
+
+#if defined(MK)
+      use mk
+#endif
+
+      implicit none
+
+c Call variables
+
+c Local variables
+
+      integer :: ierr,igr
+
+c Begin program
+
+      call deallocateStructures
+
+      call deallocateDerivedType(u_ic)
+
+      call deallocateApplicationVariables   !External
+
+#if defined(MK)
+      if (mk_grid) call MK_dealloc
+#endif
+
+      call deallocateGlobalVar(gv)
+
+c End program
+
+      end subroutine fortranDestroy

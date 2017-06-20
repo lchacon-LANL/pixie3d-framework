@@ -35,8 +35,10 @@ c     -----------------------------------------------------------------
      .                      ,SP =7   !Polar singular point (do not change: NEMATO depends on it)
      .                      ,SYM=8   !Symmetry (even > 0, odd < 0)
      .                      ,FSYM=9  !Symmetry (at faces; even > 0, odd < 0)
+     .                      ,OPN=10  !Open boundary conditions
 
-        integer,parameter :: BCLIM=7 !Defines # of BC cases (excludes DEF,SYM,FSYM)
+        integer,parameter :: BCLIM=7 !Defines # of BC cases (excludes DEF,SYM,FSYM,OPN)
+     .                      ,BCTOT=10!Total number of BC defs
 
         logical :: asm_dir(3)=.false.,asm=.false.
 
@@ -45,6 +47,88 @@ c     -----------------------------------------------------------------
         real(8) :: SP_flsv=1d-5      !Singular point failsafe
 
       contains
+
+c     initBCs
+c     #################################################################
+      function initBCs(bcs) result(ierr)
+
+c     -----------------------------------------------------------------
+c     Initializes BCs according to character codes in bcs variable
+c     On error, it returns ierr =/ 0. Otherwise, ierr == 0.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer :: ierr
+        character*(3) :: bcs(6)
+
+c     Local variables
+
+c     Begin program
+
+        ierr = 0
+
+        bcond = -1
+
+        where (bcs == 'def')
+          bcond = DEF
+        elsewhere (bcs == 'per')
+          bcond = PER
+        elsewhere (bcs == 'spt')
+          bcond = SP
+        elsewhere (bcs == 'sym')
+          bcond = SYM
+        elsewhere (bcs == 'fsm')
+          bcond = FSYM
+        elsewhere (bcs == 'equ')
+          bcond = EQU
+        end where
+
+        if (minval(bcond) < 0) ierr = 1
+
+      end function initBCs
+
+c     bcChk
+c     #################################################################
+      function bcChk(ibc,bctype,bcnd) 
+
+c     -----------------------------------------------------------------
+c     Detects whether boundary is of SP type. Boundary is identified
+c     by ibc, with the following convention:
+c        * ibc = 1, 2 (xmin,xmax)
+c        * ibc = 3, 4 (ymin,ymax)
+c        * ibc = 5, 6 (zmin,zmax)
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        logical :: bcChk
+        integer :: ibc,bctype
+        integer,optional :: bcnd(6)
+
+c     Local variables
+
+        integer :: bc(6)
+
+c     Begin program
+
+        if (PRESENT(bcnd)) then
+          bc = bcnd
+        else
+          bc = bcond
+        endif
+
+        if (ibc < 1 .or. ibc > 6) then
+          bcChk = .false.
+        else
+          bcChk = (abs(bc(ibc)) == bctype)
+        endif
+
+      end function bcChk
 
 c     bcSP
 c     #################################################################
@@ -62,14 +146,12 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer,optional :: ibc
+        integer,optional :: ibc,bcnd(6)
         logical :: sing_bc
-        integer :: iibc
-        integer,optional :: bcnd(6)
 
 c     Local variables
 
-        integer :: bc(6)
+        integer :: iibc
 
 c     Begin program
 
@@ -79,17 +161,7 @@ c     Begin program
           iibc = 1
         endif
 
-        if (PRESENT(bcnd)) then
-          bc = bcnd
-        else
-          bc = bcond
-        endif
-
-        if (iibc < 1 .or. iibc > 6) then
-          sing_bc = .false.
-        else
-          sing_bc = (abs(bc(iibc)) == SP)
-        endif
+        sing_bc = bcChk(iibc,SP,bcnd=bcnd)
 
       end function bcSP
 
@@ -117,25 +189,141 @@ c     Begin program
 
         iibc = 1+2*(dim-1)
 
-        if (PRESENT(bcnd)) then
-          bc = bcnd
-        else
-          bc = bcond
-        endif
-
-        if (iibc < 1 .or. iibc > 3) then
-          per_bc = .false.
-        else
-          per_bc = (abs(bc(iibc)) == PER)
-        endif
+        per_bc = bcChk(iibc,PER,bcnd=bcnd)
 
       end function bcPER
 
+c     bcSYM
+c     #################################################################
+      function bcSYM(ibc,bcnd) result(sym_bc)
+
+c     -----------------------------------------------------------------
+c     Detects whether boundary is of SYM or FSYM type. Boundary is
+c     identified by ibc, with the following convention:
+c        * ibc = 1, 2 (xmin,xmax)
+c        * ibc = 3, 4 (ymin,ymax)
+c        * ibc = 5, 6 (zmin,zmax)
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer :: ibc
+        logical :: sym_bc
+        integer,optional :: bcnd(6)
+
+c     Local variables
+
+        integer :: bc(6)
+
+c     Begin program
+
+        sym_bc = bcChk(ibc,SYM,bcnd=bcnd)
+
+cc        if (PRESENT(bcnd)) then
+cc          bc = bcnd
+cc        else
+cc          bc = bcond
+cc        endif
+cc
+cc        if (ibc < 1 .or. ibc > 6) then
+cc          sym_bc = .false.
+cc        else
+cc          sym_bc =    (abs(bc(ibc)) ==  SYM)
+cccc     .            .or.(abs(bc(ibc)) == FSYM)
+cc        endif
+
+      end function bcSYM
+
       end module bc_def
+
+c module profile_petsc
+c ######################################################################
+      module profile_petsc
+
+       integer,parameter:: iSTUP=1,iNL=2,iPCSTP=3,iPCSLV=4,iPOST=5,iMG=6
+
+       integer :: prof_err,prof_stage(10),iprofile
+       real(8) :: prof_time(10)
+       logical,private :: prof_init=.true.
+
+#if defined(petsc)
+      contains
+
+c     init_petsc_profile
+c     ##################################################################
+      subroutine init_petsc_profile
+
+      implicit none
+
+      !Set profiling stages
+      call PetscLogStageRegister('Setup'   ,prof_stage(iSTUP) ,prof_err)
+      call PetscLogStageRegister('NL solve',prof_stage(iNL)   ,prof_err)
+      call PetscLogStageRegister('PC setup',prof_stage(iPCSTP),prof_err)  
+      call PetscLogStageRegister('PC main ',prof_stage(iPCSLV),prof_err)  
+      call PetscLogStageRegister('Postproc',prof_stage(iPOST) ,prof_err)  
+      call PetscLogStageRegister('MG solve',prof_stage(iMG)   ,prof_err)  
+
+      iprofile = 6
+
+      end subroutine init_petsc_profile
+
+c     add_profile_stage
+c     ##################################################################
+      function add_profile_stage(name) result(handle)
+
+      implicit none
+
+      character(*) :: name
+      integer :: handle
+
+      !Set profiling stages
+      iprofile = iprofile + 1
+
+      call PetscLogStageRegister(trim(name),prof_stage(iprofile)
+     .                          ,prof_err)
+
+      handle = iprofile
+
+      end function add_profile_stage
+
+c     switch_profile_stage
+c     ##################################################################
+      subroutine switch_profile_stage(handle)
+
+      implicit none
+
+      integer :: handle
+
+      if (.not.prof_init) then
+        call PetscLogStagePop(prof_err)
+      else
+        prof_init = .false.
+      endif
+
+      call PetscLogStagePush(handle,prof_err)
+
+      end subroutine switch_profile_stage
+
+c     end_petsc_profile
+c     ##################################################################
+      subroutine end_petsc_profile
+
+      implicit none
+
+      call PetscLogStagePop(prof_err)
+
+      end subroutine end_petsc_profile
+#endif
+
+      end module profile_petsc
 
 c module grid_petsc
 c ######################################################################
       module grid_petsc
+
+        use profile_petsc
 
         use bc_def
 
@@ -163,20 +351,21 @@ c ######################################################################
           integer    :: lzs,lze,lgzs,lgze
           integer    :: il ,ih ,jl ,jh ,kl ,kh
           integer    :: ilm,ihp,jlm,jhp,klm,khp
-          integer    :: mx,my,mz
+          integer    :: mx,my,mz        !Number of processors
+          integer    :: nxgl,nygl,nzgl  !Global number of mesh points
           integer    :: igrid
           integer    :: MPI_COMM_DA,np,rank
         end type petsc_da_ctx
 
         integer :: npx=0,npy=0,npz=0  !Processor allocation
 
-        integer :: debug_par=0        !For parallel debuggin
+        integer :: debug_par=0        !For parallel debugging
 
       contains
 
 c     createPETScFortranDA
 c     #################################################################
-      subroutine createPETScFortranDA(igrid,nxgl,nygl,nzgl,dactx)
+      subroutine createPETScFortranDA(dactx)
 
 c     -----------------------------------------------------------------
 c     Creates PETSc distributed array (DA) for boundary communication
@@ -187,18 +376,13 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer :: igrid,nxgl,nygl,nzgl
         type(petsc_da_ctx),pointer :: dactx
 
 c     Local variables
 
-        integer    :: BC,ierr,nxg,nyg,nzg,mpierr
+        integer :: BC,ierr,mpierr
 
 c     Begin program
-
-        nxg = nxgl
-        nyg = nygl
-        nzg = nzgl
 
         if     (bcond(1)==PER.and.bcond(3)==PER.and.bcond(5)==PER) then
           BC = DA_XYZPERIODIC
@@ -218,12 +402,16 @@ c     Begin program
           BC = DA_NONPERIODIC
         endif
 
-        if (npx == 0) npx = PETSC_DECIDE
-        if (npy == 0) npy = PETSC_DECIDE
-        if (npz == 0) npz = PETSC_DECIDE
+c$$$        if (npx == 0) npx = PETSC_DECIDE
+c$$$        if (npy == 0) npy = PETSC_DECIDE
+c$$$        if (npz == 0) npz = PETSC_DECIDE
+        if (dactx%mx == 0) dactx%mx = PETSC_DECIDE
+        if (dactx%my == 0) dactx%my = PETSC_DECIDE
+        if (dactx%mz == 0) dactx%mz = PETSC_DECIDE
 
-        call DACreate3d(dactx%MPI_COMM_DA,BC,DA_STENCIL_BOX,nxg,nyg,nzg
-     &                 ,npx,npy,npz,1,1
+        call DACreate3d(dactx%MPI_COMM_DA,BC,DA_STENCIL_BOX
+     $                 ,dactx%nxgl,dactx%nygl,dactx%nzgl
+     &                 ,dactx%mx,dactx%my,dactx%mz,1,1
      &                 ,PETSC_NULL_INTEGER,PETSC_NULL_INTEGER
      &                 ,PETSC_NULL_INTEGER,dactx%da,ierr)
 
@@ -282,10 +470,6 @@ c       Get local grid boundaries in global grid
         dactx%jhp = dactx%jh+1
         dactx%klm = dactx%kl-1
         dactx%khp = dactx%kh+1
-
-c     Store grid level
-
-        dactx%igrid = igrid
 
 c     Store MPI info
 

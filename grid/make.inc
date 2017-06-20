@@ -22,7 +22,7 @@ grid_operations_mod.o: grid_def_mod.o
 
 grid_anal_map_mod.o: grid_def_mod.o grid_operations_mod.o
 
-grid_mpi_mod.o: grid_def_mod.o
+grid_mpi_mod.o: grid_operations_mod.o
 
 grid_mg_mod.o: grid_mpi_mod.o grid_operations_mod.o
 

@@ -5,18 +5,28 @@
 
 # LSODE setup
 
-CONTRIBLIBS += -L$(PWD)/common/contrib/lsode -llsode
+CONTRIBLIBS += -L$(COMMONDIR)/contrib/lsode -llsode
 
 # SLATEC setup
 
-CONTRIBLIBS += -L$(PWD)/common/contrib/slatec/lib -lslatec
-MODPATH     += $(ADDMODFLAG)$(PWD)/common/contrib/slatec/lib
+CONTRIBLIBS += -L$(COMMONDIR)/contrib/slatec/lib -lslatec
+MODPATH     += $(ADDMODFLAG)$(COMMONDIR)/contrib/slatec/lib
+
+# FPA setup
+
+CONTRIBLIBS += -L$(COMMONDIR)/contrib/fpa/lib -lfpa
+MODPATH     += $(ADDMODFLAG)$(COMMONDIR)/contrib/fpa/lib
+
+# SDC setup
+
+CONTRIBLIBS += -L$(COMMONDIR)/contrib/sdc/lib -lsdc
+MODPATH     += $(ADDMODFLAG)$(COMMONDIR)/contrib/sdc/lib
 
 # ADIOS setup
 
 ifeq ($(ADIOS),t)
   CONTRIBLIBS += $(ADIOS_LIBS)
-  CPPFLAGS    += $(PREPROC)adios $(PREPROC)ADIOS_VER=$(ADIOS_VER) -I$(ADIOS_HOME)/include
+  CPPFLAGS    += $(PREPROC)adios $(PREPROC)ADIOS_VER=$(ADIOS_VER)
 #  MODPATH     += $(ADDMODFLAG)$(ADIOS_HOME)/include
 endif
 
@@ -34,19 +44,6 @@ ifeq ($(ARPACK),t)
   CONTRIBLIBS += $(ARPACK_LIBS)
   CPPFLAGS    += $(PREPROC)arpack
 endif
-
-# FPA setup
-
-ifeq ($(FPA),t)
-  CONTRIBLIBS += -L$(PWD)/common/contrib/fpa/lib -lfpa
-  CPPFLAGS    += $(PREPROC)FPA
-  MODPATH     += $(ADDMODFLAG)$(PWD)/common/contrib/fpa/lib
-endif
-
-# SDC setup
-
-CONTRIBLIBS += -L$(PWD)/common/contrib/sdc/lib -lsdc
-MODPATH     += $(ADDMODFLAG)$(PWD)/common/contrib/sdc/lib
 
 # PETSC setup
 
@@ -73,4 +70,23 @@ ifdef SAMR
   OBJECT=${SAMRAI}
 
   CPPFLAGS += $(PREPROC)samrai
+endif
+
+# RNG setup
+
+CONTRIBLIBS += -L$(COMMONDIR)/contrib/rng/lib -lrng
+#MODPATH     += $(ADDMODFLAG)$(COMMONDIR)/contrib/fpa/lib
+
+# PTRIDIAG setup
+
+ifeq ($(PTRID),t)
+  CONTRIBLIBS += -L$(COMMONDIR)/contrib/ptridiag/lib -lptrid
+endif
+
+# SPRNG setup
+
+ifeq ($(SPRNG),t)
+  CONTRIBLIBS += -L$(SPRNG_LIBS) 
+  CPPFLAGS    += $(PREPROC)_SPRNG -I$(SPRNG_INC) -DHAVE_CONFIG_H -DPOINTER_SIZE=8 -DLONG64=long -DINTEGER_STAR_8
+#  MODPATH     += $(ADDMODFLAG)$(SPRNG_MOD)
 endif

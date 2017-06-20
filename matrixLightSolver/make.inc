@@ -8,4 +8,5 @@ COMMONDIR = ..
 
 SUBDIRS = $(COMMONDIR)/io \
 	  $(COMMONDIR)/math \
-	  $(COMMONDIR)/grid
+	  $(COMMONDIR)/grid \
+	  $(COMMONDIR)/interpolation/1d_int

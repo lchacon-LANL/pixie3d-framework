@@ -4,6 +4,9 @@ c #####################################################################
 
         use xdraw_io
 
+!#! Marco
+        use lyapn
+
         use grid, ONLY:pstop,my_rank,grid_params
 
         use bc_def, bcond2 => bcond
@@ -18,10 +21,6 @@ c #####################################################################
      .                       ,ORB_SML_DT=1,ORB_OUT_DOM=2,ORB_NEG_J=4!Fatal
      .                       ,ORB_MAP_INV=5,ORB_SP_ERR=6            !Fatal
      
-        !OPENMP
-        integer :: thr_tot=1,thr_num=0
-!$OMP THREADPRIVATE(thr_tot,thr_num)
-
 
         !Private variables
         integer,private :: nx,ny,nz,ag,sbcnd(6)
@@ -229,7 +228,9 @@ cc      endif
         if (PRESENT(ierr)) then
           ierr = ierror
         else
+!#! Marco, to let the program continue with the next magnetic field line
           if (ierror /= 0) stop
+!          if (ierror /= 0) return
         endif
 
 c     End program
@@ -254,8 +255,7 @@ c     Call variables
 
 c     Local variables
 
-        integer :: alloc_stat,i
-	character*10 :: ev
+        integer :: alloc_stat,i!,get_omp_numthreads
 
 c     Begin program
 
@@ -309,12 +309,12 @@ c     Prepare 3d spline interpolation
         allocate(ty(ny+ky),stat=alloc_stat)
         allocate(tz(nz+kz),stat=alloc_stat)
 
-!$      call getenv('OMP_NUM_THREADS',ev)
-!$      read(ev,'(i2)') thr_tot
-        if (thr_tot == 0) thr_tot = 1  !Failsafe if OMP_NUM_THREADS is not defined
+!$omp parallel
+        call set_omp_thread_id()
+!$omp end parallel                                                             
 
-	dime = kx*kz + 3*max(kx,ky,kz) + kz
-	allocate(worke(dime*thr_tot),stat=alloc_stat)
+		dime = ky*kz + 3*max(kx,ky,kz) + kz
+		allocate(worke(dime*thr_tot),stat=alloc_stat)
 
 c     End program
 
@@ -1344,7 +1344,7 @@ c     Begin program
 
 c     evalX
 c     #################################################################
-      subroutine evalX(x1,x2,x3,x,y,z,ierr,xcoef_ext)
+      subroutine evalX(x1,x2,x3,x,y,z,ierr,xcoef_ext,xder,yder,zder)
 c     -----------------------------------------------------------------
 c     This evaluates cartesian position (x,y,z) at logical position
 c     (x1,x2,x3).
@@ -1355,11 +1355,12 @@ c     -----------------------------------------------------------------
 c     Call variables
 
       real(8) :: x,y,z,x1,x2,x3
-      integer,optional :: ierr
+      integer,optional :: ierr,xder,yder,zder
       real(8),optional,pointer :: xcoef_ext(:,:,:,:)
 
 c     Local variables
 
+      integer :: ierror,xd,yd,zd
       real(8),pointer :: lxcoef(:,:,:,:)
 
 c     Begin program
@@ -1370,21 +1371,41 @@ c     Begin program
         lxcoef => xcoef
       endif
 
-      call chk_pos(x1,x2,x3,ierr=ierr)
+      if (PRESENT(xder)) then
+        xd = xder
+      else
+        xd = 0
+      endif
 
-      if (ierr /= ORB_OK) return
+      if (PRESENT(xder)) then
+        yd = yder
+      else
+        yd = 0
+      endif
 
-      x = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
+      if (PRESENT(xder)) then
+        zd = zder
+      else
+        zd = 0
+      endif
+
+      call chk_pos(x1,x2,x3,ierr=ierror)
+
+      if (PRESENT(ierr)) ierr = ierror
+
+      if (ierror /= ORB_OK) return
+
+      x = db3val(x1,x2,x3,xd,yd,zd,tx,ty,tz,nx,ny,nz
      .          ,kx,ky,kz,lxcoef(:,:,:,1)
      .          ,worke(1+thr_num*dime:(thr_num+1)*dime))
 !     .          ,work(1+thr_num*dim:(thr_num+1)*dim))
 
-      y = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
+      y = db3val(x1,x2,x3,xd,yd,zd,tx,ty,tz,nx,ny,nz
      .          ,kx,ky,kz,lxcoef(:,:,:,2)
      .          ,worke(1+thr_num*dime:(thr_num+1)*dime))
 !     .          ,work(1+thr_num*dim:(thr_num+1)*dim))
 
-      z = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
+      z = db3val(x1,x2,x3,xd,yd,zd,tx,ty,tz,nx,ny,nz
      .          ,kx,ky,kz,lxcoef(:,:,:,3)
      .          ,worke(1+thr_num*dime:(thr_num+1)*dime))
 !     .          ,work(1+thr_num*dim:(thr_num+1)*dim))
@@ -1459,7 +1480,9 @@ c     Begin program
         if (error(iter) < tol) exit
 
         !Form Jacobian
-        JJ = formJacobian(x1,x2,x3)
+        JJ = formJacobian(x1,x2,x3,ierror)
+
+        if (ierror /= ORB_OK) exit
 
         if (prnt) write (*,*) 'evalXi -- J(1,:)=',JJ(1,:)
         if (prnt) write (*,*) 'evalXi -- J(2,:)=',JJ(2,:)
@@ -1558,11 +1581,12 @@ cc      if (sbcnd(5) == PER) res(3) = mod(res(3),zsmax-zsmin-0.1*tol)
 
 c     formJacobian
 c     ###################################################################
-      function formJacobian(x1,x2,x3) result(JJ)
+      function formJacobian(x1,x2,x3,ierror) result(JJ)
 
       implicit none
 
       real(8) :: x1,x2,x3,JJ(3,3)
+      integer :: ierror
 
       real(8) :: x11,x22,x33
 
@@ -1570,7 +1594,9 @@ c     ###################################################################
       x22 = x2
       x33 = x3
 
-      call chk_pos(x11,x22,x33)
+      call chk_pos(x11,x22,x33,ierr=ierror)
+
+      if (ierror /= ORB_OK) return
 
       JJ(1,1) = db3val(x11,x22,x33,1,0,0,tx,ty,tz,nx,ny,nz
      .                ,kx,ky,kz,lxcoef(:,:,:,1)
