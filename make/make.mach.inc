@@ -1157,6 +1157,12 @@ ifeq ($(findstring marconi_work,$(WORK)),marconi_work)
    #ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -L/marconi_work/FUA11_PIXIE3D/mxml-2.10/linux64_intelmpi/lib -lmxml
    #ADIOS_VER  = 1.10
 
+   #ADIOS = t
+   #ADIOS_HOME = /marconi_work/FUA11_PIXIE3D/adios-1.3.1/linux64_openmpi_gnu
+   #ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L/marconi_work/FUA11_PIXIE3D/mxml-2.10/linux64_openmpi_gnu/lib -lmxml
+   #ADIOS_VER  = 1.31
+
+
    ADIOS = t
    ADIOS_HOME = /marconi_work/FUA11_PIXIE3D/adios-1.10.0/linux64_openmpi_gnu
    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -L/marconi_work/FUA11_PIXIE3D/mxml-2.10/linux64_openmpi_gnu/lib -lmxml
