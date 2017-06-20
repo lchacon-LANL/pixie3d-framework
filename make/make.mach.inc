@@ -1118,58 +1118,72 @@ endif
 
 ifeq ($(findstring marconi_work,$(WORK)),marconi_work)
 
-  FC = ifort
-  OPTIMIZATION = -O3
+#  FC = ifort
+ FC = gfortran
+ OPTIMIZATION = -O3
 
-  CPPFLAGS += $(PREPROC)RFX
+#  CPPFLAGS += $(PREPROC)RFX
+# togliere per casi VMEC così pixplot produce sia cnv sia cov
 
-  ifdef BOPT
-    PETSC_DIR = /marconi_work/FUA11_PIXIE3D/petsc-3.0.0-p7
+ ifdef BOPT
+   PETSC_DIR = /marconi_work/FUA11_PIXIE3D/petsc-3.0.0-p7
 
-    ifeq ($(BOPT),O)
+   ifeq ($(BOPT),O)
 # ifort/intelmpi
 #      PETSC_ARCH = linux64_intelmpi
 # gfortran/openmpi
-#      PETSC_ARCH = linux64_openmpi_gnu
+     PETSC_ARCH = linux64_openmpi_gnu
 # ifort/openmpi
-      PETSC_ARCH = linux64_openmpi_ifort
-    else
-      PETSC_ARCH = linux64_intelmpi_g
-    endif
+#      PETSC_ARCH = linux64_openmpi_ifort
+   else
+     PETSC_ARCH = linux64_intelmpi_g
+   endif
 
-    HDF5 = f
-    #HDF5_DIR = /sw/xt5/hdf5/1.6.7/cnl2.1_pgi7.2.3_par
-    #HDF5_HOME = $(CRAY_HDF5_DIR)
-    #HDF5_LIBS = $(HDF5_FLIB)
-    #HDF5_MOD  = $(HDF5_HOME)/lib
+   HDF5 = f
+   #HDF5_DIR = /sw/xt5/hdf5/1.6.7/cnl2.1_pgi7.2.3_par
+   #HDF5_HOME = $(CRAY_HDF5_DIR)
+   #HDF5_LIBS = $(HDF5_FLIB)
+   #HDF5_MOD  = $(HDF5_HOME)/lib
 
-    #ADIOS = f
+   #ADIOS = f
 
-    #ADIOS = t
-    #ADIOS_HOME = /marconi_work/FUA11_PIXIE3D/adios-1.3.1/linux64_intelmpi
-    #ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L/marconi_work/FUA11_PIXIE3D/mxml-2.10/linux64_intelmpi/lib -lmxml
-    #ADIOS_VER  = 1.31
+   #ADIOS = t
+   #ADIOS_HOME = /marconi_work/FUA11_PIXIE3D/adios-1.3.1/linux64_intelmpi
+   #ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L/marconi_work/FUA11_PIXIE3D/mxml-2.10/linux64_intelmpi/lib -lmxml
+   #ADIOS_VER  = 1.31
 
-    #ADIOS = t
-    #ADIOS_HOME = /marconi_work/FUA11_PIXIE3D/adios-1.10.0/linux64_intelmpi
-    #ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -L/marconi_work/FUA11_PIXIE3D/mxml-2.10/linux64_intelmpi/lib -lmxml
-    #ADIOS_VER  = 1.10
+   #ADIOS = t
+   #ADIOS_HOME = /marconi_work/FUA11_PIXIE3D/adios-1.10.0/linux64_intelmpi
+   #ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -L/marconi_work/FUA11_PIXIE3D/mxml-2.10/linux64_intelmpi/lib -lmxml
+   #ADIOS_VER  = 1.10
 
-    #ADIOS = t
-    #ADIOS_HOME = /marconi_work/FUA11_PIXIE3D/adios-1.10.0/linux64_openmpi_gnu
-    #ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -L/marconi_work/FUA11_PIXIE3D/mxml-2.10/linux64_openmpi_gnu/lib -lmxml
-    #ADIOS_VER  = 1.10
+   ADIOS = t
+   ADIOS_HOME = /marconi_work/FUA11_PIXIE3D/adios-1.10.0/linux64_openmpi_gnu
+   ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -L/marconi_work/FUA11_PIXIE3D/mxml-2.10/linux64_openmpi_gnu/lib -lmxml
+   ADIOS_VER  = 1.10
 
-    ADIOS = t
-    ADIOS_HOME = /marconi_work/FUA11_PIXIE3D/adios-1.10.0/linux64_openmpi_ifort
-    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -L/marconi_work/FUA11_PIXIE3D/mxml-2.10/linux64_openmpi_ifort/lib -lmxml
-    ADIOS_VER  = 1.10
+   #ADIOS = t
+   #ADIOS_HOME = /marconi_work/FUA11_PIXIE3D/adios-1.10.0/linux64_openmpi_ifort
+   #ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -L/marconi_work/FUA11_PIXIE3D/mxml-2.10/linux64_openmpi_ifort/lib -lmxml
+   #ADIOS_VER  = 1.10
 
-  else
-    HDF5 = f
-    ADIOS = f
-    LIBS += -L$(LAPACK_LIB) -llapack -L$(BLAS_LIB) -lblas
-  endif
+   NETCDF=t
+   NETCDF_LIBS = -lnetcdff -lnetcdf
+   NETCDF_INC  = -I/usr/include
 
-  override MACHINE = marconi
-endif 
+ else
+   HDF5 = f
+   ADIOS = f
+   LIBS += -L$(LAPACK_LIB) -llapack -L$(BLAS_LIB) -lblas
+ endif
+
+   NETCDF=t
+#    NETCDF_LIBS = -lnetcdff -lnetcdf
+   NETCDF_LIBS = -L/cineca/prod/opt/libraries/netcdf/4.4.1/gnu--6.1.0/lib -lnetcdf -L/cineca/prod/opt/libraries/netcdff/4.4.4/gnu--6.1.0/lib -lnetcdff
+#    NETCDF_INC = -I/cineca/prod/opt/libraries/netcdff/4.4.4/gnu--6.1.0/include
+   NETCDF_INC = -I/cineca/prod/opt/libraries/netcdf/4.4.1/gnu--6.1.0/include -I/cineca/prod/opt/libraries/netcdff/4.4.4/gnu--6.1.0/include
+#    NETCDF_LIBS = -L/cineca/prod/opt/libraries/netcdf/4.4.1/intel--pe-xe-2017--binary/lib -lnetcdff -lnetcdf
+#    NETCDF_INC = -I/cineca/prod/opt/libraries/netcdf/4.4.1/intel--pe-xe-2017--binary/include
+
+ MACHINE = marconi
+endif
