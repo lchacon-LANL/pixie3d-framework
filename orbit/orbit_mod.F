@@ -562,38 +562,12 @@ c     Begin program
 
         obcnd = bcnd
 
-c     Allocate orbit history arrays
-
-cc        HIST_LIM = max(20,ssorder+1)
-cc        allocate(xhist(HIST_LIM)
-cc     .          ,yhist(HIST_LIM)
-cc     .          ,zhist(HIST_LIM)
-cc     .          ,thist(HIST_LIM)
-cc     .          ,shist(HIST_LIM))
-cc
-cc        xhist = UNDEF_DP
-cc        yhist = UNDEF_DP
-cc        zhist = UNDEF_DP
-cc        thist = UNDEF_DP
-cc        shist = UNDEF_DP
-
 c     Do splines
 
         call setupSplines(nx,ny,nz,xx,yy,zz
      .                   ,orbit_conf%spline_conf%order,obcnd)
 
-        if (associated(grid_params)) then
-          xmin = grid_params%gxmin
-          xmax = grid_params%gxmax
-          
-          ymin = grid_params%gymin
-          ymax = grid_params%gymax
-          
-          zmin = grid_params%gzmin
-          zmax = grid_params%gzmax
-        else
-          call get_sp_domain_limits(xmin,xmax,ymin,ymax,zmin,zmax)
-        endif
+        call get_sp_domain_limits(xmin,xmax,ymin,ymax,zmin,zmax)
 
         if (    ode_conf%solen
      .      .or.orbit_conf%spline_conf%input_is_A) then
@@ -835,11 +809,6 @@ c     Orbit integral
           thist(1) = time
           shist(1) = ss
 
-cc          write (*,*) 'xhist',xhist
-cc          write (*,*)
-cc          write (*,*) yhist
-cc          write (*,*) zhist
-cc          write (*,*) shist
           !Check for orbit end and interpolate quantities
           if (smax /= 0d0) then
             exit_loop = exit_loop.or.(abs(ss) >= smax)
@@ -847,10 +816,6 @@ cc          write (*,*) shist
             if (abs(ss) > smax) then !4th order interpolation of orbit end points
               ss = sign(1d0,ss)*smax
               call sursec_ho(ss,shist,xhist,yhist,zhist,np,x,y,z,4)
-cc              x = xold + (smax-abs(sold))/abs(ss-sold)*(x-xold)
-cc              y = yold + (smax-abs(sold))/abs(ss-sold)*(y-yold)
-cc              z = zold + (smax-abs(sold))/abs(ss-sold)*(z-zold)
-cc              ss = sign(1d0,ss)*smax
             endif
           elseif (tmax /= 0d0) then
             exit_loop = exit_loop.or.(abs(time) >= tmax)
@@ -858,10 +823,6 @@ cc              ss = sign(1d0,ss)*smax
             if (abs(time) > tmax) then !4th order interpolation of orbit end points
               time = sign(1d0,time)*tmax
               call sursec_ho(time,thist,xhist,yhist,zhist,np,x,y,z,4)
-cc              x = xold + (tmax-abs(told))/abs(time-told)*(x-xold)
-cc              y = yold + (tmax-abs(told))/abs(time-told)*(y-yold)
-cc              z = zold + (tmax-abs(told))/abs(time-told)*(z-zold)
-cc              time = sign(1d0,time)*tmax
             endif
           endif
 

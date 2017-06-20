@@ -277,9 +277,20 @@ c     Initialize spline domain arrays
 
 c     Define spline domain limits
 
-        call set_sp_domain_limits(xs,sbcnd(1),xsmin,xsmax)
-        call set_sp_domain_limits(ys,sbcnd(3),ysmin,ysmax)
-        call set_sp_domain_limits(zs,sbcnd(5),zsmin,zsmax)
+        if (associated(grid_params)) then
+          xsmin = grid_params%gxmin
+          xsmax = grid_params%gxmax
+          
+          ysmin = grid_params%gymin
+          ysmax = grid_params%gymax
+          
+          zsmin = grid_params%gzmin
+          zsmax = grid_params%gzmax
+        else
+          call set_sp_domain_limits(xs,sbcnd(1),xsmin,xsmax)
+          call set_sp_domain_limits(ys,sbcnd(3),ysmin,ysmax)
+          call set_sp_domain_limits(zs,sbcnd(5),zsmin,zsmax)
+        endif
 
 c     Prepare 3d spline interpolation
 
