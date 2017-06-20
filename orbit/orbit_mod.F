@@ -71,8 +71,6 @@ c ######################################################################
 
         real(8),private :: xmin,xmax,ymin,ymax,zmin,zmax
 
-        logical,private :: lssx,lssy,lssz,rzss,ss_io=.false.
-
 	!Global variables >>> THREADPRIVATE
         integer, dimension(:), allocatable :: nunitx,nunity,
      .                                        nunitz,nunitrz
@@ -98,6 +96,9 @@ c ######################################################################
 !$OMP THREADPRIVATE(x00,y00,z00,xss,yss,zss,tss)
         integer,private :: npointx,npointy,npointz
 !$OMP THREADPRIVATE(npointx,npointy,npointz)
+!#!Marco, number of intersection counter (to deal with ridge=.true.)
+        integer,private :: mx,my,mz
+!$OMP THREADPRIVATE(mx,my,mz)
 
 !LSODE private variables
 
@@ -563,8 +564,9 @@ c     Local variables
 c     Begin program
 
 c     Close SS output
-
-	if (ss_io) call ss_io_end
+!       if (ss_io) call ss_io_end
+       if (ss_io .and. (.not. ridge) 
+     .     .and. (.not. auto_corr)) call ss_io_end
 
 c     Kill spline info
 
@@ -640,6 +642,8 @@ c     Local variables
 	integer :: iterror,itime,np
         real(8) :: temp_s,xh,yh,zh,sh
         logical :: chk_ss,integral,non_fatal_err
+!#!     Marco, to deal with connection length in the backward case
+        logical :: cnc_back
 
 c     Begin program
 
@@ -657,6 +661,8 @@ c     Begin program
 
         integral = PRESENT(line_int)
         
+!#!Marco
+        if (auto_corr) ss_io = .true.
         chk_ss = (.not.integral).and.ss_io  !Do SS only if not integrating and if IO has been set up
 
         !Override maximum limits
@@ -708,23 +714,35 @@ c     Daniele,23/03/2009: dump the initial point of the orbit
         if (chk_ss) then
 
           if(lssx .and. x0 == xss0) then
+           if (.not. ridge .and. .not. auto_corr) then
             write(nunitx(thr_num)) real(y0),real(z0)
+           endif
           endif
 
           if(lssy .and. y0 == yss0) then
+           if (.not. ridge .and. .not. auto_corr) then
             if (flux) then
               write(nunity(thr_num)) real(0.5*x0**2),real(z0)
             else
               write(nunity(thr_num)) real(x0),real(z0)
             endif
+           else if (ridge) then
+!#! Marco, write initial position in the y=yss0 plane,ridgeridge
+            call ridge_write(x0,z0,thr_num)
+           endif
           endif
 
           if(lssz .and. z0 == zss0) then
+           if (.not. ridge .and. .not. auto_corr) then
             if (flux) then
               write(nunitz(thr_num)) real(0.5*x0**2),real(y0) !In flux
             else
               write(nunitz(thr_num)) real(x0),real(y0)        !In radius
             endif
+           else if (ridge) then
+!#! Marco, write initial position in the z=zss0 plane
+            call ridge_write(x0,y0,thr_num)
+           endif
           endif
 
         endif
@@ -735,9 +753,22 @@ c     Daniele,23/03/2009: dump the initial point of the orbit
 !#! auto_corr
         if (auto_corr) then
           call auto_corr_io_init(deltass, ss_min, x0,y0,z0,ss_check)
+          ac_rtrn = .false.
         endif
 
 !     Orbit integral
+
+!#! Marco, initialize intersections counters
+        mx = 0 ; my = 0 ; mz = 0
+
+!#! Marco, initialize cnc_back
+        if (connect) then
+         if (x0 .gt. cnctth) then
+          cnc_back = .true.
+         else 
+          cnc_back = .false.
+         endif
+        endif
 
         itime = 0 
 
@@ -763,7 +794,13 @@ c     Daniele,23/03/2009: dump the initial point of the orbit
           if (lyap) call lyap_write(x,ss)
 
           if (auto_corr) then
-            call auto_corr_write(x,y,z,atc_tol,deltass,ss_check)
+           call auto_corr_write(x,y,z,atc_tol,deltass
+     .                         ,ss_check,ac_rtrn)
+           if (ac_rtrn) then
+            call auto_corr_io_end(lssx,lssy,lssz,rzss
+     .                           ,x0,y0,z0,ss)
+             return
+           endif
           endif
           
           xhist(3:HIST_LIM) = xhist(2:HIST_LIM-1)
@@ -784,8 +821,15 @@ c     Daniele,23/03/2009: dump the initial point of the orbit
           !Find new LOGICAL positions, new time, new arc length
           call orbit_step(x,y,z,iterror,forward=fwd,lsode_f=lsode_f)
 
-          if (connect .and. x .gt. cnctth) then
+          if (connect) then
+           if (.not. cnc_back .and. x .gt. cnctth) then
             call connect_write(x0,y0,z0,ss,thr_num)
+!#! Marco, no need to continue after threshold is reached
+            exit
+           else if (cnc_back .and. x .lt. cnctth) then
+            call connect_write(x0,y0,z0,ss,thr_num)
+            exit
+           endif
           endif
 
           exit_loop = (orbit_error(iterror).or.exit_loop) !Last determined in orbit_step
@@ -866,11 +910,23 @@ cc            endif
 
           !stop orbit integration if # of intersections > prescribed number
           if (auto_corr.and.auto_corr_inters_stop(lssx,lssy,lssz)) exit
+!          if (auto_corr) then
+!           write(*,*) 'DIAGac2',intersect_x,intersect_y,intersect_z
+!          endif
+
+!#!Marco, check maximum intersection number
+          if (ridge) then
+
+           if (my .gt. max_inter_y) exit
+
+           if (mz .gt. max_inter_z) exit
+
+          endif
 
         enddo
 
         if (auto_corr) call auto_corr_io_end(lssx,lssy,lssz,rzss
-     $                                     ,x0,y0,z0,ss)
+     .                                      ,x0,y0,z0,ss)
 
         if (lyap) call lyap_io_end
 
@@ -880,12 +936,12 @@ cc            endif
 
 c     Write orbit separator in XDRAW file
 
-        if (chk_ss) then
+       if ((.not. ridge) .and. (.not. auto_corr) .and. chk_ss) then
           if (lssx) write(nunitx(thr_num))
           if (lssy) write(nunity(thr_num))
           if (lssz) write(nunitz(thr_num))
           if (rzss) write(nunitrz(thr_num))
-        endif
+       endif
 
 c     End orbit
 
@@ -2654,11 +2710,6 @@ c     Check for intersection with X surface of section
 
           if (ss_io) then
 
-            if (auto_corr) then
-             !update number of intersections
-             call auto_corr_intersx_update(intersect_x)
-            endif
-
             call chk_pos(xss,yss,zss) !this resets logical coords
             write(nunitx(thr_num)) real(yss),real(zss)
           endif
@@ -2678,11 +2729,6 @@ c     Check for intersection with Y surface of section
      .               ,yss,npointy,zss,xss,tss,iwhich)
 
           if (ss_io) then
-
-            if (auto_corr) then
-             !update number of intersections
-             call auto_corr_intersy_update(intersect_y)
-            endif
 
             call chk_pos(xss,yss,zss) !this resets logical coords
             
@@ -2709,17 +2755,7 @@ c     Check for intersection with Z surface of section
 
           if (ss_io) then
 
-            if (auto_corr) then
-             !update number of intersections
-             call auto_corr_intersz_update(intersect_z)
-            endif
-
             if (rzss) then   !Find R-Z plane positions
-
-             if (auto_corr) then
-              !update number of intersections
-              call auto_corr_interstor_update(intersect_tor)
-             endif
 
               call evalX(xss,yss,zss,xcar,ycar,zcar) !Eval Cartesian coords; also resets logical coords
               rr = sqrt(xcar**2+ycar**2)
@@ -2919,8 +2955,16 @@ c     Check for intersection with X surface of section
      .                  ,npointx,yss,zss,tss,iwhich)
 
           if (ss_io) then
-            call chk_pos(xss,yss,zss) !this resets logical coords
-            write(nunitx(thr_num)) real(yss),real(zss)
+           if (auto_corr) then
+            !update number of intersections
+            call auto_corr_intersx_update(intersect_x)
+           endif
+
+            mx = mx + 1
+            if (.not. ridge .and. .not. auto_corr) then
+             call chk_pos(xss,yss,zss) !this resets logical coords
+             write(nunitx(thr_num)) real(yss),real(zss)
+            endif
           endif
 
           !Accumulate B diagnostics
@@ -2935,18 +2979,35 @@ c     Check for intersection with Y surface of section
           call sursec_ho(yss,yhist,zhist,xhist,shist
      .                  ,npointy,zss,xss,tss,iwhich)
 
-          if (ss_io) then
-            call chk_pos(xss,yss,zss) !this resets logical coords
-            
-            if (flux) then
-              write(nunity(thr_num)) real(0.5*xss**2),real(zss)
-            else
-              write(nunity(thr_num)) real(xss),real(zss)
-            endif
-          endif
+         if (ss_io) then
+           if (auto_corr) then
+            !update number of intersections
+            call auto_corr_intersy_update(intersect_y)
+           endif
 
-          !Accumulate B diagnostics
-          if (bdiag) call B_diag_update(xss,x00,tss)
+!#!Marco, update intersection counter
+          my = my + 1
+
+          if (ridge) then 
+           if ((my .lt. max_inter_y) 
+     .         .and. (mod(my,delta_y) .eq. 0)) then
+!#!Marco, ridge write
+            call ridge_write(xss,zss,thr_num)
+           endif
+          endif
+ 
+          if (.not. ridge .and. .not. auto_corr) then
+           call chk_pos(xss,yss,zss) !this resets logical coords
+           if (flux) then
+             write(nunity(thr_num)) real(0.5*xss**2),real(zss)
+           else
+             write(nunity(thr_num)) real(xss),real(zss)
+           endif
+          endif
+         endif
+
+         !Accumulate B diagnostics
+         if (bdiag) call B_diag_update(xss,x00,tss)
         endif
 
 c     Check for intersection with Z surface of section
@@ -2959,20 +3020,51 @@ c     Check for intersection with Z surface of section
 
           if (ss_io) then
             if (rzss) then   !Find R-Z plane positions
+             if (auto_corr) then
+              !update number of intersections
+              call auto_corr_interstor_update(intersect_tor)
+             endif
+
+             if (.not. ridge .and. .not. auto_corr) then
               call evalX(xss,yss,zss,xcar,ycar,zcar) !Eval Cartesian coords; also resets logical coords
               rr = sqrt(xcar**2+ycar**2)
               write(nunitrz(thr_num)) real(rr),real(zcar)
+             endif
             endif
 
-            if (lssz) then
-              call chk_pos(xss,yss,zss) !this resets logical coords
-
-              if (flux) then
-                write(nunitz(thr_num)) real(0.5*xss**2),real(yss) !In flux
-              else
-                write(nunitz(thr_num)) real(xss)       ,real(yss) !In radius
-              endif
+           if (lssz) then
+            if (auto_corr) then
+             !update number of intersections
+             call auto_corr_intersz_update(intersect_z)
+!             write(*,*) 'DIAGac0',thr_num,intersect_z
             endif
+
+!#!Marco, update intersection counter
+            mz = mz + 1
+!            write(*,*) 'DIAGz0',thr_num,mz,delta_z,max_inter_z
+
+            if (ridge) then 
+             if ((mz .lt. max_inter_z)
+     .           .and. (mod(mz,delta_z) .eq. 0)) then
+                if (thr_num .eq. 0) then
+!                 write(*,*) 'DIAGridge',mz,delta_z,xss,yss
+                endif
+!#!Marco, ridge write
+              call ridge_write(xss,yss,thr_num)
+             endif
+            endif
+ 
+            if (.not. ridge .and. .not. auto_corr) then
+!             write(*,*) 'DIAG_chkpos'
+             call chk_pos(xss,yss,zss) !this resets logical coords
+             if (flux) then
+               write(nunitz(thr_num)) real(0.5*xss**2),real(yss) !In flux
+             else
+               write(nunitz(thr_num)) real(xss)       ,real(yss) !In radius
+             endif
+
+            endif
+           endif
           endif
 
           !Accumulate B diagnostics

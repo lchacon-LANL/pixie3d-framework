@@ -192,7 +192,9 @@ cc      endif
         if (PRESENT(ierr)) then
           ierr = ierror
         else
+!#! Marco, to let the program continue with the next magnetic field line
           if (ierror /= 0) stop
+!          if (ierror /= 0) return
         endif
 
 c     End program
@@ -1450,7 +1452,9 @@ c     Begin program
         if (error(iter) < tol) exit
 
         !Form Jacobian
-        JJ = formJacobian(x1,x2,x3)
+        JJ = formJacobian(x1,x2,x3,ierror)
+
+        if (ierror /= ORB_OK) exit
 
         if (prnt) write (*,*) 'evalXi -- J(1,:)=',JJ(1,:)
         if (prnt) write (*,*) 'evalXi -- J(2,:)=',JJ(2,:)
@@ -1549,11 +1553,12 @@ cc      if (sbcnd(5) == PER) res(3) = mod(res(3),zsmax-zsmin-0.1*tol)
 
 c     formJacobian
 c     ###################################################################
-      function formJacobian(x1,x2,x3) result(JJ)
+      function formJacobian(x1,x2,x3,ierror) result(JJ)
 
       implicit none
 
       real(8) :: x1,x2,x3,JJ(3,3)
+      integer :: ierror
 
       real(8) :: x11,x22,x33
 
@@ -1561,7 +1566,9 @@ c     ###################################################################
       x22 = x2
       x33 = x3
 
-      call chk_pos(x11,x22,x33)
+      call chk_pos(x11,x22,x33,ierr=ierror)
+
+      if (ierror /= ORB_OK) return
 
       JJ(1,1) = db3val(x11,x22,x33,1,0,0,tx,ty,tz,nx,ny,nz
      .                ,kx,ky,kz,lxcoef(:,:,:,1)
