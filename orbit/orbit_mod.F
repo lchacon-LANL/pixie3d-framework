@@ -110,7 +110,7 @@ c ######################################################################
         INTEGER,PRIVATE :: IOPT,IOUT,ISTATE=0,ITASK,ITOL
      .                  ,IWORK(LIW),MF,NEQD(1)
 !$OMP THREADPRIVATE(IOPT,IOUT,ISTATE,ITASK,ITOL,IWORK,MF,NEQD)
-        REAL(8),PRIVATE :: LS_ATOL(1),LS_RTOL(1),RWORK(LRW)
+        REAL(8),PRIVATE :: LS_ATOL(1),LS_RTOL(1),RWORK(LRW)=0d0
      .                    ,T,TOUT,YY(NEQ),LSODE_ACC(LSODE_ACC_DIM)
 !$OMP THREADPRIVATE(LS_ATOL,LS_RTOL,RWORK,T,TOUT,YY,LSODE_ACC)
 !     Store of LSODE common block variables

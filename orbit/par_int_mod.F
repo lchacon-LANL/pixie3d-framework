@@ -44,6 +44,7 @@ c     ---------------------------------------------------------------
       endif
 
       !Compute coefficient matrix for SDC kernels
+      aa = 0d0
       aa(0,0) = 1d0
       j = 0
 cc      write (*,*) aa(j,0:j)
