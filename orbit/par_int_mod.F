@@ -530,7 +530,7 @@ c module par_int
 c #############################################################################
       module par_int
 
-!$      use omp_lib
+        use OMP
 
         use orbit
 
@@ -1116,8 +1116,7 @@ c-----------------------------------------------
 !$      if (my_rank == 0.and.iout == 1) write (*,*)
 
 !$OMP PARALLEL
-!$      thr_tot = omp_get_num_threads()
-!$      thr_num = omp_get_thread_num()
+        call set_omp_thread_id()  !Initializes thr_tot,thr_num
 cc!$      if (my_rank == 0) then
 cc!$        write (*,'(a,i3,a1,i3)')
 cc!$   .     'OMP thread num/tot',thr_num+1,'/',thr_tot
@@ -1406,8 +1405,7 @@ c BEGIN OMP PARALLEL REGION
 c-----------------------------------------------
 !$      if (my_rank == 0.and.iout == 1) write (*,*)
 !$OMP PARALLEL
-!$      thr_tot = omp_get_num_threads()
-!$      thr_num = omp_get_thread_num()
+        call set_omp_thread_id()  !Initializes thr_tot,thr_num
 cc!$      if (my_rank == 0) then
 cc!$        write (*,'(a,i3,a1,i3)')
 cc!$   .     'OMP thread num/tot',thr_num+1,'/',thr_tot
