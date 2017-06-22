@@ -6,7 +6,7 @@ c ######################################################################
 
         use xdraw_io, ONLY: contour
 
-#if defined(use_pic_mpi)
+#if defined(use_pic_mpi) || defined(use_mpi)
         use mpi
 #endif
 
