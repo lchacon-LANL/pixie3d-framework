@@ -669,7 +669,7 @@ c     End program
 c     get_poinc_domain_config
 c     ##################################################################
       subroutine get_poinc_domain_ptys(xmin,xmax,ymin,ymax,zmin,zmax
-     .                                ,bcnds)
+     .                                ,bcnds,nx_g,ny_g,nz_g)
 
 c     ------------------------------------------------------------------
 c     Extract domain properties from POINCARE file
@@ -681,6 +681,7 @@ c     Call variables
 
         integer :: bcnds(6)
         real(8) :: xmin,xmax,ymin,ymax,zmin,zmax
+        integer,optional :: nx_g,ny_g,nz_g
 
 c     Local Variables
 
@@ -694,6 +695,10 @@ c     Begin program
         zmax = pzmax
 
         bcnds = bcnd
+
+        if (PRESENT(nx_g)) nx_g = nxg
+        if (PRESENT(ny_g)) ny_g = nyg
+        if (PRESENT(nz_g)) nz_g = nzg
 
 c     End program
 
