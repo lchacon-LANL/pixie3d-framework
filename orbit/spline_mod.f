@@ -7,7 +7,7 @@ c #####################################################################
 !#! Marco
         use lyapn
 
-        use grid, ONLY:pstop,my_rank,grid_params
+        use grid, ONLY:pstop,my_rank,grid_mg_def
 
         use bc_def, bcond2 => bcond
 
@@ -42,6 +42,10 @@ c #####################################################################
 
         logical, private :: x_is_log,y_is_log,z_is_log
 
+        INTERFACE setupSplines
+          module procedure setupSplines_gst,setupSplines_nogst
+        END INTERFACE
+
       contains
 
 c     set_sp_domain_limits
@@ -71,7 +75,7 @@ c     Begin program
         if (bc == PER) then  !Ghost cell is at x(1)
 cc          xmin = 5d-1*(x(1)+x(2))
 cc          xmax = 5d-1*(x(nn-1)+x(nn))
-          x = x - x(2)          !Set angle = 0 at x(2)
+          x = x - x(2)  !Set angle = 0 at x(2)
           xmin = x(2)
           xmax = x(nn)
         else
@@ -228,18 +232,103 @@ cc      endif
         if (PRESENT(ierr)) then
           ierr = ierror
         else
-!#! Marco, to let the program continue with the next magnetic field line
           if (ierror /= 0) stop
-!          if (ierror /= 0) return
         endif
 
 c     End program
 
       end subroutine chk_pos
 
-c     setupSplines
+c     setupSplines_gst
 c     #################################################################
-      subroutine setupSplines(nnx,nny,nnz,xx,yy,zz,order,bcnd)
+      subroutine setupSplines_gst(g_def,igrid,order
+     .                       ,xmin,xmax,ymin,ymax,zmin,zmax,bcnd)
+c     -----------------------------------------------------------------
+c     This routine sets up 3D splines, including allocation of memory
+c     space.
+c     -----------------------------------------------------------------
+
+        implicit none            ! For safe Fortran
+
+c     Call variables
+
+        type(grid_mg_def),pointer :: g_def
+
+        integer :: igrid,order
+        real(8),intent(OUT) :: xmin,xmax,ymin,ymax,zmin,zmax
+        integer :: bcnd(6)
+
+c     Local variables
+
+        integer :: alloc_stat,i
+
+c     Begin program
+
+        sbcnd = bcnd
+
+c     Initialize private variables
+
+        nx = g_def%nxgl(igrid) + 2
+        ny = g_def%nygl(igrid) + 2
+        nz = g_def%nzgl(igrid) + 2
+
+        allocate(xs(nx),ys(ny),zs(nz))
+
+c     Initialize spline domain arrays
+
+        xs = g_def%xg
+        ys = g_def%yg
+        zs = g_def%zg
+
+c     Define domain limits
+
+        xsmin = g_def%gxmin
+        xsmax = g_def%gxmax
+          
+        ysmin = g_def%gymin
+        ysmax = g_def%gymax
+          
+        zsmin = g_def%gzmin
+        zsmax = g_def%gzmax
+
+        xmin = xsmin
+        xmax = xsmax
+                 
+        ymin = ysmin
+        ymax = ysmax
+                 
+        zmin = zsmin
+        zmax = zsmax
+
+c     Prepare 3d spline interpolation
+
+        flg = 0 !Let spline routine find interpolation knots
+        kx = min(order+1,nx-1)
+        ky = min(order+1,ny-1)
+        kz = min(order+1,nz-1)
+
+        dim  = nx*ny*nz + max(2*kx*(nx+1),2*ky*(ny+1),2*kz*(nz+1))
+
+        allocate(work(dim),stat=alloc_stat)
+        allocate(tx(nx+kx),stat=alloc_stat)
+        allocate(ty(ny+ky),stat=alloc_stat)
+        allocate(tz(nz+kz),stat=alloc_stat)
+
+!$omp parallel
+        call set_omp_thread_id()
+!$omp end parallel                                                             
+
+	dime = ky*kz + 3*max(kx,ky,kz) + kz
+	allocate(worke(dime*thr_tot),stat=alloc_stat)
+
+c     End program
+
+      end subroutine setupSplines_gst
+
+c     setupSplines_nogst
+c     #################################################################
+      subroutine setupSplines_nogst(nnx,nny,nnz,xx,yy,zz,order
+     .                       ,xmin,xmax,ymin,ymax,zmin,zmax,bcnd)
 c     -----------------------------------------------------------------
 c     This routine sets up 3D splines, including allocation of memory
 c     space.
@@ -251,6 +340,7 @@ c     Call variables
 
         integer :: nnx,nny,nnz,order
         real(8) :: xx(nnx),yy(nny),zz(nnz)
+        real(8),intent(OUT) :: xmin,xmax,ymin,ymax,zmin,zmax
         integer :: bcnd(6)
 
 c     Local variables
@@ -277,20 +367,18 @@ c     Initialize spline domain arrays
 
 c     Define spline domain limits
 
-        if (associated(grid_params)) then
-          xsmin = grid_params%gxmin
-          xsmax = grid_params%gxmax
-          
-          ysmin = grid_params%gymin
-          ysmax = grid_params%gymax
-          
-          zsmin = grid_params%gzmin
-          zsmax = grid_params%gzmax
-        else
-          call set_sp_domain_limits(xs,sbcnd(1),xsmin,xsmax)
-          call set_sp_domain_limits(ys,sbcnd(3),ysmin,ysmax)
-          call set_sp_domain_limits(zs,sbcnd(5),zsmin,zsmax)
-        endif
+        call sp_domain_limits(xs,sbcnd(1),xsmin,xsmax)
+        call sp_domain_limits(ys,sbcnd(3),ysmin,ysmax)
+        call sp_domain_limits(zs,sbcnd(5),zsmin,zsmax)
+
+        xmin = xsmin
+        xmax = xsmax
+                 
+        ymin = ysmin
+        ymax = ysmax
+                 
+        zmin = zsmin
+        zmax = zsmax
 
 c     Prepare 3d spline interpolation
 
@@ -318,8 +406,8 @@ c     Prepare 3d spline interpolation
 
 c     End program
 
-      end subroutine setupSplines
-
+      end subroutine setupSplines_nogst
+      
 c     splineA
 c     #################################################################
       subroutine splineA(bx,by,bz,a_gauge,input_is_A)
@@ -627,10 +715,10 @@ cccc          if (.not.glbl) call getMGmap(i,1,1,igx,igy,igz,ig,jg,kg)
 cccc
 cccc          if (spoint) then
 cccc            if (.not.glbl) then
-cccc              dxx = grid_params%dxh(ig-1)
+cccc              dxx = g_def%dxh(ig-1)
 cccc            else
-cccccc              dxx = 0.5*(grid_params%xg(i+1)-grid_params%xg(i-1))
-cccc              dxx = grid_params%xg(i)-grid_params%xg(i-1)
+cccccc              dxx = 0.5*(g_def%xg(i+1)-g_def%xg(i-1))
+cccc              dxx = g_def%xg(i)-g_def%xg(i-1)
 cccc            endif
 cccc
 cccc            a(i,:,:,3) = a(i-1,:,:,3) - dxx*b(i,:,:,2)

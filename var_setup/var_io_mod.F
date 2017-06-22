@@ -9,6 +9,12 @@ c ######################################################################
 
         use variables
 
+#if defined(adios)
+        use ADIOS_io
+#else
+        character*(1024) :: recordfile='record.bin'
+#endif
+
         integer :: ilevel
 
         integer :: urecord=10000,usave=20000,uinput=25,u_mapf=3000
@@ -19,483 +25,16 @@ c ######################################################################
 
         logical :: clean=.false.
      $            ,tst_flg=.false.
-     $            ,append_recordfile=.false.
-
-#if defined(adios)
-        !!! ADIOS variables
-        !!! Used to dump main record file (to be postprocessed)
-        !!! Does NOT use "adios_config.xml" file
-        character*(1024) :: recordfile='record.bp'
-        ! ADIOS needs a variable containing the MPI_WORLD_COMM communicator
-        integer :: adios_world_comm
-
-        !!! variables for reading 
-        integer*8 :: adios_fh, adios_gh   ! file handler and group handler
-        integer   :: adios_varcount       ! number of variables in file (~32)
-        integer   :: adios_attrcount      ! number of attributes in file (~16)
-        character(30), dimension(50) :: adios_varlist  ! list of all vars 
-        character(30), dimension(50) :: adios_attrlist  ! list of all attributes 
-        integer   :: adios_nvar           ! number of /var/ variables in file (~8)
-        character(30), dimension(50) :: adios_varnames  ! list of /var/ vars 
-        integer   :: adios_tstart, adios_tend, adios_ntsteps ! timesteps available
-        integer   :: adios_tread          ! 0 ... ntsteps-1
-        integer   :: adios_err            ! error handler
-        integer   :: adios_attrtype,adios_attrsize,adios_vartype
-     .              ,adios_ndim,adios_tdim
-        integer*8,dimension(3) :: adios_vardims
-
-        logical,private :: adios_debug=.false.
-#else
-        character*(1024) :: recordfile='record.bin'
-#endif
+     $            ,posix_append_recordfile=.false.
 
       contains
-
-#if defined(adios)
-c     openRecordFileAdiosForRead
-c     #################################################################
-      subroutine openRecordFileAdiosForRead(ierr,file,nvar,nx,ny,nz)
-
-        implicit none
-
-c     Call variables
-
-        integer,intent(out) :: ierr
-        character(*),optional :: file
-        integer,optional,intent(out) :: nvar,nx,ny,nz
-
-c     Local variables
-
-        integer :: gcnt, vcnt, acnt, nullidx, ts, lastts,i
-        character (len=20), dimension(1)  :: gnamelist  ! list of groups (=1)
-        character(len=1024) :: rfile
-        logical :: inq_adios_var
-
-c     Begin program
-
-        if (PRESENT(file)) then
-          rfile = file
-        else
-          rfile = recordfile
-        endif
-
-        call MPI_Comm_dup (MPI_COMM_WORLD, adios_world_comm, ierr)
-
-        !Open ADIOS file
-        call adios_fopen(adios_fh,rfile,adios_world_comm,gcnt,ierr)
-
-        !Inquire ADIOS file
-        call adios_inq_file(adios_fh,vcnt,acnt,adios_tstart
-     .                     ,adios_ntsteps,gnamelist,ierr)
-
-        adios_tend = adios_tstart + adios_ntsteps - 1
-
-        !Open ADIOS group
-        call adios_gopen (adios_fh,adios_gh,gnamelist(1)
-     .                   ,adios_varcount,adios_attrcount,ierr)
-
-        !Inquire ADIOS group
-        if (ADIOS_VER == 1.31) then
-          call adios_inq_group(adios_gh,adios_varlist,adios_attrlist
-     .                        ,ts,lastts,ierr)
-        else
-          call adios_inq_group(adios_gh,adios_varlist,adios_attrlist
-     .                        ,ierr)
-        endif
-
-        ! count /var/ variables
-        inq_adios_var = (PRESENT(nx).or.PRESENT(ny).or.PRESENT(nz))
-        adios_nvar=0
-        do i=1,adios_varcount
-            if (index(adios_varlist(i),"/var/") == 1) then
-                adios_nvar = adios_nvar+1
-                !Check problem size
-cc                if (inq_adios_var.and.(ADIOS_VER == 1.31)) then
-                  call adios_inq_var(adios_gh,trim(adios_varlist(i))
-     .               ,adios_vartype,adios_ndim,adios_vardims,adios_tdim
-     .               ,ierr)
-cc                endif
-cc                ! get rid of trailing char(0) in names
-cc                nullidx=index(adios_varlist(i),char(0))
-cc                if (nullidx == 0) nullidx=len(trim(adios_varlist(i)))+1
-cc                adios_varnames(adios_nvar) = 
-cc     .                    adios_varlist(i)(1:nullidx-1)
-            endif
-        enddo
-        
-cc        do i=1,adios_attrcount
-cc          call adios_inq_attr(adios_gh,adios_attrlist(i),adios_attrtype
-cc     .                       ,adios_attrsize,ierr)
-cc          write (*,*) adios_attrlist(i),adios_attrtype,adios_attrsize
-cc        enddo
-
-        adios_tread = 0  ! next time read first timestep
-
-        write (*,"(a,i0,a,a)")
-     .       " Proc=",my_rank,": opened ",trim(rfile)
-
-        if (adios_debug) then
-          if (my_rank == 0) then
-            write (*,"(a, i5)") " Number of vars: ", adios_varcount
-            write (*,*), "Variables:"
-            do i=1,adios_varcount
-              write (*,"(i5, a, a)") i,")  ", trim(adios_varlist(i))
-            enddo
-          endif
-        endif
-
-        if (PRESENT(nvar)) nvar = adios_nvar
-        if (PRESENT(nx)) nx = adios_vardims(1)-2
-        if (PRESENT(ny)) ny = adios_vardims(2)-2
-        if (PRESENT(nz)) nz = adios_vardims(3)-2
-
-      end subroutine openRecordFileAdiosForRead
-
-c     closeRecordFileAdiosForRead
-c     #################################################################
-      subroutine closeRecordFileAdiosForRead(ierr)
-
-        implicit none
-
-        integer, intent(out) :: ierr
-
-        call adios_gclose(adios_gh, ierr)
-        call adios_fclose(adios_fh, ierr)
-
-        if (adios_debug) write (*,*), "Closed ", trim(recordfile)
-
-      end subroutine closeRecordFileAdiosForRead
-
-c     writeDerivedTypeAdios
-c     #################################################################
-      subroutine writeDerivedTypeAdios(handle, varray, addl_write)
-
-        implicit none
-
-c     Call variables
-
-        integer*8                :: handle
-        type(var_array),pointer  :: varray
-        logical                  :: addl_write
-
-c     Local variables
-
-        integer          :: ieq, err, 
-     .                      xoffset, yoffset, zoffset,
-     .                      xsize, ysize, zsize
-
-        integer          :: xloghost, xhighost
-        integer          :: yloghost, yhighost
-        integer          :: zloghost, zhighost
-        integer,dimension(6*varray%nvar) :: bconds  ! all boundary conditions as one array
-        character(20)    :: vvar      ! /var/v<idx> 
-        character(20)    :: vname     ! /name/v<idx> 
-
-c     Begin program
-
-c   global size of the output array = nxd+2 x nyd+2 x nzd+2 with ghost cells on the faces
-
-c   ihipg = nxd+1    -> x=1 face
-c   ihipg = nxd+1    -> x=1 face
-c   j... -> y face
-c   k... -> z face
-c
-c   global position of an internal processor in the 3D mesh
-c     from  ilog = ilomg+1  to ihig = ihipg-1
-c     from  jlog = jlomg+1  to jhig = jhipg-1
-c     from  klog = klomg+1  to khig = khipg-1
-c   global position for boundary proc
-c     if (ilomg == 0) ilog = ilomg
-c     if (ihipg == nxd+1) ihig = ihipg
-c
-c   local sizes: ilom:ihip   but ilom+1:ihip-1 for internal processor
-c   local indices start from 0 for ghost cell
-
-c     Offsets to include ghosts
-c     1. internal processes: no ghost cells written out
-        xloghost = 1
-        yloghost = 1
-        zloghost = 1
-        xhighost = -1
-        yhighost = -1
-        zhighost = -1
-      
-c     2. processes that has some face 
-c       x=0 face
-        if (ilomg == 0) xloghost = 0
-
-c       x=1 face
-        if (ihipg == nxd+1) xhighost = 0
-
-c       y=0 face
-        if (jlomg == 0) yloghost = 0
-
-c       y=1 face
-        if (jhipg == nyd+1) yhighost = 0
-
-c       z=0 face
-        if (klomg == 0) zloghost = 0
-
-c       z=1 face
-        if (khipg == nzd+1) zhighost = 0
-
-c       calculate offsets in the global array
-        xoffset = ilomg + xloghost  
-        yoffset = jlomg + yloghost  
-        zoffset = klomg + zloghost  
-
-
-c       write auxiliary variables (adios writer needs it),
-c          will not be accessible from file (everybody writes these vars)
-        call adios_write (handle, "nvar", varray%nvar, err)
-        call adios_write (handle, "nxd+2", nxd+2, err)
-        call adios_write (handle, "nyd+2", nyd+2, err)
-        call adios_write (handle, "nzd+2", nzd+2, err)
-        call adios_write (handle, "xoffset", ilomg+xloghost, err)
-        call adios_write (handle, "yoffset", jlomg+yloghost, err)
-        call adios_write (handle, "zoffset", klomg+zloghost, err)
-        call adios_write (handle, "xsize", 
-     .                    ihip+xhighost-ilom-xloghost+1, err)
-        call adios_write (handle, "ysize", 
-     .                    jhip+yhighost-jlom-yloghost+1, err)
-        call adios_write (handle, "zsize", 
-     .                    khip+zhighost-klom-zloghost+1, err)
-        if (addl_write) then
-            call adios_write (handle, "namelen", 
-     .                        len(varray%array_var(1)%descr), err)
-        endif
-
-        if (adios_debug) then
-          print"('r',i1,' offset=(',i3,',',i3,',',i3,')')", my_rank,
-     .           ilomg+xloghost, jlomg+yloghost, klomg+zloghost
-          print"('r',i1,' size=(',i3,',',i3,',',i3,')')", my_rank,
-     .           ihip+xhighost-ilom-xloghost+1, 
-     .           jhip+yhighost-jlom-yloghost+1,
-     .           khip+zhighost-klom-zloghost+1
-          print"('r',i1,' i=',i3,':',i3,',',i3
-     .          ,':',i3,',',i3,':',i3,'')",
-     .           my_rank,
-     .           ilom+xloghost, ihip+xhighost,
-     .           jlom+yloghost, jhip+yhighost,
-     .           klom+zloghost, khip+zhighost
-        endif
-
-        do ieq=1,varray%nvar
-            write (vvar,  '("/var/v",i0)')  ieq
-            ! write /var/v<ieq>
-            call adios_write (handle, vvar,
-     .          varray%array_var(ieq)%array(
-     .               ilom+xloghost:ihip+xhighost,
-     .               jlom+yloghost:jhip+yhighost,
-     .               klom+zloghost:khip+zhighost), 
-     .          err)
-
-            if (addl_write) then
-                ! write /name/v<ieq>
-                write (vname, '("/name/v",i0)') ieq
-                call adios_write (handle, vname,
-     .              varray%array_var(ieq)%descr, err)
-            endif
-        enddo
-
-c     write all boundary conditions into one array buffer
-        if (addl_write) then
-            do ieq=1,varray%nvar
-                bconds( (ieq-1)*6+1:ieq*6 ) = 
-     .                  varray%array_var(ieq)%bconds(:)
-            enddo
-            call adios_write (handle, "nvar*6", varray%nvar*6, err)
-            call adios_write (handle, "bconds", bconds, err)
-        endif
-
-c     End program
-
-      end subroutine writeDerivedTypeAdios
-
-c     readDerivedTypeAdios
-c     #################################################################
-      subroutine readDerivedTypeAdios(gh,varray,step,firstread,ierr)
-
-        implicit none
-
-c     Call variables
-        integer*8                :: gh  ! adios group handler (to read data)
-        type(var_array),pointer  :: varray
-        integer                  :: step
-        logical                  :: firstread
-        integer, intent(out)     :: ierr
-
-c     Local variables
-
-        integer          :: ieq,ilom,ihip,jlom,jhip,klom,khip
-        integer*8, dimension(4) :: start, readcount ! dimensions are 64bit in adios
-        integer*8        :: zero, nlen ! 64bit start/count for reading the description
-        integer          :: vrank, vtype, vtimed, err  ! adios_inq_var() outputs
-        integer*8, dimension(10) :: dims ! adios_inq_var() output
-        integer,dimension(6*adios_nvar) :: bconds  ! all boundary conditions as one array
-        character(20)    :: vvar      ! /var/v<idx> 
-        character(20)    :: vname     ! /name/v<idx> 
-        character(len(varray%array_var(1)%descr))    :: desc      ! name of variable read from file
-        integer*8        :: n,m ! bytes to read and actually read
-
-        integer          :: iloghost, ihighost
-        integer          :: jloghost, jhighost
-        integer          :: kloghost, khighost
-
-c     Begin program
-
-          ierr = 0
-
-c     Set offsets to include ghosts
-c     1. internal processes: no ghost cells will be read in
-          iloghost = 0          ! gcw
-          jloghost = 0          ! gcw
-          kloghost = 0          ! gcw
-          ihighost = 0          ! gcw
-          jhighost = 0          ! gcw
-          khighost = 0          ! gcw
-      
-c     2. processes that has some face have ghost cells 
-c       x=0 face
-          if (ilomg == 0) iloghost = 0
-
-c       x=1 face
-          if (ihipg == nxd+1) ihighost = 0
-
-c       y=0 face
-          if (jlomg == 0) jloghost = 0
-
-c       y=1 face
-          if (jhipg == nyd+1) jhighost = 0
-
-c       z=0 face
-          if (klomg == 0) kloghost = 0
-
-c       z=1 face
-          if (khipg == nzd+1) khighost = 0
-
-
-c        write (*,"(a,i1,a,i4,i4,i4,i4,i4,i4)") "rank=",my_rank,
-c     .      " global indices again: ",
-c     .      ilomg,ihipg,jlomg,jhipg,klomg,khipg
-
-          call fromGlobalToLocalLimits(ilomg,jlomg,klomg,ilom,jlom,klom
-     .                                ,1,1,1)
-          call fromGlobalToLocalLimits(ihipg,jhipg,khipg,ihip,jhip,khip
-     .                                ,1,1,1)
-
-          if (adios_debug)
-     .      write (*,"(a,i0,a,i4,i4,i4,i4,i4,i4)") "rank=",my_rank,
-     .      " read: local indices: ",ilom,ihip,jlom,jhip,klom,khip
-
-          start = (/ilomg+iloghost,jlomg+jloghost,klomg+kloghost,step/)
-          readcount = (/ ihip-ihighost - ilom-iloghost + 1,
-     .                   jhip-jhighost - jlom-jloghost + 1,
-     .                   khip-khighost - klom-kloghost + 1,
-     .                   1 /)
-          n = readcount(1)*readcount(2)*readcount(3)*8
-          if (adios_debug)
-     .      write (*,"(a,i0,a,i0,a,4i4,a,4i4)") "rank=",my_rank,
-     .      " read vars n=",n," start= ", start," count= ",readcount
-
-          do ieq=1,adios_nvar
-            if (firstread) then
-                zero = 0
-                nlen = len(varray%array_var(1)%descr)
-                ! read in name of Nth variable
-                write (vname, '("/name/v",i0)') ieq
-                !write (*,"(a,a,a,i0)") "read ",trim(vname),": len=", nlen
-                call adios_read_var (gh, vname, zero, nlen, desc, m)
-                varray%array_var(ieq)%descr = desc
-                if (adios_debug)
-     .            write (*,"(a,a,a,a,a,i0)") "read ",trim(vname),
-     .             ": [",trim(desc),"] m=",m
-            endif
-
-            ! read in data of Nth variable
-            write (vvar,  '("/var/v",i0)')  ieq
-            call adios_read_var (gh, vvar, 
-     .                       start, readcount,
-     .                       varray%array_var(ieq)
-     .                          %array(ilom+iloghost:ihip+ihighost,
-     .                                 jlom+jloghost:jhip+jhighost,
-     .                                 klom+kloghost:khip+khighost),
-     .                       m)
-            n = readcount(1)*readcount(2)*readcount(3)*readcount(4)*8
-            if (.not. m .eq. n) then
-                write (*,"(a,a,a,i0,a,i0)") 
-     .               "ERROR: could not read ", trim(vvar),
-     .               ". Read ",m," bytes instead of ", n
-                ierr = -1
-            endif
-
-            if (adios_debug)
-     .        write (*,"(a,a,a,i0)"), "read ",trim(vvar),"  bytes=",m
-          enddo
-
-          if (firstread) then
-            nlen = adios_nvar*6
-            n = adios_nvar*6*4
-            call adios_read_var (gh, "bconds", zero, nlen, 
-     .                            bconds, m)
-            if (m < n) then
-                write (*,"(a,i0,a,i0)") 
-     .               "ERROR: could not read bconds. Read ",
-     .               m," bytes instead of ",n
-                ierr = -1
-            endif
-            do ieq=1,adios_nvar
-              varray%array_var(ieq)%bconds(:) = 
-     .             bconds( (ieq-1)*6+1:ieq*6 ) 
-            enddo
-          endif
-
-c     End program
-
-      end subroutine readDerivedTypeAdios
-
-#endif
-      
-c     setupIOForWrite
-c     #################################################################
-      function setupIOForWrite() result(ierr)
-
-c     -----------------------------------------------------------------
-c     Initializes IO for write
-c     -----------------------------------------------------------------
-
-      implicit none
-
-c     Global variables
-
-      integer :: ierr
-      
-c     Local variables
-
-c     Begin program
-
-#if defined(adios)
-
-c     Initialize ADIOS for componentized I/O
-
-      if (.not.is_file('adios_config.xml')) then
-        call pstop('setupRecordFileForWrite'
-     .            ,'ADIOS config file not present')
-      else
-        call MPI_Comm_dup (MPI_COMM_WORLD, adios_world_comm, ierr)
-        call ADIOS_init('adios_config.xml', ierr)
-      endif
-
-#endif
-
-      end function setupIOForWrite
 
 c     finalize_IO
 c     #################################################################
       subroutine finalize_IO
 
 c     -----------------------------------------------------------------
-c     Initializes IO for write
+c     Finalizes IO for write
 c     -----------------------------------------------------------------
 
       implicit none
@@ -537,112 +76,9 @@ c     Local variables
 c     Begin program
 
 #if !defined(adios)
-
-      if (PRESENT(file)) then
-        rfile = file
-      else
-        rfile = recordfile
-      endif
-
-      ufile = find_unit(urecord)
-      
-      call openRecordFiles(ufile,trim(rfile)
-     .                    ,ilg,ihg,jlg,jhg,klg,khg)
-
-      nx = ihg-ilg+1
-      ny = jhg-jlg+1
-      nz = khg-klg+1
-
-cc      call openPOSIXBinFile(ufile,trim(rfile),status='old')
-cc
-cc      read (ufile,iostat=ierr) ndepvl,ndepsl,nauxvl,nauxsl
-cc      if (ierr == 0) then
-cc
-cc        if (NDEPV == 0) then
-cc           NDEPV=ndepvl
-cc        elseif (NDEPV /= ndepvl) then
-cc           call pstop('openRestartFileForRead'
-cc     $            ,'# Dep. vec. variables do not agree; cannot restart')
-cc        endif
-cc
-cc        if (NDEPS == 0) then
-cc           NDEPS=ndepsl
-cc        elseif (NDEPS /= ndepsl) then
-cc           call pstop('openRestartFileForRead'
-cc     $            ,'# Dep. scl. variables do not agree; cannot restart')
-cc        endif
-cc
-cc        if (NAUXV == 0) then
-cc           NAUXV=nauxvl
-cc        elseif (NAUXV /= nauxvl) then
-cc           call pstop('openRestartFileForRead'
-cc     $            ,'# Aux. vec. variables do not agree; cannot restart')
-cc        endif
-cc
-cc        if (NAUXS == 0) then
-cc           NAUXS=nauxsl
-cc        elseif (NAUXS /= nauxsl) then
-cc           call pstop('openRestartFileForRead'
-cc     $            ,'# Aux. scl. variables do not agree; cannot restart')
-cc        endif
-cc
-cc      else  !COMPATIBILITY MODE
-cc
-cc        rewind(ufile)
-cc
-cc      endif
-cc
-cc      read (ufile) nx,ilog,ihig
-cc      read (ufile) ny,jlog,jhig
-cc      read (ufile) nz,klog,khig
-
-cc      if (associated(gv%gparams)) then
-      if (associated(gv)) then
-#if defined(petsc) 
-         if (nx /= nxl .or. ny /= nyl .or. nz /= nzl) then
+      ufile = openPOSIXRestartFileForRead(file=file)
 #else
-         if (nx /= nxd .or .ny /= nyd .or. nz /= nzd) then
-#endif
-           write (*,*) nx,nxd,ny,nyd,nz,nzd
-           call pstop('openRestartFileForRead'
-     $            ,'Grid meshes do not agree; cannot restart')
-
-         endif
-      else
-        nxl = nx
-        nyl = ny
-        nzl = nz
-
-#if defined(petsc)
-        nxd = nx*npx
-        nyd = ny*npy
-        nzd = nz*npz
-#else
-        nxd = nx
-        nyd = ny
-        nzd = nz
-#endif
-      endif
-
-#else
-
-      call adios_init_noxml (adios_err)
-
-      ! allocate 100MB buffer for ADIOS
-      call adios_allocate_buffer (100,adios_err)
-
-cc      if (associated(gv%gparams)) then
-cc        call openRecordFileAdiosForRead(adios_err,file=file)
-cc      else
-        call openRecordFileAdiosForRead(adios_err,file=file
-     .                                 ,nx=nxd,ny=nyd,nz=nzd)
-cc      endif
-
-      if (adios_err /= 0) then
-        call pstop('openRestartFileForRead'
-     $            ,'Error reading ADIOS restart file')
-      endif
-
+      ufile = openADIOSRestartFileForRead(file=file)
 #endif
 
       end function openRestartFileForRead
@@ -665,20 +101,132 @@ c     Local variables
 
 c     Begin program
 
-#if !defined(adios)
-      close(ufile)
-#else
-      call closeRecordFileAdiosForRead(adios_err)
+#if defined(adios)
+      call closeADIOSRecordFileForRead(adios_err)
 
       if (adios_err /= 0) then
         call pstop('closeRestartFileForRead'
      $            ,'Error closing ADIOS restart file')
       endif
+#else
+      close(ufile)
 #endif
 
 c     End program
 
       end subroutine closeRestartFileForRead
+
+c     openPOSIXRestartFileForRead
+c     #################################################################
+      function openPOSIXRestartFileForRead(file) result(ufile)
+
+c     -----------------------------------------------------------------
+c     Opens POSIX restart file.
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Global variables
+
+      integer :: ufile
+      character(*),optional :: file
+cc      integer,optional,intent(out) :: lneq
+
+c     Local variables
+
+      integer :: nx,ny,nz,ierr,neq,ndepvl,ndepsl,nauxvl,nauxsl
+     .          ,ilg,ihg,jlg,jhg,klg,khg
+      character(len=1024) :: rfile
+
+c     Begin program
+
+      if (PRESENT(file)) then
+        rfile = file
+      else
+        rfile = recordfile
+      endif
+
+      ufile = find_unit(urecord)
+      
+c$$$      call openRecordFiles(ufile,trim(rfile)
+c$$$     .                    ,ilg,ihg,jlg,jhg,klg,khg)
+c$$$
+c$$$      nx = ihg-ilg+1
+c$$$      ny = jhg-jlg+1
+c$$$      nz = khg-klg+1
+
+      call openPOSIXBinFile(ufile,trim(rfile),status='old')
+
+      read (ufile,iostat=ierr) ndepvl,ndepsl,nauxvl,nauxsl
+      if (ierr == 0) then
+
+        if (NDEPV == 0) then
+           NDEPV=ndepvl
+        elseif (NDEPV /= ndepvl) then
+           call pstop('openPOSIXRestartFileForRead'
+     $            ,'# Dep. vec. variables do not agree; cannot restart')
+        endif
+
+        if (NDEPS == 0) then
+           NDEPS=ndepsl
+        elseif (NDEPS /= ndepsl) then
+           call pstop('openPOSIXRestartFileForRead'
+     $            ,'# Dep. scl. variables do not agree; cannot restart')
+        endif
+
+        if (NAUXV == 0) then
+           NAUXV=nauxvl
+        elseif (NAUXV /= nauxvl) then
+           call pstop('openPOSIXRestartFileForRead'
+     $            ,'# Aux. vec. variables do not agree; cannot restart')
+        endif
+
+        if (NAUXS == 0) then
+           NAUXS=nauxsl
+        elseif (NAUXS /= nauxsl) then
+           call pstop('openPOSIXRestartFileForRead'
+     $            ,'# Aux. scl. variables do not agree; cannot restart')
+        endif
+
+      else  !COMPATIBILITY MODE
+
+        rewind(ufile)
+
+      endif
+
+      read (ufile) nx,ilg,ihg
+      read (ufile) ny,jlg,jhg
+      read (ufile) nz,klg,khg
+
+cc      if (associated(gv%gparams)) then
+      if (associated(gv)) then
+#if defined(petsc) 
+         if (nx /= nxl .or. ny /= nyl .or. nz /= nzl) then
+#else
+         if (nx /= nxd .or .ny /= nyd .or. nz /= nzd) then
+#endif
+           write (*,*) nx,nxd,ny,nyd,nz,nzd
+           call pstop('openPOSIXRestartFileForRead'
+     $            ,'Grid meshes do not agree; cannot restart')
+
+         endif
+      else
+        nxl = nx
+        nyl = ny
+        nzl = nz
+
+#if defined(petsc)
+        nxd = nx*npx
+        nyd = ny*npy
+        nzd = nz*npz
+#else
+        nxd = nx
+        nyd = ny
+        nzd = nz
+#endif
+      endif
+
+      end function openPOSIXRestartFileForRead
 
 c     openPOSIXBinFile
 c     #################################################################
@@ -695,18 +243,15 @@ c     Call variables
       integer,INTENT(IN) :: unit
       character(*),INTENT(IN) :: file
       character(*),optional,INTENT(IN) :: status,position
-      logical,optional :: suffix!,check
+      logical,optional :: suffix
 
 c     Local variables
 
-cc      integer :: unit1
       character*(len(file)+10) :: file1
       character*(10) :: stat
       logical :: chk,sffx
 
 c     Begin program
-
-cc      unit1 = unit + my_rank
 
       if (PRESENT(status)) then
         stat=status
@@ -715,11 +260,6 @@ cc      unit1 = unit + my_rank
       endif
 
       chk = (trim(stat) == 'old')
-cc      if (PRESENT(check)) then
-cc        chk = check
-cc      else
-cc        chk = .false.
-cc      endif
 
       if (PRESENT(suffix)) then
         sffx = suffix
@@ -781,9 +321,9 @@ c       Local variables
 
       end subroutine initPOSIXBinFile
 
-c     setRecordfileToAppend
+c     setAppendIOMode
 c     ##############################################################
-      subroutine setRecordFileToAppend
+      subroutine setAppendIOMode
 
         implicit none
 
@@ -791,13 +331,18 @@ c       Call variables
 
 c       Local variables
 
-        append_recordfile = .true. !Set recordfile to append
+#if defined(adios)
+        call setADIOSAppendIOMode()      !Set ADIOS recordfile to append
+#else
+        posix_append_recordfile = .true. !Set POSIX recordfile to append
+#endif
 
-      end subroutine setRecordfileToAppend
+      end subroutine setAppendIOMode
 
-c     readRecordFile
+c     readPOSIXRecordFile
 c     #################################################################
-      function readRecordFile(unit,itime,time,dt,varray) result(ierr)
+      function readPOSIXRecordFile(unit,itime,time,dt,gammat,varray)
+     .         result(ierr)
 
 c     -----------------------------------------------------------------
 c     Reads record file
@@ -808,93 +353,18 @@ c     -----------------------------------------------------------------
 c     Call variables
 
       integer    :: ierr,itime,unit
-      real(8)    :: time,dt
+      real(8)    :: time,dt,gammat
 
-      type(var_array),pointer:: varray
+      type(var_array),pointer :: varray
 
 c     Local variables
 
-      integer    :: tmp(1)
-
-#if defined(adios)
-      !ADIOS variables
-      integer*8       :: start(1), readcount(1)  ! dimensions are 64bit in adios
-      integer*8       :: m ! actually read bytes
-      logical, save   :: firstread = .true.
-#endif
+      integer    :: tmp(1),lerr(1),gerr(1)
 
 c     Begin program
 
       ierr = 0
 
-#if defined(adios)
-      !firstread = (adios_tread == 0)
-
-      if (adios_debug)
-     .  write (*,"(a,i0,a,i5)"), "rank=",my_rank,
-     .       " adios read time=", adios_tread
-
-      if (adios_tread < adios_ntsteps) then
-          ! read 1 item from the 1D arrays, from position adios_tread
-          start = adios_tread 
-          readcount = 1
-
-          if (adios_debug)
-     .      write (*,"(a,i0,a,i5,a,i5)"), "rank=",my_rank,
-     .           ": read in time.  start=",start,"count=",readcount
-
-          call adios_read_var(adios_gh,"time",start,readcount,time,m)
-          start = adios_tread 
-
-          if (adios_debug)
-     .      write (*,"(a,i0,a,i5,a,i5)"), "rank=",my_rank,
-     .           ": read in itime. start=",start,"count=",readcount
-
-          call adios_read_var(adios_gh,"itime",start,readcount,itime,m)
-          start = adios_tread 
-
-          if (adios_debug)
-     .      write (*,"(a,i0,a,i5,a,i5)"), "rank=",my_rank,
-     .           ": read in dt.   start=",start,"count=",readcount
-
-          call adios_read_var(adios_gh,"dt",start,readcount,dt,m)
-
-          if (firstread) then
-            start = adios_tread 
-            call adios_read_var(adios_gh,"nvar",start,readcount,tmp,m)
-
-            varray%nvar = tmp(1)
-            ! consistency check
-            if (adios_nvar.ne.varray%nvar) then
-                write (*,"(a,i0,a,i2,a,i2)"), "rank=",my_rank,
-     .                 " ERROR: adios_nvar=",adios_nvar,
-     .                 " != varray%nvar=",varray%nvar
-            endif
-          endif
-
-          if (adios_debug)
-     .      write (*,"(a,i0,a,i5,a,f8.2,a,i2)")
-     .          "rank=",my_rank
-     .         ," read itime=",itime
-     .         ," time=",time
-     .         ," nvar=",varray%nvar
-
-          call readDerivedTypeAdios(adios_gh,varray,adios_tread
-     .                             ,firstread,ierr)
-
-          if (adios_debug) then
-            write (*,*), 'rank=',my_rank,' Adios read returns ierr',ierr
-            write (*,*)
-          endif
-
-          adios_tread = adios_tread + 1
-      else  ! EOF
-         ierr = -2
-      endif
-
-      firstread = .false.
-
-#else
       read (unit,iostat=ierr,end=100) time
       if (ierr /= 0) goto 200
 
@@ -904,25 +374,72 @@ c     Begin program
       read (unit,iostat=ierr,end=100) dt
       if (ierr /= 0) goto 200
 
+      read (unit,iostat=ierr,end=100) gammat
+      if (ierr /= 0) goto 200
+
       call readDerivedType(varray,unit,.false.,ierr)
 
-      return
+      goto 300
 
  100  ierr=-2  !EOF
-cc      write (*,*) 'readRecordFile: EOF in file unit',unit
-      return
+
+cc      write (*,*) 'readRecordFile: EOF in rank',my_rank
+      goto 300
 
  200  ierr=-1  !Error, but not EOF
-      write (*,*) 'readRecordFile: Error reading file unit',unit
+cc      write (*,*) 'readRecordFile: Error reading file unit',unit
+
+ 300  continue
+
+#if defined(petsc) || defined(petsc_c)
+      lerr = ierr
+      call MPI_Allreduce(lerr,gerr,1
+     .                ,MPI_INTEGER,MPI_MIN,MPI_COMM_WORLD,mpierr)
+      ierr = gerr(1)
+#endif
 
 c     End
+
+      end function readPOSIXRecordFile
+
+c     readRecordFile
+c     #################################################################
+      function readRecordFile(unit,itime,time,dt,gammat,varray)
+     .         result(ierr)
+
+c     -----------------------------------------------------------------
+c     Reads record file
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer    :: ierr,itime,unit
+      real(8)    :: time,dt,gammat
+
+      type(var_array),pointer:: varray
+
+c     Local variables
+
+c     Begin program
+
+      ierr = 0
+
+#if defined(adios)
+      ierr = readADIOSRecordFile(unit,itime,time,dt,gammat,varray)
+#else
+      ierr = readPOSIXRecordFile(unit,itime,time,dt,gammat,varray)
 #endif
+
+c     End
 
       end function readRecordFile
 
-c     writeRecordFile
+c     writePOSIXRecordFile
 c     #################################################################
-      subroutine writeRecordFile(file,itime,time,dt,varray,init)
+      subroutine writePOSIXRecordFile(file,itime,time,dt,gammat,varray
+     .                               ,init)
 
 c     -----------------------------------------------------------------
 c     Writes record file
@@ -933,7 +450,7 @@ c     -----------------------------------------------------------------
 c     Call variables
 
       integer    :: itime
-      real(8)    :: time,dt
+      real(8)    :: time,dt,gammat
       type(var_array),pointer:: varray
       character(*) :: file
       logical,optional :: init
@@ -942,190 +459,67 @@ c     Local variables
 
       logical :: rinit
 
-#if defined(adios)
-c     ADIOS variables
-      integer*8    :: handle, totalsize, groupsize
-      integer      :: err
-      character(2) :: mode='a'//char(0)
-      logical      :: addl_write  ! true: write names and bconds
-
-      integer      :: xsize, ysize, zsize
-      integer      :: xloghost, xhighost
-      integer      :: yloghost, yhighost
-      integer      :: zloghost, zhighost
-#else
       integer      :: unit=1111
-#endif
 
 c     Begin program
 
       if (PRESENT(init)) then
          rinit = init
       else
-         rinit = .not.append_recordfile
+         rinit = .not.posix_append_recordfile
       endif
-
-#if defined(adios)
-
-c     Offsets to include ghosts
-c     1. internal processes: no ghost cells written out
-
-      xloghost = 1
-      yloghost = 1
-      zloghost = 1
-      xhighost = -1
-      yhighost = -1
-      zhighost = -1
-      
-c     2. processes that has some face 
-
-      !x=0 face
-      if (ilomg == 0) xloghost = 0
-
-      !x=1 face
-      if (ihipg == nxd+1) xhighost = 0
-
-      !y=0 face
-      if (jlomg == 0) yloghost = 0
-
-      !y=1 face
-      if (jhipg == nyd+1) yhighost = 0
-
-      !z=0 face
-      if (klomg == 0) zloghost = 0
-
-      !z=1 face
-      if (khipg == nzd+1) zhighost = 0
-
-      !calculate size actually written for each dimension
-      xsize = ihip+xhighost-ilom-xloghost+1  
-      ysize = jhip+yhighost-jlom-yloghost+1  
-      zsize = khip+zhighost-klom-zloghost+1  
-
-c     Create/Append adios file
-
-      addl_write=.false.
-cc      if (record_open_num.eq.0) then
-      if (rinit) then
-          mode = 'w'//char(0)
-          if (my_rank == 0) then
-c             Process 0 (arbitrary choice) 
-c             in the first timestep writes 
-c             the boundary conditions and variable names
-              addl_write = .true.
-          endif
-          append_recordfile = .true.
-      else 
-          mode = 'a'//char(0)
-      endif
-
-cc      record_open_num = record_open_num+1
-      groupsize = 10 * 4 +     ! 12 integers
-     .  2 * 8 +                ! 2 doubles + nvar*double 3D arrays
-     .  varray%nvar * 8 * xsize*ysize*zsize
-
-      if (addl_write) then
-         groupsize = groupsize + 4 + 4 + 4 + ! namelen
-     .     varray%nvar * 6 * 4 +  ! bconds
-     .     varray%nvar * 20       ! descr (var names)
-      endif
-
-      if (adios_debug.and.my_rank==0) then
-        write (*,*) ' ADIOS file open...'
-      endif
-
-      call adios_open(handle,'record',file,mode
-     .               ,adios_world_comm,err)
-
-      if (err /= 0) then
-        write (*,*) 'Problem in writeRecordFile'
-        write (*,*) 'rank=',my_rank,'  ERROR in "adios_open"'
-        stop
-      endif
-
-      if (adios_debug.and.my_rank==0) then
-        write (*,*) 'ADIOS file access mode=',mode
-        write (*,*) 'ADIOS open: adios_file=',trim(file)
-      endif
-
-      if (adios_debug) then
-        write (*,111) my_rank, ihip, ilom, jhip, jlom, khip, klom
- 111    format ('rank= ',i0,' ihip=',i0,' ilom=',i0,' jhip='
-     .         ,i0,' jlom=',i0,' khip=',i0,' klom=',i0)
-        write (*,*) 'rank=',my_rank,' ADIOS open: handle=',handle
-      endif
-
-c     Inquire IO sizes
-
-      if (adios_debug.and.my_rank==0) then
-        write (*,*) ' ADIOS file inquire...'
-      endif
-
-      call adios_group_size(handle,groupsize,totalsize,err)
-
-      if (err /= 0) then
-        write (*,*) 'Problem in writeRecordFile'
-        write (*,*) 'rank=',my_rank,'  ERROR in "adios_group_size"'
-        stop
-      endif
-
-      if (adios_debug) then
-        write (*,*) 'rank=',my_rank,' ADIOS group_size=',groupsize
-        write (*,*) 'rank=',my_rank,' ADIOS total size=',totalsize
-      endif
-
-c     Write all variables to buffer
-
-      if (adios_debug.and.my_rank==0) then
-        write (*,*) ' ADIOS file write...'
-      endif
-
-      if (my_rank == 0) then
-        call adios_write(handle,"time" ,time ,err)
-        call adios_write(handle,"itime",itime,err)
-        call adios_write(handle,"dt"   ,dt   ,err)
-      endif
-
-      call writeDerivedTypeAdios(handle,varray,addl_write)
-
-c     Close adios file which starts I/O writing from the buffer
-
-      if (adios_debug.and.my_rank==0) then
-        write (*,*) ' ADIOS file close...'
-      endif
-
-      call adios_close (handle, err)
-
-      if (err /= 0) then
-        write (*,*) 'Problem in writeRecordFile'
-        write (*,*) 'rank=',my_rank,'  ERROR in "adios_close"'
-        stop
-      endif
-
-#else
 
       !Initialize POSIX files
       if (rinit) then
         call initPOSIXBinFile(unit,file)
-        append_recordfile = .true.
+        posix_append_recordfile = .true.
       else
         call openPOSIXBinFile(unit,file
      .                       ,status='old'
      .                       ,position='append')
-cc     .                       ,check=.true.)
       endif
 
       write (unit) time
       write (unit) itime
       write (unit) dt
+      write (unit) gammat
 
       call writeDerivedType(varray,unit,.false.)
 
       close(unit)
-cc#if !defined(absoft_) && !defined(absoft) && !defined(lf95)
-cc      call flush(unit)
-cc#endif
 
+c     End
+
+      end subroutine writePOSIXRecordFile
+
+c     writeRecordFile
+c     #################################################################
+      subroutine writeRecordFile(file,itime,time,dt,gammat,varray,init)
+
+c     -----------------------------------------------------------------
+c     Writes record file
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer    :: itime
+      real(8)    :: time,dt,gammat
+      type(var_array),pointer:: varray
+      character(*) :: file
+      logical,optional :: init
+
+c     Local variables
+
+c     Begin program
+
+#if defined(adios)
+      call writeADIOSRecordFile(file,itime,time,dt,gammat,varray
+     .                         ,init=init)
+#else
+      call writePOSIXRecordFile(file,itime,time,dt,gammat,varray
+     .                         ,init=init)
 #endif
 
 c     End
@@ -1286,7 +680,7 @@ cc      if (associated(gv%gparams)) then
           write (*,*) my_rank,nxl,gv%gparams%nlx
      .               ,nyl,gv%gparams%nly
      .               ,nzl,gv%gparams%nlz
-          call pstop('openRecordFiles','Grid meshes do not agree')
+          call pstop('setParallelLimits','Grid meshes do not agree')
         endif
       else
         send_buf = (/ ihg,jhg,khg /)
@@ -1357,7 +751,12 @@ c     Local variables
 
 c     Begin program
 
+#if defined(adios)
+      call closeADIOSRecordFileForRead(adios_err)
+      call adios_finalize(my_rank,adios_err)
+#else
       call closeFiles(murecord)
+#endif
 
 c     End programs
 
@@ -1642,12 +1041,12 @@ c     Begin program
         return
 
  100    ierr=-2  !EOF
-        write (messg,*) 'readVector: EOF in file unit',unit
-        call pstop('readVector',messg)
+        write (messg,*) 'EOF in file unit',unit
+        call pstop('readVectorFromFiles',messg)
 
  200    ierr=-1  !Error, but not EOF
         write (messg,*) 'Error reading file unit',unit
-        call pstop('readVector',messg)
+        call pstop('readVectorFromFiles',messg)
 
 c     End program
 
@@ -1655,7 +1054,7 @@ c     End program
 
 c     readTimeStep
 c     #################################################################
-      subroutine readTimeStep(unit,itime,time,dt,varray,ierr)
+      subroutine readTimeStep(unit,itime,time,dt,gammat,varray,ierr)
 
 c     -----------------------------------------------------------------
 c     Reads time step info from single or multiple files.
@@ -1667,7 +1066,7 @@ c     Call variables
 
       type(var_array),pointer :: varray
       integer :: ierr,itime,unit
-      real(8) :: time,dt
+      real(8) :: time,dt,gammat
 
 c     Local variables
 
@@ -1677,12 +1076,13 @@ c     Begin program
 
       if (associated(murecord)) then
         do ifile=1,size(murecord)
-          ierr = readRecordFile(murecord(ifile),itime,time,dt,varray)
+          ierr = readRecordFile(murecord(ifile),itime,time,dt,gammat
+     .                         ,varray)
           if (ierr == -1) cycle !Error, but not EOF
           if (ierr == -2) cycle !EOF
         enddo
       else
-        ierr = readRecordFile(unit,itime,time,dt,varray)
+        ierr = readRecordFile(unit,itime,time,dt,gammat,varray)
       endif
 
 c     End program
@@ -1691,7 +1091,7 @@ c     End program
 
 c     readExtMap
 c     ###############################################################
-      subroutine readExtMap
+      subroutine readExtMap(g_def)
 
 c     -----------------------------------------------------------------
 c     Reads external map using POSIX files
@@ -1700,6 +1100,8 @@ c     -----------------------------------------------------------------
         implicit none
 
 c     Call variables
+
+        type(grid_mg_def),pointer :: g_def
 
 c     Local variables
 
@@ -1713,9 +1115,9 @@ c     Begin program
 
         igrid = 1
 
-        nxg = grid_params%nxgl(igrid)
-        nyg = grid_params%nygl(igrid)
-        nzg = grid_params%nzgl(igrid)
+        nxg = g_def%nxgl(igrid)
+        nyg = g_def%nygl(igrid)
+        nzg = g_def%nzgl(igrid)
 
         if (len(trim(map_file)) == 0) then
           call pstop('readExtMap'
@@ -1741,18 +1143,18 @@ c     Fill GLOBAL map
 
 c     Fill LOCAL map and related metrics
 
-        call defineGridMetric(grid_params,igr=igrid
+        call defineGridMetric(g_def,igr=igrid
      .           ,xcar=ext_map(ilomg:ihipg,jlomg:jhipg,klomg:khipg,:))
 
         deallocate(ext_map)
 
-        gmetric => grid_params%gmetric
+cc        gmetric => g_def%gmetric
 
       end subroutine readExtMap
 
 c     writeExtMap
 c     ###############################################################
-      subroutine writeExtMap
+      subroutine writeExtMap(g_def)
 
 c     -----------------------------------------------------------------
 c     Writes external map using POSIX files
@@ -1761,6 +1163,8 @@ c     -----------------------------------------------------------------
         implicit none
 
 c     Call variables
+
+        type(grid_mg_def),pointer :: g_def
 
 c     Local variables
 
@@ -1780,7 +1184,7 @@ c     Begin program
 #endif
 
         call openPOSIXBinFile(u_mapf,map_file)!,status='unknown')
-        call dumpVectorToFile(u_mapf,gmetric%grid(1)%car,.false.)
+        call dumpVectorToFile(u_mapf,g_def%gmetric%grid(1)%car,.false.)
         close(u_mapf)
 
       end subroutine writeExtMap

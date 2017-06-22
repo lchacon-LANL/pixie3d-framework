@@ -28,9 +28,11 @@ c     Call variables
 
 c     Local variables
 
-      integer :: nn
+      integer :: nn,igrid
 
 c     Begin program
+
+      igrid = 1
 
       ierr = NOERR
 
@@ -41,7 +43,7 @@ c     Evaluate old-time NLF
 c$$$      old_time_eval = .true. !This informs nlfunction that we are processing
 c$$$                             !  n time level info
 c$$$
-c$$$      call evaluateNonlinearFunction(nn,x,fold)
+c$$$      call evaluateNonlinearFunction(igrid,nn,x,fold)
 c$$$
 c$$$      old_time_eval = .false.
 
@@ -56,7 +58,7 @@ c     Newton-Krylov iteration
 
       nk_conf%eta0   = tolgm
       nk_conf%damp   = damp
-      nk_conf%pdt0   = dt0
+      nk_conf%pdt0   = dt
       if (atol  > 0d0) nk_conf%atol   = atol
       if (rtol  > 0d0) nk_conf%rtol   = rtol
       if (stol  > 0d0) nk_conf%stol   = stol
@@ -106,9 +108,11 @@ c     Call variables
 
 c     Local variables
 
-      integer :: nn
+      integer :: nn,igrid
 
 c     Begin program
+
+      igrid = 1
 
       vol_wgt = .false.
 
@@ -118,18 +122,18 @@ c     Begin program
 
 c     Predictor step
 
-      old_time_eval = .true. !This informs nlfunction that we are processing
-                             !  n time level info
-
-      call evaluateNonlinearFunction(nn,x_old,fold)
-
-      old_time_eval = .false.
+c$$$      old_time_eval = .true. !This informs nlfunction that we are processing
+c$$$                             !  n time level info
+c$$$
+c$$$      call evaluateNonlinearFunction(igrid,nn,x_old,fold)
+c$$$
+c$$$      old_time_eval = .false.
 
       x = x_old - dt*(fold-fsrc)*cnfactor
 
 c     Corrector step
 
-      call evaluateNonlinearFunction(nn,x,fold)
+      call evaluateNonlinearFunction(igrid,nn,x,fold)
 
       x = x_old - dt*(fold-fsrc)
 
@@ -190,7 +194,7 @@ c     Begin program
       ierr = NOERR
 
       itgmres = 0
-      itnewt  = 0
+      itnewt = 0
 
 c     Define TS parameters
 
@@ -236,13 +240,17 @@ c     Time step update
         call evaluate_NLF(1,vnp,fold)
         old_time_eval = .false.
 
-        call mapStructureToVector(x,vnp) !BDF2 ref
+        call mapStructureToVector(gv%gparams,x,vnp) !BDF2 ref
+
         x_old = x
 
         ierr = implicit_ts(x,itnw,itgm,iout)
       else
+        old_time_eval = .true. !Processing n time level info
+        call evaluate_NLF(1,vnp,fold)
+        old_time_eval = .false.
 
-        call mapStructureToVector(x,vnp) !Old time info
+        call mapStructureToVector(gv%gparams,x,vnp) !Old time info
 
         x_old = x
 
@@ -257,7 +265,7 @@ c     Time step update
 c     Map solution to vnp (if no error)
 
       if (ierr == NOERR .or. ierr == CUTDT) then
-        call mapVectorToStructure(vnp,x)
+        call mapVectorToStructure(gv%gparams,vnp,x)
 
         call applyBC(1,vnp,gv%aux,it=itime)
 
@@ -312,14 +320,14 @@ c     Begin program
 
       ierr = NOERR
 
-      call mapStructureToVector(x ,vnp)
+      call mapStructureToVector(gv%gparams,x ,vnp)
 
 c     Setup vectors
 
       !Setup matrix-free vectors (xk, rk)
       allocate(nk_conf%xk(ntotd),nk_conf%rk(ntotd))
 
-      call mapStructureToVector(nk_conf%xk,u_0)
+      call mapStructureToVector(gv%gparams,nk_conf%xk,u_0)
 
       call evaluateNewtonResidual(ntotd,nk_conf%xk,nk_conf%rk)
 
@@ -373,7 +381,7 @@ c     Free memory
 
       deallocate(nk_conf%xk,nk_conf%rk)
  
-      call mapVectorToStructure(vnp,x)
+      call mapVectorToStructure(gv%gparams,vnp,x)
 
 c     End program
 

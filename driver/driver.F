@@ -57,9 +57,9 @@ c Initialize calculation
 
       call initializeCalculation
 
-c Initialize counters
+c Initialize timers
 
-      call TS_init_otherCounters
+      call TS_init_timers
 
 c Initial output
 
@@ -100,14 +100,14 @@ c     Check for error in time stepping
           call equateDerivedType(u_np,u_n )
           call equateDerivedType(u_n ,u_nm)
 
-          call TS_rollback_timecounters()
+          call TS_rollback_counters()
 
-          if (timecorr) then
+          if (ts_adapt_dt) then
             cycle
           else
             call pstop('Main'
-     .   ,'ERROR: Solver failed to converge; rerun with "timecorr = t"')
-            exit
+     .                ,'ERROR: Solver failed to converge;'
+     .                 //' rerun with "ts_adapt_dt = t"')
           endif
 
         case(EXACT)     !Initial guess is exact
@@ -118,13 +118,15 @@ c     Check for error in time stepping
             write(*,*) '   Aborting...'
           endif
 
+          if (tst_flg) EXIT_STATUS = SUCCESS
+
           exit
 
         end select
 
 c     Update other TS counters
 
-        call TS_update_otherCounters
+        call TS_update_postCounters
 
 c     Postprocess solution
 
@@ -140,9 +142,17 @@ c     Output per time step
 
 c     Time level data dump
 
-        if (TS_dump(u_np)) exit
+        call TS_dump(u_np)
+
+c     Exit if eigenvalue computation
+
+        if (eigen) exit
 
       enddo       !End of time loop
+
+c End timers
+
+      call TS_end_timers
 
 c Final I/O
 
@@ -151,6 +161,8 @@ c Final I/O
 c End program
 
       call DR_destroy
+
+      call exit(EXIT_STATUS)
 
       end program
 
@@ -187,6 +199,9 @@ c Initialize PETSc and MPI (parallel version)
       call init_petsc_profile
 
       call initMPI(MPI_COMM_WORLD,np,my_rank)
+
+      !Profiling stage 1
+      call switch_profile_stage(iSTUP)
 #endif
 
 c End program

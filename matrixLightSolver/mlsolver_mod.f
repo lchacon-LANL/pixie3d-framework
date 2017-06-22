@@ -33,7 +33,7 @@ cc          logical    :: vol_res
           integer      :: orderprol
           integer      :: mg_coarse_solver_depth
           integer      :: mg_coarse_grid_level
-          integer      :: mg_coarse_grid_res
+cc          integer      :: mg_coarse_grid_res
           integer      :: mg_mu
 
           logical      :: mg_line_relax
@@ -56,6 +56,9 @@ cc          logical    :: vol_res
 
           logical      :: mg_galerkin
           logical      :: mg_debug
+          logical      :: mg_smooth_only
+
+          logical      :: is_coarse_proc_MG_solve
 
           type(grid_mg_def),pointer  :: mg_grid_def
 
@@ -134,7 +137,7 @@ c       Initializes solver options
 
           !MG and smoother options
           solverOptions%vcyc     = 1               !Number of V-cycles (MG)
-          solverOptions%mg_coarse_grid_res = 2     !Minimum grid level considered (mg_ratio^()) (MG)
+cc          solverOptions%mg_coarse_grid_res = 2     !Minimum grid level considered (mg_ratio^()) (MG)
           solverOptions%mg_coarse_grid_level = 0   !Grid level considered to be coarsest (MG)
           solverOptions%orderres = 0               !Interpolation order in restriction (MG)
           solverOptions%orderprol= 0               !Interpolation order in prolongation (MG)
@@ -173,11 +176,16 @@ cc          solverOptions%vol_res  = .true.          !Whether residual contains 
 
           solverOptions%mg_galerkin    =.false.    !Whether to do Galerkin coarsening (true)
                                                    !  or rediscretization (false)
+
+          solverOptions%mg_smooth_only =.false.    !Whether to perform only smoothing
+
           solverOptions%mg_debug       =.false.    !Whether to turn on MG graphic debugging
 
-          solverOptions%mg_grid_def => grid_params !Defines default MG grid levels def.
+          solverOptions%mg_grid_def => null()      !Defines default MG grid levels def.
 
           solverOptions%mgctx => null()            !Nullify MG context
+
+          solverOptions%is_coarse_proc_MG_solve = .false. !Whether we are doing coarse-proc MG solve
 
           !Krylov methods options
           solverOptions%stp_test = 0               !Stopping criterion (CG, GMRES)
@@ -192,6 +200,90 @@ cc          solverOptions%vol_res  = .true.          !Whether residual contains 
           solverOptions%tol_out  = 0d0             !Convergence achieved (output)
 
         end subroutine solverOptionsInit
+
+c     xferSolverOptions
+c     ###################################################################
+        subroutine xferSolverOptions(sopts_bckup,sopts)
+
+        type (solver_options) :: sopts_bckup,sopts
+
+c       Initializes solver options
+
+          !Test options
+          sopts_bckup%sym_test = sopts%sym_test
+                                                   
+          sopts_bckup%ngrd_tst = sopts%ngrd_tst
+
+          !Generic options
+          sopts_bckup%iter  = sopts%iter
+          sopts_bckup%tol   = sopts%tol 
+          sopts_bckup%atol  = sopts%atol
+          sopts_bckup%stol  = sopts%stol
+
+          !MG and smoother options
+          sopts_bckup%vcyc                 = sopts%vcyc                
+cc          sopts_bckup%mg_coarse_grid_res   = sopts%mg_coarse_grid_res  
+          sopts_bckup%mg_coarse_grid_level = sopts%mg_coarse_grid_level
+          sopts_bckup%orderres             = sopts%orderres            
+          sopts_bckup%orderprol            = sopts%orderprol           
+          sopts_bckup%fdiag                = sopts%fdiag               
+                                                   
+cc          sopts_bckup%vol_res  = .true.        
+          sopts_bckup%diag => sopts%diag
+          sopts_bckup%omega   = sopts%omega  
+          sopts_bckup%omega10 = sopts%omega10
+          sopts_bckup%omega01 = sopts%omega01
+          sopts_bckup%ncolors = sopts%ncolors
+          sopts_bckup%mg_coarse_solver_depth
+     .        = sopts%mg_coarse_solver_depth
+                                                   
+          sopts_bckup%mg_mu  = sopts%mg_mu
+                                                   
+          sopts_bckup%mg_line_relax = sopts%mg_line_relax 
+                                                   
+          sopts_bckup%mg_line_nsweep = sopts%mg_line_nsweep
+          sopts_bckup%mg_line_vcyc   = sopts%mg_line_vcyc  
+          sopts_bckup%mg_line_tol    = sopts%mg_line_tol   
+          sopts_bckup%mg_line_omega  = sopts%mg_line_omega 
+          sopts_bckup%mg_line_coarse_solver_depth
+     .        = sopts%mg_line_coarse_solver_depth
+                                                        
+          sopts_bckup%mg_line_solve  = sopts%mg_line_solve
+          sopts_bckup%mg_line_x      = sopts%mg_line_x    
+          sopts_bckup%mg_line_y      = sopts%mg_line_y    
+          sopts_bckup%mg_line_z      = sopts%mg_line_z    
+
+          sopts_bckup%mg_vertex_relax= sopts%mg_vertex_relax
+
+          sopts_bckup%mg_zebra_relax = sopts%mg_zebra_relax 
+          sopts_bckup%mg_zebra_prefd = sopts%mg_zebra_prefd 
+          sopts_bckup%mg_zebra_it    = sopts%mg_zebra_it    
+          sopts_bckup%mg_zebra_omega = sopts%mg_zebra_omega 
+
+          sopts_bckup%mg_galerkin    = sopts%mg_galerkin
+          sopts_bckup%mg_smooth_only = sopts%mg_smooth_only
+                                                   
+          sopts_bckup%mg_debug       = sopts%mg_debug 
+
+          sopts_bckup%mg_grid_def    => sopts%mg_grid_def
+
+          sopts_bckup%mgctx          => sopts%mgctx   
+
+          sopts_bckup%is_coarse_proc_MG_solve
+     .                               = sopts%is_coarse_proc_MG_solve
+
+          !Krylov methods options
+          sopts_bckup%stp_test = sopts%stp_test    
+                                                   
+          sopts_bckup%krylov_subspace = sopts%krylov_subspace
+
+          sopts_bckup%singular_matrix = sopts%singular_matrix  
+
+          !Output
+          sopts_bckup%iter_out = sopts%iter_out            
+          sopts_bckup%tol_out  = sopts%tol_out            
+
+        end subroutine xferSolverOptions
 
 c     solverInit
 c     ###################################################################
@@ -223,13 +315,6 @@ c       Deallocates solver queue
             solver_queue%front => temp
           enddo
 
-cc          if (associated(solver_queue%front) )
-cc     .             deallocate(solver_queue%front)
-cc          if (associated(solver_queue%rear ) )
-cc     .             deallocate(solver_queue%rear)
-
-cc          deallocate (solver_queue%front,solver_queue%rear)
-
         end subroutine solverKill
      
 c     assembleSolverHierarchy
@@ -258,7 +343,7 @@ c     ###################################################################
 c       Reads TOP solver definition from solver hierarchy
 
           type (solver_unit) :: solver_def
-          integer               :: depth
+          integer            :: depth
 
         !Begin
 
@@ -510,7 +595,10 @@ c       Deletes front node from queue
         !Write solver definition
 
           if (count == depth) then
-            node_ptr%solver_def = buffer
+cc            node_ptr%solver_def = buffer
+            node_ptr%solver_def%solver = buffer%solver
+            call xferSolverOptions(node_ptr%solver_def%options
+     .                            ,buffer%options)
           else
             write (*,*) 'Solver depth =',depth,' unreachable'
             write (*,*) 'Aborting...'

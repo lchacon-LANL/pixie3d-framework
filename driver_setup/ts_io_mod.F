@@ -4,7 +4,63 @@ c ######################################################################
 
         use ts_base
 
+        use graphics_io, ONLY: no_graphics_io
+
       contains
+
+c     TS_init_timers
+c     ####################################################################
+      subroutine TS_init_timers
+
+c     --------------------------------------------------------------------
+c     Initialize time stepping counters
+c     --------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+c     Local variables
+
+c     Begin program
+
+c     PETSc CPU counters and profiling
+      
+#if defined(petsc)
+      call PetscGetTime   (prof_time(1),prof_err)
+      call PetscGetCPUTime(prof_time(2),prof_err)
+#endif
+
+c     End program
+
+      end subroutine TS_init_timers
+
+c     TS_end_timers
+c     ####################################################################
+      subroutine TS_end_timers
+
+c     --------------------------------------------------------------------
+c     Initialize time stepping counters
+c     --------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+c     Local variables
+
+c     Begin program
+
+c     PETSc CPU counters and profiling
+      
+#if defined(petsc)
+      call PetscGetTime   (prof_time(3),prof_err)
+      call PetscGetCPUTime(prof_time(4),prof_err)
+#endif
+
+c     End program
+
+      end subroutine TS_end_timers
 
 c     TS_chk_dump
 c     ###############################################################
@@ -62,18 +118,15 @@ c     End program
 
 c     TS_dump
 c     ##################################################################
-      function TS_dump(varray) result(exit_tloop)
+      subroutine TS_dump(varray)
 
       implicit none
 
 c     Call variables
 
       type(var_array),pointer :: varray
-      logical :: exit_tloop
 
 c     Local variables
-
-      real(8) :: e_time
 
       INTERFACE
         subroutine perturbEquilibrium(varray)
@@ -84,15 +137,14 @@ c     Local variables
 
 c     Begin program
 
-        if (TS_chk_dump(etime=e_time,reset_counters=.true.)) then
+        if (TS_chk_dump(etime=exec_time,reset_counters=.true.)
+     .     .and.(.not.no_graphics_io)) then
 cc          if (.not.relax_init_grid) nrst  = 0
 cc          if(itime-init_grid_offset > 0) tmrst=tmrst-dstep
-          call writeRecordFile(recordfile,itime,time,dt,varray)
+          call writeRecordFile(recordfile,itime,time,dt,gammat,varray)
         endif
 
-        exit_tloop = (eigen .or. e_time > quota)
-
-        if (relax_init_grid.and.(.not.exit_tloop)) then
+        if (relax_init_grid) then
           relax_init_grid = .false.
 cc          if (source) call get_src(varray,.true.) !Update source with interpolated equilibrium
           call equateDerivedType (u_n,varray)     !Save interpolated (unperturbed) equilibrium
@@ -101,7 +153,7 @@ cc          if (source) call get_src(varray,.true.) !Update source with interpol
 
 c     End program
       
-      end function TS_dump
+      end subroutine TS_dump
 
 c     TS_final_io
 c     ##################################################################
@@ -124,17 +176,15 @@ c     Average explicit timestep
         write (*,'(a,1pe11.4)') 'Average explicit time step: ',dtexp
       endif
 
-c     PETSc CPU diagnostics
+c     CPU diagnostics
 
 #if defined(petsc)
-      call PetscGetTime   (prof_time(3),prof_err)
-      call PetscGetCPUTime(prof_time(4),prof_err)
-
       omp_threads = 1
+#ifdef _OPENMP
 !$OMP PARALLEL
 !$      omp_threads = omp_get_num_threads()
 !$OMP END PARALLEL
-
+#endif
       if (my_rank == 0 .and. .not.(tst_flg)) then
         write (*,*) 'CPU statistics'
         write (*,*)

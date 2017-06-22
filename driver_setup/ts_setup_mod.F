@@ -2,8 +2,6 @@ c module ts_setup
 c ######################################################################
       module ts_setup
 
-        use parameters
-
         use ts_solver_setup
 
         use io
@@ -17,17 +15,19 @@ c ######################################################################
      .            ,eig_dt=1d0          ! Time step for eigenvalue dynamical system
      .            ,dt      = 1d0       ! Time step (if zero, dt is calculated in code)
      .            ,tmax    =-1d0       ! Target time, in Alfven times (not active if negative)
+     .            ,trstrt  =-1d0       ! Restart time (not active if negative)
 
         integer :: sm_pass=2           ! Number of initial smoother passes for Rannacher TS
      .            ,sm_flag=0           ! Time smoothing flag:
                                        !   0 -> Theta scheme
                                        !   1 -> Rannacher time stepping
                                        !   2 -> BDF2
-     .            ,numtime=-1          ! Number of time steps
+     .            ,numtime=-1          ! Number of time steps (not active if negative)
      .            ,ndstep=0            ! # time steps between plots (if zero,
                                        !        ndstep is calculated in code)
+     .            ,nrstrt=-1           ! Restart cycle number (not active if negative)
 
-        logical :: timecorr=.true.     ! Time adaptive algorithm (based on Newton convergence)
+        logical :: ts_adapt_dt=.true.  ! Time adaptive algorithm (based on Newton convergence)
      .            ,ts_restart=.false.  ! Restarting flag
      .            ,source=.true.       ! Impose source to provide equilibrium
      .            ,predictor=.false.   ! Whether to extrapolate in time to find first guess (not active)
@@ -36,6 +36,7 @@ c ######################################################################
      .            ,eigen=.false.       ! Whether to run framework in eigensolver mode
      .            ,perturb_rstrt=.false.! Whether to apply perturbation after restart
 
+        logical, private :: early_restart !Whether restart has happened from intermediate time
         logical :: ts_ramp_up_dt = .false.       !Whether to ramp up dt initially
         real(8) :: ts_ramp_up_dt_fraction = 5d-1 !Fraction of initial timestep
      .            ,ts_ramp_up_dt_recovery = 1.05 !Ramp up coefficient
@@ -63,9 +64,49 @@ c ######################################################################
 
       contains
 
-c     TS_init_timecounters
+c     setEarlyTimeRestartFlag
 c     ###############################################################
-      subroutine TS_init_timecounters()
+      subroutine setEarlyTimeRestartFlag(flag)
+
+c     ---------------------------------------------------------------
+c     Performs update of time counters
+c     ---------------------------------------------------------------
+
+      implicit none
+
+      logical :: flag
+
+c     Begin program
+
+      early_restart = flag
+
+c     End program
+
+      end subroutine setEarlyTimeRestartFlag
+
+c     getEarlyTimeRestartFlag
+c     ###############################################################
+      function getEarlyTimeRestartFlag() result(flag)
+
+c     ---------------------------------------------------------------
+c     Performs update of time counters
+c     ---------------------------------------------------------------
+
+      implicit none
+
+      logical :: flag
+
+c     Begin program
+
+      flag = early_restart
+
+c     End program
+
+      end function getEarlyTimeRestartFlag
+
+c     TS_init_counters
+c     ###############################################################
+      subroutine TS_init_counters()
 
 c     ---------------------------------------------------------------
 c     Performs update of time counters
@@ -90,11 +131,11 @@ c     Begin program
 
 c     End program
 
-      end subroutine TS_init_timecounters
+      end subroutine TS_init_counters
 
-c     TS_rollback_timecounters
+c     TS_rollback_counters
 c     ###############################################################
-      subroutine TS_rollback_timecounters(exclude_itime)
+      subroutine TS_rollback_counters(exclude_itime)
 
 c     ---------------------------------------------------------------
 c     Performs rollback of time counters when subcycling/restarting
@@ -131,11 +172,12 @@ c     Begin program
 
 c     End program
 
-      end subroutine TS_rollback_timecounters
+      end subroutine TS_rollback_counters
 
-c     TS_update_timecounters
+
+c     TS_update_preCounters
 c     ###############################################################
-      subroutine TS_update_timecounters(time,exclude_itime)
+      subroutine TS_update_preCounters(time,exclude_itime)
 
 c     ---------------------------------------------------------------
 c     Performs update of time counters
@@ -175,7 +217,7 @@ c     Begin program
 
 c     End program
 
-      end subroutine TS_update_timecounters
+      end subroutine TS_update_preCounters
 
 #if !defined(samrai)
 c     TS_create
@@ -210,7 +252,7 @@ c     Initialization
       x_old = 0d0
       x0    = 0d0
 
-      call TS_init_timecounters
+      call TS_init_counters
 
       alpha = 1. - cnfactor
 
@@ -224,11 +266,12 @@ c     Initialization
         endif
       endif
 
-      call ts_solver_consistency_chk
+      call TS_solver_consistency_chk
+
+c     Begin profiling postprocessing stage
 
 #if defined(petsc)
-      !Profiling stage 1
-      call switch_profile_stage(iSTUP)
+      call switch_profile_stage(iPOST)
 #endif
 
 c     End program
@@ -284,7 +327,7 @@ c     Namelists
 
       !Temporal discretization
       namelist /ts/ dt,tmax,dstep,numtime,ndstep,source,ts_restart
-     .             ,timecorr
+     .             ,ts_adapt_dt
      .             ,cnfactor,sm_flag,sm_pass,predictor,postprocess
      .             ,preprocess,eigen,eig_dt,perturb_rstrt
      .             ,ts_ramp_up_dt,ts_ramp_up_dt_fraction
@@ -362,7 +405,7 @@ c     Begin program
      .            -u_0   %array_var(ieq)%array )
           array = array*array
 
-          dpert = integral(1,1,1,nxl,nyl,nzl,array,average=.true.)
+          dpert = integral(gv%gparams,1,array)
 
           dpert = sqrt(dpert)
 
@@ -372,7 +415,7 @@ c     Begin program
      .            -u_0%array_var(ieq)%array )
           array = array*array
 
-          dpert_n = integral(1,1,1,nxl,nyl,nzl,array,average=.true.)
+          dpert_n = integral(gv%gparams,1,array)
 
           dpert_n = sqrt(dpert_n)
 

@@ -20,7 +20,10 @@ interpolation/polynomial/makefile
 io/makefile
 math/makefile
 matrixLightSolver/makefile
+mk/makefile
 newtonGMRES/makefile
 orbit/makefile
+OMP/makefile
+pic/2d/makefile
 var_setup/makefile
 

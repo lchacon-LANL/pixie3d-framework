@@ -26,8 +26,14 @@ MODPATH     += $(ADDMODFLAG)$(COMMONDIR)/contrib/sdc/lib
 
 ifeq ($(ADIOS),t)
   CONTRIBLIBS += $(ADIOS_LIBS)
-  CPPFLAGS    += $(PREPROC)adios $(PREPROC)ADIOS_VER=$(ADIOS_VER)
-#  MODPATH     += $(ADDMODFLAG)$(ADIOS_HOME)/include
+  CPPFLAGS    += $(PREPROC)adios $(PREPROC)ADIOS_VER=$(ADIOS_VER)  $(PREPROC)ADIOS_FILE=\"record-$(ADIOS_VER).bp\"
+  ifdef ADIOS_BUFFER_MB
+    CPPFLAGS  += $(PREPROC)ADIOS_BUFFER_MB=$(ADIOS_BUFFER_MB)
+  endif
+  ifdef ADIOS_METHOD
+    CPPFLAGS  += $(PREPROC)ADIOS_METHOD=\"$(ADIOS_METHOD)\"
+  endif
+  MODPATH     += $(ADDMODFLAG)$(ADIOS_INC)
 endif
 
 # HDF5 setup
@@ -75,9 +81,13 @@ endif
 # RNG setup
 
 CONTRIBLIBS += -L$(COMMONDIR)/contrib/rng/lib -lrng
-#MODPATH     += $(ADDMODFLAG)$(COMMONDIR)/contrib/fpa/lib
 
-# PTRIDIAG setup
+# BTRIDIAG (block tridiagonal solver) setup
+
+CONTRIBLIBS += -L$(COMMONDIR)/contrib/btridiag/lib -lbtrid
+MODPATH     += $(ADDMODFLAG)$(COMMONDIR)/contrib/btridiag/lib
+
+# PTRIDIAG (parallel tridiagonal solver) setup
 
 ifeq ($(PTRID),t)
   CONTRIBLIBS += -L$(COMMONDIR)/contrib/ptridiag/lib -lptrid

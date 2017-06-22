@@ -36,6 +36,7 @@ c     -----------------------------------------------------------------
      .                      ,SYM=8   !Symmetry (even > 0, odd < 0)
      .                      ,FSYM=9  !Symmetry (at faces; even > 0, odd < 0)
      .                      ,OPN=10  !Open boundary conditions
+     .                      ,SYNC=11 !Parallel sync
 
         integer,parameter :: BCLIM=7 !Defines # of BC cases (excludes DEF,SYM,FSYM,OPN)
      .                      ,BCTOT=10!Total number of BC defs
@@ -84,6 +85,8 @@ c     Begin program
           bcond = FSYM
         elsewhere (bcs == 'equ')
           bcond = EQU
+        elsewhere (bcs == 'opn')
+          bcond = OPN
         end where
 
         if (minval(bcond) < 0) ierr = 1
@@ -236,6 +239,16 @@ cc        endif
 
       end function bcSYM
 
+c     get_topol_bcs
+c     #################################################################
+      subroutine get_topol_bcs(bcs)
+
+      integer :: bcs(6)
+
+      bcs = bcond
+
+      end subroutine get_topol_bcs
+
       end module bc_def
 
 c module profile_petsc
@@ -245,7 +258,7 @@ c ######################################################################
        integer,parameter:: iSTUP=1,iNL=2,iPCSTP=3,iPCSLV=4,iPOST=5,iMG=6
 
        integer :: prof_err,prof_stage(10),iprofile
-       real(8) :: prof_time(10)
+       real(8) :: prof_time(20)
        logical,private :: prof_init=.true.
 
 #if defined(petsc)
@@ -262,7 +275,7 @@ c     ##################################################################
       call PetscLogStageRegister('NL solve',prof_stage(iNL)   ,prof_err)
       call PetscLogStageRegister('PC setup',prof_stage(iPCSTP),prof_err)  
       call PetscLogStageRegister('PC main ',prof_stage(iPCSLV),prof_err)  
-      call PetscLogStageRegister('Postproc',prof_stage(iPOST) ,prof_err)  
+      call PetscLogStageRegister('Post+IO ',prof_stage(iPOST) ,prof_err)  
       call PetscLogStageRegister('MG solve',prof_stage(iMG)   ,prof_err)  
 
       iprofile = 6
@@ -329,11 +342,7 @@ c ######################################################################
 
         implicit none
 
-#if !defined(petsc)
-
-        integer :: npx=1,npy=1,npz=1  !Serial processor allocation
-
-#else
+#if defined(petsc)
 
 #include "finclude/petsc.h"
 #include "finclude/petscvec.h"
@@ -355,9 +364,8 @@ c ######################################################################
           integer    :: nxgl,nygl,nzgl  !Global number of mesh points
           integer    :: igrid
           integer    :: MPI_COMM_DA,np,rank
+          integer    :: proc_neighbors(-1:1,-1:1,-1:1)
         end type petsc_da_ctx
-
-        integer :: npx=0,npy=0,npz=0  !Processor allocation
 
         integer :: debug_par=0        !For parallel debugging
 
@@ -380,7 +388,7 @@ c     Call variables
 
 c     Local variables
 
-        integer :: BC,ierr,mpierr
+        integer :: BC,ierr,mpierr,i,ix,iy,iz,neighbors(27)
 
 c     Begin program
 
@@ -402,9 +410,6 @@ c     Begin program
           BC = DA_NONPERIODIC
         endif
 
-c$$$        if (npx == 0) npx = PETSC_DECIDE
-c$$$        if (npy == 0) npy = PETSC_DECIDE
-c$$$        if (npz == 0) npz = PETSC_DECIDE
         if (dactx%mx == 0) dactx%mx = PETSC_DECIDE
         if (dactx%my == 0) dactx%my = PETSC_DECIDE
         if (dactx%mz == 0) dactx%mz = PETSC_DECIDE
@@ -475,6 +480,23 @@ c     Store MPI info
 
         call MPI_Comm_rank(dactx%MPI_COMM_DA,dactx%rank,mpierr)
         call MPI_Comm_size(dactx%MPI_COMM_DA,dactx%np  ,mpierr)
+
+        !Processor topology
+        call DAGetNeighbors(dactx,neighbors,mpierr)
+
+        do i=1,27
+          iz = (i-1)/9
+          iy = (i-1 - 9*iz)/3
+          ix = i-1 - iy*3 - iz*9
+          dactx%proc_neighbors(ix-1,iy-1,iz-1)=neighbors(i)
+        enddo
+
+c$$$        if (dactx%rank == 0) then
+c$$$          write (*,*) dactx%proc_neighbors( 0  , 1,0)
+c$$$          write (*,*) dactx%proc_neighbors(-1:1, 0,0)
+c$$$          write (*,*) dactx%proc_neighbors( 0  ,-1,0)
+c$$$        endif
+c$$$        stop
 
 c     End program
 

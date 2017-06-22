@@ -40,13 +40,13 @@ c     Begin program
 
         bcs = bcond
 
-        nx = grid_params%nxv(igx)
-        ny = grid_params%nyv(igy)
-        nz = grid_params%nzv(igz)
+        nx = gv%gparams%nxv(igx)
+        ny = gv%gparams%nyv(igy)
+        nz = gv%gparams%nzv(igz)
 
-        isx = grid_params%istartx(igx)
-        isy = grid_params%istartx(igy)
-        isz = grid_params%istartx(igz)
+        isx = gv%gparams%istartx(igx)
+        isy = gv%gparams%istartx(igy)
+        isz = gv%gparams%istartx(igz)
 
         iggx = igx
         iggy = igy
@@ -61,9 +61,9 @@ c     Find grid in logical space
         allocate(xl(iming:imaxg),yl(jming:jmaxg),zl(kming:kmaxg)
      .          ,xi(iming:imaxg,jming:jmaxg,kming:kmaxg,3))
 
-        xl(:) = grid_params%xx(iming+isx:imaxg+isx)
-        yl(:) = grid_params%yy(jming+isy:jmaxg+isy)
-        zl(:) = grid_params%zz(kming+isz:kmaxg+isz)
+        xl(:) = gv%gparams%xx(iming+isx:imaxg+isx)
+        yl(:) = gv%gparams%yy(jming+isy:jmaxg+isy)
+        zl(:) = gv%gparams%zz(kming+isz:kmaxg+isz)
 
         do k=kming,kmaxg
           do j=jming,jmaxg
@@ -177,9 +177,9 @@ c     Begin program
 
         igx = 1 ; igy = 1 ; igz = 1
 
-        nx = grid_params%nxv(igx)
-        ny = grid_params%nyv(igy)
-        nz = grid_params%nzv(igz)
+        nx = gv%gparams%nxv(igx)
+        ny = gv%gparams%nyv(igy)
+        nz = gv%gparams%nzv(igz)
 
         if (bcond(1) == PER) then
 cc          iming = 1  !This is when PER domains start at angle 0

@@ -12,18 +12,26 @@ c ######################################################################
         use mk
 #endif
 
-        integer :: nrstep
-     .            ,nrst
+        integer :: EXIT_STATUS=FATAL !Hardwire to fatal termination
+
+
         integer :: itnewt
      .            ,itgmres
-     .            ,gmres_tot
-     .            ,newt_tot
-     .            ,init_grid_offset=0
-     .            ,bdf2_init_offset=1
+     .            ,nrstep
 
-        real(8) :: tmrst       !Dump time for restart
-     .            ,quota=1d30  !Max CPU time (in seconds)
-        real(8) :: rstep,dfreq,dtexp
+        real(8) :: rstep,dfreq
+
+        integer :: nrst             = 0
+     .            ,gmres_tot        = 0
+     .            ,newt_tot         = 0
+     .            ,init_grid_offset = 0
+     .            ,bdf2_init_offset = 1
+
+        real(8) :: tmrst = 0d0   !Dump time for restart
+     .            ,quota = 1d30  !Max CPU time (in seconds)
+     .            ,dtexp = 0d0   !Explicit time accumulator
+     .            ,exec_time=0d0 !Execution time (in seconds)
+
 
 #if !defined(samrai)
 
@@ -34,7 +42,7 @@ c$$$        type(var_array),pointer :: dn,dnm,dnp
 c$$$        real(8) :: l_np,l_n,et1,et2
 c$$$
       contains
-c$$$
+
 c$$$c     findGuess
 c$$$c     ###############################################################
 c$$$      subroutine findGuess(vn,vnp)
@@ -127,7 +135,7 @@ c     ###############################################################
       subroutine TS_set_dt_ramp_up(fraction,recovery)
 
 c     ---------------------------------------------------------------
-c     Check for end of time loop
+c     Set up initial dt ramp up
 c     ---------------------------------------------------------------
 
       implicit none
@@ -153,7 +161,7 @@ c     ###############################################################
       subroutine TS_set_bdf2_init_offset(offset)
 
 c     ---------------------------------------------------------------
-c     Check for end of time loop
+c     Set initial offset for bdf2 integration
 c     ---------------------------------------------------------------
 
       implicit none
@@ -192,7 +200,12 @@ c     Begin program
 
       exit_tloop = (tmax.gt.0d0.and.time.ge.(tmax-1d-9*dt))
      .         .or.(numtime.ge.0.and.itime+1.ge.(numtime+inewtime))
+     .         .or.(exec_time > quota)
 
+      if (exit_tloop .and. exec_time <= quota) EXIT_STATUS = SUCCESS
+
+      if (exec_time > quota) EXIT_STATUS = NON_FATAL
+      
 c     End program
 
       end function TS_chk_end
@@ -223,7 +236,7 @@ c     Estimate local growth rate
 
 c     Update counters
 
-      call TS_update_timecounters(time)
+      call TS_update_preCounters(time)
 
 c     Find new time step
 
@@ -237,128 +250,9 @@ c     End program
 
       end subroutine TS_correct_dt
 
-c$$$#else
-c$$$
-c$$$      contains
-c$$$
-c$$$c     correctTimeStepPetsc
-c$$$c     ######################################################################
-c$$$      subroutine correctTimeStepPetsc(dn,dnh,dnp,ierr,dt_to_c)
-c$$$
-c$$$      use parameters
-c$$$
-c$$$      implicit none
-c$$$
-c$$$c     Call variables
-c$$$
-c$$$      integer     :: ierr
-c$$$      real(8)     :: dn(neqd),dnh(neqd),dnp(neqd),dt_to_c
-c$$$
-c$$$c     Local variables
-c$$$
-c$$$c     Begin program
-c$$$
-c$$$c     Estimate local growth rate
-c$$$
-c$$$      if (sm_flag == 1) call calculate_gammat
-c$$$
-c$$$c     Find new time step
-c$$$
-c$$$      call TS_find_new_dt(itime+1,ierr)
-c$$$
-c$$$c     Update counters (only if timeStep is successful)
-c$$$
-c$$$      itime  = itime + 1
-c$$$
-c$$$      time   = time  + dt
-c$$$      tmrst  = tmrst + dt
-c$$$      nrst   = nrst  + 1
-c$$$
-c$$$      dt_to_c = dt
-c$$$
-c$$$c     End program
-c$$$
-c$$$      contains
-c$$$
-c$$$c     calculate_gammat
-c$$$c     #######################################################################
-c$$$      subroutine calculate_gammat
-c$$$
-c$$$c     -----------------------------------------------------------------------
-c$$$c     Calculation of local growth rate for CN
-c$$$c    ------------------------------------------------------------------------
-c$$$
-c$$$        implicit none
-c$$$
-c$$$c     Call variables
-c$$$
-c$$$c     Local variables
-c$$$
-c$$$        integer     :: ieq
-c$$$
-c$$$        real(8)     :: mag(neqd)
-c$$$
-c$$$c     Begin program
-c$$$
-c$$$        where (dnp /= dn .and. dnh /= 0d0)
-c$$$          mag = dt*dnh/(dnp-dn)
-c$$$        elsewhere
-c$$$          mag = 1e30
-c$$$        end where
-c$$$
-c$$$        gammat = 1./minval(abs(mag))
-c$$$
-c$$$      end subroutine calculate_gammat
-c$$$
-c$$$      end subroutine correctTimeStepPetsc
-c$$$
-c$$$#endif
-
-c     TS_init_otherCounters
+c     TS_update_postCounters
 c     ####################################################################
-      subroutine TS_init_otherCounters
-
-c     --------------------------------------------------------------------
-c     Initialize time stepping counters
-c     --------------------------------------------------------------------
-
-      implicit none
-
-c     Call variables
-
-c     Local variables
-
-c     Begin program
-
-      gmres_tot = 0
-      newt_tot  = 0
-
-      itime     = inewtime - 1
-
-      nrst      = 0
-      tmrst     = 0d0
-
-      dtexp     = 0d0
-      
-      if (relax_init_grid) init_grid_offset = 1
-
-c     PETSc CPU counters and profiling
-      
-#if defined(petsc)
-      call PetscGetTime   (prof_time(1),prof_err)
-      call PetscGetCPUTime(prof_time(2),prof_err)
-
-      !Begin profiling postprocessing stage
-      call switch_profile_stage(iPOST)
-#endif
-
-c     End program
-
-      end subroutine TS_init_otherCounters
-
-c     TS_update_otherCounters
-c     ####################################################################
-      subroutine TS_update_otherCounters
+      subroutine TS_update_postCounters
 
 c     --------------------------------------------------------------------
 c     Update time stepping counters
@@ -387,7 +281,7 @@ c     Begin program
 
 c     End program
 
-      end subroutine TS_update_otherCounters
+      end subroutine TS_update_postCounters
 
 c     TS_find_new_dt
 c     ####################################################################
@@ -408,24 +302,22 @@ c     Local variables
 
 #if defined(USER_PROVIDED_DT)
       external set_user_dt
-#else
-      external set_explicit_dt
 #endif
+      external set_explicit_dt
 
 c     Begin program
 
-      if (    cnfactor > 5d-1                   !Explicit
-     .   .or.(timecorr.and.ierr==0.and.itm==1)  !First explicit step if timecorr
-     .   ) then
+      if (cnfactor > 5d-1) then  !Explicit
         call set_explicit_dt(dt)
   
-        if (cnfactor > 5d-1) dtexp = dtexp + dt
+        dtexp = dtexp + dt
       else
         call adapt_dt
 
 #if defined(USER_PROVIDED_DT)
-        call set_user_dt(dt)
+        call set_user_dt(dt)  !External
 #endif
+
         call calculate_cnfactor
       endif
 
@@ -442,12 +334,19 @@ c     #######################################################################
         real(8) ::    coef1=0.8   !Time subcycling coefficient
      .               ,coef2=1.05  !Time recovery   coefficient
 
-        if (ierr > 0) then   !Error in time stepping
+c$$$        if (ts_ramp_up_dt) then
+c$$$          coef1 = ts_ramp_up_dt_fraction
+c$$$          coef2 = ts_ramp_up_dt_recovery
+c$$$        endif
+
+        if (ierr /= NOERR) then   !Error in time stepping
 
           dt = dt*coef1
-          if (dt < 1d-3*dtbase) then
+
+          if (dt < 1d-6*dtbase) then
             call pstop('adapt_dt','Time step too small')
           endif
+
           if (my_rank == 0 .and. ierr == CUTDT) write (*,240)
           if (my_rank == 0) write (*,400) dt
 
@@ -456,11 +355,20 @@ c     #######################################################################
           select case (sm_flag)
           case(1)  !Rannacher time stepping
 
-            if (   (itm <= sm_pass  .and.(.not.timecorr))
-     .         .or.(itm <= sm_pass+1.and.      timecorr )) then
+            if (ts_ramp_up_dt) then
+              if (itm == 1) then
+                dt = dtbase*ts_ramp_up_dt_fraction
+              else
+                dt = min(dtbase,dt*ts_ramp_up_dt_recovery)
+                ts_ramp_up_dt = (dt /= dtbase) !Stop dt ramp-up
+              endif
+            elseif (itm == 1.and.ts_adapt_dt) then
+              call set_explicit_dt(dt)
+            elseif (   (itm <= sm_pass  .and.(.not.ts_adapt_dt))
+     .             .or.(itm <= sm_pass+1.and.      ts_adapt_dt )) then
               dt = 0.5*dtbase
-            elseif ((itm == sm_pass+1.and.(.not.timecorr))
-     .          .or.(itm == sm_pass+2.and.      timecorr )) then
+            elseif((itm == sm_pass+1.and.(.not.ts_adapt_dt))
+     .         .or.(itm == sm_pass+2.and.      ts_adapt_dt )) then
               dt = dtbase
             else
               dt = min(dtbase,dt*coef2)
@@ -468,13 +376,24 @@ c     #######################################################################
 
           case(2)  !BDF time stepping
 
-            if (ts_ramp_up_dt.or.timecorr) then
-              if  (itm == 2) then
-                dt = ts_ramp_up_dt_fraction*dtbase
+            if (ts_ramp_up_dt) then
+              if (itm == 1) then
+                dt = dtbase*ts_ramp_up_dt_fraction
+              else
+                dt = min(dtbase,dt*ts_ramp_up_dt_recovery)
+                ts_ramp_up_dt = (dt /= dtbase) !Stop dt ramp-up
+              endif
+            elseif (ts_restart) then
+              dt = dt*coef2**(-15) !Quiet BDF2 start to ramp up in a few time steps
+            elseif (ts_adapt_dt) then
+              if (itm == 1) then
+                call set_explicit_dt(dt)
+              elseif (itm == 2) then
+                dt = coef1*dtbase
 c$$$              elseif (itm == 3) then
 c$$$                dt = dtbase/coef2**15  !Quiet BDF2 start to ramp up in a few time steps
               else
-                dt = min(dtbase,dt*ts_ramp_up_dt_recovery)
+                dt = min(dtbase,dt*coef2)
               endif
             else
               if  (itm <= bdf2_init_offset) then
@@ -489,20 +408,35 @@ c$$$                dt = dtbase/coef2**15  !Quiet BDF2 start to ramp up in a few
               endif
             endif
 
-          case default   !Default time stepping
+          case default   !Theta time stepping
 
-            if     ((itm == 1.and.(.not.timecorr))) then
-              dt = dtbase
-            elseif ((itm == 2.and.      timecorr )) then
-              if (dt < dtbase) then
-                dt = dtbase - dt
+            if (ts_ramp_up_dt) then
+              if (itm == 1) then
+                dt = dtbase*ts_ramp_up_dt_fraction
               else
-                dt = dtbase
+                dt = min(dtbase,dt*ts_ramp_up_dt_recovery)
+                ts_ramp_up_dt = (dt /= dtbase) !Stop dt ramp-up
               endif
-            elseif ((itm == 3.and.      timecorr )) then
-              dt = dtbase
+            elseif (ts_adapt_dt) then
+              if (itm == 1) then
+                call set_explicit_dt(dt)
+              elseif (itm == 2) then
+                if (dt < dtbase) then
+                  dt = dtbase - dt
+                else
+                  dt = dtbase
+                endif
+              elseif (itm == 3) then
+                dt = dtbase
+              else
+                dt = min(dtbase,dt*coef2)
+              endif
             else
-              dt = min(dtbase,dt*coef2)
+              if (itm == 1) then
+                dt = dtbase
+              else
+                dt = min(dtbase,dt*coef2)
+              endif
             endif
 
           end select
@@ -520,20 +454,20 @@ c     #######################################################################
 
       if (sm_flag == 1) then      !Rannacher
 
-        if (itm == 1.and.timecorr) then
+        if (itm == 1.and.ts_adapt_dt) then
           cnfactor = .5
-        elseif (    (itm <= sm_pass+1 .and.      timecorr )
-     .          .or.(itm <= sm_pass   .and.(.not.timecorr)))then
+        elseif (    (itm <= sm_pass+1 .and.      ts_adapt_dt )
+     .          .or.(itm <= sm_pass   .and.(.not.ts_adapt_dt)))then
           cnfactor = .3
-        elseif (    (itm >= sm_pass+1.and.(.not.timecorr))
-     .          .or.(itm >= sm_pass+2.and.      timecorr )) then
+        elseif (    (itm >= sm_pass+1.and.(.not.ts_adapt_dt))
+     .          .or.(itm >= sm_pass+2.and.      ts_adapt_dt )) then
           cnfactor = max(.5 - gammat/12.*dt,0d0)
         endif
 
       elseif (sm_flag == 2) then  !BDF2
 
-        bdf2 = (itm > 1 .and. (.not.timecorr) )
-     .    .or. (itm > 2 .and.       timecorr  .and. ierr == NOERR)
+        bdf2 = (itm > 1 .and. (.not.ts_adapt_dt) )
+     .    .or. (itm > 2 .and.       ts_adapt_dt  .and. ierr == NOERR)
 
         bdf2 = bdf2.and.(.not.ts_restart)
 
@@ -542,13 +476,15 @@ c     #######################################################################
           cnp = (2*dt+dtold)/(dt+dtold)
           cn  = -(dt+dtold)/dtold
           cnm = -cnp-cn    !Sum should be zero identically
+
+          cnfactor = 0d0
         else
           cnp = 1d0
           cn  =-1d0
           cnm = 0d0
-        endif
 
-        cnfactor = 0d0
+          if (ts_restart) cnfactor = 0.45d0
+        endif
 
       else  !Theta scheme
 

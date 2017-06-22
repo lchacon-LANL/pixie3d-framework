@@ -28,26 +28,11 @@ c##########################################################################
 c Local variables
 
       integer        :: i,j,k,ig,jg,kg
-      integer        :: ierr,gierr,nplot,igx,igy,igz
+      integer        :: ierr,gierr,nplot
       character*(40) :: command
       logical        :: exitloop,petsc_flg
 
-c Interfaces
-
-      INTERFACE
-        subroutine evaluateDiagnostics(varray,iigx,iigy,iigz,init)
-        use var_setup
-        integer    :: iigx,iigy,iigz
-        logical    :: init
-        type(var_array),pointer :: varray
-        end subroutine evaluateDiagnostics
-      END INTERFACE
-
 c Begin program
-
-      igx = 1
-      igy = 1
-      igz = 1
 
 c Initialize PETSc (parallel version)
 
@@ -78,11 +63,11 @@ c Time loop
 
 c     Update counters
 
-        call TS_update_timecounters(time)
+        call TS_update_preCounters(time)
 
 c     Read next record
 
-        call readTimeStep(urecord,itime,time,dt,u_np,ierr)
+        call readTimeStep(urecord,itime,time,dt,gammat,u_np,ierr)
 
 c     Gather error info
 
@@ -102,11 +87,7 @@ c     Update counters
 
         nplot  = nplot + 1
 
-c     Time level plots (xdraw)
-
-        plot = ( nplot        == ndplot       .and. nplot > 0)
-     .     .or.((time-tmplot) >= dplot-0.9*dt .and. dplot > 0d0)
-     .     .or. time         == 0d0
+c     MK setup
 
 #if defined(MK)
         !Setup MK grid
@@ -116,7 +97,7 @@ c     Time level plots (xdraw)
           xnm  = xold
           xold = xnew
 
-          call MK_setup_grid(igx,u_np%array_var(neqd)%array)
+          call MK_setup_grid(1,u_np%array_var(neqd)%array)
 
 cc          !Grid velocity in Cartesian geometry
 cc          if (bdf2) then
@@ -125,29 +106,13 @@ cc          else
 cc            gvel =-(xnew-xold)/dt
 cc          endif
 
-          call MK_xfer_equ(igx,u_ic)
+          call MK_xfer_equ(1,u_ic)
         endif
 #endif
 
-        !Post-process solution for diagnostics
-        if (.not.skip_diag)
-     .       call evaluateDiagnostics(u_np,igx,igy,igz,.false.)
-
-        if (plot) then
-
-          if (skip_diag) 
-     .       call evaluateDiagnostics(u_np,igx,igy,igz,.false.)
-
-          !Dump time step plots
-          nplot = 0
-          if (itime.gt.0) tmplot = time
-          call dumpTimeStepPlots
-
-        endif
-
 c     Output per time step
 
-        call output(plot)
+        call output(nplot)
 
 c     Store previous record (for time derivatives in diagnostics)
 
@@ -172,12 +137,7 @@ c Finalize graphics
 
       call finalizeDiagnostics
 
-#if defined(adios)
-      call closeRecordFileAdiosForRead(adios_err)
-      call adios_finalize(my_rank,adios_err)
-#else
       call closeRecordFiles
-#endif
 
       call fortranDestroy
 
@@ -191,7 +151,7 @@ c End program
 
 c output
 c######################################################################
-      subroutine output(plot)
+      subroutine output(nplot)
 
 c----------------------------------------------------------------------
 c     Writes program output to standard output
@@ -199,29 +159,61 @@ c----------------------------------------------------------------------
 
       use ts_setup
 
-      use parameters
+      use variables
 
-      use grid
+      use graphics
 
       implicit none
 
 c Call variables
 
-      logical :: plot
+      integer :: nplot
 
 c Local variables
 
-      integer     :: ngrd(3)
+      logical :: plot
+
+c Interfaces
+
+      INTERFACE
+        subroutine evaluateDiagnostics(varray,iigx,iigy,iigz,init)
+        use var_setup
+        integer    :: iigx,iigy,iigz
+        logical    :: init
+        type(var_array),pointer :: varray
+        end subroutine evaluateDiagnostics
+      END INTERFACE
 
 c Begin program
 
-      if (my_rank == 0) then
+      plot = ( nplot        == ndplot       .and. nplot > 0)
+     .   .or.((time-tmplot) >= dplot-0.9*dt .and. dplot > 0d0)
+     .   .or.(time         == 0d0)
 
-        ngrd =(/grid_params%ngrdx,grid_params%ngrdy,grid_params%ngrdz/)
+c Post-process solution for diagnostics and dump plots
+
+      if (.not.skip_diag)
+     .       call evaluateDiagnostics(u_np,1,1,1,.false.)
+
+      if (plot) then
+
+        if (skip_diag) 
+     .       call evaluateDiagnostics(u_np,1,1,1,.false.)
+
+        !Dump time step plots
+        nplot = 0
+        if (itime.gt.0) tmplot = time
+        call dumpTimeStepPlots
+
+      endif
+
+c Information output
+
+      if (my_rank == 0) then
 
         if (itime.eq.0) then
 
-          write (*,10) nxd,nyd,nzd,ngrd
+          write (*,10) nxd,nyd,nzd
 
           write (*,*) 
           write (*,100)
@@ -238,8 +230,7 @@ c Begin program
 
 c End program
 
- 10   format (/,'  Grid mesh:................',i4,'x',i4,'x',i4
-     .        /,'  Number of grid levels:....',i4,',',i2,',',i2)
+ 10   format (/,'  Grid mesh:................',i4,'x',i4,'x',i4)
  100  format ('   itime      time')
  110  format (i7,2x,1p,e10.2)
  120  format (i7,2x,1p,e10.2,a)
@@ -276,7 +267,7 @@ c Call variables
 
 c Local variables
 
-      integer :: ierr,igx,igy,igz
+      integer :: ierr,igx,igy,igz,nplot
       logical :: petsc_flg
 
 c Interfaces
@@ -302,6 +293,8 @@ c Begin program
 
       igx = 1 ; igy = 1 ; igz = 1
 
+      call TS_init_counters
+
 c Read user initializations
 
       call readGraphicsInput
@@ -314,14 +307,10 @@ c Allocate global variable
 
       call allocateGlobalVar(gv)
 
-c Open graphics files (this initializes local limits, among other things)
+c Open graphics files
 
-#if defined(adios)
-      call adios_init_noxml (adios_err)
-      ! allocate 100MB buffer for ADIOS
-      call adios_allocate_buffer (100,adios_err)
-
-      call openRecordFileAdiosForRead(adios_err)
+#if defined(petsc)
+      urecord = openRestartFileForRead()
 #else
       call openRecordFiles(urecord,recordfile
      .                    ,ilog,ihig,jlog,jhig,klog,khig)
@@ -329,11 +318,11 @@ c Open graphics files (this initializes local limits, among other things)
 
 c Read geometry (if appropriate)
 
-      if (coords == 'ext') call readExtMap
+      if (coords == 'ext') call readExtMap(gv%gparams)
 
 c Read equilibrium u_0 (Do NOT postprocess for BC)
 
-      call readTimeStep(urecord,itime,time,dt,u_0,ierr)
+      call readTimeStep(urecord,itime,time,dt,gammat,u_0,ierr)
 
       if (ierr /= 0) call pstop('initializeCalculation',
      .                          'Unable to read equilibrium')
@@ -348,6 +337,7 @@ c Initialize MK grid
       if (mk_grid) then
         call MK_alloc
         call MK_initGrid(igx,bcs=bcond)
+cc        call MK_initGrid(1)
       endif
 #endif
 
@@ -357,8 +347,9 @@ c Set plotting range
 
 c Read perturbed solution u_ic
 
-c$$$      call readTimeStep(urecord,itime,time,dt,u_ic,ierr)
       call equateDerivedType(u_ic,u_0)
+
+c$$$      call readTimeStep(urecord,itime,time,dt,gammat,u_ic,ierr)
 
 c Initialize diagnostics and related variables
 
@@ -385,6 +376,9 @@ c Initialize diagnostics and related variables
 c Initialize graphics
 
       call initializeGraphics
+
+c$$$      nplot = 0
+c$$$      call output(nplot)
 
 c End program
 

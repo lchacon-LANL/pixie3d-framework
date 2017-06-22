@@ -45,7 +45,8 @@ c ###################################################################
 
       integer,private :: jit=0
 
-      logical :: pseudo_dt,prnt,is_matvec
+      logical :: pseudo_dt=.false.
+     .          ,prnt,is_matvec
      .          ,is_residual=.true.
 
       type :: nk_options  !Explanation below
@@ -250,7 +251,7 @@ c     Initialize variables
 c     Evaluate rhs and norms
 
       ddx = 0d0
-
+      
       allocate (nk_conf%xk(ntot),nk_conf%rk(ntot),nk_conf%rkstar(ntot))
 
       nk_conf%xk = x    !Save previous Newton state
@@ -363,10 +364,10 @@ c     Check Anderson convergence/failure
 
         if (init) then
           check = 1d0
-          flimit = atol
+          flimit= atol
         else
           check = fkp/f0
-          flimit = atol + rtol*f0
+          flimit= atol + rtol*f0
         endif
 
         dxnorm = rms(dx)
@@ -392,7 +393,7 @@ c     ###############################################################
       function chk_err() result(ierr)
 
       integer :: ierr
-            
+
       !No convergence: reject solution
       if (failure) then 
         if (jit == ntit_max_rej .and. prnt) write (*,220) check
@@ -565,13 +566,7 @@ c     Initialize variables
 
       if (out.ge.1 .and. prnt) write (*,200)
 
-      if (global == 2) then   !Activate pseudo-transient
-        pseudo_dt = .true.
-        call pstop('nk','Pseudo-t option not working')
-      else
-        pseudo_dt = .false.
-cc        pdt0      = 1d30
-      endif
+      pseudo_dt = (global == 2)   !Activate pseudo-transient
 
       check_lim = 1d30
 
@@ -581,14 +576,14 @@ cc        pdt0      = 1d30
       if (stol == 0d0) stol = 1d3*epsmac !Set update tolerance to roundoff
 
       jit = 0
-
+      
       etakm = eta0
       etak  = eta0
 
 c     Evaluate rhs and norms
 
       ddx = 0d0
-
+      
       allocate (nk_conf%xk(ntot),nk_conf%rk(ntot),nk_conf%rkstar(ntot))
 
       nk_conf%xk = x    !Save previous Newton state
@@ -631,12 +626,12 @@ cc      flimit= atol + rtol*f0
 
         if (PRESENT(matvec)) then
           call gmresDriver(matvec
-     .                      ,ntot,-nk_conf%rk,ddx,itk,etak,ksmax,gmmax
-     .                      ,iguess,iout,ierr)
+     .                    ,ntot,-nk_conf%rk,ddx,itk,etak,ksmax,gmmax
+     .                    ,iguess,iout,ierr)
         else
           call gmresDriver(matrixFreeMatVec
-     .                      ,ntot,-nk_conf%rk,ddx,itk,etak,ksmax,gmmax
-     .                      ,iguess,iout,ierr)
+     .                    ,ntot,-nk_conf%rk,ddx,itk,etak,ksmax,gmmax
+     .                    ,iguess,iout,ierr)
         endif
 
         !Kill preconditioner
@@ -647,8 +642,8 @@ cc      flimit= atol + rtol*f0
         nk_conf%nwt_it_out = jit
 
         !Check for error in GMRES
-        if (ierr.eq.1) then
-          if (prnt) write(*,*) 
+        if (ierr == 1) then
+          if (prnt) write(*,'(a,i3,a)') 
      .       '   WARNING: Exceeded maximum GMRES iterations (',gmmax,')'
           ierr = 0              !Use GMRES solution for Newton update regardless
         elseif (ierr.eq.-1) then !Got to atol in the Newton residual
@@ -676,6 +671,14 @@ cc      flimit= atol + rtol*f0
 
         etakm = etak
 
+        !Recompute pseudo-transient time step
+        if (pseudo_dt) then
+          if (abs(fkm/fk-1d0) < 1d-5) then 
+            pdt = 0.1*pdt
+          else
+            pdt = pdt*fkm/fk
+          endif
+        endif
       enddo       !End of Newton loop
 
 c     Check error in Newton convergence
@@ -863,10 +866,10 @@ c     Check Anderson convergence/failure
 
         if (init) then
           check = 1d0
-          flimit = atol
+          flimit= atol
         else
           check = fkp/f0
-          flimit = atol + rtol*f0
+          flimit= atol + rtol*f0
         endif
 
         dxnorm = rms(dx)
@@ -1529,7 +1532,7 @@ c     Initialize 1-st term  of rhs of hessenberg system
 
         rs(1) = ro
 
-c     FGMRES iteration
+c     GMRES iteration
 
         do i = 1,im
 
@@ -1670,7 +1673,7 @@ c     Form linear combination of zz=P*vv to get solution
 
 c     Call preconditioner
 
-       call applyPC(ntot,dsol,vv(1,im+1),precout)
+        call applyPC(ntot,dsol,vv(1,im+1),precout)
 
 c     Update solution
 
@@ -1822,97 +1825,22 @@ c     Evaluate nonlinear residual
 
       call evaluateNonlinearResidual(ntot,x,f)
 
-c     Add pseudo-transient term
-
-cc      if (pseudo_dt) then
-cc        invpdt = 1d0/pdt
-cc        if (abs(invpdt) < 1d-5) invpdt = 0d0
-cc        f = (x - xk )*invpdt + f  !This doesn't really work for vol-weighed residuals!!!
-cccc        f = (x - xx0)*invpdt + f
-cc        if (nk_conf%vol_wgt) then
-cc          write (*,*) 'WARNING: psedo-transient term only works for'//
-cc     .               ' non-vol-weighed residuals'
-cc        endif
-cc      endif
+c$$$c     Add pseudo-transient term
+c$$$
+c$$$      if (pseudo_dt) then
+c$$$        invpdt = 1d0/pdt
+c$$$        if (abs(invpdt) < 1d-5) invpdt = 0d0
+c$$$        f = (x - xk )*invpdt + f  !This doesn't really work for vol-weighed residuals!!!
+c$$$cc        f = (x - xx0)*invpdt + f
+c$$$        if (nk_conf%vol_wgt) then
+c$$$          write (*,*) 'WARNING: psedo-transient term only works for'//
+c$$$     .               ' non-vol-weighed residuals'
+c$$$        endif
+c$$$      endif
 
 c     End program
 
       end subroutine evaluateNewtonResidual
 
-ccc     volumeWeighVec
-ccc     ###############################################################
-cc      subroutine volumeWeighVec(ntot,x)
-cc
-ccc     ---------------------------------------------------------------
-ccc     Calculates nonlinear residuals. 
-ccc     ---------------------------------------------------------------
-cc
-cc      implicit none
-cc
-ccc     Call variables
-cc
-cc      integer  :: ntot
-cc      real(8)  :: x(ntot)
-cc
-ccc     Local variables
-cc
-ccc     Begin program
-cc
-cc      do k = 1,nzd
-cc        do j = 1,nyd
-cc          do i = 1,nxd
-cc
-cc            call getMGmap(i,j,k,1,1,1,ig,jg,kg)
-cc
-cc            ii = neqd*(i-1 + nxd*(j-1) + nxd*nyd*(k-1))
-cc
-cc            do ieq=1,neqd
-cc              f(ii+ieq) = (varray%array_var(ieq)%array(i,j,k)
-cc     .                    -   u_n%array_var(ieq)%array(i,j,k))
-cc     .                    *one_over_dt(ieq)
-cc     .                    + (1d0-cnf(ieq))*f   (ii+ieq)
-cc     .                    +      cnf(ieq) *fold(ii+ieq)
-cc     .                    -                fsrc(ii+ieq)
-cc            enddo
-cc
-cc            !Do not include Jacobian here to allow for moving grid cases
-cccc            dvol = grid_params%dxh(ig)
-cccc     .            *grid_params%dyh(jg)
-cccc     .            *grid_params%dzh(kg)
-cccc            f(ii+1:ii+neqd) = f(ii+1:ii+neqd)*dvol
-cc
-cc            if (vol_wgt) 
-cc     .        f(ii+1:ii+neqd) = f(ii+1:ii+neqd)
-cc     .                         *gmetric%grid(1)%dvol(i,j,k)
-cc
-cc          enddo
-cc        enddo
-cc      enddo
-cc
-ccc     End program
-cc
-cc      end subroutine volumeWeighVec
-cc
-ccc     fmedval
-ccc     ###############################################################
-cc      real(8) function fmedval(p1,p2,p3)
-cc      implicit none                !For safe fortran
-ccc     ---------------------------------------------------------------
-ccc     This function computes intermediate value of p1, p2, p3.
-ccc     ---------------------------------------------------------------
-cc
-ccc     Call variables
-cc
-cc      real(8) :: p1,p2,p3
-cc
-ccc     Local variables
-cc
-ccc     Begin program
-cc
-cc      fmedval = min( max(p1,p2) , max( p3,min(p1,p2) ) )
-cc
-ccc     End
-cc
-cc      end function fmedval
 
       end module nk

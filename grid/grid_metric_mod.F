@@ -6,8 +6,6 @@ c #####################################################################
 c ---------------------------------------------------------------------
 c     This module allocates and fills the grid metric structure gmetric.
 c     It contains the following routines: 
-c        * allocateGridMetric
-c        * deallocateGridMetric
 c        * findGridMetrics
 c           -> gammaZeroForce
 c        * coarsenGridMetrics
@@ -120,7 +118,7 @@ c     Begin program
         kp=min(k+1,nz+1)
         km=max(k-1,0)
 
-        call getMGmap(i,j,k,igrid,igrid,igrid,ig,jg,kg,g_def=g_def)
+        call getMGmap(g_def,i,j,k,igrid,igrid,igrid,ig,jg,kg)
 
 c     Exceptions
 
@@ -274,7 +272,7 @@ c     Exceptions
         ip = i0+1
         im = i0-1
 
-        call getMGmap(i0,j,k,igx,igy,igz,ig,jg,kg,g_def=g_def)
+        call getMGmap(g_def,i0,j,k,igx,igy,igz,ig,jg,kg)
 
         igp = ig+1
         igm = ig-1
@@ -293,7 +291,7 @@ c     Exceptions
         jp = j0+1
         jm = j0-1
 
-        call getMGmap(i,j0,k,igx,igy,igz,ig,jg,kg,g_def=g_def)
+        call getMGmap(g_def,i,j0,k,igx,igy,igz,ig,jg,kg)
 
         jgp = jg+1
         jgm = jg-1
@@ -312,7 +310,7 @@ c     Exceptions
         kp = k0+1
         km = k0-1
 
-        call getMGmap(i,j,k0,igx,igy,igz,ig,jg,kg,g_def=g_def)
+        call getMGmap(g_def,i,j,k0,igx,igy,igz,ig,jg,kg)
 
         kgp = kg+1
         kgm = kg-1
@@ -535,7 +533,7 @@ c     Call variables
         integer,optional,intent(IN) :: iorder
         integer,optional :: bcs(6)
 
-        type(grid_mg_def),optional,pointer :: g_def
+        type(grid_mg_def),pointer :: g_def
 
 c     Local variables
 
@@ -571,8 +569,8 @@ c     Setup boundary conditions
 
 c     Impose BCs
 
-        call setMGBC(0,1,nxl,nyl,nzl,igrid,x_j,bcnd
-     .              ,arr0=x0_j,iorder=order,g_def=g_def)
+        call setMGBC(g_def,0,1,nxl,nyl,nzl,igrid,x_j,bcnd
+     .              ,arr0=x0_j,iorder=order)
 
 c     End program
 
@@ -643,31 +641,24 @@ c       ANALYTICAL QUANTITIES **********************************
             do j = jlom,jhip
               do i = ilom,ihip
                 g_def%gmetric%grid(igrid)%car  (i,j,k,:)
-     .                    = map     (i,j,k,igx,igy,igz
-     .                              ,g_def=g_def)
+     .                    = map     (g_def,i,j,k,igx,igy,igz)
                 g_def%gmetric%grid(igrid)%jac  (i,j,k)
-     .                    = jacobian(i,j,k,igx,igy,igz
-     .                              ,g_def=g_def)
+     .                    = jacobian(g_def,i,j,k,igx,igy,igz)
                 g_def%gmetric%grid(igrid)%gsub (i,j,k,:,:)
-     .                    = g_sub   (i,j,k,igx,igy,igz
-     .                              ,g_def=g_def)
+     .                    = g_sub   (g_def,i,j,k,igx,igy,igz)
                 g_def%gmetric%grid(igrid)%gsup (i,j,k,:,:)
-     .                    = g_sup   (i,j,k,igx,igy,igz
-     .                              ,g_def=g_def)
+     .                    = g_sup   (g_def,i,j,k,igx,igy,igz)
                 g_def%gmetric%grid(igrid)%Gamma(i,j,k,:,:,:)
-     .                    = christ_2knd(i,j,k,igx,igy,igz
-     .                                 ,g_def=g_def)
+     .                    = christ_2knd(g_def,i,j,k,igx,igy,igz)
                 do l=1,3
                   g_def%gmetric%grid(igrid)%cov(i,j,k,l,:)
-     .                    = covariantVector    (l,i,j,k,igx,igy,igz
-     .                                         ,g_def=g_def)
+     .                 = covariantVector    (g_def,l,i,j,k,igx,igy,igz)
                   g_def%gmetric%grid(igrid)%cnv(i,j,k,l,:)
-     .                    = contravariantVector(l,i,j,k,igx,igy,igz
-     .                                         ,g_def=g_def)
+     .                 = contravariantVector(g_def,l,i,j,k,igx,igy,igz)
                 enddo
 
                 !Cell volume
-                call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg,g_def=g_def)
+                call getMGmap(g_def,i,j,k,igx,igy,igz,ig,jg,kg)
 
                 g_def%gmetric%grid(igrid)%dlvol(i,j,k) = 1d0
 
@@ -698,23 +689,18 @@ c       ANALYTICAL QUANTITIES **********************************
             do j = jlom,jhip
               do i = ilom,ihip
                 g_def%gmetric%grid(igrid)%jac_v(i,j,k)
-     .                    = jacobian(i,j,k,igx,igy,igz,vertex=.true.
-     .                              ,g_def=g_def)
+     .                 = jacobian(g_def,i,j,k,igx,igy,igz,vertex=.true.)
                 g_def%gmetric%grid(igrid)%gsub_v(i,j,k,:,:)
-     .                    = g_sub   (i,j,k,igx,igy,igz,vertex=.true.
-     .                              ,g_def=g_def)
+     .                 = g_sub   (g_def,i,j,k,igx,igy,igz,vertex=.true.)
                 g_def%gmetric%grid(igrid)%gsup_v (i,j,k,:,:)
-     .                    = g_sup   (i,j,k,igx,igy,igz,vertex=.true.
-     .                              ,g_def=g_def)
+     .                 = g_sup   (g_def,i,j,k,igx,igy,igz,vertex=.true.)
                 do l=1,3
                   g_def%gmetric%grid(igrid)%cov_v(i,j,k,l,:)
-     .                    = covariantVector    (l,i,j,k,igx,igy,igz
-     .                                         ,vertex=.true.
-     .                                         ,g_def=g_def)
+     .                 = covariantVector    (g_def,l,i,j,k,igx,igy,igz
+     .                                         ,vertex=.true.)
                   g_def%gmetric%grid(igrid)%cnv_v(i,j,k,l,:)
-     .                    = contravariantVector(l,i,j,k,igx,igy,igz
-     .                                         ,vertex=.true.
-     .                                         ,g_def=g_def)
+     .                 = contravariantVector(g_def,l,i,j,k,igx,igy,igz
+     .                                         ,vertex=.true.)
                 enddo
 
               enddo
@@ -730,13 +716,13 @@ c       NUMERICAL QUANTITIES ***********************************
 
           numerical_grid = .true.
 
-          call findCellMap
+          call findCellMap(g_def)
 
-          call findVertexMap
+          call findVertexMap(g_def)
 
-          call findVertexMetrics
+          call findVertexMetrics(g_def)
 
-          call findCellMetrics
+          call findCellMetrics(g_def)
 
         endif
 
@@ -748,7 +734,7 @@ c     End program
 
 c     findCellMap
 c     #################################################################
-      subroutine findCellMap
+      subroutine findCellMap(g_def)
 
 c     -----------------------------------------------------------------
 c     Finds Cartesian map at cell centers.
@@ -757,6 +743,8 @@ c     -----------------------------------------------------------------
         implicit  none
 
 c     Call variables
+
+        type(grid_mg_def),pointer :: g_def
 
 c     Local variables
 
@@ -783,7 +771,7 @@ c     Begin program
             do k = klom,khip
               do j = jlom,jhip
                 do i = ilom,ihip
-                  xc(i,j,k,:) = map(i,j,k,igx,igy,igz)
+                  xc(i,j,k,:) = map(g_def,i,j,k,igx,igy,igz)
                 enddo
               enddo
             enddo
@@ -800,7 +788,7 @@ c     End program
 
 c     findVertexMap
 c     #################################################################
-      subroutine findVertexMap
+      subroutine findVertexMap(g_def)
 
 c     -----------------------------------------------------------------
 c     Finds Cartesian map at vertices.
@@ -809,6 +797,8 @@ c     -----------------------------------------------------------------
         implicit  none
 
 c     Call variables
+
+        type(grid_mg_def),pointer :: g_def
 
 c     Local variables
 
@@ -841,7 +831,7 @@ c     End program
 
 c     findVertexMetrics
 c     #################################################################
-      subroutine findVertexMetrics
+      subroutine findVertexMetrics(g_def)
 
 c     -----------------------------------------------------------------
 c     Finds metrics at vertices (i+1/2,j+1/2,k+1/2) (stored at (i,j,k))
@@ -851,10 +841,12 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
+        type(grid_mg_def),pointer :: g_def
+
 c     Local variables
 
-        integer :: he,imin,imax,jmin,jmax,kmin,kmax,nx,ny,nz,bcs(6)
-     .            ,bcond_sv(6)
+        integer :: he,nx,ny,nz,bcond_sv(6),bcs(6)
+cc     .            ,imin,imax,jmin,jmax,kmin,kmax
 
         real(8) :: r(3,3),cnv(3,3),cov(3,3),gsub(3,3),gsup(3,3),jac,ijac
      .            ,gamma(3,3,3),d2r(3,3)
@@ -864,16 +856,18 @@ c     Local variables
 
 c     Begin program
 
-        imin = ilom
-        imax = ihip
-
-        jmin = jlom
-        jmax = jhip
-
-        kmin = klom
-        kmax = khip
+cc        imin = ilom
+cc        imax = ihip
+cc
+cc        jmin = jlom
+cc        jmax = jhip
+cc
+cc        kmin = klom
+cc        kmax = khip
 
         he = 1
+
+        allocate(dr(ilom:ihip,jlom:jhip,klom:khip,3,3))
 
 c     Local grid size
 
@@ -884,8 +878,6 @@ c     Local grid size
 c     Evaluate dr=dx/dxi vectors at vertices
 
         xc => g_def%gmetric%grid(igrid)%car
-
-        allocate(dr(ilom:ihip,jlom:jhip,klom:khip,3,3))
 
         dr = 0d0
 
@@ -898,51 +890,24 @@ c     Evaluate dr=dx/dxi vectors at vertices
           enddo
         enddo
 
-        !Modify BC setup to do staggered
-        bcond_sv = bcond
-        bcs = bcond
-        !Do no overwrite i=j=k=0
-        if (bcs(2) == DEF) bcs(2) = EXT
-        if (bcs(4) == DEF) bcs(4) = EXT 
-        if (bcs(6) == DEF) bcs(6) = EXT 
-        if (bcs(2) == FSYM) then
-          bcs  (2) = NEU
-          bcond(2) = SYM  !Set BCs to do NEU across face
-        endif
-        if (bcs(4) == FSYM) then
-          bcs  (4) = NEU 
-          bcond(4) = SYM  !Set BCs to do NEU across face
-        endif
-        if (bcs(6) == FSYM) then
-          bcs  (6) = NEU
-          bcond(6) = SYM  !Set BCs to do NEU across face
-        endif
-
-        call set_force_corners(.true.)
-
-        do i=1,3
-          do j=1,3
-            call setMGBC(0,1,nx,ny,nz,igrid,dr(:,:,:,i,j),bcs
-     .                  ,iorder=2,g_def=g_def)
-          enddo
-        enddo
-
-        !Recover original setup
-        call set_force_corners(.false.)
-        bcond = bcond_sv
+        call dr_bc_vrtx(g_def,igrid,dr)
 
 c     Evaluate grid quantities (at vertices)
 
-        do k = kmin,kmax
-          do j = jmin,jmax
-            do i = imin,imax
+cc        do k = kmin,kmax
+cc          do j = jmin,jmax
+cc            do i = imin,imax
+        do k = klom,khi
+          do j = jlom,jhi
+            do i = ilom,ihi
               r = dr(i,j,k,:,:)
 
               !Jacobian <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
               jac = triple_product(r(:,1),r(:,2),r(:,3))
               g_def%gmetric%grid(igrid)%jac_v(i,j,k) = jac
 
-              if (jac <= 0d0 .and. (.not.isSP2(i+1,igrid,ibc=1))) then
+              if (jac <= 0d0
+     .           .and. (.not.isSP2(g_def,i+1,igrid,ibc=1))) then
                 if (.not.check_grid .and. (.not.return_error)) then
                   write (*,*) 'Negative Jacobian in half mesh'
                   write (*,*) 'Grid level',igrid
@@ -953,12 +918,11 @@ c     Evaluate grid quantities (at vertices)
                   write (*,*) 'dr/dxi_3=',r(:,3)
                   write (*,*) 'Jacobian=',jac
 
-                  call sstop('findVertexMetrics','Inverted Jacobian')
+                  call sstop(0,'findVertexMetrics','Inverted Jacobian')
                 elseif (return_error) then
                   lerr = 1 ; exit
                 endif
-              elseif (isSP2(i+1,igrid,ibc=1)) then
-cc              if (isSP2(i+1,igrid,ibc=1)) then
+              elseif (isSP2(g_def,i+1,igrid,ibc=1)) then
                 ijac = 0d0
               else
                 ijac = 1d0/jac
@@ -998,9 +962,12 @@ cc              if (isSP2(i+1,igrid,ibc=1)) then
 
 c     Christoffel symbols (at cell centers; BCs enforced in findCellMetrics)
 
-        do k = kmin+1,kmax
-          do j = jmin+1,jmax
-            do i = imin+1,imax
+cc        do k = kmin+1,kmax
+cc          do j = jmin+1,jmax
+cc            do i = imin+1,imax
+        do k = klo,khi
+          do j = jlo,jhi
+            do i = ilo,ihi
 
               cov = 0.125*(
      .             g_def%gmetric%grid(igrid)%cov_v(i-1,j-1,k-1,:,:)
@@ -1038,7 +1005,7 @@ c     End program
 
 c     findCellMetrics
 c     #################################################################
-      subroutine findCellMetrics  !OLD version
+      subroutine findCellMetrics(g_def)  !OLD version
 
 c     -----------------------------------------------------------------
 c     Finds metrics at cell centers.
@@ -1047,6 +1014,8 @@ c     -----------------------------------------------------------------
         implicit  none
 
 c     Call variables
+
+        type(grid_mg_def),pointer :: g_def
 
 c     Local variables
 
@@ -1102,24 +1071,26 @@ c     Evaluate dr=dx/dxi vectors
           enddo
         endif
 
-c     Enforce topological constraints on dr (including SP)
+c     Apply BCs on dr (including SP)
 
-        do i=1,3
-          do j=1,3
-            call topol_bc(g_def,igrid,nx,ny,nz,dr(:,:,:,i,j))
-            if (bcSP()) then
-              igxbc = igrid
-              igybc = igrid
-              igzbc = igrid
-
-              nxbc = nx
-              nybc = ny
-              nzbc = nz
-              !dr behaves like a covariant vector
-              call vectorSingularBC(j,dr(:,:,:,i,j),.true.)
-            endif
-          enddo
-        enddo
+        call dr_bc(g_def,igrid,dr)
+        
+c$$$        do i=1,3
+c$$$          do j=1,3
+c$$$            call topol_bc(g_def,igrid,nx,ny,nz,dr(:,:,:,i,j))
+c$$$            if (bcSP()) then
+c$$$              igxbc = igrid
+c$$$              igybc = igrid
+c$$$              igzbc = igrid
+c$$$
+c$$$              nxbc = nx
+c$$$              nybc = ny
+c$$$              nzbc = nz
+c$$$              !dr behaves like a covariant vector
+c$$$              call vectorSingularBC(g_def,j,dr(:,:,:,i,j),.true.)
+c$$$            endif
+c$$$          enddo
+c$$$        enddo
 
 c     Evaluate grid quantities
 
@@ -1132,7 +1103,8 @@ c     Evaluate grid quantities
               jac = triple_product(r(:,1),r(:,2),r(:,3))
               g_def%gmetric%grid(igrid)%jac(i,j,k) = jac
 
-              if (jac <= 0d0 .and.(.not.isSP2(i+1,igrid,ibc=1))) then
+              if (jac <= 0d0
+     .           .and.(.not.isSP2(g_def,i+1,igrid,ibc=1))) then
                 if (.not.check_grid .and. (.not.return_error)) then
                   write (*,*) 'Negative Jacobian in integer mesh'
                   write (*,*) 'Grid level',igrid
@@ -1142,7 +1114,7 @@ c     Evaluate grid quantities
                   write (*,*) 'dr/dxi_3=',r(:,3)
                   write (*,*) 'Jacobian=',jac
 
-                  call sstop('findCellMetrics','Inverted jacobian')
+                  call sstop(0,'findCellMetrics','Inverted jacobian')
                 elseif (return_error) then
                   lerr = 2 ; exit
                 endif
@@ -1177,7 +1149,7 @@ c     Evaluate grid quantities
               g_def%gmetric%grid(igrid)%gsup(i,j,k,:,:) = gsup
 
               !Cell volume <<<<<<<<<<<<<<<<<<
-              call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg,g_def=g_def)
+              call getMGmap(g_def,i,j,k,igx,igy,igz,ig,jg,kg)
 
               g_def%gmetric%grid(igrid)%dlvol(i,j,k) = 1d0
 
@@ -1270,7 +1242,7 @@ c     Begin program
             gsub  = g_def%gmetric%grid(igrid)%gsub(i,j,k,:,:)
             gsup  = g_def%gmetric%grid(igrid)%gsup(i,j,k,:,:)
 
-            call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg,g_def=g_def)
+            call getMGmap(g_def,i,j,k,igx,igy,igz,ig,jg,kg)
 
             do ii=1,3 !cycle through Chistoffel symbols
 
@@ -1634,67 +1606,133 @@ c     Begin program
 c     End program
 
       end subroutine topol_bc
+      
+c     dr_bc
+c     #################################################################
+      subroutine dr_bc(g_def,igrid,dr)
 
-ccc     topol_bc_vrtx
-ccc     #################################################################
-cc      subroutine topol_bc_vrtx(igrid,nxl,nyl,nzl,array)
-cc
-ccc     -----------------------------------------------------------------
-ccc     Enforce topological constraints on array
-ccc     -----------------------------------------------------------------
-cc
-cc        implicit  none
-cc
-ccc     Call variables
-cc
-cc        integer    :: igrid,nxl,nyl,nzl
-cc        real(8)    :: array(0:nxl+1,0:nyl+1,0:nzl+1)
-cc
-ccc     Local variables
-cc
-cc#if defined(petsc)
-cc        type(petsc_da_ctx),pointer :: da_ctx
-cc#endif
-cc
-ccc     External
-cc
-ccc     Begin program
-cc
-cc#if !defined(petsc)
-cc        if (bcond(1) == PER .or. bcond(2) == PER) then
-cccc          array(0    ,:,:) = array(nxl,:,:)
-cccc          array(nxl+1,:,:) = array(1,:,:)
-cc          array(1,:,:) = array(nxl+1,:,:)
-cc        endif
-cc
-cc        if (bcond(3) == PER .or. bcond(4) == PER) then
-cccc          array(:,0    ,:) = array(:,nyl,:)
-cccc          array(:,nyl+1,:) = array(:,1,:)
-cc          array(:,1,:) = array(:,nyl+1,:)
-cc        endif
+c     -----------------------------------------------------------------
+c     Apply BCs on dr/dxi vector
+c     -----------------------------------------------------------------
+
+        implicit  none
+
+c     Call variables
+
+        type(grid_mg_def),pointer :: g_def
+
+        integer :: igrid
+        real(8) :: dr(0:,0:,0:,:,:)
+
+c     Local variables
+
+        integer :: i,j,bcs(6,3)!,nxl,nyl,nzl,ibc,bcond_sv(6)
+
+c     External
+
+c     Begin program
+
+        !Modify BC setup
+        bcs(:,1) = bcond
+        bcs(:,2) = bcond
+        bcs(:,3) = bcond
+
+cc        bcond_sv = bcond
+cc        where (bcs == DEF) bcs = EXT
+cc        where (bcs == FSYM .or. bcs == SYM) bcs   = NEU
+cc        where (bcond == FSYM .or. bcond == SYM) bcond = SYM    !Set BCs to do NEU across face
+
+cc        call set_force_corners(.true.)
+
+        do i=1,3
+          call imposeBConVector_ez(g_def,igrid,dr(:,:,:,i,:)
+     .                            ,.false.,bcs,2)
+        enddo
+
+        !Recover original setup
+cc        call set_force_corners(.false.)
+cc        bcond = bcond_sv
+
+c     End program
+
+      end subroutine dr_bc
+
+c     dr_bc_vrtx
+c     #################################################################
+      subroutine dr_bc_vrtx(g_def,igrid,dr)
+
+c     -----------------------------------------------------------------
+c     Enforce topological constraints on array
+c     -----------------------------------------------------------------
+
+        implicit  none
+
+c     Call variables
+
+        type(grid_mg_def),pointer :: g_def
+
+        integer :: igrid
+        real(8) :: dr(0:,0:,0:,:,:)
+
+c     Local variables
+
+        integer :: i,j,bcs(6,3)
+cc        integer :: bcs(6),bcond_sv(6),nxl,nyl,nzl
+
+c     External
+
+c     Begin program
+
+cc        nxl = size(dr,1)-2
+cc        nyl = size(dr,2)-2
+cc        nzl = size(dr,3)-2
 cc        
-cc        if (bcond(5) == PER .or. bcond(6) == PER) then
-cccc          array(:,:,0    ) = array(:,:,nzl)
-cccc          array(:,:,nzl+1) = array(:,:,1)
-cc          array(:,:,1) = array(:,:,nzl+1)
+cc        !Modify BC setup to do staggered
+cc        bcond_sv = bcond
+cc        bcs = bcond
+cc        !Do no overwrite i=j=k=0
+cc        if (bcs(2) == DEF) bcs(2) = EXT
+cc        if (bcs(4) == DEF) bcs(4) = EXT 
+cc        if (bcs(6) == DEF) bcs(6) = EXT 
+cc        if (bcs(2) == FSYM .or. bcs(2) == SYM) then
+cc          bcs  (2) = NEU
+cc          bcond(2) = SYM  !Set BCs to do NEU across face
 cc        endif
-cc#else
-cc#if !defined(samrai)
-cc          write(*,*) 'WARNING: vertex metrics in PETSc are not being'
-cc     .              ,' communicated yet.'
-cccccc        if (igrid == 1) then
-cccc          da_ctx => grid_params%dactx(igrid)
-cccc          call fillPetscGhostCells(da_ctx,array)
-cccccc        endif
-cc#else
-cc          write(*,*) 'WARNING: metrics in SAMRAI are not being'
-cc     .              ,' communicated yet.'
-cc#endif
-cc#endif
+cc        if (bcs(4) == FSYM .or. bcs(4) == SYM) then
+cc          bcs  (4) = NEU 
+cc          bcond(4) = SYM  !Set BCs to do NEU across face
+cc        endif
+cc        if (bcs(6) == FSYM .or. bcs(6) == SYM) then
+cc          bcs  (6) = NEU
+cc          bcond(6) = SYM  !Set BCs to do NEU across face
+cc        endif
 cc
-ccc     End program
+cccc        call set_force_corners(.true.)
+cc        
+cc        do i=1,3
+cc          do j=1,3
+cc            call setMGBC(g_def,0,1,nxl,nyl,nzl,igrid,dr(:,:,:,i:i,j),bcs
+cc     .                  ,iorder=2)
+cc            write (*,*) my_rank,'after',dr(nxl+1,:,1,1,1)
+cc            stop
+cc          enddo
+cc        enddo
 cc
-cc      end subroutine topol_bc_vrtx
+cc        !Recover original setup
+cccc        call set_force_corners(.false.)
+cc        bcond = bcond_sv
+
+        bcs(:,1) = bcond
+        bcs(:,2) = bcond
+        bcs(:,3) = bcond
+        do i=1,3
+          call imposeBConVector_stg_ez(g_def,igrid,dr(:,:,:,i,:)
+     .                                ,.false.,bcs,2)
+        enddo
+
+c     End program
+
+      end subroutine dr_bc_vrtx
 
 c     defineGridMetric
 c     #################################################################
@@ -1753,6 +1791,8 @@ c     Find grid metrics
         do igrid=igrmin,igrmax
           call findGridMetrics(g_def,igrid,.not.PRESENT(igr),ierr=ierr)
         enddo
+
+c     Gather error flags
 
 #if defined(petsc)
         if (PRESENT(ierr)) then

@@ -6,16 +6,6 @@ c######################################################################
 
         use grid_operations
 
-        integer :: ngrdx,ngrdy,ngrdz,ngrid
-
-        integer,dimension(:),pointer ::
-     .                     istart,ntotv,istartp,ntotvp
-     .                    ,istartb,ntotb,nxv,nyv,nzv,nblock
-     .                    ,mg_ratio_x,mg_ratio_y,mg_ratio_z
-
-        type(grid_mg_def),pointer :: MGgrid    => null()
-     $                              ,MGgrid_sv => null()
-
         type :: mg_ctx
           type(grid_mg_def),pointer :: g_def
           integer :: mpi_comm
@@ -31,13 +21,23 @@ c######################################################################
           real(8) :: lxmin,lxmax,lymin,lymax,lzmin,lzmax
         end type mg_ctx
 
-        type(mg_ctx),pointer :: mg_ctx_temp => null()
+        type(grid_mg_def),pointer,private :: g_mg_def
+
+        integer,private :: mg_coarse_size = 2     !Minimum coarse grid size (mg_ratio^mg_coarse_size)
+
+#if defined(coarse_MG)
+        integer,private :: mg_proc_coarsen_factor=4  !Coarsening ratio in # procs/dim
+                                                     !in parallel MG solve
+        integer,private :: MPI_COMM_SAV
+
+        logical :: coarse_mg_debug=.false.
+#endif
 
       contains
 
 c     MG_levels
 c     #################################################################
-      function MG_levels(nx,mgr) result(ngrd)
+      function MG_levels(nx,mgr,np) result(ngrd)
 
 c     -----------------------------------------------------------------
 c     Determines available MG levels based on grid resolution nx
@@ -48,7 +48,7 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer :: nx,mgr,ngrd
+      integer :: nx,mgr,ngrd,np
 
 c     Local variables
 
@@ -65,117 +65,21 @@ c     Begin program
         if (nl*mgr**(i-1) == nx) exit
       enddo
 
-      ngrd = i
+      if (np == 1) then
+        ngrd = i - mg_coarse_size + 2
+      else
+        ngrd = i
+      endif
 
       end function MG_levels
 
-c     allocPointers
-c     #################################################################
-      subroutine allocPointers(neq,fpointers,mgctx,g_def)
-
-c     -----------------------------------------------------------------
-c     Initializes pointers for block MG. In call sequence:
-c       * neq (in): number of coupled equations to be solved
-c       * fpointers (out): indicates if pointers were allocated or not.
-c       * mgctx (in/out): contains definition of MG grid level structure.
-c     -----------------------------------------------------------------
-
-      implicit none        !For safe fortran
-
-c     Call variables
-
-      integer :: neq
-      logical,intent(OUT) :: fpointers
-      type(mg_ctx),pointer,optional :: mgctx
-      type(grid_mg_def),pointer,optional :: g_def
-
-c     Local variables
-
-c     Begin program
-
-      if (.not.associated(MGgrid)) then
-        if (PRESENT(g_def)) then
-          MGgrid => g_def
-        else
-          MGgrid => grid_params
-        endif
-      endif
-
-      if (PRESENT(mgctx)) then
-
-        if (associated(mgctx)) then
-          fpointers = .false.
-
-          MGgrid => mgctx%g_def
-        else
-          call allocMGPointers(neq,fpointers,mgctx)
-        endif
-
-        mg_ctx_temp => mgctx
-
-      else
-        call allocMGPointers(neq,fpointers,mg_ctx_temp)
-      endif
-
-      istart  => mg_ctx_temp%istart
-      istartp => mg_ctx_temp%istartp
-      istartb => mg_ctx_temp%istartb
-      ntotv   => mg_ctx_temp%ntotv
-      ntotvp  => mg_ctx_temp%ntotvp
-      ntotb   => mg_ctx_temp%ntotb
-      nxv     => mg_ctx_temp%nxv
-      nyv     => mg_ctx_temp%nyv
-      nzv     => mg_ctx_temp%nzv
-      nblock  => mg_ctx_temp%nblock
-      mg_ratio_x => mg_ctx_temp%mg_ratio_x
-      mg_ratio_y => mg_ctx_temp%mg_ratio_y
-      mg_ratio_z => mg_ctx_temp%mg_ratio_z
-
-      ngrid = mg_ctx_temp%ngrid
-
-c     End program
-
-      end subroutine allocPointers
-
-c     deallocPointers
-c     #################################################################
-      subroutine deallocPointers(fpointers,mgctx)
-
-c     -----------------------------------------------------------------
-c     Deallocates pointers for block MG if fpointers (in, logical) is
-c     true.
-c     -----------------------------------------------------------------
-
-      implicit none        !For safe fortran
-
-      logical :: fpointers
-      type(mg_ctx),pointer,optional :: mgctx
-
-      if (fpointers) then
-        if (PRESENT(mgctx)) then
-          call deallocMGPointers(fpointers,mgctx)
-          nullify(mg_ctx_temp)
-        else
-          call deallocMGPointers(fpointers,mg_ctx_temp)
-        endif
-
-        nullify(istart,ntotv,istartp,ntotvp
-     .         ,istartb,ntotb,nxv,nyv,nzv,nblock
-     .         ,mg_ratio_x,mg_ratio_y,mg_ratio_z,MGgrid)
-      endif
-
-      end subroutine deallocPointers
-
 c     allocMGPointers
 c     #################################################################
-      subroutine allocMGPointers(neq,fpointers,mgctx)
+      subroutine allocMGPointers(neq,g_def,mgctx,fpointers)
 
 c     -----------------------------------------------------------------
 c     Initializes pointers for block MG. In call sequence:
 c       * neq (in), integer: number of coupled equations to be solved
-c       * ngrid: number of grid levels
-c       * mgx,mgy,mgz: mg coarsening ratios
-c       * nxv,nyv,nzv: dimensions for grids in all levels
 c       * fpointers (out), logical: indicates if pointers were allocated
 c            or not.
 c       * mgctx: MG context
@@ -185,10 +89,11 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer             :: neq
+      integer,intent(IN)  :: neq
       logical,intent(OUT) :: fpointers
 
-      type(mg_ctx),pointer:: mgctx
+      type(mg_ctx),pointer,intent(OUT):: mgctx
+      type(grid_mg_def),pointer,intent(IN) :: g_def
 
 c     Local variables
 
@@ -204,22 +109,24 @@ c     Check if MG pointers are allocated
       if (fpointers) then  !Defaults
         allocate(mgctx)
 
-        mgctx%g_def => MGgrid
+        mgctx%g_def => g_def
 
         mgctx%neq = neq
 
-        mgctx%ngrid = MGgrid%ngrid
+        mgctx%ngrid = g_def%ngrid
 
         mgctx%igmax = mgctx%ngrid
 
-        mgctx%mpi_comm = MGgrid%mpi_comm
+#if defined(petsc)
+        mgctx%mpi_comm = g_def%mpi_comm
+#endif
 
-        mgctx%lxmin = MGgrid%lxmin
-        mgctx%lxmax = MGgrid%lxmax
-        mgctx%lymin = MGgrid%lymin
-        mgctx%lymax = MGgrid%lymax
-        mgctx%lzmin = MGgrid%lzmin
-        mgctx%lzmax = MGgrid%lzmax
+        mgctx%lxmin = g_def%lxmin
+        mgctx%lxmax = g_def%lxmax
+        mgctx%lymin = g_def%lymin
+        mgctx%lymax = g_def%lymax
+        mgctx%lzmin = g_def%lzmin
+        mgctx%lzmax = g_def%lzmax
 
         allocate(mgctx%istart    (mgctx%ngrid+1)
      .          ,mgctx%istartb   (mgctx%ngrid+1)
@@ -238,17 +145,17 @@ c     Check if MG pointers are allocated
      .          ,mgctx%mg_ratio_y(mgctx%ngrid)
      .          ,mgctx%mg_ratio_z(mgctx%ngrid))
 
-        mgctx%iline = MGgrid%iline
-        mgctx%jline = MGgrid%jline
-        mgctx%kline = MGgrid%kline
+        mgctx%iline = g_def%iline
+        mgctx%jline = g_def%jline
+        mgctx%kline = g_def%kline
 
-        mgctx%mg_ratio_x = MGgrid%mg_ratio_x
-        mgctx%mg_ratio_y = MGgrid%mg_ratio_y
-        mgctx%mg_ratio_z = MGgrid%mg_ratio_z
+        mgctx%mg_ratio_x = g_def%mg_ratio_x
+        mgctx%mg_ratio_y = g_def%mg_ratio_y
+        mgctx%mg_ratio_z = g_def%mg_ratio_z
 
-        mgctx%nxv = MGgrid%nxv
-        mgctx%nyv = MGgrid%nyv
-        mgctx%nzv = MGgrid%nzv
+        mgctx%nxv = g_def%nxv
+        mgctx%nyv = g_def%nyv
+        mgctx%nzv = g_def%nzv
 
         mgctx%istartp(1) = 1
         mgctx%istart (1) = 1
@@ -293,7 +200,8 @@ c     -----------------------------------------------------------------
       logical :: fpointers
       type(mg_ctx),pointer :: mgctx
 
-      if (fpointers .and. associated(mgctx)) then
+cc      if (fpointers .and. associated(mgctx)) then
+      if (fpointers) then
         nullify(mgctx%g_def)
         deallocate(mgctx%istart ,mgctx%ntotv
      .            ,mgctx%istartp,mgctx%ntotvp
@@ -387,7 +295,7 @@ c     End program
 
 c     limits
 c     ###############################################################
-      subroutine limits(elem,nx,ny,nz,igr,imin,imax,jmin,jmax,kmin,kmax)
+      subroutine limits(mgctx,elem,igr,imin,imax,jmin,jmax,kmin,kmax)
       implicit none
 c     ---------------------------------------------------------------
 c     Finds limits on loops for matvec routines. In call sequence:
@@ -402,7 +310,9 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-      integer :: elem,nx,ny,nz,imin,imax,jmin,jmax,kmin,kmax,igr
+      integer :: elem,imin,imax,jmin,jmax,kmin,kmax,igr
+
+      type(mg_ctx),pointer :: mgctx
 
 c     Local variables
 
@@ -410,18 +320,275 @@ c     Local variables
 
 c     Begin program
 
-      call MGlimits(elem,igr,mg_ctx_temp)
+      call MGlimits(elem,igr,mgctx)
 
-      imin = mg_ctx_temp%imin
-      jmin = mg_ctx_temp%jmin
-      kmin = mg_ctx_temp%kmin
+      imin = mgctx%imin
+      jmin = mgctx%jmin
+      kmin = mgctx%kmin
 
-      imax = mg_ctx_temp%imax
-      jmax = mg_ctx_temp%jmax
-      kmax = mg_ctx_temp%kmax
+      imax = mgctx%imax
+      jmax = mgctx%jmax
+      kmax = mgctx%kmax
 
 c     End program
 
       end subroutine limits
+
+c     MG_set_coarse_size
+c     #################################################################
+      subroutine MG_set_coarse_size(size)
+
+c     -----------------------------------------------------------------
+c     Sets MG coarse size (integer exponent of coarsening ratio)
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: size
+
+c     Local variables
+
+c     Begin program
+
+      mg_coarse_size = size
+
+      end subroutine MG_set_coarse_size
+
+c     MG_get_coarse_size
+c     #################################################################
+      subroutine MG_get_coarse_size(size)
+
+c     -----------------------------------------------------------------
+c     Gets MG coarse size (integer exponent of coarsening ratio)
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: size
+
+c     Local variables
+
+c     Begin program
+
+      size = mg_coarse_size
+
+      end subroutine MG_get_coarse_size
+
+#if defined(petsc) && defined(coarse_MG)
+c     MG_set_proc_coarsen_factor
+c     #################################################################
+      subroutine MG_set_proc_coarsen_factor(mgcf)
+
+c     -----------------------------------------------------------------
+c     Sets processor MG coarsening ratio (number of procs to coarsen)
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: mgcf
+
+c     Local variables
+
+c     Begin program
+
+      mg_proc_coarsen_factor = mgcf
+
+      end subroutine MG_set_proc_coarsen_factor
+
+c     MG_get_proc_coarsen_factor
+c     #################################################################
+      function MG_get_proc_coarsen_factor() result(mgcf)
+
+c     -----------------------------------------------------------------
+c     Gets processor MG coarsening ratio (number of procs to coarsen)
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: mgcf
+
+c     Local variables
+
+c     Begin program
+
+      mgcf = mg_proc_coarsen_factor
+
+      end function MG_get_proc_coarsen_factor
+
+c     selectRank_MG_coarse
+c     #####################################################################
+      subroutine selectRank_MG_coarse(split_key)
+
+c     ---------------------------------------------------------------------
+c     Groups processors in slices COARSE MG domains.
+c     ---------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer,INTENT(INOUT) :: split_key
+
+c     Local variables
+
+        integer :: npx_new,npy_new,npz_new,ip,jp,kp,npx,npy,npz
+
+c     Begin program
+
+        if (split_key == MPI_UNDEFINED) then
+          split_key = 1
+        endif
+
+c     Set global limits of local domain l_lim(dim,loc)
+
+        l_lim(1,0) = g_mg_def%ilo(1)
+        l_lim(2,0) = g_mg_def%jlo(1)
+        l_lim(3,0) = g_mg_def%klo(1)
+        l_lim(1,1) = g_mg_def%ihi(1)
+        l_lim(2,1) = g_mg_def%jhi(1)
+        l_lim(3,1) = g_mg_def%khi(1)
+
+c     Set global limits of global domain g_lim(dim,loc)
+
+        g_lim(1,0) = 1
+        g_lim(2,0) = 1
+        g_lim(3,0) = 1
+        g_lim(1,1) = g_mg_def%nxgl(1)
+        g_lim(2,1) = g_mg_def%nygl(1)
+        g_lim(3,1) = g_mg_def%nzgl(1)
+
+c     Find coarse domain config
+
+        npx = g_mg_def%mx
+        npy = g_mg_def%my
+        npz = g_mg_def%mz
+        
+        !New processor count
+        npx_new = max(npx/mg_proc_coarsen_factor,1)
+        npy_new = max(npy/mg_proc_coarsen_factor,1)
+        npz_new = max(npz/mg_proc_coarsen_factor,1)
+
+        !Coordinates in new processor mesh
+        ip = (npx_new*l_lim(1,0)/g_lim(1,1))
+        jp = (npy_new*l_lim(2,0)/g_lim(2,1))
+        kp = (npz_new*l_lim(3,0)/g_lim(3,1)) 
+
+c     Select rank
+
+        !Group processors based on location in x, y and z directions
+        !Organize in 3D COARSE processor mesh: i-1 + nx*(j-1) + nx*ny*(k-1)
+        split_key = split_key + ip  + npx_new*jp
+     .                              + npx_new*npy_new*kp
+
+c$$$        write (*,*) 'Proc=',my_rank,'mpi_comm_crse',npx_new,npy_new
+c$$$     .       ,npz_new,ip,jp,kp,split_key
+
+c     End program
+
+      end subroutine selectRank_MG_coarse
+
+c     selectRank_MG_split
+c     #####################################################################
+      subroutine selectRank_MG_split(split_key)
+
+c     ---------------------------------------------------------------------
+c     Groups processors in checkerboard pattern over coarse MG domains.
+c     ---------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer,INTENT(INOUT) :: split_key
+
+c     Local variables
+
+        integer :: my_rank_l,np_l
+
+c     Begin program
+
+        if (split_key == MPI_UNDEFINED) then
+          split_key = 1
+        endif
+
+c     Select rank
+
+        !Group processors based on RANK in COARSE MG communicator
+        call MPI_Comm_size(MPI_COMM_SAV,np_l,mpierr)
+        call MPI_Comm_rank(MPI_COMM_SAV,my_rank_l,mpierr)
+
+        split_key = split_key + my_rank_l
+
+        !At bottom of hierarchy consider SELF
+        if (np_l == 1) split_key = my_rank
+
+c$$$        write(*,*) 'Proc=',my_rank,'mpi_comm_split X',split_key
+
+c     End program
+
+      end subroutine selectRank_MG_split
+
+c     create_MG_comms
+c     #################################################################
+      function create_MG_comms(g_def,mpi_comm_splt,mpi_comm_crse)
+     .         result(end_of_hierarchy)
+
+c     -----------------------------------------------------------------
+c     Creates recursive coarse-proc MG MPI communicators
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        logical :: end_of_hierarchy
+
+        integer,INTENT(OUT) :: mpi_comm_splt,mpi_comm_crse
+
+        type(grid_mg_def),pointer,INTENT(IN)  :: g_def
+
+c     Local variables
+
+        integer :: npx,npy,npz,np_l
+
+c     Begin program
+
+        g_mg_def => g_def
+
+        end_of_hierarchy=.false.
+
+        !Create CRSE comm (for gather within domains)
+        call splitMPIComm  (mpi_comm_crse,selectRank_MG_coarse
+     .                     ,MPI_COMM_ORIG=g_mg_def%mpi_comm)
+        if (coarse_mg_debug) then
+          call check_MPI_COMM(mpi_comm_crse,'MPI_COMM_MG_CRSE')
+        endif
+
+        MPI_COMM_SAV = mpi_comm_crse
+
+        !Create SPLIT comm (for concurrent solve across domains)
+        call splitMPIComm  (mpi_comm_splt,selectRank_MG_split
+     .                     ,MPI_COMM_ORIG=g_mg_def%mpi_comm)
+        if (coarse_mg_debug) then
+          call check_MPI_COMM(mpi_comm_splt,'MPI_COMM_MG_SPLT')
+        endif
+
+        !Check for termination (when no more splitting is possible)
+        call MPI_Comm_size(MPI_COMM_SPLT,np_l,mpierr)
+
+        end_of_hierarchy = (np_l == 1)
+
+c     End program
+
+      end function create_MG_comms
+#endif
 
       end module grid_mg

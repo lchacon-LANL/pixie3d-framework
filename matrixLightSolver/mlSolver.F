@@ -10,9 +10,10 @@ c$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 c$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 c THIS ROUTINE REQUIRES THE FOLLOWING EXTERNAL ROUTINES:
 c
-c     subroutine matvec(elem,neq,ntot,x,b,igrid,bcnd)
+c     subroutine matvec(g_def,elem,neq,ntot,x,b,igrid,bcnd)
 c
 c WHERE:
+c     * g_def: grid definition structure
 c     * elem: whether matvec is to be applied to the whole vector
 c             (elem=0), or to find only the component elem<>0 of
 c             the vector.
@@ -45,6 +46,15 @@ c Call variables
 
       external    matvec
 
+      INTERFACE
+        subroutine matvec(g_def,gpos,neq,ntot,x,y,igrid,bcnd)
+          use grid
+          type(grid_mg_def),pointer :: g_def
+          integer :: neq,ntot,igrid,gpos,bcnd(6,neq)
+          real(8) :: x(ntot),y(ntot)
+        end subroutine matvec
+      END INTERFACE
+
 c Local variables
 
       type (solver_unit)   :: solver_def
@@ -59,12 +69,13 @@ c Read solver definition from solver hierarchy
       call readSolverHierarchy (solver_def,depth)
 
       solver  = solver_def%solver
-      options = solver_def%options
+cc      options = solver_def%options
+      call xferSolverOptions(options,solver_def%options)
 
 c Symmetry test
 
-      if (options%sym_test)
-     .     call symm_test(neq,options%ngrd_tst,matvec,bcnd)
+c$$$      if (options%sym_test)
+c$$$     .     call symm_test(neq,options%ngrd_tst,matvec,bcnd)
 
 c Invoke solver
 
@@ -113,6 +124,15 @@ c Call variables
       character*(2)  solver
 
       external       matvec
+
+      INTERFACE
+        subroutine matvec(g_def,gpos,neq,ntot,x,y,igrid,bcnd)
+          use grid
+          type(grid_mg_def),pointer :: g_def
+          integer :: neq,ntot,igrid,gpos,bcnd(6,neq)
+          real(8) :: x(ntot),y(ntot)
+        end subroutine matvec
+      END INTERFACE
 
 c Local variables
 
@@ -188,6 +208,15 @@ c Call variables
 
       external     matvec
 
+      INTERFACE
+        subroutine matvec(g_def,gpos,neq,ntot,x,y,igrid,bcnd)
+          use grid
+          type(grid_mg_def),pointer :: g_def
+          integer :: neq,ntot,igrid,gpos,bcnd(6,neq)
+          real(8) :: x(ntot),y(ntot)
+        end subroutine matvec
+      END INTERFACE
+
 c Local variables
 
       integer    :: niter,stp_test,depth1,ierr,mpi_comm
@@ -235,8 +264,8 @@ c     For zero initial guess
 
 c     For arbitrary initial guess (rr = b - Ax)
 
-        MGgrid => options%mg_grid_def
-        call matvec(0,neq,ntot,x,rr,igrid,bcnd)
+cc        MGgrid => options%mg_grid_def
+        call matvec(options%mg_grid_def,0,neq,ntot,x,rr,igrid,bcnd)
 
         rr = b - rr
 
@@ -274,8 +303,8 @@ c     CG step
 
         rho0 = rho1
 
-        MGgrid => options%mg_grid_def
-        call matvec(0,neq,ntot,pp,qq,igrid,bcnd)
+cc        MGgrid => options%mg_grid_def
+        call matvec(options%mg_grid_def,0,neq,ntot,pp,qq,igrid,bcnd)
 
         alpha = rho0/dot3(pp,qq,mpi_comm=mpi_comm)
 
@@ -357,9 +386,18 @@ c Call variables
      .             ,bcnd(6,neq)
       real(8)    :: b(ntot),x(ntot)
 
+      type (solver_options) :: options
+
       external      matvec
 
-      type (solver_options) :: options
+      INTERFACE
+        subroutine matvec(g_def,gpos,neq,ntot,x,y,igrid,bcnd)
+          use grid
+          type(grid_mg_def),pointer :: g_def
+          integer :: neq,ntot,igrid,gpos,bcnd(6,neq)
+          real(8) :: x(ntot),y(ntot)
+        end subroutine matvec
+      END INTERFACE
 
 c Local variables
 
@@ -436,8 +474,8 @@ c     For zero initial guess
 
 c     For arbitrary initial guess (vv(:,1) = b - Ax)
 
-        MGgrid => options%mg_grid_def
-        call matvec(0,neq,ntot,x,vv(:,1),igrid,bcnd)
+cc        MGgrid => options%mg_grid_def
+        call matvec(options%mg_grid_def,0,neq,ntot,x,vv(:,1),igrid,bcnd)
 
         vv(:,1) = b(:) - vv(:,1)
 
@@ -495,8 +533,9 @@ c        Call preconditioner
           call getSolver(neq,ntot,vv(:,i),zz(:,i),matvec,igrid,bcnd,0
      .                  ,precout,depth1)
 
-          MGgrid => options%mg_grid_def
-          call matvec(0,neq,ntot,zz(:,i),vv(:,i1),igrid,bcnd)
+cc          MGgrid => options%mg_grid_def
+          call matvec(options%mg_grid_def,0,neq,ntot,zz(:,i),vv(:,i1)
+     .               ,igrid,bcnd)
 
 c        Modified gram - schmidt.
 
@@ -647,7 +686,7 @@ c      Check convergence and restart outer loop if necessary
         if (ro <= tol) then
           if (ro > rtol .and. ro < atol) then
             roundoff_stop = .true.
-            if (iout > 1) write (*,*)
+            if (iout > 1 .and. my_rank == 0) write (*,*)
             if (iout.gt.1.and. my_rank == 0)
      .        write(*,*)'GMRES solution is in round-off. Terminating.'
           endif

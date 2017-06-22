@@ -16,6 +16,8 @@ c----------------------------------------------------------------------
 
       use var_io
 
+      use mg_solver
+
 #if defined(MK)
       use mk
 #endif
@@ -28,7 +30,11 @@ c Local variables
 
       integer :: ierr
 
+      integer :: mgcf
+
       logical :: petsc_flg
+     .          ,bc_debg=.false.
+     .          ,mg_coarse=.true.
 
 c Begin program
      
@@ -45,21 +51,57 @@ c Account for MK equation
 c Read PETSc runtime options
 
 #if defined(petsc) && !defined(petsc_c)
+      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-nxd',nxd
+     .                       ,petsc_flg,ierr)
+      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-nyd',nyd
+     .                       ,petsc_flg,ierr)
+      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-nzd',nzd
+     .                       ,petsc_flg,ierr)
+
       call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-npx',npx
      .                       ,petsc_flg,ierr)
       call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-npy',npy
      .                       ,petsc_flg,ierr)
       call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-npz',npz
      .                       ,petsc_flg,ierr)
-      call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-test',tst_flg
+
+      call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-restart'
+     .                         ,ts_restart,petsc_flg,ierr)
+
+      call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-test'
+     .                         ,tst_flg,petsc_flg,ierr)
+
+      call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-pc_debug'
+     .                         ,pc_debug,petsc_flg,ierr)
+
+      call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-bc_debug'
+     .                         ,bc_debg,petsc_flg,ierr)
+      if (petsc_flg) call set_BC_debug(bc_debg)
+
+#if defined(coarse_MG)
+      call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-mg_coarse'
+     .                         ,mg_coarse,petsc_flg,ierr)
+      if (petsc_flg) call MG_set_coarse_solve(mg_coarse)
+
+      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-mgcf',mgcf
      .                       ,petsc_flg,ierr)
+      if (petsc_flg) call MG_set_proc_coarsen_factor(mgcf)
+#endif
 
       call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-ilevel',ilevel
      .                       ,petsc_flg,ierr)
-      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-nmax',numtime
+
+      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-numtime',numtime
      .                       ,petsc_flg,ierr)
+      if (petsc_flg) tmax = 0d0
+
       call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-tmax',tmax
      .                       ,petsc_flg,ierr)
+      if (petsc_flg) numtime = -1
+
+      call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-trestart',trstrt
+     .                       ,petsc_flg,ierr)
+
       call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-cpu_quota',quota
      .                       ,petsc_flg,ierr)
 #else
@@ -77,18 +119,14 @@ c Read PETSc runtime options
 !!$  call get_command_argument(4, ofile)
 #endif
 
-ccc Check for autoinitializing parameters
-cc
-cc      pi = acos(-1d0)
-
 c Allocate global variables
 
       call allocateGlobalVar(gv)
 
 #if defined(petsc)
-        if (.not.tst_flg)
-     .       write (*,'(a,i4,a,6i5)') 'Processor:',my_rank
-     .           ,'; Grid limits:',ilog,ihig,jlog,jhig,klog,khig
+c$$$        if (.not.tst_flg)
+c$$$     .       write (*,'(a,i4,a,6i5)') 'Processor:',my_rank
+c$$$     .           ,'; Grid limits:',ilog,ihig,jlog,jhig,klog,khig
 #endif
 
 c Create Time Stepping variables
@@ -103,10 +141,10 @@ c Initialize MK variables
 
 #if defined(MK)
       if (mk_grid) call MK_alloc
-#endif
 
-#if defined(MK)
       relax_init_grid = mk_grid.and.mk_init_relax.and.(.not.ts_restart)
+
+      if (relax_init_grid) init_grid_offset = 1
 #endif
 
 c Initialize computation
@@ -119,7 +157,7 @@ c Initialize computation
 
 c Initialize record file
 
-      call initializeRecordFile
+      call initializeRecordFile(recordfile)
 
 c Check time limits
 
@@ -201,11 +239,11 @@ c Create equilibrium u_0
 
       call get_src(u_n)  !This also imposes BCs
 
-      call mapStructureToVector(x0,u_n)
+      call mapStructureToVector(gv%gparams,x0,u_n)
 
 c Write geometry when applicable
 
-      if (coords == 'ext') call writeExtMap
+      if (coords == 'ext') call writeExtMap(gv%gparams)
 
 c Perturb equilibrium
 
@@ -275,7 +313,7 @@ c Begin program
 
 c Read geometry when applicable
 
-      if (coords == 'ext') call readExtMap
+      if (coords == 'ext') call readExtMap(gv%gparams)
 
 c Read restart file
 
@@ -342,17 +380,17 @@ c     Read equilibrium
 
       if (my_rank == 0) write (*,*) ' Reading restart file(s)...'
 
-      ierr = readRecordFile(ufile,itime,time,dt,u_0)
+      ierr = readRecordFile(ufile,itime,time,dt,gammat,u_0)
 
       if (ierr /= 0) then
         call pstop('readCurrentState','Unable to read u_0')
       endif
 
-      call TS_update_timecounters(time,exclude_itime=.true.)
+      call TS_update_preCounters(time,exclude_itime=.true.)
 
 c     Read files
 
-      ierr = readRecordFile(ufile,itime,time,dt,u_n)
+      ierr = readRecordFile(ufile,itime,time,dt,gammat,u_n)
 
       if (ierr /= 0) then
         call pstop('readCurrentState','Unable to read u_n')
@@ -361,15 +399,20 @@ c     Read files
       call equateDerivedType(u_np,u_n)
 
       do
-        ierr = readRecordFile(ufile,itime,time,dt,vmed)
+        ierr = readRecordFile(ufile,itime,time,dt,gammat,vmed)
 
         if (ierr /= 0) then !EOF: Rollback counters and exit
-          call TS_rollback_timecounters(exclude_itime=.true.)
+          call TS_rollback_counters(exclude_itime=.true.)
           exit
         else
-          call TS_update_timecounters(time,exclude_itime=.true.)
+          call TS_update_preCounters(time,exclude_itime=.true.)
           call equateDerivedType(u_n ,u_np)
           call equateDerivedType(u_np,vmed)
+          if (   (itime > nrstrt.and.nrstrt > 0)
+     .       .or.(time  > trstrt.and.trstrt > 0d0)) then
+            call setEarlyTimeRestartFlag(.true.)
+            exit
+          endif
         endif
 
       enddo
@@ -399,7 +442,7 @@ c     End
 
 c initializeRecordFile
 c######################################################################
-      subroutine initializeRecordFile
+      subroutine initializeRecordFile(file)
 
 c----------------------------------------------------------------------
 c     Creates graphics pointers, defines dumping intervals
@@ -413,6 +456,8 @@ c----------------------------------------------------------------------
 
 c Call variables
 
+      character(*) :: file
+      
 c Local variables
 
       integer :: ierr,ieq,igrid
@@ -423,10 +468,17 @@ c Interfaces
 
 c Begin program
 
+#if defined(petsc)
+        !Begin profiling IO
+        call switch_profile_stage(iPOST)
+#endif
+
       igrid = 1
 
-      ierr = setupIOForWrite()
-      
+#if defined(adios)
+      ierr = init_ADIOS_IO()
+#endif
+
 c Set data dumping intervals
 
       dfreq = 8d0
@@ -445,13 +497,30 @@ c Set data dumping intervals
 
 c Open record file
 
-      if (.not.ts_restart) then
-        !Dump initial data
-        call writeRecordFile(recordfile,0,0d0,dt,u_0)
-        call writeRecordFile(recordfile,0,0d0,dt,u_np)
-      else
-        call setRecordfileToAppend
+      if (.not.no_graphics_io) then
+        if (.not.ts_restart) then
+          !Dump initial data
+           call writeRecordFile(file,0,0d0,dt,0d0,u_0)
+           call writeRecordFile(file,0,0d0,dt,0d0,u_np)
+        elseif (getEarlyTimeRestartFlag()) then
+          if (index(file,'.bin') /= 0) then
+            file = 'record_t='//trim(int2char(floor(time)))//'.bin'
+          else
+            file = 'record_t='//trim(int2char(floor(time)))//'.bp'
+          endif
+          !Dump initial data
+          call writeRecordFile(file,0,0d0,dt,0d0,u_0)
+          call writeRecordFile(file,itime,time,dt,gammat,u_np)
+        else
+          call setAppendIOMode
+        endif
       endif
+
+#if defined(petsc)
+      !End profiling IO
+      call switch_profile_stage(iSTUP)
+#endif
+
 
 c End programs
 
@@ -494,7 +563,12 @@ c Local variables
         end subroutine evaluate_NLF
       END INTERFACE
 
-c Begin program
+c Begin program      
+
+#if defined(petsc)
+        !Begin profiling NL solver
+        call switch_profile_stage(iNL)
+#endif
 
       igr = 1
 
@@ -519,6 +593,12 @@ c Begin program
 #if defined(MK)
       if (mk_grid) call MK_spline_src(igr,fsrc)
 #endif
+
+#if defined(petsc)
+        !End profiling NL solver
+        call switch_profile_stage(iSTUP)
+#endif
+
 
 c End program
 
@@ -545,9 +625,9 @@ c     ###############################################################
           write (*,*) '>>>>>>>>>>>>>>>>>'
         endif
 
-        nx = grid_params%nxv(1)
-        ny = grid_params%nyv(1)
-        nz = grid_params%nzv(1)
+        nx = gv%gparams%nxv(1)
+        ny = gv%gparams%nyv(1)
+        nz = gv%gparams%nzv(1)
 
         xlabel=cont_conf%label(1)
         ylabel=cont_conf%label(2)
@@ -562,7 +642,7 @@ c     ###############################################################
      .        ,'t',trim(xlabel),trim(ylabel),dbg_desc,'-c -X0 -L57'
      .        ,'drawsrc_p'//trim(int2char(my_rank))//'.in')
 
-        call mapVectorToStructure(u_graph,fsrc)
+        call mapVectorToStructure(gv%gparams,u_graph,fsrc)
 
         nunit = 110
 
@@ -571,9 +651,9 @@ c     ###############################################################
 
         do ieq=1,neqd
           call C_contour(u_graph%array_var(ieq)%array(1:nx,1:ny,1:nz)
-     .                  ,grid_params%gxmin,grid_params%gxmax
-     .                  ,grid_params%gymin,grid_params%gymax
-     .                  ,grid_params%gzmin,grid_params%gzmax
+     .                  ,gv%gparams%gxmin,gv%gparams%gxmax
+     .                  ,gv%gparams%gymin,gv%gparams%gymax
+     .                  ,gv%gparams%gzmin,gv%gparams%gzmax
      .                  ,ieq-1,nunit)
         enddo
 

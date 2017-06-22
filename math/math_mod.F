@@ -8,7 +8,7 @@
         module procedure solve_cubic_real,solve_cubic_cmplx
       END INTERFACE
 
-      real(8) :: pi=acos(-1d0)
+      real(8),parameter :: pi=acos(-1d0)
 
       INTERFACE det
         module procedure determ3
@@ -491,6 +491,106 @@ c$$$END
       RETURN
       END FUNCTION
 ! ----------------------------------------------------------------------
+
+      FUNCTION BESSK(N,X)
+      IMPLICIT NONE
+      INTEGER N,J
+      REAL *8 X,BESSK,TOX,BK,BKM,BKP
+! ------------------------------------------------------------------------
+!     CE SOUS-PROGRAMME CALCULE LA FONCTION BESSEL MODIFIFIEE 3E ESPECE
+!     D'ORDRE N ENTIER POUR TOUT X REEL POSITIF > 0.  ON UTILISE ICI LA
+!     FORMULE DE RECURRENCE CLASSIQUE EN PARTANT DE BESSK0 ET BESSK1.
+!
+!     THIS ROUTINE CALCULATES THE MODIFIED BESSEL FUNCTION OF THE SECOND
+!     KIND OF INTEGER ORDER, N FOR ANY POSITIVE REAL ARGUMENT, X. THE
+!     CLASSICAL RECURSION FORMULA IS USED, STARTING FROM BESSK0 AND BESSK1.
+! ------------------------------------------------------------------------ 
+!     REFERENCE:
+!     C.W.CLENSHAW, CHEBYSHEV SERIES FOR MATHEMATICAL FUNCTIONS,
+!     MATHEMATICAL TABLES, VOL.5, 1962.
+! ------------------------------------------------------------------------
+      IF (N.EQ.0) THEN
+      BESSK = BESSK0(X)
+      RETURN
+      ENDIF
+      IF (N.EQ.1) THEN
+      BESSK = BESSK1(X)
+      RETURN
+      ENDIF
+      IF (X.EQ.0.D0) THEN
+      BESSK = 1.D30
+      RETURN
+      ENDIF
+      TOX = 2.D0/X
+      BK  = BESSK1(X)
+      BKM = BESSK0(X)
+      DO 11 J=1,N-1
+      BKP = BKM+DFLOAT(J)*TOX*BK
+      BKM = BK
+      BK  = BKP
+   11 CONTINUE
+      BESSK = BK
+      RETURN
+      END
+! ----------------------------------------------------------------------
+      FUNCTION BESSK0(X)
+!     CALCUL DE LA FONCTION BESSEL MODIFIEE DU 3EME ESPECE D'ORDRE 0
+!     POUR TOUT X REEL NON NUL.
+!
+!     CALCULATES THE THE MODIFIED BESSEL FUNCTION OF THE THIRD KIND OF 
+!     ORDER ZERO FOR ANY POSITIVE REAL ARGUMENT, X.
+! ----------------------------------------------------------------------
+      IMPLICIT NONE
+      REAL*8 X,BESSK0,Y,AX,P1,P2,P3,P4,P5,P6,P7,Q1,Q2,Q3,Q4,Q5,Q6,Q7
+      DATA P1,P2,P3,P4,P5,P6,P7/-0.57721566D0,0.42278420D0,0.23069756D0,
+     .     0.3488590D-1,0.262698D-2,0.10750D-3,0.74D-5/
+      DATA Q1,Q2,Q3,Q4,Q5,Q6,Q7/1.25331414D0,-0.7832358D-1,0.2189568D-1,
+     .     -0.1062446D-1,0.587872D-2,-0.251540D-2,0.53208D-3/
+      IF(X.EQ.0.D0) THEN
+      BESSK0=1.D30
+      RETURN
+      ENDIF
+      IF(X.LE.2.D0) THEN
+      Y=X*X/4.D0
+      AX=-LOG(X/2.D0)*BESSI0(X)
+      BESSK0=AX+(P1+Y*(P2+Y*(P3+Y*(P4+Y*(P5+Y*(P6+Y*P7))))))
+      ELSE
+      Y=(2.D0/X)
+      AX=EXP(-X)/DSQRT(X)
+      BESSK0=AX*(Q1+Y*(Q2+Y*(Q3+Y*(Q4+Y*(Q5+Y*(Q6+Y*Q7))))))
+      ENDIF
+      RETURN
+      END
+
+! ----------------------------------------------------------------------
+      FUNCTION BESSK1(X)
+!     CALCUL DE LA FONCTION BESSEL MODIFIEE DE 3EME ESPECE D'ORDRE 1
+!     POUR TOUT X REEL POSITF NON NUL.
+!
+!     CALCULATES THE THE MODIFIED BESSEL FUNCTION OF THE THIRD KIND OF 
+!     ORDER ONE FOR ANY POSITIVE REAL ARGUMENT, X.
+! ----------------------------------------------------------------------
+      IMPLICIT NONE
+      REAL*8 X,BESSK1,Y,AX,P1,P2,P3,P4,P5,P6,P7,Q1,Q2,Q3,Q4,Q5,Q6,Q7
+      DATA P1,P2,P3,P4,P5,P6,P7/1.D0,0.15443144D0,-0.67278579D0,
+     .        -0.18156897D0,-0.1919402D-1,-0.110404D-2,-0.4686D-4/
+      DATA Q1,Q2,Q3,Q4,Q5,Q6,Q7/1.25331414D0,0.23498619D0,-0.3655620D-1,
+     .      0.1504268D-1,-0.780353D-2,0.325614D-2,-0.68245D-3/
+      IF(X.EQ.0.D0) THEN
+      BESSK1=1.D32
+      RETURN
+      ENDIF
+      IF(X.LE.2.D0) THEN
+      Y=X*X/4.D0
+      AX=LOG(X/2.D0)*BESSI1(X)
+      BESSK1=AX+(1.D0/X)*(P1+Y*(P2+Y*(P3+Y*(P4+Y*(P5+Y*(P6+Y*P7))))))
+      ELSE
+      Y=(2.D0/X)
+      AX=EXP(-X)/DSQRT(X)
+      BESSK1=AX*(Q1+Y*(Q2+Y*(Q3+Y*(Q4+Y*(Q5+Y*(Q6+Y*Q7))))))
+      ENDIF
+      RETURN
+      END
 
 c     solve_quadratic_real
 c     ##########################################################
@@ -1215,35 +1315,35 @@ c     local variables
 
 c     Begin program
 
-cc         CALL RANDOM_NUMBER(r)
 #ifdef _SPRNG
       r = sprng(stream)         
 #else
-      r = randlcg(seed)         !careful
+      CALL RANDOM_NUMBER(r)
+cc      r = randlcg(seed)         !careful
 #endif
       x1 = 2d0*r - 1d0      
 #ifdef _SPRNG
       r = sprng(stream)         
 #else
-      r = randlcg(seed)         !careful
+      CALL RANDOM_NUMBER(r)
+cc      r = randlcg(seed)         !careful
 #endif
-cc         CALL RANDOM_NUMBER(r)
       x2 = 2d0*r - 1d0
       w = x1*x1 + x2*x2
 
       do while(w>1d0)
-cc         CALL RANDOM_NUMBER(r)
 #ifdef _SPRNG
         r = sprng(stream)         
 #else
-        r = randlcg(seed)       !careful
+        CALL RANDOM_NUMBER(r)
+cc        r = randlcg(seed)       !careful
 #endif
         x1 = 2d0*r - 1d0
-cc            CALL RANDOM_NUMBER(r) 
 #ifdef _SPRNG
         r = sprng(stream)         
 #else
-        r = randlcg(seed)
+        CALL RANDOM_NUMBER(r) 
+cc        r = randlcg(seed)
 #endif
         x2 = 2d0*r - 1d0
         w = x1*x1 + x2*x2
@@ -1252,9 +1352,6 @@ cc            CALL RANDOM_NUMBER(r)
       w = sqrt((-2d0*log(w) ) / w )
       
       y1 = x2*w
-c$$$         y2 = x2*w
-c$$$         use_last = .true.
-c$$$      end if
 
 c     End program
       

@@ -502,7 +502,7 @@ cc        endif
 
 c     orbit_setup
 c     ######################################################################
-      subroutine orbit_setup(nx,ny,nz,xx,yy,zz
+      subroutine orbit_setup(g_def,igrid
      .                      ,bx,by,bz,bxcar,bycar,bzcar,jac,xmap,bcnd
      .                      ,tmax,smax,dtime
      .                      ,niter,atol,rtol,order,solen,picard
@@ -561,7 +561,7 @@ c     Begin program
 
 c     Do splines
 
-        call setupSplines(nx,ny,nz,xx,yy,zz
+        call setupSplines(g_def,igrid
      .                   ,orbit_conf%spline_conf%order,obcnd)
 
         call get_sp_domain_limits(xmin,xmax,ymin,ymax,zmin,zmax)

@@ -16,11 +16,18 @@ c #####################################################################
      .            ,createMGgrid
      $            ,consistencyCheck!,initGridSt,checkGrid
 
+#if !defined(petsc)
+        integer :: npx=1,npy=1,npz=1  !Serial processor allocation
+#else
+        integer :: npx=0,npy=0,npz=0  !Parallel processor allocation
+#endif
+        logical,private :: map_grid_pack=.false.
+
       contains
 
 c     createGrid
 c     #################################################################
-      subroutine createGrid(nx,ny,nz,gdef)
+      subroutine createGrid(nx,ny,nz,xmin,xmax,ymin,ymax,zmin,zmax,gdef)
 
 c     -----------------------------------------------------------------
 c     Defines logical grid and finds grid quantities for global mesh
@@ -33,6 +40,7 @@ c     Call variables
 
         integer :: nx,ny,nz
         type(grid_mg_def),pointer :: gdef
+        real(8) :: xmin,xmax,ymin,ymax,zmin,zmax
 
 c     Local variables
 
@@ -40,8 +48,6 @@ c     Local variables
         integer :: mpi_comm
 
 c     Begin program
-
-        pi = acos(-1d0)
 
 c     Initialize global quantities (from gdef, if existing) and MPI
 
@@ -51,61 +57,25 @@ c     Initialize global quantities (from gdef, if existing) and MPI
           nz = gdef%nglz
 #if defined(petsc)
           mpi_comm = gdef%mpi_comm
-          call processorAlloc(nx,ny,nz,gdef%mx,gdef%my,gdef%mz)
+          call processorAlloc(mpi_comm,nx,ny,nz,gdef%mx,gdef%my,gdef%mz)
 #endif
         else
-cc          nx = nxd
-cc          ny = nyd
-cc          nz = nzd
 #if defined(petsc)
           mpi_comm = MPI_COMM_WORLD
+          call processorAlloc(mpi_comm,nx,ny,nz,npx,npy,npz)
 #endif
         endif
 
-ccc     Allocate processors
-cc
-cc#if defined(petsc)
-cc        call initFortranMPI(mpi_comm,nx,ny,nz,npx,npy,npz)
-cc        call processorAlloc(nx,ny,nz,npx,npy,npz)
-cc#endif
+c     Create grid structures
 
-c     Initialize grid structure
+        call create_gdef(nx,ny,nz,xmin,xmax,ymin,ymax,zmin,zmax,gdef
+     .                  ,mpi_comm)
 
-        call initGridSt(nx,ny,nz
-     .                 ,xmin,xmax,ymin,ymax,zmin,zmax,gdef
-#if defined(petsc) || defined(samrai)
-     .                 ,mpi_comm=mpi_comm
-#endif
-#if defined(samrai)
-     .                 ,coarsen_in_x=.false.
-     .                 ,coarsen_in_y=.false.
-     .                 ,coarsen_in_z=.false.
-#endif
-     .                 )
-
-        grid_params => gdef  !Backward compatibility
-
-c     Create MPI communicators (requires grid_params; needed by defineGridMetric)
+c     Legacy assignments (backward compatibility)
 
 #if defined(petsc)
-        call create_MPI_comms
+        call initMPI(mpi_comm,np,my_rank)
 #endif
-
-c     Store grid metric parameters in grid metric structure
-
-cc        if (checkAnalMapDatabase() .or. coords == 'lpk') then
-        if (checkAnalMapDatabase()) then
-          call defineGridMetric(gdef)
-          gmetric => gdef%gmetric  !For backward compatibility
-        else
-          if (my_rank == 0 .and. coords /= 'ext') then
-            write (*,*) 'WARNING: Map "',coords,'" not in database'
-          endif
-        endif
-
-c     Perform grid check
-
-        if (check_grid.and.checkAnalMapDatabase()) call checkGrid(gdef)
 
       end subroutine createGrid
 
@@ -131,11 +101,321 @@ c     Begin program
 
       end subroutine destroyGrid
 
-c     initGridSt
+c     create_gdef
+c     ######################################################################
+      subroutine create_gdef(nx,ny,nz,xmin,xmax,ymin,ymax,zmin,zmax
+     .                    ,g_def,mpi_comm,coarsen_x,coarsen_y,coarsen_z
+     .                    ,np_x,np_y,np_z,pack_x,pack_y,pack_z)
+ 
+      implicit none
+
+c     ----------------------------------------------------------------------
+c     Initialize PARALLEL grid structure
+c     ----------------------------------------------------------------------
+     
+c     Call variables
+
+      integer :: nx,ny,nz,mpi_comm
+      type(grid_mg_def),pointer,INTENT(IN)  :: g_def
+      real(8) :: xmin,xmax,ymin,ymax,zmin,zmax
+      logical,optional :: coarsen_x,coarsen_y,coarsen_z
+     .                   ,pack_x,pack_y,pack_z
+      integer,optional :: np_x,np_y,np_z
+
+c     Local variables
+
+      integer :: il
+
+      logical :: exit_loop
+
+      real(8),pointer,dimension(:,:,:,:) :: carg
+
+      type(grid_mg_def),pointer :: g_def_sav => null()
+
+      type(grid_pack),dimension(3) :: g_pack
+
+      logical :: crsn_x,crsn_y,crsn_z
+
+c     Begin program
+      
+c     Initialize grid structure
+
+      call get_grid_pack_config(g_pack)
+
+      if (PRESENT(pack_x)) g_pack(1)%pack = pack_x
+      if (PRESENT(pack_y)) g_pack(2)%pack = pack_y
+      if (PRESENT(pack_z)) g_pack(3)%pack = pack_z
+
+      if (nx == 1) g_pack(1)%pack = .false.
+      if (ny == 1) g_pack(2)%pack = .false.
+      if (nz == 1) g_pack(3)%pack = .false.
+
+      call init_gdef(nx,ny,nz,xmin,xmax,ymin,ymax,zmin,zmax
+     .               ,g_pack,gparams,g_def
+#if defined(petsc) || defined(samrai)
+     .               ,mpi_comm=mpi_comm
+     .               ,np_x=np_x
+     .               ,np_y=np_y
+     .               ,np_z=np_z
+#endif
+#if defined(samrai)
+     .               ,coarsen_in_x=.false.
+     .               ,coarsen_in_y=.false.
+     .               ,coarsen_in_z=.false.
+#else
+     .               ,coarsen_in_x=coarsen_x
+     .               ,coarsen_in_y=coarsen_y
+     .               ,coarsen_in_z=coarsen_z
+     .               )
+#endif
+
+c     Store grid metric parameters in grid metric structure
+
+      if (checkAnalMapDatabase()) then
+        call defineGridMetric(g_def)
+      else
+        if (my_rank == 0 .and. coords /= 'ext') then
+          write (*,*) 'WARNING: Map "',coords,'" not in database'
+        endif
+      endif
+
+c     Create beyond-processor sub-grids for coarse MG solve
+
+#if defined(petsc) && defined(coarse_MG)
+      g_def%mpi_comm_crse = MPI_COMM_WORLD
+
+      il = 0
+      g_def_sav => g_def
+      do
+        il = il + 1
+
+        exit_loop= create_coarse_gdef(il,g_def_sav,g_def_sav%g_crse_def)
+        if (exit_loop) exit
+
+        g_def_sav => g_def_sav%g_crse_def
+      enddo
+
+      if (coarse_mg_debug) call coarse_mg_debug_io
+#endif
+
+c     Perform grid check
+
+      if (check_grid.and.checkAnalMapDatabase()) call checkGrid(g_def)
+
+c     End program
+
+#if defined(petsc) && defined(coarse_MG)
+      contains
+
+c     coarse_mg_debug_io
+c     ######################################################################
+      subroutine coarse_mg_debug_io
+
+      implicit none
+
+      integer :: il
+
+      if (my_rank == 0) then
+        write (*,*) '-------------'
+        write (*,*) 'Final summary'
+        write (*,*) '-------------'
+      endif
+
+      il = 0
+
+      g_def_sav => g_def
+
+      if (my_rank == 0) write (*,*) 'Fine levels',g_def_sav%ngrid
+      if (my_rank == 0) write (*,*) "Fine X dims",g_def_sav%nxv
+      if (my_rank == 0) write (*,*) "Fine Y dims",g_def_sav%nyv
+
+      do while(associated(g_def_sav%g_crse_def))
+        il = il + 1
+
+        if (my_rank == 0) then
+          write (*,*) "************************"
+          write (*,*) "Level "//trim(int2char(il))//" associated"
+          write (*,*) "************************"
+        endif
+
+        g_def_sav => g_def_sav%g_crse_def
+
+        if (my_rank == 0) write (*,*) 'Coarse levels',g_def_sav%ngrid
+        if (my_rank == 0) write (*,*) "Coarse X dims",g_def_sav%nxv
+        if (my_rank == 0) write (*,*) "Coarse Y dims",g_def_sav%nyv
+
+        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
+      enddo
+
+      end subroutine coarse_mg_debug_io
+#endif
+        
+      end subroutine create_gdef
+
+#if defined(petsc) && defined(coarse_MG)
+c     create_coarse_gdef
+c     ######################################################################
+      function create_coarse_gdef(il,g_def,g_crse_def) result(exit_loop)
+ 
+      implicit none
+
+c     ----------------------------------------------------------------------
+c     Initialize grid structure over COARSE mesh
+c     ----------------------------------------------------------------------
+     
+c     Call variables
+
+      integer :: il
+      logical :: exit_loop
+      type(grid_mg_def),pointer,INTENT(INOUT)  :: g_def
+      type(grid_mg_def),pointer,INTENT(OUT) :: g_crse_def
+
+c     Local variables
+
+      integer :: mpi_comm_splt,mpi_comm_crse,mgcf
+      integer :: igr,nxg,nyg,nzg,npx,npy,npz
+
+c     Begin program
+
+      exit_loop = create_MG_comms(g_def,mpi_comm_splt,mpi_comm_crse)
+
+      igr = g_def%ngrid  !Last grid level
+
+c     Compute # procs involved
+
+      mgcf = MG_get_proc_coarsen_factor()
+
+      npx = max(g_def%mx/mgcf,1)
+      npy = max(g_def%my/mgcf,1)
+      npz = max(g_def%mz/mgcf,1)
+
+c     Global mesh
+
+      nxg = g_def%nxgl(igr)
+      nyg = g_def%nygl(igr)
+      nzg = g_def%nzgl(igr)
+
+c     Init coarse mesh structure
+
+      call init_gdef(nxg,nyg,nzg
+     .               ,g_def%gxmin,g_def%gxmax
+     .               ,g_def%gymin,g_def%gymax
+     .               ,g_def%gzmin,g_def%gzmax
+     .               ,g_def%g_pack,g_def%params
+     .               ,g_crse_def
+     .               ,np_x=npx,np_y=npy,np_z=npz
+     .               ,mpi_comm=mpi_comm_splt
+     .               )
+
+      g_crse_def%mpi_comm_crse = mpi_comm_crse
+
+c     Gather map and define grid metrics
+
+      if (checkAnalMapDatabase()) call defineGridMetric(g_crse_def)
+
+c     Diagnostics
+
+      if (coarse_mg_debug) then
+cc        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
+        if (my_rank == 0) then
+          write (*,*) "************************"
+          write (*,*) "Level "//trim(int2char(il))//" created"
+          write (*,*) "************************"
+        endif
+        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
+      endif
+
+c     End program
+        
+      end function create_coarse_gdef
+#endif
+
+c     createMGMetricHierarchy
 c     #################################################################
-      subroutine initGridSt(nxg,nyg,nzg,gxmin,gxmax,gymin,gymax,gzmin
-     .     ,gzmax,gdef,mpi_comm,np_x,np_y,np_z,coarsen_in_x,coarsen_in_y
-     .     ,coarsen_in_z)
+      subroutine createMGMetricHierarchy(g_def,xf)
+
+        implicit none
+
+c     ----------------------------------------------------------------------
+c     Creates grid metric hierarchy in g_def when providing external map xcar
+c     ----------------------------------------------------------------------
+
+c     Call variables
+
+        type(grid_mg_def),pointer,INTENT(INOUT)  :: g_def
+
+        real(8),dimension(:,:,:,:),optional :: xf
+
+c     Local variables
+
+        integer :: nxl,nyl,nzl,ierr
+        real(8),pointer,dimension(:,:,:,:) :: xc
+        type(grid_mg_def),pointer :: gc_def => null()
+     .                              ,gf_def => null()
+
+c     Begin program
+
+        if (.not.associated(g_def)) then
+           call pstop("createGridMetricHierarchy"
+     $               ,"Target Metric not allocated")
+        endif
+        
+        if (PRESENT(xf)) then
+          call defineGridMetric(g_def,xcar=xf,ierr=ierr)
+
+          if (ierr /= 0 .and. my_rank == 0) then
+            write (*,*) ' >>> Discarding last mesh due to jac < 0'
+            return
+          endif
+        endif
+
+c     Cycle through grid hierarchies
+
+        gf_def => g_def
+        gc_def => g_def%g_crse_def
+
+        do while (associated(gc_def))
+
+          nxl = gc_def%nxv(1)
+          nyl = gc_def%nyv(1)
+          nzl = gc_def%nzv(1)
+          allocate(xc(0:nxl+1,0:nyl+1,0:nzl+1,3))
+
+          !Gather coarsest mesh over sub-procs
+          call find_global(gf_def%gmetric%grid(gf_def%ngrid)%car,xc
+#if defined(petsc) 
+     .                    ,map_bc=.true.,mpi_comm=gc_def%mpi_comm_crse
+#endif
+     .                    )
+
+          call defineGridMetric(gc_def,xcar=xc,ierr=ierr)
+
+          deallocate(xc)
+
+          gf_def => gc_def
+          gc_def => gf_def%g_crse_def
+
+          !Check for negative Jac, and if so deallocate subsequent grid levels and exit
+          if (ierr /= 0) then
+            if (my_rank == 0)
+     .           write (*,*) ' >>> Discarding last mesh due to jac < 0'
+            call deallocateGridStructure(gc_def)
+            exit                
+          endif
+
+        enddo
+
+        nullify(gf_def,gc_def)
+
+c     End program
+
+      end subroutine createMGMetricHierarchy
+
+c     init_gdef
+c     #################################################################
+      subroutine init_gdef(nxg,nyg,nzg,gxmin,gxmax,gymin,gymax,gzmin
+     .     ,gzmax,g_pack,gparams,gdef,mpi_comm,np_x,np_y,np_z
+     .     ,coarsen_in_x,coarsen_in_y ,coarsen_in_z)
 
 c     -----------------------------------------------------------------
 c     Initializes grid structure, including MG pointers and PETSc
@@ -143,6 +423,8 @@ c     hierarchical mesh. On input:
 c       * nxg,nyg,nzg: global grid size
 c       * gxmin,gxmax,gymin,gymax,gzmin,gzmax: global grid size
 c       * gdef (type grid_mg_def): variable that stores grid definition.
+c       * g_pack: grid packing info
+c       * gparams: grid setup info
 c     Optional parameters:
 c       * mpi_comm: MPI communicator
 c       * np_x,np_y,np_z: processor distribution
@@ -159,10 +441,14 @@ c     Call variables
 
         type(grid_mg_def),pointer :: gdef
 
+        real(8) :: gxmin,gxmax,gymin,gymax,gzmin,gzmax
+
+        type(grid_pack),dimension(3) :: g_pack
+
+        real(8) :: gparams(ngparams)
+
         integer,optional :: mpi_comm,np_x,np_y,np_z
         logical,optional :: coarsen_in_x,coarsen_in_y,coarsen_in_z
-
-        real(8) :: gxmin,gxmax,gymin,gymax,gzmin,gzmax
 
 c     Local variables
 
@@ -213,36 +499,36 @@ c     Find adequate number of grid levels (for MG)
 
         if (cx) then
           if (mx == 0)
-     .         call pstop('initGridSt','Undefined proc. alloc. in X')
+     .         call pstop('init_gdef','Undefined proc. alloc. in X')
 
-          if (mx > nxg) call pstop('initGridSt','Too many procs in X')
+          if (mx > nxg) call pstop('init_gdef','Too many procs in X')
 
           nxx = nxg/mx
-          ngrdx = MG_levels(nxx,mg_ratio)
+          ngrdx = MG_levels(nxx,mg_ratio,mx)
         else
           ngrdx = 1
         endif
 
         if (cy) then
           if (my == 0)
-     .         call pstop('initGridSt','Undefined proc. alloc. in Y')
+     .         call pstop('init_gdef','Undefined proc. alloc. in Y')
 
-          if (my > nyg) call pstop('initGridSt','Too many procs in Y')
+          if (my > nyg) call pstop('init_gdef','Too many procs in Y')
 
           nyy = nyg/my
-          ngrdy = MG_levels(nyy,mg_ratio)
+          ngrdy = MG_levels(nyy,mg_ratio,my)
         else
           ngrdy = 1
         endif
 
         if (cz) then
           if (mz == 0)
-     .         call pstop('initGridSt','Undefined proc. alloc. in Z')
+     .         call pstop('init_gdef','Undefined proc. alloc. in Z')
 
-          if (mz > nzg) call pstop('initGridSt','Too many procs in Z')
+          if (mz > nzg) call pstop('init_gdef','Too many procs in Z')
 
           nzz = nzg/mz
-          ngrdz = MG_levels(nzz,mg_ratio)
+          ngrdz = MG_levels(nzz,mg_ratio,mz)
         else
           ngrdz = 1
         endif
@@ -297,16 +583,21 @@ c     Create MG grid hierarchy
         gdef%g_pack = g_pack
         gdef%params = gparams
 
+        map_grid_pack = setup_grid_packing(coords,gdef)
+
+cc        write (*,*) my_rank,'Grid config',gdef%g_pack(1)
+
         call createMGgrid(gdef)
 
 c     Create fortran PETSc parallel grid hierarchy (parallel version)
 
 #if defined(petsc)
         call createPETScGrid(gdef,0)
-        call setup_petsc_BC   !Set PETSc BC flags
+        call setup_petsc_BC(gdef)   !Set PETSc BC flags
+        call create_MPI_comms(gdef) !Set MPI comms
 #endif
 
-      end subroutine initGridSt
+      end subroutine init_gdef
 
 c     createMGgrid
 c     #################################################################
@@ -623,40 +914,13 @@ c     Begin program
         zmin = gdef%gzmin
         zmax = gdef%gzmax
 
-c     Grid packing processing
-
-        if (    gdef%g_pack(1)%pack
-     .      .or.gdef%g_pack(2)%pack
-     .      .or.gdef%g_pack(3)%pack) then
-
-          map_grid_pack = (coords /= 'lpk')  !Do not pack via map if packing logical mesh ("lpk")
-
-          if (map_grid_pack) numerical_grid = .true.
-
-          !Save packing configuration
-          gp_config = 0d0
-
-          if (map_grid_pack) then
-            if (gdef%g_pack(1)%pack) then
-              gp_config(1) = gdef%g_pack(1)%xp
-              gp_config(2) = gdef%g_pack(1)%dx0/(xmax-xmin)*nxx
-            endif
-
-            if (gdef%g_pack(2)%pack) then
-              gp_config(3) = gdef%g_pack(2)%xp
-              gp_config(4) = gdef%g_pack(2)%dx0/(ymax-ymin)*nyy
-            endif
-
-            if (gdef%g_pack(3)%pack) then
-              gp_config(5) = gdef%g_pack(3)%xp
-              gp_config(6) = gdef%g_pack(3)%dx0/(zmax-zmin)*nzz
-            endif
-          endif
-        endif
-
 c     Coordinate-specific checks
 
+        if (map_grid_pack) numerical_grid = .true.
+
         select case (coords)
+        case ('s3d')
+          numerical_grid = .true.
         case ('car')
           no_map = .not.map_grid_pack
           if (no_map) numerical_grid = .false.
@@ -701,45 +965,93 @@ c     Coordinate-specific checks
 
 c     checkGrid
 c     #################################################################
-      subroutine checkGrid(gdef)
+      subroutine checkGrid(g_def)
 
 c     -----------------------------------------------------------------
 c     Dumps grid info and checks metric tensors.
 c     -----------------------------------------------------------------
 
+        use io
+
         implicit none
 
 c     Call variables
 
-        type(grid_mg_def),pointer :: gdef
+        type(grid_mg_def),pointer :: g_def
 
 c     Local variables
 
-        integer :: funit=11111
+        integer :: funit,il
+
+        real(8) :: xmax,ymax,zmax,xmin,ymin,zmin
+
+        character(100) :: file
+        character(4) :: level
+
+        type(grid_mg_def),pointer :: gdef => null()
 
 c     Begin program
+
+        xmin = g_def%gxmin
+        xmax = g_def%gxmax
+
+        ymin = g_def%gymin
+        ymax = g_def%gymax
+
+        zmin = g_def%gzmin
+        zmax = g_def%gzmax
 
         if (my_rank == 0) then
           write (*,*)
           write (*,*) 'Checking grid...'
         endif
 
-        open(unit=funit,file='grid_p'//trim(int2char(my_rank))//'.txt'
-     .      ,status='unknown')
+        file = 'grid_p'//trim(int2char(my_rank))//'.txt'
 
-        call MGcheck
+        funit = find_unit(11111)
+        open(unit=funit,file=trim(file),status='unknown')
 
-        call numericalGridCoeffsCheck
+        il = 0
+        gdef => g_def
+        do while(associated(gdef))
+          level = 'cl'//trim(int2char(il))
 
-        call graphicsCheck
+          write (funit,*)
+          write (funit,*)'*************************************'
+          write (funit,*)'Grid check in COARSE grid level '
+     .                  //trim(int2char(il))
+          write (funit,*)'*************************************'
+          write (funit,*)
+          write (funit,*)
 
-        call hessianZeroForceCheck(1)
+          if (my_rank == 0) then
+            write (*,*)
+            write (*,*)'*************************************'
+            write (*,*)'Grid check in COARSE grid level '
+     .             //trim(int2char(il))
+            write (*,*)'*************************************'
+            write (*,*)
+            write (*,*)
+          endif
+          
+          call MGcheck
 
-cc        call symmCheck(1)
+          call numericalGridCoeffsCheck
+
+          call graphicsCheck
+
+          call hessianZeroForceCheck(1)
+
+cc          call symmCheck(1)
+
+          il = il + 1
+
+          gdef => gdef%g_crse_def
+        end do
 
         close(funit)
 
-        call pstop('checkGrid','End of grid check')
+        call pstop("checkGrid","Finished grid check")
 
 c     End program
 
@@ -866,17 +1178,17 @@ c     Begin program
           do j = 1,nyv(igy)
             do k = 1,nzv(igz)
 
-              call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+              call getMGmap(gdef,i,j,k,igx,igy,igz,ig,jg,kg)
 
               x1 = gdef%xx(ig)
               y1 = gdef%yy(jg)
               z1 = gdef%zz(kg)
 
-              hess = -christ_2knd(i,j,k,igx,igy,igz)
+              hess = -christ_2knd(gdef,i,j,k,igx,igy,igz)
 
-              hess_cnv(1,:,:) = hessian_cnv(1,x1,y1,z1)
-              hess_cnv(2,:,:) = hessian_cnv(2,x1,y1,z1)
-              hess_cnv(3,:,:) = hessian_cnv(3,x1,y1,z1)
+              hess_cnv(1,:,:) = hessian_cnv(gdef,1,x1,y1,z1)
+              hess_cnv(2,:,:) = hessian_cnv(gdef,2,x1,y1,z1)
+              hess_cnv(3,:,:) = hessian_cnv(gdef,3,x1,y1,z1)
 
               do i1=1,3
                 do j1=1,3
@@ -947,7 +1259,7 @@ c     Begin program
           do j = 1,nyv(igy)
             do i = 1,nxv(igx)   !Start at 2 to avoid singular points
 
-              call getMGmap(i,j,k,igx,igy,igz,ig,jg,kg)
+              call getMGmap(gdef,i,j,k,igx,igy,igz,ig,jg,kg)
 
               x1 = gdef%xx(ig)
               y1 = gdef%yy(jg)
@@ -1070,16 +1382,16 @@ c     Begin program
             do i = ilom,ihip
               mag1 = mag1
      .             + (gdef%gmetric%grid(igrid)%jac  (i,j,k)
-     .               -jacobian(i,j,k,igx,igy,igz))**2
+     .               -jacobian(gdef,i,j,k,igx,igy,igz))**2
               mag2 = mag2
      .             + (gdef%gmetric%grid(igrid)%gsub (i,j,k,:,:)
-     .               -g_sub   (i,j,k,igx,igy,igz))**2
+     .               -g_sub   (gdef,i,j,k,igx,igy,igz))**2
               mag3 = mag3
      .             + (gdef%gmetric%grid(igrid)%gsup (i,j,k,:,:)
-     .               -g_sup   (i,j,k,igx,igy,igz))**2
+     .               -g_sup   (gdef,i,j,k,igx,igy,igz))**2
               mag4 = mag4
      .             + (gdef%gmetric%grid(igrid)%Gamma(i,j,k,:,:,:)
-     .               -christ_2knd(i,j,k,igx,igy,igz))**2
+     .               -christ_2knd(gdef,i,j,k,igx,igy,igz))**2
             enddo
           enddo
         enddo
@@ -1109,52 +1421,57 @@ c     Test of numerical calculation vs. analytical calculation of
 c     grid quantities.
 c     -----------------------------------------------------------------
 
-      use grid_debug
+      use xdraw_io
 
       implicit none
 
       integer    :: nx,ny,nz,i,j,k,l,m,n,igrid,ivar
+     .             ,nxg,nyg,nzg
       real(8)    :: tensor(3,3,3),vec(3)
-      character(30) :: debugfile,drawfile
 
       integer   ,parameter :: nvar=50
-      character(30) :: descr(nvar)
+      character(30) :: descr(nvar),drawfile,debugfile
 
       logical :: dump_diff
+
+      real(8),allocatable,dimension(:,:,:) :: dbl
 
 c     Begin program
 
 c     Output
 
       write(funit,*)
-      write(funit,*) '**********************************'
       write(funit,*) 'Dumping grid debugging graphics...'
-      write(funit,*) '**********************************'
       write(funit,*)
 
-      write(*    ,*)
-      write(*    ,*) '**********************************'
-      write(*    ,*) 'Dumping grid debugging graphics...'
-      write(*    ,*) '**********************************'
-      write(*    ,*)
+      if (my_rank == 0) then
+        write(*  ,*)
+        write(*  ,*) 'Dumping grid debugging graphics...'
+        write(*  ,*)
+      endif
 
       dump_diff = anal_map.and.numerical_grid.and.(.not.map_grid_pack)
 cc      dump_diff = .false.
 
       if (dump_diff) then
-        write(*    ,*)'Analytical mapping available; dumping diffs...'
-        write(funit,*)'Analytical mapping available; dumping diffs...'
+        if (my_rank == 0)
+     .    write(*    ,*)
+     .       '>> Analytical mapping available; dumping diffs...'
+        write(funit,*)
+     .       '>> Analytical mapping available; dumping diffs...'
       else
         if (.not.numerical_grid) then
-          write(*    ,*)'Dumping analytical qtys...'
-          write(funit,*)'Dumping analytical qtys...'
+          if (my_rank == 0)
+     .      write(*    ,*)'>> Dumping analytical qtys...'
+          write(funit,*)'>> Dumping analytical qtys...'
         else
-          write(*    ,*)'Dumping numerical qtys...'
-          write(funit,*)'Dumping numerical qtys...'
+          if (my_rank == 0)
+     .      write(*    ,*)'>> Dumping numerical qtys...'
+          write(funit,*)'>> Dumping numerical qtys...'
         endif
       endif
       write(funit,*)
-      write(*,*)
+      if (my_rank == 0) write(*,*)
 
 c     Dump quantities
 
@@ -1164,6 +1481,10 @@ c     Dump quantities
         ny = gdef%nyv(igrid)
         nz = gdef%nzv(igrid)
 
+        nxg = gdef%nxgl(igrid)
+        nyg = gdef%nygl(igrid)
+        nzg = gdef%nzgl(igrid)
+
         do k=0,nz+1
 
         write(funit,*)
@@ -1172,32 +1493,26 @@ c     Dump quantities
         write(funit,*) '   ******************************'
         write(funit,*)
 
-        !Open .bin file
-        debugfile = 'grid_gl'//trim(int2char(igrid))
-     .                 //'_k='//trim(int2char(k))
-     .                 //'_p' //trim(int2char(my_rank))//'.bin'
-        drawfile = 'drawgl'//trim(int2char(igrid))
-     .              //'_k='//trim(int2char(k))
-     .               //'_p'//trim(int2char(my_rank))//'.in'
-        open(unit=110,file=trim(debugfile),form='unformatted'
-     .    ,status='replace')
+        debugfile = trim(level)//'_grid_gl'//trim(int2char(igrid))
+     .                         //'_k='//trim(int2char(k))//'.bin'
 
         !Allocate dummy array
-        allocate(dbg(0:nx+1,0:ny+1,1,1))
+        allocate(dbl(0:nx+1,0:ny+1,0:nz+1))
 
         !Jacobian
-        do j=0,ny+1
-          do i=0,nx+1
-            dbg(i,j,1,1) = gdef%gmetric%grid(igrid)%jac(i,j,k)
-cc            dbg(i,j,1,1) = gdef%gmetric%grid(igrid)%jac_v(i,j,k)
-            if (dump_diff) dbg(i,j,1,1) = dbg(i,j,1,1)
-     .                    -jacobian(i,j,k,igrid,igrid,igrid)
-          enddo
-        enddo
         write(funit,*) '   Dumping Jacobian'
         ivar = 1
         descr(ivar) = 'jac'
-        call contour(dbg(:,:,1,1),nx+2,ny+2,0d0,xmax,0d0,ymax,0,110)
+
+        do j=0,ny+1
+          do i=0,nx+1
+            dbl(i,j,1) = gdef%gmetric%grid(igrid)%jac(i,j,k)
+            if (dump_diff) dbl(i,j,1) = dbl(i,j,1)
+     .                    -jacobian(gdef,i,j,k,igrid,igrid,igrid)
+          enddo
+        enddo
+
+        call dumpGlobalField(gdef,debugfile,nx,ny,nz,nxg,nyg,nzg,dbl,0)
 
 cc        !Volume
 cc        dbg = 0d0
@@ -1222,75 +1537,82 @@ cc        call contour(dbg(:,:,1,1),nx+2,ny+2,0d0,xmax,0d0,ymax,1,110)
         !Metric tensors
         do l=1,3
           do m=l,3
+            write(funit,*) '   Dumping Gsub component',l,m
+            ivar = ivar+1
+            descr(ivar)='gsub('//trim(int2char(l))//','
+     .                         //trim(int2char(m))//')'
+
             do j=0,ny+1
               do i=0,nx+1
-                dbg(i,j,1,1) =
+                dbl(i,j,1) =
      .               gdef%gmetric%grid(igrid)%gsub(i,j,k,l,m)
      .              *gdef%gmetric%grid(igrid)%jac(i,j,k)
 cc     .               gdef%gmetric%grid(igrid)%gsub_v(i,j,k,l,m)
 cc     .              *gdef%gmetric%grid(igrid)%jac_v(i,j,k)
                 if (dump_diff) then
-                  tensor(:,:,1)  = g_sub(i,j,k,igrid,igrid,igrid)
-                  dbg(i,j,1,1) = dbg(i,j,1,1)
+                  tensor(:,:,1)  = g_sub(gdef,i,j,k,igrid,igrid,igrid)
+                  dbl(i,j,1) = dbl(i,j,1)
      .                    -tensor(l,m,1)
-     .                    *jacobian(i,j,k,igrid,igrid,igrid)
+     .                    *jacobian(gdef,i,j,k,igrid,igrid,igrid)
                 endif
               enddo
             enddo
-            write(funit,*) '   Dumping Gsub component',l,m
-            ivar = ivar+1
-            descr(ivar)='gsub('//trim(int2char(l))//','
-     .                         //trim(int2char(m))//')'
-            call contour(dbg(:,:,1,1),nx+2,ny+2,0d0,xmax,0d0,ymax,1,110)
+
+            call dumpGlobalField(gdef,debugfile,nx,ny,nz,nxg,nyg,nzg,dbl
+     .                          ,1)
           enddo
         enddo
 
         do l=1,3
           do m=l,3
+            write(funit,*) '   Dumping Gsup component',l,m
+            ivar = ivar+1
+            descr(ivar)='gsup('//trim(int2char(l))//','
+     .                         //trim(int2char(m))//')'
+
             do j=0,ny+1
               do i=0,nx+1
-                dbg(i,j,1,1) =
+                dbl(i,j,1) =
 cc     .               gdef%gmetric%grid(igrid)%gsup_v(i,j,k,l,m)
 cc     .              *gdef%gmetric%grid(igrid)%jac_v(i,j,k)
      .               gdef%gmetric%grid(igrid)%gsup(i,j,k,l,m)
      .              *gdef%gmetric%grid(igrid)%jac(i,j,k)
                 if (dump_diff) then
-                  tensor(:,:,1)  = g_sup(i,j,k,igrid,igrid,igrid)
-                  dbg(i,j,1,1) = dbg(i,j,1,1)
+                  tensor(:,:,1)  = g_sup(gdef,i,j,k,igrid,igrid,igrid)
+                  dbl(i,j,1) = dbl(i,j,1)
      .                        -tensor(l,m,1)
-     .                    *jacobian(i,j,k,igrid,igrid,igrid)
+     .                    *jacobian(gdef,i,j,k,igrid,igrid,igrid)
                 endif
               enddo
             enddo
-            write(funit,*) '   Dumping Gsup component',l,m
-            ivar = ivar+1
-            descr(ivar)='gsup('//trim(int2char(l))//','
-     .                         //trim(int2char(m))//')'
-            call contour(dbg(:,:,1,1),nx+2,ny+2,0d0,xmax,0d0,ymax,1,110)
+            call dumpGlobalField(gdef,debugfile,nx,ny,nz,nxg,nyg,nzg,dbl
+     .                          ,1)
           enddo
         enddo
 
         !Cnv vectors
         do l=1,3
           do m=1,3
-            do j=0,ny+1
-              do i=0,nx+1
-                dbg(i,j,1,1) =
-     .               gdef%gmetric%grid(igrid)%cnv(i,j,k,l,m)
-     .              *gdef%gmetric%grid(igrid)%jac(i,j,k)
-                if (dump_diff) then
-                  vec = contravariantVector(l,i,j,k,igrid,igrid,igrid)
-     .                 *jacobian(i,j,k,igrid,igrid,igrid)
-                  dbg(i,j,1,1) = dbg(i,j,1,1)-vec(m)
-                endif
-              enddo
-            enddo
             write(funit,*) '   Dumping Cnv vector',l,' component',m
             ivar = ivar+1
             descr(ivar)='Cnv_'//trim(int2char(l))//'('
      .                        //trim(int2char(m))//')'
-            call contour(dbg(:,:,1,1),nx+2,ny+2,0d0,xmax,0d0,ymax,1
-     .                    ,110)
+
+            do j=0,ny+1
+              do i=0,nx+1
+                dbl(i,j,1) =
+     .               gdef%gmetric%grid(igrid)%cnv(i,j,k,l,m)
+     .              *gdef%gmetric%grid(igrid)%jac(i,j,k)
+                if (dump_diff) then
+                  vec =
+     .               contravariantVector(gdef,l,i,j,k,igrid,igrid,igrid)
+     .                 *jacobian(gdef,i,j,k,igrid,igrid,igrid)
+                  dbl(i,j,1) = dbl(i,j,1)-vec(m)
+                endif
+              enddo
+            enddo
+            call dumpGlobalField(gdef,debugfile,nx,ny,nz,nxg,nyg,nzg,dbl
+     .                          ,1)
           enddo
         enddo
 
@@ -1298,41 +1620,52 @@ cc     .              *gdef%gmetric%grid(igrid)%jac_v(i,j,k)
         do l=1,3
           do m=1,3
             do n=m,3
-              do j=0,ny+1
-                do i=0,nx+1
-                  dbg(i,j,1,1) =
-     .                 gdef%gmetric%grid(igrid)%Gamma(i,j,k,l,m,n)
-     .                *gdef%gmetric%grid(igrid)%jac(i,j,k)
-                  if (dump_diff) then
-                    tensor  = christ_2knd(i,j,k,igrid,igrid,igrid)
-                    dbg(i,j,1,1) = dbg(i,j,1,1)
-     .                    -tensor(l,m,n)
-     .                    *jacobian(i,j,k,igrid,igrid,igrid)
-                  endif
-                enddo
-              enddo
               write(funit,*) '   Dumping Gamma component',l,m,n
               ivar = ivar+1
               descr(ivar)='Gamma'//trim(int2char(l))//'('
      .                           //trim(int2char(m))//','
      .                           //trim(int2char(n))//')'
-              call contour(dbg(:,:,1,1),nx+2,ny+2,0d0,xmax,0d0,ymax,1
-     .                    ,110)
+
+              do j=0,ny+1
+                do i=0,nx+1
+                  dbl(i,j,1) =
+     .                 gdef%gmetric%grid(igrid)%Gamma(i,j,k,l,m,n)
+     .                *gdef%gmetric%grid(igrid)%jac(i,j,k)
+                  if (dump_diff) then
+                    tensor  = christ_2knd(gdef,i,j,k,igrid,igrid,igrid)
+                    dbl(i,j,1) = dbl(i,j,1)
+     .                    -tensor(l,m,n)
+     .                    *jacobian(gdef,i,j,k,igrid,igrid,igrid)
+                  endif
+                enddo
+              enddo
+              call dumpGlobalField(gdef,debugfile,nx,ny,nz,nxg,nyg,nzg
+     .                            ,dbl,1)
             enddo
           enddo
         enddo
 
-        deallocate(dbg)
-        close(110)
+        deallocate(dbl)
 
-        !Create draw*.in file
-        call createDrawInCfile(ivar,debugfile,'Grid debug'
-     .                        ,'t','x','y',descr,'-c -X0 -L57'
-     .                        ,drawfile)
+        if (my_rank == 0) then
+          drawfile  = 'draw'//trim(level)//'_gl'//trim(int2char(igrid))
+     .               //'_k='//trim(int2char(k))//'.in'
+          !Create draw*.in file
+          call createDrawInCfile(ivar,debugfile,'Grid debug'
+     .                          ,'t','x','y',descr,'-c -X0 -L57'
+     .                          ,drawfile)
+        endif
 
-        enddo
-      enddo
+        enddo      !k loop
+     
+      enddo        !Grid level loop
 
+      if (my_rank == 0) then
+        write(*,*)
+        write(*,*) 'Done!'
+        write(*,*) 
+      endif
+      
       write(funit,*)
       write(funit,*) 'Done!'
       write(funit,*) 
@@ -1380,7 +1713,7 @@ c     Begin program
               write(funit,*)
               write(funit,*) 'Grid:',igrid,'  Grid node:',i,j,k
 
-              call getMGmap(i,j,k,igrid,igrid,igrid,ig,jg,kg)
+              call getMGmap(gdef,i,j,k,igrid,igrid,igrid,ig,jg,kg)
 
               gsup  = gdef%gmetric%grid(igrid)%gsup(i,j,k,:,:)
               gsub  = gdef%gmetric%grid(igrid)%gsub(i,j,k,:,:)
@@ -1515,7 +1848,7 @@ c     -----------------------------------------------------------------
 c     Symmetry test on map (only for applicable cases).
 c     -----------------------------------------------------------------
 
-      use grid_debug
+      use xdraw_io
 
       implicit none
 
@@ -1526,6 +1859,7 @@ c     Call variables
 c     Local variables
 
       integer    :: nx,ny,nz,i,j,k,l,m,n,igrid,ivar
+     .             ,nxg,nyg,nzg
       real(8)    :: tensor(3,3,3),vec(3)
       character(30) :: debugfile,drawfile
 
@@ -1533,6 +1867,8 @@ c     Local variables
       character(30) :: descr(nvar)
 
       logical :: dump_diff
+
+      real(8),allocatable,dimension(:,:,:) :: dbl
 
 c     Begin program
 
@@ -1558,6 +1894,10 @@ c     Dump quantities
         ny = gdef%nyv(igrid)
         nz = gdef%nzv(igrid)
 
+        nxg = gdef%nxgl(igrid)
+        nyg = gdef%nygl(igrid)
+        nzg = gdef%nzgl(igrid)
+
         do k=0,nz+1
 
         write(funit,*)
@@ -1568,45 +1908,44 @@ c     Dump quantities
 
         !Open .bin file
         debugfile = 'symm_grid_gl'//trim(int2char(igrid))
-     .                 //'k='//trim(int2char(k))
-     .                 //'p' //trim(int2char(my_rank))//'.bin'
+     .                 //'k='//trim(int2char(k))//'.bin'
         drawfile = 'drawsymm_gl'//trim(int2char(igrid))
-     .              //'_k='//trim(int2char(k))
-     .               //'_p'//trim(int2char(my_rank))//'.in'
-        open(unit=110,file=trim(debugfile),form='unformatted'
-     .    ,status='replace')
+     .              //'_k='//trim(int2char(k))//'.in'
 
         !Allocate dummy array
-        allocate(dbg(0:nx+1,0:ny+1,1,1))
+        allocate(dbl(0:nx+1,0:ny+1,0:nz+1))
 
         !Compare map along dimension dim
         select case(dim)
         case(1)
+          write(funit,*) '   Dumping SYMM test along X'
+          ivar = 1
+          descr(ivar) = 'X symm test'
+
           do j=0,ny+1
             do i=0,nx+1
-              dbg(i,j,1,1)=
+              dbl(i,j,1)=
      .             (gdef%gmetric%grid(igrid)%car(i     ,j,k,dim)
      .             +gdef%gmetric%grid(igrid)%car(nx+1-i,j,k,dim))
      .             -(xmax-xmin)
             enddo
           enddo
 
-          write(funit,*) '   Dumping SYMM test along X'
-          ivar = 1
-          descr(ivar) = 'X symm test'
-          call contour(dbg(:,:,1,1),nx+2,ny+2,0d0,xmax,0d0,ymax,0,110)
+          call dumpGlobalField(gdef,debugfile,nx,ny,nz,nxg,nyg,nzg,dbl
+     .                        ,0)
 
         case default
           call pstop('symmCheck','Dimension not implemented')
         end select
 
-        deallocate(dbg)
-        close(110)
+        deallocate(dbl)
 
         !Create draw*.in file
-        call createDrawInCfile(ivar,debugfile,'Grid debug'
-     .                        ,'t','x','y',descr,'-c -X0 -L57'
-     .                        ,drawfile)
+        if (my_rank == 0) then
+          call createDrawInCfile(ivar,debugfile,'Grid debug'
+     .                          ,'t','x','y',descr,'-c -X0 -L57'
+     .                          ,drawfile)
+        endif
 
         enddo
       enddo

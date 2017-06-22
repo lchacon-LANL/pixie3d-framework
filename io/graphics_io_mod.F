@@ -26,7 +26,7 @@ c ######################################################################
 
         integer   ,allocatable,dimension(:) :: nqty
 
-        logical    :: plot,skip_diag=.false.
+        logical    :: skip_diag=.false.
 
 #if defined(petsc)
         logical    :: hdf_plot=.true.,xdraw_plot=.true.
@@ -39,6 +39,8 @@ c ######################################################################
 #else
         logical    :: adios_plot=.false.
 #endif
+
+        logical    :: no_graphics_io=.false.
 
         integer    :: iming,imaxg,jming,jmaxg,kming,kmaxg,igroup
      .               ,iggx,iggy,iggz,iig,jjg,kkg
@@ -95,7 +97,8 @@ c     Local variables
      .                   ,ndplot,dplot
      .                   ,hdf_plot,xdraw_plot,adios_plot
      .                   ,prof_conf,cont_conf
-     .                   ,iplot,jplot,kplot
+     .                   ,iplot,jplot,kplot,no_graphics_io
+     .                   ,skip_diag
 
 c     Graphics defaults
 
