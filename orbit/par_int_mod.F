@@ -46,8 +46,8 @@ c     ---------------------------------------------------------------
       !Compute coefficient matrix for SDC kernels
       aa = 0d0
       aa(0,0) = 1d0
+
       j = 0
-cc      write (*,*) aa(j,0:j)
       do j=1,size(aa,1)-1
         aa(j,0) = aa(j-1,0)*(2*j-1)
         do i=1,j
@@ -55,6 +55,7 @@ cc      write (*,*) aa(j,0:j)
         enddo
 cc        write (*,*) aa(j,0:j)
       enddo
+
       aa = aa/sqrt(pi)
 
       !Compute prefactor for SDC kernels
@@ -1931,7 +1932,9 @@ c     Begin program
 
         init_lag = .true.
 
-        l2d = .false.   !Indicate 3D treatment
+        l2d = .false.   !Indicates 3D treatment
+
+        solen = .false. !Indicates non-solenoidal treatment
 
         have_chi = PRESENT(chi)
 
@@ -2183,12 +2186,12 @@ c     --------------------------------------------------------------
 
         implicit none
 
+c     Local variables
+
         integer :: nfiles,ig,jg,kg,i,j,k,bcnd(6,3)
         real(8) :: x1,x2,x3
 
         real(8),pointer,dimension(:,:,:,:) :: car,car0,bcov
-
-cc        logical :: impose_bc
 
 c     Begin program
 
@@ -2211,30 +2214,27 @@ c     Check file configuration
 
 c     Read POINCARE data
 
-        nullify(grid_params)
-        solen = .false.
         sporder = spline_order
         call read_poinc_files(poinc_file) !This sets up orbit and splines
 
 c     Recreate mesh and grid metrics (using POINCARE file info)
 
-        nxl = ihipg-ilomg-1
-        nyl = jhipg-jlomg-1
-        nzl = khipg-klomg-1
+        !Reset domain limits and BCs
+        call get_poinc_domain_ptys(xmin,xmax,ymin,ymax,zmin,zmax,bcond)
 
-        call destroyGrid(gv%gparams) !Destroy mesh
-        call get_poinc_domain_ptys(xmin,xmax,ymin,ymax,zmin,zmax,bcond) !Reset domain limits
-        call createGrid(nxg,nyg,nzg,gv%gparams) !Recreate mesh
+        !Recreate mesh
+        call createGrid(nxg,nyg,nzg,gv%gparams)
 
+        !Assign global coords
         xx = grid_params%xg
         yy = grid_params%yg
         zz = grid_params%zg
 
-        allocate(car (0:nx+1,0:ny+1,0:nz+1,3)
-     .          ,car0(0:nx+1,0:ny+1,0:nz+1,3)
-     .          ,bcov(0:nx+1,0:ny+1,0:nz+1,3))
-
+        !Recreate map by interpolation
         if (.not.checkAnalMapDatabase()) then
+          allocate(car (0:nx+1,0:ny+1,0:nz+1,3)
+     .            ,car0(0:nx+1,0:ny+1,0:nz+1,3))
+          
           do k=0,nz+1
             do j=0,ny+1
               do i=0,nx+1
@@ -2259,11 +2259,13 @@ c     Recreate mesh and grid metrics (using POINCARE file info)
 
           !Rebuild metrics
           call defineGridMetric(grid_params,xcar=car)
+
+          deallocate(car,car0)
         endif
 
 c     Assign LOCAL B by interpolating POINCARE data
 
-cc        impose_bc = .false.
+        allocate(bcov(0:nx+1,0:ny+1,0:nz+1,3))
 
         do k=0,nz+1
           do j=0,ny+1
@@ -2276,8 +2278,6 @@ cc        impose_bc = .false.
               if (ierr/=0) x2=min(max(x2,ymin),ymax)
               if (ierr/=0) x3=min(max(x3,zmin),zmax)
 
-cc              impose_bc = (ierr/=0).or.impose_bc
-
               call evalB(x1,x2,x3
      .                  ,bb(i,j,k,1)
      .                  ,bb(i,j,k,2)
@@ -2287,15 +2287,14 @@ cc              impose_bc = (ierr/=0).or.impose_bc
         enddo
 
         !BCs
-cc        if (impose_bc) then
-          car0 = bb !Assign EQU boundary values
-          bcnd(:,1) = bcond
-          bcnd(:,2) = bcond
-          bcnd(:,3) = bcond
-          where (bcnd == DEF) bcnd = EQU
-          call setBC(0,3,nx,ny,nz,bb,bcov,car0,bcnd
-     .              ,igrid,igrid,igrid,iorder=1)
-cc        endif
+        bcnd(:,1) = bcond
+        bcnd(:,2) = bcond
+        bcnd(:,3) = bcond
+        where (bcnd == DEF) bcnd = EQU
+        call setBC(0,3,nx,ny,nz,bb,bcov,bb,bcnd
+     .            ,igrid,igrid,igrid,iorder=1)
+
+        deallocate(bcov)
 
         !Cartesian components
         bcar = XformToCar(igrid,bb,.false.)
@@ -2309,7 +2308,6 @@ c     Assign GLOBAL arrays
 
 c     Destroy work space
 
-        deallocate(car,car0,bcov)
         call orbit_destroy !Destroys orbit and splines
 
       end subroutine get_global_data_from_file

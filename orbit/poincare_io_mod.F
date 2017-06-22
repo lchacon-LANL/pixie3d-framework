@@ -281,7 +281,7 @@ c     Call variables
 
 c     Local variables
 
-        integer :: ilomg,ihipg,jlomg,jhipg,klomg,khipg,nx,ny,nz
+        integer :: ilmg,ihpg,jlmg,jhpg,klmg,khpg,nx,ny,nz
      .            ,i,j,k
         real(8),pointer,dimension(:,:,:)   :: jac
         real(8),pointer,dimension(:,:,:,:) :: bb,bcar,car
@@ -335,21 +335,21 @@ cc        call sp_domain_limits(zz,bcnd(5),zmin,zmax)
 c     Local limits
 
         if (np > 1) then
-          read (upixie) ilomg,ihipg,jlomg,jhipg,klomg,khipg
+          read (upixie) ilmg,ihpg,jlmg,jhpg,klmg,khpg
         else
-          ilomg = 0
-          ihipg = nxg+1
+          ilmg = 0
+          ihpg = nxg+1
 
-          jlomg = 0
-          jhipg = nyg+1
+          jlmg = 0
+          jhpg = nyg+1
 
-          klomg = 0
-          khipg = nzg+1
+          klmg = 0
+          khpg = nzg+1
         endif
 
-        nx = ihipg-ilomg - 1
-        ny = jhipg-jlomg - 1
-        nz = khipg-klomg - 1
+        nx = ihpg-ilmg - 1
+        ny = jhpg-jlmg - 1
+        nz = khpg-klmg - 1
 
 c     Allocate local arrays
 
