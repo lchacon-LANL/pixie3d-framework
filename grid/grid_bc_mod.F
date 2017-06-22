@@ -2476,6 +2476,11 @@ c     Initialize BC grid quantities
       nz = size(vec,3)-2
       ncomp = size(vec,4)
 
+      allocate(vec0(0:nx+1,0:ny+1,0:nz+1,3))
+      vec0 = 0d0
+
+c     Initialize GLOBAL limits
+
       igxbc = igrid
       igybc = igrid
       igzbc = igrid
@@ -2483,8 +2488,6 @@ c     Initialize BC grid quantities
       nxbc = nx
       nybc = ny
       nzbc = nz
-
-c     Initialize GLOBAL limits
 
       iimin = gbc_def%ilo(igxbc)
       iimax = gbc_def%ihi(igxbc)
@@ -2534,14 +2537,11 @@ c     Fill PETSc ghost cells and PER BCs
         return
       endif
 
-c     Fill SP ghost cells
-
-      call sync_bc(SP)
+ccc     Fill SP ghost cells
+cc
+cc      call sync_bc(SP)
 
 c     Impose physical BCs
-
-      allocate(vec0(0:nx+1,0:ny+1,0:nz+1,3))
-      vec0 = 0d0
 
       do bctype=2,BCLIM             !Do not do PER=1; already done 
         do dim=1,3
@@ -2595,7 +2595,7 @@ c     #################################################################
 
       implicit none
 
-      integer :: bctype
+      integer,INTENT(IN) :: bctype
 
       do dim=1,3
         do loc=0,1
