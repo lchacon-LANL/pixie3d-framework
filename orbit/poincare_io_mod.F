@@ -669,7 +669,7 @@ c     End program
 c     get_poinc_domain_config
 c     ##################################################################
       subroutine get_poinc_domain_ptys(xmin,xmax,ymin,ymax,zmin,zmax
-     .                                ,bcnds,nx_g,ny_g,nz_g)
+     .                                ,bcnds,nx_g,ny_g,nz_g,toroidal)
 
 c     ------------------------------------------------------------------
 c     Extract domain properties from POINCARE file
@@ -682,6 +682,7 @@ c     Call variables
         integer :: bcnds(6)
         real(8) :: xmin,xmax,ymin,ymax,zmin,zmax
         integer,optional :: nx_g,ny_g,nz_g
+        logical,optional :: toroidal
 
 c     Local Variables
 
@@ -699,6 +700,8 @@ c     Begin program
         if (PRESENT(nx_g)) nx_g = nxg
         if (PRESENT(ny_g)) ny_g = nyg
         if (PRESENT(nz_g)) nz_g = nzg
+
+        if (PRESENT(toroidal)) toroidal = tor
 
 c     End program
 
