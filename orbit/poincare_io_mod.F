@@ -15,6 +15,8 @@
         integer,private :: nxg,nyg,nzg
         integer,private :: bcnd(6)
         logical,private :: tor
+        
+        type(grid_mg_def),pointer :: g_poinc => null()
 
         !Global arrays
         real(8),pointer,private,dimension(:)       :: xx,yy,zz

@@ -241,8 +241,7 @@ c     End program
 
 c     setupSplines_gst
 c     #################################################################
-      subroutine setupSplines_gst(g_def,igrid,order
-     .                       ,xmin,xmax,ymin,ymax,zmin,zmax,bcnd)
+      subroutine setupSplines_gst(g_def,igrid,order,bcnd)
 c     -----------------------------------------------------------------
 c     This routine sets up 3D splines, including allocation of memory
 c     space.
@@ -252,10 +251,9 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        type(grid_mg_def),pointer :: g_def
+        type(grid_mg_def) :: g_def
 
         integer :: igrid,order
-        real(8),intent(OUT) :: xmin,xmax,ymin,ymax,zmin,zmax
         integer :: bcnd(6)
 
 c     Local variables
@@ -291,15 +289,6 @@ c     Define domain limits
         zsmin = g_def%gzmin
         zsmax = g_def%gzmax
 
-        xmin = xsmin
-        xmax = xsmax
-                 
-        ymin = ysmin
-        ymax = ysmax
-                 
-        zmin = zsmin
-        zmax = zsmax
-
 c     Prepare 3d spline interpolation
 
         flg = 0 !Let spline routine find interpolation knots
@@ -327,8 +316,7 @@ c     End program
 
 c     setupSplines_nogst
 c     #################################################################
-      subroutine setupSplines_nogst(nnx,nny,nnz,xx,yy,zz,order
-     .                       ,xmin,xmax,ymin,ymax,zmin,zmax,bcnd)
+      subroutine setupSplines_nogst(nnx,nny,nnz,xx,yy,zz,order,bcnd)
 c     -----------------------------------------------------------------
 c     This routine sets up 3D splines, including allocation of memory
 c     space.
@@ -340,7 +328,6 @@ c     Call variables
 
         integer :: nnx,nny,nnz,order
         real(8) :: xx(nnx),yy(nny),zz(nnz)
-        real(8),intent(OUT) :: xmin,xmax,ymin,ymax,zmin,zmax
         integer :: bcnd(6)
 
 c     Local variables
@@ -371,15 +358,6 @@ c     Define spline domain limits
         call sp_domain_limits(ys,sbcnd(3),ysmin,ysmax)
         call sp_domain_limits(zs,sbcnd(5),zsmin,zsmax)
 
-        xmin = xsmin
-        xmax = xsmax
-                 
-        ymin = ysmin
-        ymax = ysmax
-                 
-        zmin = zsmin
-        zmax = zsmax
-
 c     Prepare 3d spline interpolation
 
         flg = 0  !Let spline routine find interpolation knots
@@ -401,8 +379,8 @@ c     Prepare 3d spline interpolation
         call set_omp_thread_id()
 !$omp end parallel                                                             
 
-		dime = ky*kz + 3*max(kx,ky,kz) + kz
-		allocate(worke(dime*thr_tot),stat=alloc_stat)
+        dime = ky*kz + 3*max(kx,ky,kz) + kz
+        allocate(worke(dime*thr_tot),stat=alloc_stat)
 
 c     End program
 
