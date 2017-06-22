@@ -4,6 +4,8 @@ c #############################################################################
 
         use orbit
 
+        use math, ONLY: factorial
+
         integer,private :: kmax=100      !Maximum number of Fourier modes in Fourier Green's f. form
         real(8),private :: t_tol,T_cutoff2,S_cutoff2,alpha=0d0
      .                    ,aa(0:10,0:10),cc(0:10)
@@ -42,9 +44,10 @@ c     ---------------------------------------------------------------
       endif
 
       !Compute coefficient matrix for SDC kernels
+      aa = 0d0
       aa(0,0) = 1d0
+
       j = 0
-cc      write (*,*) aa(j,0:j)
       do j=1,size(aa,1)-1
         aa(j,0) = aa(j-1,0)*(2*j-1)
         do i=1,j
@@ -52,6 +55,7 @@ cc      write (*,*) aa(j,0:j)
         enddo
 cc        write (*,*) aa(j,0:j)
       enddo
+
       aa = aa/sqrt(pi)
 
       !Compute prefactor for SDC kernels
@@ -398,28 +402,69 @@ c     Begin program
 
       else
 
-        if (my_rank == 0) write (*,*) 'sdc_kernel_per: not working'
-        stop
+c$$$        if (my_rank == 0) write (*,*) 'sdc_kernel_per: not working'
+c$$$        stop
 
-cc        !Compute iteration limit
-cc        k0 = ceiling((2d0/t_tol/eta)**(1d0/alpha))
-cc        k0 = min(k0,kmax) !To avoid aliasing errors
-cc
-cc        !Accumulate periodic Green's function
-cc        skernel = 1d0
-cc
-cc        do kk=1,k0
-cc          eta = sig*(twopi_L*kk)**alpha
-cc          dtk = (1d0-exp(-eta))/eta
-cc
-cc          skernel = skernel + 2d0*dtk*cos(twopi_L*kk*ss)
-cc        enddo
-cc
-cc        skernel = skernel*ismax
+        !Compute iteration limit
+        k0 = ceiling((2d0/t_tol/eta)**(1d0/alpha))
+        k0 = min(k0,kmax) !To avoid aliasing errors
+
+        !Accumulate periodic Green's function
+        skernel = 1d0
+
+        do kk=1,k0
+          eta = sig*(twopi_L*kk)**alpha
+          dtk = sdc_kernel_hat(eta,jj)
+
+          skernel = skernel + 2d0*dtk*cos(twopi_L*kk*ss)
+        enddo
+
+        skernel = skernel*ismax
 
       endif
 
 c     End program
+
+      contains
+
+c     sdc_kernel_hat
+c     #################################################################
+      function sdc_kernel_hat(eta,jj) result(uhat)
+
+c     -----------------------------------------------------------------
+c     Fourier transform of kernel Uj
+c     -----------------------------------------------------------------
+
+      !Call variables
+      real(8) :: eta,uhat
+      integer :: jj
+
+      !Local variables
+      real(8) :: ieta,e_eta,uhat1,uhat2,factor
+      integer :: k,m
+
+      !Begin
+      ieta = 1d0/eta
+      e_eta= exp(-eta)
+
+      uhat1 = 1d0
+      uhat2 = 0d0
+      do k=1,jj
+        uhat1 = uhat1*k*ieta  ! j!/eta^(j)
+
+        factor = 1d0
+        do m=jj-k+2,jj
+          factor = factor*m
+        enddo
+cc        uhat2 = uhat2 + factorial(jj,jj-k+1)*ieta**k  !sum(j!/(j-k+1)!/eta^k)
+        uhat2 = uhat2 + factor*ieta**k  !sum(j!/(j-k+1)!/eta^k)
+      enddo
+
+      uhat = (1d0-e_eta)*ieta*uhat1 - e_eta*uhat2
+
+      if (mod(jj,2) /= 0) uhat = -uhat  !(-1)^j
+
+      end function sdc_kernel_hat
 
       end function sdc_kernel_per
 
@@ -487,6 +532,8 @@ c module par_int
 c #############################################################################
       module par_int
 
+        use OMP
+
         use orbit
 
         use grid
@@ -502,19 +549,20 @@ c #############################################################################
 cc        integer :: n_lag_ints=0        !Number of lagrangian integrals
         real(8) :: ieps
         real(8) :: temp_s,kernel_s,length_s,b0_s
+!$OMP THREADPRIVATE(ieps,temp_s,kernel_s,length_s,b0_s)
 
         !Private variables
 cc        real(8),private :: orbit_atol=1e-10    !Orbit integrator absolute tolerance
 cc     .                    ,orbit_rtol=1e-8     !Orbit integrator relative tolerance
-        real(8),private :: orbit_atol=1d-12    !Orbit integrator absolute tolerance
-     .                    ,orbit_rtol=1d-12    !Orbit integrator relative tolerance
+        real(8),private :: orbit_atol=1d-14    !Orbit integrator absolute tolerance
+     .                    ,orbit_rtol=1d-14    !Orbit integrator relative tolerance
      .                    ,orbit_dt  =1d-2     !Orbit integrator time step
      .                    ,CHI_LIMIT =1d-4     !Lower bound for chi*dt (delta-function limit)
 
         real(8),private :: lsode_out(LSODE_ACC_DIM),dx0,dy0,dz0
 
-        logical,private :: x_per,y_per,z_per
-     .                    ,solenoidal
+        logical,private :: x_per,y_per,z_per,solenoidal
+!$OMP THREADPRIVATE(x_per,y_per,z_per)
 
         real(8),pointer,dimension(:,:,:) :: ll,b0
 
@@ -1026,7 +1074,7 @@ c     Output
         if (my_rank == 0) then
           if (iout == 1) then
             write (*,FMT="(a)",ADVANCE="NO") 'Lagrangian 3D: '
-          elseif (iout <= 0) then
+          elseif (iout == 0) then
             write (*,*) '--> Lagrangian step in 3D...'
           endif
         endif
@@ -1064,10 +1112,25 @@ c     Orbit integration
 
         b0_diag = 0d0
 
+c-----------------------------------------------
+c BEGIN OMP PARALLEL REGION
+c-----------------------------------------------
+!$      if (my_rank == 0.and.iout == 1) write (*,*)
+
+!$OMP PARALLEL
+        call set_omp_thread_id()  !Initializes thr_tot,thr_num
+cc!$      if (my_rank == 0) then
+cc!$        write (*,'(a,i3,a1,i3)')
+cc!$   .     'OMP thread num/tot',thr_num+1,'/',thr_tot
+cc!$      endif
+
+!$OMP DO PRIVATE(i,j,k,ig,jg,kg,x0,y0,z0,lsode_out)
+!$OMP.     COLLAPSE(3) SCHEDULE(DYNAMIC)
         do k=1,nz
           do j=1,ny
             do i=1,nx
 
+cc              write (*,*)'Orbit=',i+(j-1)*nx+(k-1)*nx*ny,' of',nx*ny*nz
               if (chi(i,j,k) == 0d0) cycle
 
               call getMGmap(i,j,k,igrid,igrid,igrid,ig,jg,kg)
@@ -1095,6 +1158,11 @@ c     Orbit integration
             enddo
           enddo
         enddo
+!$OMP END DO
+!$OMP END PARALLEL
+c-----------------------------------------------
+c END OMP PARALLEL REGION
+c-----------------------------------------------
 
         if ((my_rank == 0).and.(iout == 1)) write (*,*)
 
@@ -1308,7 +1376,7 @@ c     Output
         if (my_rank == 0) then
           if (iout == 1) then
             write (*,FMT="(a)",ADVANCE="NO") 'Lagrangian 2D: '
-          elseif (iout <= 0) then
+          elseif (iout == 0) then
             write (*,*) '--> LSODE lagrangian step in 2D...'
           endif
         endif
@@ -1334,6 +1402,19 @@ c     Spline fields
 
 c     LSODE orbit integration
 
+c-----------------------------------------------
+c BEGIN OMP PARALLEL REGION
+c-----------------------------------------------
+!$      if (my_rank == 0.and.iout == 1) write (*,*)
+!$OMP PARALLEL
+        call set_omp_thread_id()  !Initializes thr_tot,thr_num
+cc!$      if (my_rank == 0) then
+cc!$        write (*,'(a,i3,a1,i3)')
+cc!$   .     'OMP thread num/tot',thr_num+1,'/',thr_tot
+cc!$      endif
+        
+!$OMP DO PRIVATE(i,j,k,ig,jg,kg,x0,y0,z0,lsode_out)
+!$OMP.     COLLAPSE(3) SCHEDULE(DYNAMIC)
         do k=1,nz
           do j=1,ny
             do i=1,nx
@@ -1360,6 +1441,11 @@ c     LSODE orbit integration
             enddo
           enddo
         enddo
+!$OMP END DO
+!$OMP END PARALLEL
+c-----------------------------------------------
+c END OMP PARALLEL REGION
+c-----------------------------------------------
 
         if ((my_rank == 0).and.(iout == 1)) write (*,*)
 
@@ -1465,6 +1551,7 @@ c     Output
         if (my_rank == 0) then
           write (*,*)
           write (*,*) '2D Lagrangian initialization...'
+          write (*,*)
         endif
 
 c     Computation of periodic orbit quantities (length, beta)
@@ -1619,7 +1706,8 @@ c     Setup orbit integrator
 c     Integrate length
 
         ll = 0d0
-        if (my_rank == 0) write (*,*) '--> LSODE 2D length integral...'
+        if (my_rank == 0.and.iout > 0)
+     .       write (*,*) '--> LSODE 2D length integral...'
 
         do k=1,nz
           do j=1,ny
@@ -1803,6 +1891,8 @@ c     ##############################################################
      .                      ,spline_order,B_wgt,chi,poinc_file)
       use var_io
 
+      use poincare_io
+ 
       implicit none
 
 c     --------------------------------------------------------------
@@ -1824,7 +1914,7 @@ c     Call variables
 
 c     Local variables
 
-        integer :: nxg,nyg,nzg,i,j,k,ig,jg,kg
+        integer :: i,j,k,ig,jg,kg,nxg,nyg,nzg
         real(8) :: x0,y0,z0
 
         real(8),pointer,dimension(:)       :: xx,yy,zz
@@ -1842,7 +1932,9 @@ c     Begin program
 
         init_lag = .true.
 
-        l2d = .false.   !Indicate 3D treatment
+        l2d = .false.   !Indicates 3D treatment
+
+        solen = .false. !Indicates non-solenoidal treatment
 
         have_chi = PRESENT(chi)
 
@@ -1852,11 +1944,21 @@ c     Begin program
 
         bwgt = B_wgt
 
+        allocate(bcar(0:nx+1,0:ny+1,0:nz+1,3)
+     .          ,b0  (0:nx+1,0:ny+1,0:nz+1))
+
 c     Compute Green's integral cut-offs
 
         call setup_T_kernels(alp,G_tol)
 
 c     Find global arrays
+
+        allocate(xx(nxg+2),yy(nyg+2),zz(nzg+2))
+
+        allocate(bg   (0:nxg+1,0:nyg+1,0:nzg+1,3)
+     .          ,bcarg(0:nxg+1,0:nyg+1,0:nzg+1,3)
+     .          ,carg (0:nxg+1,0:nyg+1,0:nzg+1,3)
+     .          ,jacg (0:nxg+1,0:nyg+1,0:nzg+1))
 
         if (PRESENT(poinc_file)) then
           call get_global_data_from_file
@@ -1865,8 +1967,6 @@ c     Find global arrays
         endif
 
 c     Find initial beta=1/B^2
-
-        allocate(b0(0:nx+1,0:ny+1,0:nz+1))
 
         call find_beta_3d
 
@@ -1915,7 +2015,7 @@ c     Orbit initialization on global array
 
 c     Deallocate memory
 
-        deallocate(bg,bcarg,jacg,carg,bcar,xx,yy,zz)
+        deallocate(bcar,bg,bcarg,carg,jacg,xx,yy,zz)
 
 c     End program
 
@@ -1931,8 +2031,6 @@ c     --------------------------------------------------------------
 
 c     Find local cartesian components
 
-        allocate(bcar(0:nx+1,0:ny+1,0:nz+1,3))
-
         bcar = bb
 
         call transformVector(igrid,igrid,igrid
@@ -1942,13 +2040,6 @@ c     Find local cartesian components
      .                      ,bcar(:,:,:,3),'cnv','car')
 
 c     Fill global arrays
-
-        allocate(xx(nxg+2),yy(nyg+2),zz(nzg+2))
-
-        allocate(bg   (0:nxg+1,0:nyg+1,0:nzg+1,3)
-     .          ,bcarg(0:nxg+1,0:nyg+1,0:nzg+1,3)
-     .          ,carg (0:nxg+1,0:nyg+1,0:nzg+1,3)
-     .          ,jacg (0:nxg+1,0:nyg+1,0:nzg+1))
 
         call find_global(bb  ,bg)
         call find_global(bcar,bcarg)
@@ -1962,6 +2053,129 @@ c     Fill global arrays
 
       end subroutine get_global_data
 
+ccc     get_global_data_from_file
+ccc     ##############################################################
+cc      subroutine get_global_data_from_file
+cc
+ccc     --------------------------------------------------------------
+ccc     Finds global data (B,geometry) from Poincare file
+ccc     --------------------------------------------------------------
+cc
+cc        implicit none
+cc
+cc        integer :: upixie=12345,ierr
+cc
+cc        integer,pointer,dimension(:) :: mupixie
+cc
+cc        integer :: ifl,ilmg,ihpg,jlmg,jhpg,klmg,khpg,nx,ny,nz,nfiles
+cc     .            ,bcnd(6)
+cc
+cc        logical :: tor
+cc
+ccc     Begin program
+cc
+cc        if (my_rank == 0) then
+cc          write (*,*) 'Asynchronous input in Lagrangian step'
+cc        endif
+cc
+ccc     Check file configuration
+cc
+cc        ierr = openFiles(my_rank,np,upixie,trim(poinc_file),mupixie)
+cc
+cc        if (ierr /= 0) call pstop('get_global_data_from_file'
+cc     .                           ,'Cannot find files')
+cc
+ccc     Read setup info
+cc
+cc        nfiles = size(mupixie)
+cc
+cc        do ifl=1,nfiles
+cc          read (mupixie(ifl)) nxg,nyg,nzg,bcnd,tor
+cc        enddo
+cc
+cc        if (tor .and. (coords /= 'vmc' .and. coords /= 'tor')) then
+cc          call closeFiles(mupixie)
+cc          call pstop('get_global_data_from_file'
+cc     .              ,'Coordinates are not toroidal')
+cc        endif
+cc
+cc        if (sum(bcnd-bcond) /= 0) then
+cc          call closeFiles(mupixie)
+cc          call pstop('get_global_data_from_file'
+cc     .              ,'BC conf. does not agree')
+cc        endif
+cc
+cc        if (nxd /= nxg .or. nyd /= nyg .or. nzd /= nzg) then
+cc          call closeFiles(mupixie)
+cc          write (*,*) 'Grid size=',nxg,nyg,nzg
+cc          call pstop('get_global_data_from_file'
+cc     .              ,'Global grid size does not agree')
+cc        endif
+cc
+ccc     Allocate global arrays
+cc
+cc        allocate(xx(nxg+2),yy(nyg+2),zz(nzg+2))
+cc
+cc        allocate(bg   (0:nxg+1,0:nyg+1,0:nzg+1,3)
+cc     .          ,bcarg(0:nxg+1,0:nyg+1,0:nzg+1,3)
+cc     .          ,carg (0:nxg+1,0:nyg+1,0:nzg+1,3)
+cc     .          ,jacg (0:nxg+1,0:nyg+1,0:nzg+1  ))
+cc
+ccc     Read global arrays
+cc
+cc        do ifl=1,nfiles
+cc
+cc          read (mupixie(ifl)) xx
+cc          read (mupixie(ifl)) yy
+cc          read (mupixie(ifl)) zz
+cc
+cc          if (nfiles > 1) then
+cc            read (mupixie(ifl)) ilmg,ihpg,jlmg,jhpg,klmg,khpg
+cc          else
+cc            ilmg = 0
+cc            ihpg = nxg+1
+cc
+cc            jlmg = 0
+cc            jhpg = nyg+1
+cc
+cc            klmg = 0
+cc            khpg = nzg+1
+cc          endif
+cc
+cc          read (mupixie(ifl)) bg   (ilmg:ihpg,jlmg:jhpg,klmg:khpg,1)
+cc          read (mupixie(ifl)) bg   (ilmg:ihpg,jlmg:jhpg,klmg:khpg,2)
+cc          read (mupixie(ifl)) bg   (ilmg:ihpg,jlmg:jhpg,klmg:khpg,3)
+cc          read (mupixie(ifl)) bcarg(ilmg:ihpg,jlmg:jhpg,klmg:khpg,1)
+cc          read (mupixie(ifl)) bcarg(ilmg:ihpg,jlmg:jhpg,klmg:khpg,2)
+cc          read (mupixie(ifl)) bcarg(ilmg:ihpg,jlmg:jhpg,klmg:khpg,3)
+cc          read (mupixie(ifl)) jacg (ilmg:ihpg,jlmg:jhpg,klmg:khpg)
+cc          read (mupixie(ifl)) carg (ilmg:ihpg,jlmg:jhpg,klmg:khpg,3)
+cc
+cc        enddo
+cc
+ccc     Assign local B arrays
+cc
+cc        bb = bg(ilomg:ihipg,jlomg:jhipg,klomg:khipg,:)
+cc
+ccc     Update grid metrics
+cc
+cc        nxl = ihipg-ilomg-1
+cc        nyl = jhipg-jlomg-1
+cc        nzl = khipg-klomg-1
+cc
+cc        call defineGridMetric(grid_params
+cc     .           ,xcar=carg(ilomg:ihipg,jlomg:jhipg,klomg:khipg,:))
+cc
+cc        gmetric => grid_params%gmetric
+cc
+ccc     Close files
+cc
+cc        call closeFiles(mupixie)
+cc
+cc        deallocate(mupixie)
+cc
+cc      end subroutine get_global_data_from_file
+
 c     get_global_data_from_file
 c     ##############################################################
       subroutine get_global_data_from_file
@@ -1972,114 +2186,129 @@ c     --------------------------------------------------------------
 
         implicit none
 
-        integer :: upixie=12345,ierr
+c     Local variables
 
-        integer,pointer,dimension(:) :: mupixie
+        integer :: nfiles,ig,jg,kg,i,j,k,bcnd(6,3)
+        real(8) :: x1,x2,x3
 
-        integer :: ifl,ilmg,ihpg,jlmg,jhpg,klmg,khpg,nx,ny,nz,nfiles
-     .            ,bcnd(6)
-
-        logical :: tor
+        real(8),pointer,dimension(:,:,:,:) :: car,car0,bcov
 
 c     Begin program
 
         if (my_rank == 0) then
-          write (*,*) 'Asynchronous input in Lagrangian step'
+          write (*,*) 'POINCARE input in Lagrangian step'
         endif
 
 c     Check file configuration
 
-        ierr = openFiles(my_rank,np,upixie,trim(poinc_file),mupixie)
+        if (.not.is_file(poinc_file)) then     !Multiple files
+          !Find out number of graphics files
+          nfiles = 0
+          do while (is_file(trim(poinc_file)//'_proc'
+     .                    //trim(int2char(nfiles))))
+            nfiles=nfiles+1
+          enddo
+        else
+          nfiles = 1
+        endif
 
-        if (ierr /= 0) call pstop('get_global_data_from_file'
-     .                           ,'Cannot find files')
+c     Read POINCARE data
 
-c     Read setup info
+        sporder = spline_order
+        call read_poinc_files(poinc_file) !This sets up orbit and splines
 
-        nfiles = size(mupixie)
+c     Recreate mesh and grid metrics (using POINCARE file info)
 
-        do ifl=1,nfiles
-          read (mupixie(ifl)) nxg,nyg,nzg,bcnd,tor
+        !Reset domain limits and BCs
+        call get_poinc_domain_ptys(xmin,xmax,ymin,ymax,zmin,zmax,bcond)
+
+        !Recreate mesh
+        call createGrid(nxg,nyg,nzg,gv%gparams)
+
+        !Assign global coords
+        xx = grid_params%xg
+        yy = grid_params%yg
+        zz = grid_params%zg
+
+        !Recreate map by interpolation
+        if (.not.checkAnalMapDatabase()) then
+          allocate(car (0:nx+1,0:ny+1,0:nz+1,3)
+     .            ,car0(0:nx+1,0:ny+1,0:nz+1,3))
+          
+          do k=0,nz+1
+            do j=0,ny+1
+              do i=0,nx+1
+                call getCurvilinearCoordinates(i,j,k,igrid,igrid,igrid
+     .                                        ,ig,jg,kg,x1,x2,x3)
+                x1 = min(max(x1,xmin),xmax)
+                x2 = min(max(x2,ymin),ymax)
+                x3 = min(max(x3,zmin),zmax)
+                call evalX(x1,x2,x3
+     .                    ,car(i,j,k,1)
+     .                    ,car(i,j,k,2)
+     .                    ,car(i,j,k,3),ierr)
+              enddo
+            enddo
+          enddo
+
+          !Map BCs
+          car0 = car !Assign EQU boundary values
+          call map_bc(1,igrid,nx,ny,nz,car(:,:,:,1),car0(:,:,:,1))
+          call map_bc(2,igrid,nx,ny,nz,car(:,:,:,2),car0(:,:,:,2))
+          call map_bc(3,igrid,nx,ny,nz,car(:,:,:,3),car0(:,:,:,3))
+
+          !Rebuild metrics
+          call defineGridMetric(grid_params,xcar=car)
+
+          deallocate(car,car0)
+        endif
+
+c     Assign LOCAL B by interpolating POINCARE data
+
+        allocate(bcov(0:nx+1,0:ny+1,0:nz+1,3))
+
+        do k=0,nz+1
+          do j=0,ny+1
+            do i=0,nx+1
+              call getCurvilinearCoordinates(i,j,k,igrid,igrid,igrid
+     .                                      ,ig,jg,kg,x1,x2,x3)
+              
+              call chk_pos(x1,x2,x3,warning=.false.,ierr=ierr)
+              if (ierr/=0) x1=min(max(x1,xmin),xmax)
+              if (ierr/=0) x2=min(max(x2,ymin),ymax)
+              if (ierr/=0) x3=min(max(x3,zmin),zmax)
+
+              call evalB(x1,x2,x3
+     .                  ,bb(i,j,k,1)
+     .                  ,bb(i,j,k,2)
+     .                  ,bb(i,j,k,3),ierr)
+            enddo
+          enddo
         enddo
 
-        if (tor .and. (coords /= 'vmc' .and. coords /= 'tor')) then
-          call closeFiles(mupixie)
-          call pstop('lag_init','Coordinates are not toroidal')
-        endif
+        !BCs
+        bcnd(:,1) = bcond
+        bcnd(:,2) = bcond
+        bcnd(:,3) = bcond
+        where (bcnd == DEF) bcnd = EQU
+        call setBC(0,3,nx,ny,nz,bb,bcov,bb,bcnd
+     .            ,igrid,igrid,igrid,iorder=1)
 
-        if (sum(bcnd-bcond) /= 0) then
-          call closeFiles(mupixie)
-          call pstop('lag_init','BC conf. does not agree')
-        endif
+        deallocate(bcov)
 
-        if (nxd /= nxg .or. nyd /= nyg .or. nzd /= nzg) then
-          call closeFiles(mupixie)
-          write (*,*) 'Grid size=',nxg,nyg,nzg
-          call pstop('lag_init'
-     .              ,'Global grid size does not agree')
-        endif
+        !Cartesian components
+        bcar = XformToCar(igrid,bb,.false.)
+        
+c     Assign GLOBAL arrays
+        
+        call find_global(bb  ,bg)
+        call find_global(bcar,bcarg)
+        call find_global(gmetric%grid(igrid)%jac,jacg)
+        call find_global(gmetric%grid(igrid)%car,carg,map_bc=.true.)
 
-c     Allocate global arrays
+c     Destroy work space
 
-        allocate(xx(nxg+2),yy(nyg+2),zz(nzg+2))
-
-        allocate(bg   (0:nxg+1,0:nyg+1,0:nzg+1,3)
-     .          ,bcarg(0:nxg+1,0:nyg+1,0:nzg+1,3)
-     .          ,carg (0:nxg+1,0:nyg+1,0:nzg+1,3)
-     .          ,jacg (0:nxg+1,0:nyg+1,0:nzg+1  ))
-
-c     Read global arrays
-
-        do ifl=1,nfiles
-
-          read (mupixie(ifl)) xx
-          read (mupixie(ifl)) yy
-          read (mupixie(ifl)) zz
-
-          if (nfiles > 1) then
-            read (mupixie(ifl)) ilmg,ihpg,jlmg,jhpg,klmg,khpg
-          else
-            ilmg = 0
-            ihpg = nxg+1
-
-            jlmg = 0
-            jhpg = nyg+1
-
-            klmg = 0
-            khpg = nzg+1
-          endif
-
-          read (mupixie(ifl)) bg   (ilmg:ihpg,jlmg:jhpg,klmg:khpg,1)
-          read (mupixie(ifl)) bg   (ilmg:ihpg,jlmg:jhpg,klmg:khpg,2)
-          read (mupixie(ifl)) bg   (ilmg:ihpg,jlmg:jhpg,klmg:khpg,3)
-          read (mupixie(ifl)) bcarg(ilmg:ihpg,jlmg:jhpg,klmg:khpg,1)
-          read (mupixie(ifl)) bcarg(ilmg:ihpg,jlmg:jhpg,klmg:khpg,2)
-          read (mupixie(ifl)) bcarg(ilmg:ihpg,jlmg:jhpg,klmg:khpg,3)
-          read (mupixie(ifl)) jacg (ilmg:ihpg,jlmg:jhpg,klmg:khpg)
-          read (mupixie(ifl)) carg (ilmg:ihpg,jlmg:jhpg,klmg:khpg,3)
-
-        enddo
-
-c     Assign local B arrays
-
-        bb = bg(ilomg:ihipg,jlomg:jhipg,klomg:khipg,:)
-
-c     Update grid metrics
-
-        nxl = ihipg-ilomg-1
-        nyl = jhipg-jlomg-1
-        nzl = khipg-klomg-1
-
-        call defineGridMetric(grid_params
-     .           ,xcar=carg(ilomg:ihipg,jlomg:jhipg,klomg:khipg,:))
-
-        gmetric => grid_params%gmetric
-
-c     Close files
-
-        call closeFiles(mupixie)
-
-        deallocate(mupixie)
+        call orbit_destroy !Destroys orbit and splines
 
       end subroutine get_global_data_from_file
 
@@ -2153,7 +2382,7 @@ cc        end where
 
 cc          b0 = 1d0 !Normalization test
 
-
+        !Iteration
         !Create fixed-point accelerator
         call fpa_create(fpav,x,maxv=5)
 
@@ -2274,10 +2503,10 @@ c     Local variables
         END INTERFACE
 
         INTERFACE
-          subroutine lsode_3d_cn(neq,t,y,ydot)
+          subroutine lsode_3d_cn_norm(neq,t,y,ydot)
           integer :: neq
           real(8) :: t,y(neq),ydot(neq)
-          end subroutine lsode_3d_cn
+          end subroutine lsode_3d_cn_norm
         END INTERFACE
 
 c     Begin program
@@ -2289,10 +2518,11 @@ c     Begin program
         if (l2d) then
           call lag_2d_new(igrid,nx,ny,nz,in_flds,out_flds
 cc     .               ,chi,iout,lsode_f=lsode_2d_cn_3eq)
-     .               ,chi,iout,lsode_f=lsode_2d_cn_3eq_norm)
+     .                   ,chi,iout,lsode_f=lsode_2d_cn_3eq_norm)
         else
           call lag_3d_new(igrid,nx,ny,nz,in_flds,out_flds
-     .               ,chi,iout,lsode_f=lsode_3d_cn)
+cc     .               ,chi,iout,lsode_f=lsode_3d_cn)
+     .                   ,chi,iout,lsode_f=lsode_3d_cn_norm)
         endif
 
       end subroutine lag_xport_theta
@@ -2766,7 +2996,7 @@ c     Find rhs of delta_T iteration
 
       call lag_xport_theta(igrid,flds,integrals,chi_local,iout)
 
-      where (chi_local /= 0d0) 
+      where (chi_local(1:nx,1:ny,1:nz) /= 0d0) 
 cc        tnp (1:nx,1:ny,1:nz)
 cc     .      = integrals(1:nx,1:ny,1:nz,1)
 cc     .      + integrals(1:nx,1:ny,1:nz,2)/b0(1:nx,1:ny,1:nz)
@@ -2909,6 +3139,8 @@ c     Find rhs
       chi_local = 0d0
       where (b0 > 0d0) chi_local = chi/b0  !Divide by beta
 
+      integrals = 0d0
+
       call lag_xport_res(igrid,flds,integrals,chi_local,iout)
 
       if (bdf2) then
@@ -2935,7 +3167,7 @@ c     Find rhs
 
 c     Divide by dt to provide RHS to temporal term
 
-      src = src/dt
+      where (chi_local /= 0d0) src = src/dt
 
 ccc     Update beta for next time step
 cc
@@ -3450,9 +3682,9 @@ c       Determine initial orbit updates
 
 c       Select periodic direction based on largest displacement from surface
 
-        x_per = (abs(dx0) > abs(dy0)) .and. (abs(dx0) > abs(dz0))
-        y_per = (abs(dy0) > abs(dx0)) .and. (abs(dy0) > abs(dz0))
-        z_per = (abs(dz0) > abs(dy0)) .and. (abs(dz0) > abs(dx0))
+        x_per = (abs(dx0) >= abs(dy0)) .and. (abs(dx0) >= abs(dz0))
+        y_per = (abs(dy0) >= abs(dx0)) .and. (abs(dy0) >= abs(dz0))
+        z_per = (abs(dz0) >= abs(dy0)) .and. (abs(dz0) >= abs(dx0))
 
 c       Set logic to compute lengths using surface of sections with high-order interpolation
 
@@ -4044,26 +4276,28 @@ c Local variables
       integer :: ierror
       real(8) :: x1,y1,z1,s1,tt,it_max=0d0
       save :: it_max
-      logical :: exloop
+      logical :: exl1
 
 c Begin program
 
 c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
 
       call lsode_orbit_f(5,t,y(1:5),ydot(1:5),xx1=x1,yy1=y1,zz1=z1)
+      
+      s1 = abs(y(5))
 
 c Call additional integrators
 
-      s1 = abs(y(5))
-
       tt = evalFld(x1,y1,z1,ierror)
 
-      ydot(7) = tkernel_3d(s1,ieps*dt,exloop)*ydot(5)  !To normalize
+      ydot(7) = tkernel_3d(s1,ieps*dt,exl1)*ydot(5)  !To normalize
 
       ydot(6) = tt*ydot(7)
 
-      call orbit_exit(exloop)
+c Are we done?
       
+      call set_orbit_exit(exl1)
+
 c End program
 
       end subroutine lsode_3d_T
@@ -4129,6 +4363,7 @@ c Call variables
 
 c Local variables
 
+      logical :: exl1
       integer :: ierror
       real(8) :: x1,y1,z1,s1,tt,it_max=0d0
       save :: it_max
@@ -4140,17 +4375,19 @@ c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
 
       call lsode_orbit_f(5,t,y(1:5),ydot(1:5),xx1=x1,yy1=y1,zz1=z1)
 
-c Call additional integrators
-
       s1 = abs(y(5))
+
+c Call additional integrators
 
       tt = evalFld(x1,y1,z1,ierror)
 
-      ydot(7) = skernel_3d(s1,ieps*dt,exloop)*ydot(5)  !To normalize
+      ydot(7) = skernel_3d(s1,ieps*dt,exl1)*ydot(5)  !To normalize
 
       ydot(6) = tt*ydot(7)
 
-      call orbit_exit(exloop)
+c Are we done?
+      
+      call set_orbit_exit(exl1)
 
 c End program
 
@@ -4222,6 +4459,7 @@ c Local variables
 c Begin program
 
       if (neq /= 7) then
+        if (my_rank == 0) write (*,*) neq
         call pstop('lsode_3d_cn','Wrong number of equations')
       endif
 
@@ -4232,9 +4470,9 @@ c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
 
       if (.not.bwgt) B2=1d0
 
-c Call additional integrators
-
       s1 = abs(y(5))
+
+c Call additional integrators
 
       flds = evalFlds(x1,y1,z1,sp_coef)
 
@@ -4251,72 +4489,77 @@ cc      ydot(8) = flds(3)*tk
 
 c Are we done?
 
-cc      exit_loop = exl1.and.exl2
-      call orbit_exit(exl1.and.exl2)
+      call set_orbit_exit(exl1.and.exl2)
 
 c End program
 
       end subroutine lsode_3d_cn
 
-ccc lsode_3d_cn_dT
-ccc #########################################################################
-cc      subroutine lsode_3d_cn_dT(neq,t,y,ydot)
-cc
-ccc -------------------------------------------------------------------------
-ccc     Driver routine for LSODE integration: ydot = ff(y,t)
-ccc -------------------------------------------------------------------------
-cc
-cc      use par_int
-cc
-cc      implicit none
-cc
-ccc Call variables
-cc
-cc      integer :: neq
-cc      real(8) :: t,y(neq),ydot(neq)
-cc
-ccc Local variables
-cc
-cc      integer :: ierror
-cc      real(8) :: x1,y1,z1,s1,flds(size(sp_coef,4)),B2
-cc      logical :: exl1
-cc
-ccc Begin program
-cc
-cc      if (neq /= 9) then
-cc        call pstop('lsode_3d_cn_dT','Wrong number of equations')
-cc      endif
-cc
-ccc Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
-cc
-cc      call lsode_orbit_f(5,t,y(1:5),ydot(1:5),xx1=x1,yy1=y1,zz1=z1
-cc     .                  ,B2=B2)
-cc
-cc      if (.not.bwgt) B2=1d0
-cc
-ccc Call additional integrators
-cc
-cc      s1 = abs(y(5))
-cc
-cc      flds = evalFlds(x1,y1,z1,sp_coef)
-cc
-cc      !Src @ dt
-cc      ydot(7) = skernel_3d(s1,ieps*dt,exl1)*ydot(5)
-cc
-cc      ydot(6) = flds(1)*ydot(7)
-cc
-cc      !Src @ dt
-cc      ydot(9) = ydot(7)/B2
-cc
-cc      ydot(8) = flds(3)*ydot(11)
-cc
-ccc Are we done?
-cc
-cc      exit_loop = exl1
-cc
-ccc End program
-cc
-cc      end subroutine lsode_3d_cn_dT
+c lsode_3d_cn_norm
+c #########################################################################
+      subroutine lsode_3d_cn_norm(neq,t,y,ydot)
+
+c -------------------------------------------------------------------------
+c     Driver routine for LSODE integration: ydot = ff(y,t)
+c -------------------------------------------------------------------------
+
+      use par_int
+
+      implicit none
+
+c Call variables
+
+      integer :: neq
+      real(8) :: t,y(neq),ydot(neq)
+
+c Local variables
+
+      integer :: ierror
+      real(8) :: x1,y1,z1,s1,flds(size(sp_coef,4)),B2,tk,sk
+      logical :: exl1,exl2
+
+c Begin program
+
+      if (neq /= 9) then
+        if (my_rank == 0) write (*,*) neq
+        call pstop('lsode_3d_cn','Wrong number of equations')
+      endif
+
+c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
+
+      call lsode_orbit_f(5,t,y(1:5),ydot(1:5),xx1=x1,yy1=y1,zz1=z1
+     .                  ,B2=B2)
+
+      if (.not.bwgt) B2=1d0
+
+      s1 = abs(y(5))
+
+c Call additional integrators
+
+      flds = evalFlds(x1,y1,z1,sp_coef)
+
+      !Tn
+      tk = tkernel_3d(s1,ieps*dt,exl1)*ydot(5)
+      ydot(6) = flds(1)*tk
+
+      !Src @ dt
+      sk = skernel_3d(s1,ieps*dt,exl2)*ydot(5)/B2
+      ydot(7) = flds(2)*sk
+
+      !Normalization 
+      ydot(8) = tk
+      ydot(9) = sk
+
+cc      !Taux
+cc      ydot(8) = flds(3)*tk
+
+c Are we done?
+
+       call set_orbit_exit(exl1.and.exl2)
+
+c End program
+
+      end subroutine lsode_3d_cn_norm
 
 c lsode_3d_cn_dT
 c #########################################################################
@@ -4354,9 +4597,9 @@ c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
 
       if (.not.bwgt) B2=1d0
 
-c Call additional integrators
-
       s1 = abs(y(5))
+
+c Call additional integrators
 
       flds = evalFlds(x1,y1,z1,sp_coef)
 
@@ -4368,82 +4611,11 @@ c Call additional integrators
 
 c Are we done?
 
-cc      exit_loop = exl1
-      call orbit_exit(exl1)
+      call set_orbit_exit(exl1)
 
 c End program
 
       end subroutine lsode_3d_cn_dT
-
-ccc lsode_3d_bdf2
-ccc #########################################################################
-cc      subroutine lsode_3d_bdf2(neq,t,y,ydot)
-cc
-ccc -------------------------------------------------------------------------
-ccc     Driver routine for LSODE integration: ydot = ff(y,t)
-ccc -------------------------------------------------------------------------
-cc
-cc      use par_int
-cc
-cc      implicit none
-cc
-ccc Call variables
-cc
-cc      integer :: neq
-cc      real(8) :: t,y(neq),ydot(neq)
-cc
-ccc Local variables
-cc
-cc      integer :: ierror
-cc      real(8) :: x1,y1,z1,s1,flds(size(sp_coef,4)),B2
-cc      logical :: exl1,exl2,exl3,exl4
-cc
-ccc Begin program
-cc
-cc      if (neq /= 13) then
-cc        call pstop('lsode_3d_bdf2','Wrong number of equations')
-cc      endif
-cc
-ccc Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
-cc
-cc      call lsode_orbit_f(5,t,y(1:5),ydot(1:5),xx1=x1,yy1=y1,zz1=z1
-cc     .                  ,B2=B2)
-cc
-cc      if (.not.bwgt) B2=1d0
-cc
-ccc Call additional integrators
-cc
-cc      s1 = abs(y(5))
-cc
-cc      flds = evalFlds(x1,y1,z1,sp_coef)
-cc
-cc      !Tn
-cc      ydot(7) = tkernel_3d(s1,ieps*dt,exl1)*ydot(5)
-cc
-cc      ydot(6) = flds(1)*ydot(7)
-cc
-cc      !Tnm
-cc      ydot(9) = tkernel_3d(s1,ieps*(dt+dtold),exl2)*ydot(5)
-cc
-cc      ydot(8) = flds(2)*ydot(9)
-cc
-cc      !Src @ dt
-cc      ydot(11) = skernel_3d(s1,ieps*dt,exl3)*ydot(5)/B2
-cc
-cc      ydot(10) = flds(3)*ydot(11)
-cc
-cc      !Src @ dt+dtold
-cc      ydot(13) = skernel_3d(s1,ieps*(dt+dtold),exl4)*ydot(5)/B2
-cc
-cc      ydot(12) = flds(3)*ydot(13)
-cc
-ccc Are we done?
-cc
-cc      exit_loop = exl1.and.exl2.and.exl3.and.exl4
-cc
-ccc End program
-cc
-cc      end subroutine lsode_3d_bdf2
 
 c lsode_3d_bdf2
 c #########################################################################
@@ -4485,102 +4657,34 @@ c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
         iB2=1d0/B2
       endif
 
-c Call additional integrators
-
       s1 = abs(y(5))
+
+c Call additional integrators
 
       flds = evalFlds(x1,y1,z1,sp_coef)
 
       !Tn
-      ydot(6) = flds(1)*tkernel_3d(s1,ieps*dt,exl1)*ydot(5)
+      ydot(6) = flds(1)*tkernel_3d(s1,ieps*dt,exl1)
 
       !Tnm
-      ydot(7) = flds(2)*tkernel_3d(s1,ieps*(dt+dtold),exl2)*ydot(5)
+      ydot(7) = flds(2)*tkernel_3d(s1,ieps*(dt+dtold),exl2)
 
       !Src @ dt
-      ydot(8) = flds(3)*skernel_3d(s1,ieps*dt,exl3)*ydot(5)*iB2
+      ydot(8) = flds(3)*skernel_3d(s1,ieps*dt,exl3)*iB2
 
       !Src @ dt+dtold
-      ydot(9) = flds(3)*skernel_3d(s1,ieps*(dt+dtold),exl4)*ydot(5)*iB2
+      ydot(9) = flds(3)*skernel_3d(s1,ieps*(dt+dtold),exl4)*iB2
+
+      !Transform back to arc-length integral
+      ydot(6:neq) = ydot(6:neq)*ydot(5)
 
 c Are we done?
 
-cc      exit_loop = exl1.and.exl2.and.exl3.and.exl4
-      call orbit_exit(exl1.and.exl2.and.exl3.and.exl4)
+      call set_orbit_exit(exl1.and.exl2.and.exl3.and.exl4)
 
 c End program
 
       end subroutine lsode_3d_bdf2
-
-ccc lsode_3d_bdf2_dT
-ccc #########################################################################
-cc      subroutine lsode_3d_bdf2_dT(neq,t,y,ydot)
-cc
-ccc -------------------------------------------------------------------------
-ccc     Driver routine for LSODE integration: ydot = ff(y,t)
-ccc -------------------------------------------------------------------------
-cc
-cc      use par_int
-cc
-cc      implicit none
-cc
-ccc Call variables
-cc
-cc      integer :: neq
-cc      real(8) :: t,y(neq),ydot(neq)
-cc
-ccc Local variables
-cc
-cc      integer :: ierror
-cc      real(8) :: x1,y1,z1,s1,flds(size(sp_coef,4)),B2
-cc      logical :: exl1,exl2,exl3,exl4
-cc
-ccc Begin program
-cc
-cc      if (neq /= 13) then
-cc        call pstop('lsode_3d_bdf2_dT','Wrong number of equations')
-cc      endif
-cc
-ccc Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
-cc
-cc      call lsode_orbit_f(5,t,y(1:5),ydot(1:5),xx1=x1,yy1=y1,zz1=z1
-cc     .                  ,B2=B2)
-cc
-cc      if (.not.bwgt) B2=1d0
-cc
-ccc Call additional integrators
-cc
-cc      s1 = abs(y(5))
-cc
-cc      flds = evalFlds(x1,y1,z1,sp_coef)
-cc
-cc      !Src @ dt
-cc      ydot(7) = skernel_3d(s1,ieps*dt,exl1)*ydot(5)
-cc
-cc      ydot(6) = flds(1)*ydot(7)
-cc
-cc      !Src * dt+dtold
-cc      ydot(9) = skernel_3d(s1,ieps*(dt+dtold),exl2)*ydot(5)
-cc
-cc      ydot(8) = flds(2)*ydot(9)
-cc
-cc      !Src @ dt
-cc      ydot(11) = skernel_3d(s1,ieps*dt,exl3)*ydot(5)/B2
-cc
-cc      ydot(10) = flds(3)*ydot(11)
-cc
-cc      !Src @ dt+dtold
-cc      ydot(13) = skernel_3d(s1,ieps*(dt+dtold),exl4)*ydot(5)/B2
-cc
-cc      ydot(12) = flds(3)*ydot(13)
-cc
-ccc Are we done?
-cc
-cc      exit_loop = exl1.and.exl2.and.exl3.and.exl4
-cc
-ccc End program
-cc
-cc      end subroutine lsode_3d_bdf2_dT
 
 c lsode_3d_bdf2_dT
 c #########################################################################
@@ -4642,9 +4746,8 @@ c Call additional integrators
 
 c Are we done?
 
-cc      exit_loop = exl1.and.exl2
-      call orbit_exit(exl1.and.exl2)
-      
+      call set_orbit_exit(exl1.and.exl2)
+
 c End program
 
       end subroutine lsode_3d_bdf2_dT
@@ -4689,24 +4792,24 @@ c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
         iB2=1d0/B2
       endif
 
-c Call additional integrators
-
       s1 = abs(y(5))
+
+c Call additional integrators
 
       flds = evalFlds(x1,y1,z1,sp_coef)
 
       !Tn
-      ydot(6) = flds(1)*tkernel_3d(s1,ieps*dt,exl1)
+      ydot(6) = flds(1)*tkernel_3d(s1,ieps*dt,exl1)*ydot(5)
 
       !Tnm
-      ydot(7) = flds(2)*tkernel_3d(s1,ieps*(dt+dtold),exl2)
+      ydot(7) = flds(2)*tkernel_3d(s1,ieps*(dt+dtold),exl2)*ydot(5)
 
       !Src @ dt
-      sk = skernel_3d(s1,ieps*dt,exl3)
+      sk = skernel_3d(s1,ieps*dt,exl3)*ydot(5)
       ydot(8) = flds(4)*sk*iB2
 
       !Src @ dt+dtold
-      sk2 = skernel_3d(s1,ieps*(dt+dtold),exl4)
+      sk2 = skernel_3d(s1,ieps*(dt+dtold),exl4)*ydot(5)
       ydot(9) = flds(4)*sk2*iB2
 
       !DT @ dt
@@ -4723,76 +4826,11 @@ c Call additional integrators
 
 c Are we done?
 
-cc      exit_loop = exl1.and.exl2.and.exl3.and.exl4
-      call orbit_exit(exl1.and.exl2.and.exl3.and.exl4)
+      call set_orbit_exit(exl1.and.exl2.and.exl3.and.exl4)
 
 c End program
 
       end subroutine lsode_3d_bdf2_all
-
-ccc lsode_2d_bdf2_3eq
-ccc #########################################################################
-cc      subroutine lsode_2d_bdf2_3eq(neq,t,y,ydot)
-cc
-ccc -------------------------------------------------------------------------
-ccc     Driver routine for LSODE integration: ydot = ff(y,t)
-ccc -------------------------------------------------------------------------
-cc
-cc      use par_int
-cc
-cc      implicit none
-cc
-ccc Call variables
-cc
-cc      integer :: neq
-cc      real(8) :: t,y(neq),ydot(neq)
-cc
-ccc Local variables
-cc
-cc      integer :: ierror
-cc      real(8) :: x1,y1,z1,s1,it_max=0d0,flds(size(sp_coef,4)),B2
-cc      save :: it_max
-cc
-ccc Begin program
-cc
-cc      if (neq /= 11) then
-cc        call pstop('lsode_2d_bdf2_3eq','Wrong number of equations')
-cc      endif
-cc
-ccc Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
-cc
-cc      call lsode_orbit_f_3eq(3,t,y(1:3),ydot(1:3),xx1=x1,yy1=y1,zz1=z1
-cc     .                      ,B2=B2)
-cc
-cc      if (.not.bwgt) B2=1d0
-cc
-ccc Call additional integrators
-cc
-cc      flds = evalFlds(x1,y1,z1,sp_coef)
-cc
-cc      !Tn
-cc      ydot(5) = tkernel_per(t,ieps*dt)
-cc
-cc      ydot(4) = flds(1)*ydot(5)
-cc
-cc      !Tnm
-cc      ydot(7) = tkernel_per(t,ieps*(dt+dtold))
-cc
-cc      ydot(6) = flds(2)*ydot(7)
-cc
-cc      !Src @ dt
-cc      ydot(9) = skernel_per(t,ieps*dt)/B2
-cc
-cc      ydot(8) = flds(3)*ydot(9)
-cc
-cc      !Src @ dt+dtold
-cc      ydot(11) = skernel_per(t,ieps*(dt+dtold))/B2
-cc
-cc      ydot(10) = flds(3)*ydot(11)
-cc
-ccc End program
-cc
-cc      end subroutine lsode_2d_bdf2_3eq
 
 c lsode_2d_bdf2_3eq
 c #########################################################################
@@ -4853,70 +4891,6 @@ c Call additional integrators
 c End program
 
       end subroutine lsode_2d_bdf2_3eq
-
-ccc lsode_2d_bdf2_3eq_dT
-ccc #########################################################################
-cc      subroutine lsode_2d_bdf2_3eq_dT(neq,t,y,ydot)
-cc
-ccc -------------------------------------------------------------------------
-ccc     Driver routine for LSODE integration: ydot = ff(y,t)
-ccc -------------------------------------------------------------------------
-cc
-cc      use par_int
-cc
-cc      implicit none
-cc
-ccc Call variables
-cc
-cc      integer :: neq
-cc      real(8) :: t,y(neq),ydot(neq)
-cc
-ccc Local variables
-cc
-cc      integer :: ierror
-cc      real(8) :: x1,y1,z1,s1,it_max=0d0,flds(size(sp_coef,4)),B2
-cc      save :: it_max
-cc
-ccc Begin program
-cc
-cc      if (neq /= 11) then
-cc        call pstop('lsode_2d_bdf2_3eq','Wrong number of equations')
-cc      endif
-cc
-ccc Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
-cc
-cc      call lsode_orbit_f_3eq(3,t,y(1:3),ydot(1:3),xx1=x1,yy1=y1,zz1=z1
-cc     .                      ,B2=B2)
-cc
-cc      if (.not.bwgt) B2=1d0
-cc
-ccc Call additional integrators
-cc
-cc      flds = evalFlds(x1,y1,z1,sp_coef)
-cc
-cc      !Src @ dt
-cc      ydot(5) = skernel_per(t,ieps*dt)
-cc
-cc      ydot(4) = flds(1)*ydot(5)
-cc
-cc      !Src @ dt+dtold
-cc      ydot(7) = skernel_per(t,ieps*(dt+dtold))
-cc
-cc      ydot(6) = flds(2)*ydot(7)
-cc
-cc      !Src @ dt
-cc      ydot(9) = ydot(5)/B2
-cc
-cc      ydot(8) = flds(3)*ydot(9)
-cc
-cc      !Src @ dt+dtold
-cc      ydot(11) = ydot(7)/B2
-cc
-cc      ydot(10) = flds(3)*ydot(11)
-cc
-ccc End program
-cc
-cc      end subroutine lsode_2d_bdf2_3eq_dT
 
 c lsode_2d_bdf2_3eq_dT
 c #########################################################################
@@ -5288,10 +5262,10 @@ c Call variables
 
 c Local variables
 
+      logical :: exl1
       integer :: ierror
       real(8) :: B2
-      logical :: exloop
-      
+
 c Begin program
 
       if (neq /= 4) then
@@ -5304,12 +5278,12 @@ c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
 
 c Call additional integrators
 
-      ydot(4) = skernel_3d(t,ieps*dt,exloop)/B2
+      ydot(4) = skernel_3d(t,ieps*dt,exl1)/B2
 cc      ydot(4) = skernel_per(t,ieps*dt)/sqrt(B2)
 cc      ydot(4) = skernel_per(t,ieps*dt)  !Normalization test
 
-      call orbit_exit(exloop)
-      
+      call set_orbit_exit(exl1)
+
 c End program
 
       end subroutine lsode_3d_beta

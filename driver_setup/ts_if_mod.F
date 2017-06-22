@@ -236,7 +236,8 @@ c     Time step update
         call evaluate_NLF(1,vnp,fold)
         old_time_eval = .false.
 
-        call mapStructureToVector(x_old,vnp) !BDF2 ref
+        call mapStructureToVector(x,vnp) !BDF2 ref
+        x_old = x
 
         ierr = implicit_ts(x,itnw,itgm,iout)
       else

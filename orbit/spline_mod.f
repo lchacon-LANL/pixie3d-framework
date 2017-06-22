@@ -44,9 +44,9 @@ c #####################################################################
 
       contains
 
-c     sp_domain_limits
+c     set_sp_domain_limits
 c     ##################################################################
-      subroutine sp_domain_limits(x,bc,xmin,xmax)
+      subroutine set_sp_domain_limits(x,bc,xmin,xmax)
 
 c     ------------------------------------------------------------------
 c     Set domain limits according to dimension vector x and boundary
@@ -71,7 +71,7 @@ c     Begin program
         if (bc == PER) then  !Ghost cell is at x(1)
 cc          xmin = 5d-1*(x(1)+x(2))
 cc          xmax = 5d-1*(x(nn-1)+x(nn))
-          x = x - x(2)  !Set angle = 0 at x(2)
+          x = x - x(2)          !Set angle = 0 at x(2)
           xmin = x(2)
           xmax = x(nn)
         else
@@ -81,11 +81,41 @@ cc          xmax = 5d-1*(x(nn-1)+x(nn))
 
 c     End program
 
-      end subroutine sp_domain_limits
+      end subroutine set_sp_domain_limits
+
+c     get_sp_domain_limits
+c     ##################################################################
+      subroutine get_sp_domain_limits(xmin,xmax,ymin,ymax,zmin,zmax)
+
+c     ------------------------------------------------------------------
+c     Get spline domain limits.
+c     ------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        real(8) :: xmin,xmax,ymin,ymax,zmin,zmax
+
+c     Local Variables
+
+c     Begin program
+
+        xmin = xsmin
+        ymin = ysmin
+        zmin = zsmin
+
+        xmax = xsmax
+        ymax = ysmax
+        zmax = zsmax
+
+c     End program
+
+      end subroutine get_sp_domain_limits
 
 c     chk_pos
 c     ##################################################################
-      subroutine chk_pos(x,y,z,no_per_bc,ierr)
+      subroutine chk_pos(x,y,z,no_per_bc,warning,ierr)
 
 c     ------------------------------------------------------------------
 c     Check whether we are within LOGICAL domain, and if not:
@@ -100,13 +130,13 @@ c     ------------------------------------------------------------------
 c     Call variables
 
       real(8) :: x,y,z
-      logical,optional :: no_per_bc
+      logical,optional :: no_per_bc,warning
       integer,optional :: ierr
 
 c     Local Variables
 
       integer :: ierror
-      logical :: per_bc
+      logical :: per_bc,message
 
 c     Begin program
 
@@ -114,6 +144,12 @@ c     Begin program
         per_bc = .not.no_per_bc
       else
         per_bc = .true.
+      endif
+
+      if (PRESENT(warning)) then
+        message = warning
+      else
+        message = .true.
       endif
 
       ierror = ORB_OK
@@ -172,7 +208,7 @@ c     Begin program
       endif
 
 cc      if (.not.PRESENT(ierr)) then
-        if (ierror /= 0) then
+        if (ierror /= 0.and.message) then
           write (*,*) 
           write (*,*) 'Error in chk_pos: out of domain!'
           write (*,*)
@@ -203,8 +239,7 @@ c     End program
 
 c     setupSplines
 c     #################################################################
-      subroutine setupSplines(nnx,nny,nnz,xx,yy,zz,order
-     .                       ,xmin,xmax,ymin,ymax,zmin,zmax,bcnd)
+      subroutine setupSplines(nnx,nny,nnz,xx,yy,zz,order,bcnd)
 c     -----------------------------------------------------------------
 c     This routine sets up 3D splines, including allocation of memory
 c     space.
@@ -216,7 +251,6 @@ c     Call variables
 
         integer :: nnx,nny,nnz,order
         real(8) :: xx(nnx),yy(nny),zz(nnz)
-        real(8),intent(OUT) :: xmin,xmax,ymin,ymax,zmin,zmax
         integer :: bcnd(6)
 
 c     Local variables
@@ -241,7 +275,7 @@ c     Initialize spline domain arrays
         ys = yy
         zs = zz
 
-c     Define domain limits
+c     Define spline domain limits
 
         if (associated(grid_params)) then
           xsmin = grid_params%gxmin
@@ -253,23 +287,17 @@ c     Define domain limits
           zsmin = grid_params%gzmin
           zsmax = grid_params%gzmax
         else
-          call sp_domain_limits(xs,sbcnd(1),xsmin,xsmax)
-          call sp_domain_limits(ys,sbcnd(3),ysmin,ysmax)
-          call sp_domain_limits(zs,sbcnd(5),zsmin,zsmax)
+          call set_sp_domain_limits(xs,sbcnd(1),xsmin,xsmax)
+          call set_sp_domain_limits(ys,sbcnd(3),ysmin,ysmax)
+          call set_sp_domain_limits(zs,sbcnd(5),zsmin,zsmax)
         endif
-
-        xmin = xsmin
-        xmax = xsmax
-                 
-        ymin = ysmin
-        ymax = ysmax
-                 
-        zmin = zsmin
-        zmax = zsmax
 
 c     Prepare 3d spline interpolation
 
-        flg = 0 !Let spline routine find interpolation knots
+        flg = 0  !Let spline routine find interpolation knots
+
+        if (order == 0) call pstop('setupSplines',"spline order = 0")
+       
         kx = min(order+1,nx-1)
         ky = min(order+1,ny-1)
         kz = min(order+1,nz-1)
@@ -285,8 +313,8 @@ c     Prepare 3d spline interpolation
         call set_omp_thread_id()
 !$omp end parallel                                                             
 
-	dime = ky*kz + 3*max(kx,ky,kz) + kz
-	allocate(worke(dime*thr_tot),stat=alloc_stat)
+		dime = ky*kz + 3*max(kx,ky,kz) + kz
+		allocate(worke(dime*thr_tot),stat=alloc_stat)
 
 c     End program
 

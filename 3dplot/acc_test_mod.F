@@ -83,13 +83,15 @@ c     Interpolation
 
 c     Debug
 
-      character(13) :: debugfile
+      character(20) :: debugfile
 
 c     Begin program
 
-      if(my_rank == 0) then
+      if (my_rank == 0) then
         write (*,*)
-        write (*,*) ' Starting spatial convergence test...'
+        write (*,*) '>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>'
+        write (*,*) 'Starting spatial convergence test...'
+        write (*,*) '>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>'
       endif
 
       igx = 1
@@ -237,12 +239,15 @@ c Calculate difference
         enddo
 
 c diag ****
-        debugfile = 'debug_var'//trim(int2char(ivar))//'.bin'
+        write (*,*) 'DIAG -- dumping error file'
+        debugfile = 'debug_var='//trim(int2char(ivar))//'.bin'
         open(unit=110,file=debugfile,form='unformatted'
      .      ,status='replace')
 
-        call contour(log10(array(1:nx,1:ny,1)),nx,ny
+        call contour(array(1:nx,1:ny,1),nx,ny
      .              ,0d0,1d0,0d0,1d0,0,110)
+        call contour(log10(array(1:nx,1:ny,1)),nx,ny
+     .              ,0d0,1d0,0d0,1d0,1,110)
 
         close(110)
 c diag ****

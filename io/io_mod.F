@@ -350,20 +350,20 @@ c     Call variables
 c     Local variables
 
       integer :: ifile,nfiles
-      logical :: check,lchck
+      logical :: check,lchck,single_file,posix_read
       character(len(base_fname)+10) :: file
 
 c     Begin program
 
 c     Find graphics files
 
-      if (is_file(base_fname)) then  !Serial run, single file (for backward compatibility)
+      if (is_file(base_fname)) then  !Single file (for backward compatibility)
 
         nfiles = 1
 
-        ierr = shellcmd('mv '//trim(base_fname)//' '
-     .                       //trim(base_fname)//'_proc0')
-
+cc        ierr = shellcmd('ln -s '//trim(base_fname)//' '
+cc     .                       //trim(base_fname)//'_proc0')
+        single_file = .true.
       else
 
         if (myrank == 0) then
@@ -372,38 +372,33 @@ c     Find graphics files
         endif
 
         !Find out number of graphics files
-cc        nfiles = -1
-cc        ierr   = 0
-cc        do while (ierr == 0)
-cc          nfiles=nfiles+1
-cc          ierr = shellcmd('test -f '//trim(base_fname)//'_proc'
-cc     .                 //trim(int2char(nfiles)))
-cc        enddo
-
         nfiles = 0
         do while (is_file(trim(base_fname)//'_proc'
      .                  //trim(int2char(nfiles))))
           nfiles=nfiles+1
         enddo
 
+        single_file = .false.
       endif
 
 c     Check for errors
 
       ierr = 0
 
-      if (nfiles == 0) then
+      if (nfiles == 0) then  !No files!
         ierr = 1
         return
       elseif (nfiles == np) then
-        nfiles = 1  !One file per processor
+        posix_read = .true.  !One file per processor
+      else
+        posix_read = .false. !Async file reading
       endif
 
 c     Allocate arrays and open files
 
       allocate(munit(nfiles))
 
-      if (nfiles == 1) then
+      if (posix_read) then
         munit(1) = base_unit+myrank
         file = trim(base_fname)//'_proc'//trim(int2char(myrank))
         write (*,*) '  => ',trim(file),', unit=',munit(1)
@@ -411,14 +406,24 @@ c     Allocate arrays and open files
         open(munit(1),file=trim(file)
      $      ,form='unformatted',status='old')
       else
-        do ifile=1,nfiles
-          munit(ifile) = base_unit+ifile
-          file = trim(base_fname)//'_proc'//trim(int2char(ifile-1))
+        if (single_file) then
+          ifile = 1
+          munit(ifile) = base_unit + myrank
+          file = base_fname
           write (*,*) '  => ',trim(file),', unit=',munit(ifile)
 
           open(munit(ifile),file=trim(file)
      $        ,form='unformatted',status='old')
-        enddo
+        else
+          do ifile=1,nfiles
+            munit(ifile) = base_unit+ifile
+            file = trim(base_fname)//'_proc'//trim(int2char(ifile-1))
+            write (*,*) '  => ',trim(file),', unit=',munit(ifile)
+
+            open(munit(ifile),file=trim(file)
+     $          ,form='unformatted',status='old')
+          enddo
+        endif
       endif
 
 c End programs

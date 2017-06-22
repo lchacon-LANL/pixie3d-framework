@@ -110,7 +110,7 @@ c ######################################################################
         INTEGER,PRIVATE :: IOPT,IOUT,ISTATE=0,ITASK,ITOL
      .                  ,IWORK(LIW),MF,NEQD(1)
 !$OMP THREADPRIVATE(IOPT,IOUT,ISTATE,ITASK,ITOL,IWORK,MF,NEQD)
-        REAL(8),PRIVATE :: LS_ATOL(1),LS_RTOL(1),RWORK(LRW)
+        REAL(8),PRIVATE :: LS_ATOL(1),LS_RTOL(1),RWORK(LRW)=0d0
      .                    ,T,TOUT,YY(NEQ),LSODE_ACC(LSODE_ACC_DIM)
 !$OMP THREADPRIVATE(LS_ATOL,LS_RTOL,RWORK,T,TOUT,YY,LSODE_ACC)
 !     Store of LSODE common block variables
@@ -382,39 +382,28 @@ c     ----------------------------------------------------------------------
 
       end subroutine orbit_conf_def
 
-c     orbit_setup
+c     orbit_params
 c     ######################################################################
-      subroutine orbit_setup(nx,ny,nz,xx,yy,zz
-     .                      ,bx,by,bz,bxcar,bycar,bzcar,jac,xmap,bcnd
-     .                      ,tmax,smax,dtime
-     .                      ,niter,atol,rtol,order,solen,picard
-     .                      ,spline_order,gauge,B_input_is_A,r_min
-     .                      ,lsode_neq,lsode_dt_lim,lsode_to_smax
-     .                      ,lsode_s_indep,ds_is_Bds)
+      subroutine orbit_params(tmax,smax,dtime
+     .                       ,niter,atol,rtol,order,solen,picard
+     .                       ,spline_order,gauge,B_input_is_A,r_min
+     .                       ,lsode_neq,lsode_dt_lim,lsode_to_smax
+     .                       ,lsode_s_indep,ds_is_Bds)
 
 c     ----------------------------------------------------------------------
-c     Sets up orbit integrator.
+c     Sets up parameters for orbit integrator.
 c     ----------------------------------------------------------------------
 
         implicit none
 
 c     Call variables
 
-        integer :: nx,ny,nz,bcnd(6)
-        real(8) :: xx(nx),yy(ny),zz(nz)
-        real(8) :: bx(nx,ny,nz),by(nx,ny,nz),bz(nx,ny,nz)
-        real(8) :: bxcar(nx,ny,nz),bycar(nx,ny,nz),bzcar(nx,ny,nz)
-        real(8) :: xmap(nx,ny,nz,3),jac(nx,ny,nz)
-
-        !Optional parameters
         real(8),optional :: tmax,smax,dtime,atol,rtol,r_min
         integer,optional :: niter,order,spline_order,gauge,lsode_neq
         logical,optional :: solen,picard,B_input_is_A,lsode_dt_lim
      .                     ,lsode_to_smax,lsode_s_indep,ds_is_Bds
 
 c     Local variables
-
-        integer :: nn
 
 c     Begin program
 
@@ -496,8 +485,6 @@ c     Begin program
 
         ode_conf => orbit_conf%ode_conf
 
-        obcnd = bcnd
-
 c     Consistency checks
 
         if (ode_conf%lsode_to_smax) then
@@ -511,26 +498,73 @@ cc        else
 cc          ode_conf%lsode_neq = 5 !Number of LSODE equations for field line integration
 cc        endif
 
-c     Allocate orbit history arrays
+      end subroutine orbit_params
 
-cc        HIST_LIM = max(20,ssorder+1)
-cc        allocate(xhist(HIST_LIM)
-cc     .          ,yhist(HIST_LIM)
-cc     .          ,zhist(HIST_LIM)
-cc     .          ,thist(HIST_LIM)
-cc     .          ,shist(HIST_LIM))
-cc
-cc        xhist = UNDEF_DP
-cc        yhist = UNDEF_DP
-cc        zhist = UNDEF_DP
-cc        thist = UNDEF_DP
-cc        shist = UNDEF_DP
+c     orbit_setup
+c     ######################################################################
+      subroutine orbit_setup(nx,ny,nz,xx,yy,zz
+     .                      ,bx,by,bz,bxcar,bycar,bzcar,jac,xmap,bcnd
+     .                      ,tmax,smax,dtime
+     .                      ,niter,atol,rtol,order,solen,picard
+     .                      ,spline_order,gauge,B_input_is_A,r_min
+     .                      ,lsode_neq,lsode_dt_lim,lsode_to_smax
+     .                      ,lsode_s_indep,ds_is_Bds)
+
+c     ----------------------------------------------------------------------
+c     Sets up orbit integrator.
+c     ----------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer :: nx,ny,nz,bcnd(6)
+        real(8) :: xx(nx),yy(ny),zz(nz)
+        real(8) :: bx(nx,ny,nz),by(nx,ny,nz),bz(nx,ny,nz)
+        real(8) :: bxcar(nx,ny,nz),bycar(nx,ny,nz),bzcar(nx,ny,nz)
+        real(8) :: xmap(nx,ny,nz,3),jac(nx,ny,nz)
+
+        !Optional parameters
+        real(8),optional :: tmax,smax,dtime,atol,rtol,r_min
+        integer,optional :: niter,order,spline_order,gauge,lsode_neq
+        logical,optional :: solen,picard,B_input_is_A,lsode_dt_lim
+     .                     ,lsode_to_smax,lsode_s_indep,ds_is_Bds
+
+c     Local variables
+
+        integer :: nn
+
+c     Begin program
+
+        call orbit_params(
+     .        tmax          =tmax
+     .       ,smax          =smax         
+     .       ,dtime         =dtime        
+     .       ,niter         =niter        
+     .       ,atol          =atol         
+     .       ,rtol          =rtol         
+     .       ,order         =order        
+     .       ,solen         =solen        
+     .       ,picard        =picard       
+     .       ,spline_order  =spline_order 
+     .       ,gauge         =gauge        
+     .       ,B_input_is_A  =B_input_is_A 
+     .       ,r_min         =r_min        
+     .       ,lsode_neq     =lsode_neq    
+     .       ,lsode_dt_lim  =lsode_dt_lim 
+     .       ,lsode_to_smax =lsode_to_smax
+     .       ,lsode_s_indep =lsode_s_indep
+     .       ,ds_is_Bds     =ds_is_Bds    
+     .       )
+
+        obcnd = bcnd
 
 c     Do splines
 
         call setupSplines(nx,ny,nz,xx,yy,zz
-     .                   ,orbit_conf%spline_conf%order
-     .                   ,xmin,xmax,ymin,ymax,zmin,zmax,obcnd)
+     .                   ,orbit_conf%spline_conf%order,obcnd)
+
+        call get_sp_domain_limits(xmin,xmax,ymin,ymax,zmin,zmax)
 
         if (    ode_conf%solen
      .      .or.orbit_conf%spline_conf%input_is_A) then
@@ -591,10 +625,10 @@ c       * x0,y0,z0: starting point of orbit
 c       * fwd: whether to go forward or backward
 c     Optional input:
 c       * line_int: external routine to perform line integrals
-c       * line_f: external routine to perform line integrals using LSODE
+c       * lsode_f: external routine to perform line integrals using LSODE
 c       * ss_check: check for surface of section (default: not when
 c                   performing integrals along line)
-c       * ss_order: order of interpolation for SS (default: 1)
+ccc       * ss_order: order of interpolation for SS (default: 1)
 c       * t_max,s_max: override maximum orbit lengths, measured in pseudotime
 c                      units (t_max, for solenoidal int), or arclength (s_max)
 c     Optional output:
@@ -821,18 +855,7 @@ c     Daniele,23/03/2009: dump the initial point of the orbit
           !Find new LOGICAL positions, new time, new arc length
           call orbit_step(x,y,z,iterror,forward=fwd,lsode_f=lsode_f)
 
-          if (connect) then
-           if (.not. cnc_back .and. x .gt. cnctth) then
-            call connect_write(x0,y0,z0,ss,thr_num)
-!#! Marco, no need to continue after threshold is reached
-            exit
-           else if (cnc_back .and. x .lt. cnctth) then
-            call connect_write(x0,y0,z0,ss,thr_num)
-            exit
-           endif
-          endif
-
-          exit_loop = (orbit_error(iterror).or.exit_loop) !Last determined in orbit_step
+          exit_loop = (orbit_error(iterror).or.get_orbit_exit())
           non_fatal_err = (iterror<=0)
 
           xhist(1) = x
@@ -841,11 +864,6 @@ c     Daniele,23/03/2009: dump the initial point of the orbit
           thist(1) = time
           shist(1) = ss
 
-cc          write (*,*) 'xhist',xhist
-cc          write (*,*)
-cc          write (*,*) yhist
-cc          write (*,*) zhist
-cc          write (*,*) shist
           !Check for orbit end and interpolate quantities
           if (smax /= 0d0) then
             exit_loop = exit_loop.or.(abs(ss) >= smax)
@@ -858,10 +876,6 @@ cc          write (*,*) shist
             if (abs(ss) > smax) then !4th order interpolation of orbit end points
               ss = sign(1d0,ss)*smax
               call sursec_ho(ss,shist,xhist,yhist,zhist,np,x,y,z,4)
-cc              x = xold + (smax-abs(sold))/abs(ss-sold)*(x-xold)
-cc              y = yold + (smax-abs(sold))/abs(ss-sold)*(y-yold)
-cc              z = zold + (smax-abs(sold))/abs(ss-sold)*(z-zold)
-cc              ss = sign(1d0,ss)*smax
             endif
           elseif (tmax /= 0d0) then
             exit_loop = exit_loop.or.(abs(time) >= tmax)
@@ -869,10 +883,6 @@ cc              ss = sign(1d0,ss)*smax
             if (abs(time) > tmax) then !4th order interpolation of orbit end points
               time = sign(1d0,time)*tmax
               call sursec_ho(time,thist,xhist,yhist,zhist,np,x,y,z,4)
-cc              x = xold + (tmax-abs(told))/abs(time-told)*(x-xold)
-cc              y = yold + (tmax-abs(told))/abs(time-told)*(y-yold)
-cc              z = zold + (tmax-abs(told))/abs(time-told)*(z-zold)
-cc              time = sign(1d0,time)*tmax
             endif
           endif
 
@@ -1001,7 +1011,7 @@ c     Begin program
 
         if (auto_corr) call auto_corr_counters_init
 
-        exit_loop = .false.
+        call set_orbit_exit(.false.)
 
         orb_init = .true.
 
@@ -1030,18 +1040,36 @@ c     ----------------------------------------------------------------------
 
       end subroutine orbit_end
 
-c     orbit_exit
+c     set_orbit_exit
 c     ######################################################################
-      subroutine orbit_exit(exit)
+      subroutine set_orbit_exit(exitl)
+
 c     ----------------------------------------------------------------------
-c     Finalizes orbit integrator
+c     Sets orbit exit control variable
 c     ----------------------------------------------------------------------
 
-      logical :: exit
+        implicit none
 
-      exit_loop = exit
+        logical :: exitl
 
-      end subroutine orbit_exit
+        exit_loop = exitl
+
+      end subroutine set_orbit_exit
+
+c     get_orbit_exit
+c     ######################################################################
+      function get_orbit_exit() result(exitl)
+c     ----------------------------------------------------------------------
+c     Gets orbit exit control variable
+c     ----------------------------------------------------------------------
+
+        implicit none
+
+        logical :: exitl
+
+        exitl = exit_loop
+
+      end function get_orbit_exit
 
 c     orbit_step
 c     ##################################################################
@@ -1114,7 +1142,7 @@ c     ODE configuration
         fwd = .true.
       endif
 
-      ierror = ORB_OK    !Initialize domain bounds error flag
+      ierror = ORB_OK   !Initialize domain bounds error flag
 
       restart = .false. !Initialize restarting status flag
 
@@ -2709,7 +2737,6 @@ c     Check for intersection with X surface of section
      .               ,xss,npointx,yss,zss,tss,iwhich)
 
           if (ss_io) then
-
             call chk_pos(xss,yss,zss) !this resets logical coords
             write(nunitx(thr_num)) real(yss),real(zss)
           endif
@@ -2729,7 +2756,6 @@ c     Check for intersection with Y surface of section
      .               ,yss,npointy,zss,xss,tss,iwhich)
 
           if (ss_io) then
-
             call chk_pos(xss,yss,zss) !this resets logical coords
             
             if (flux) then
@@ -2754,9 +2780,7 @@ c     Check for intersection with Z surface of section
      .               ,zss,npointz,xss,yss,tss,iwhich)
 
           if (ss_io) then
-
             if (rzss) then   !Find R-Z plane positions
-
               call evalX(xss,yss,zss,xcar,ycar,zcar) !Eval Cartesian coords; also resets logical coords
               rr = sqrt(xcar**2+ycar**2)
               write(nunitrz(thr_num)) real(rr),real(zcar)
