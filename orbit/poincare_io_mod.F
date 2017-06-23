@@ -143,22 +143,24 @@ c     Begin program
 
         !Setup orbit
 
-        call set_sp_domain_limits(xx,bcnd(1),xmin,xmax)
-        call set_sp_domain_limits(yy,bcnd(3),ymin,ymax)
-        call set_sp_domain_limits(zz,bcnd(5),zmin,zmax)
+        call poinc_domain_limits(xx,bcnd(1),pxmin,pxmax)
+        call poinc_domain_limits(yy,bcnd(3),pymin,pymax)
+        call poinc_domain_limits(zz,bcnd(5),pzmin,pzmax)
 
-        call allocateGridStructure(1,1,1,1,1,1,nxg,nyg,nzg,g_poinc)
-
-        g_poinc%gxmin = xmin
-        g_poinc%gxmax = xmax
-        g_poinc%gymin = ymin
-        g_poinc%gymax = ymax
-        g_poinc%gzmin = zmin
-        g_poinc%gzmax = zmax
-
-        g_poinc%xg = xx
-        g_poinc%yg = yy
-        g_poinc%zg = zz
+        call createGrid(nxg,nyg,nzg,pxmin,pxmax,pymin,pymax,pzmin,pzmax
+     .                 ,g_poinc)
+cc        call allocateGridStructure(1,1,1,1,1,1,nxg,nyg,nzg,g_poinc)
+cc
+cc        g_poinc%gxmin = xmin
+cc        g_poinc%gxmax = xmax
+cc        g_poinc%gymin = ymin
+cc        g_poinc%gymax = ymax
+cc        g_poinc%gzmin = zmin
+cc        g_poinc%gzmax = zmax
+cc
+cc        g_poinc%xg = xx
+cc        g_poinc%yg = yy
+cc        g_poinc%zg = zz
 
         call orbit_setup(g_poinc,1
      .                  ,bx,by,bz,bxcar,bycar,bzcar
