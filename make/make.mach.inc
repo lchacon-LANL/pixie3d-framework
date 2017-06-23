@@ -426,9 +426,9 @@ ifeq ($(findstring Marias,$(HOST)),Marias)
     ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1
     ADIOS_VER  = 1.10.0
 
-    LIBS += -latlas
+    LIBS += -L/opt/local/lib -latlas
   else
-    LIBS += -L/usr/lib -llapack -lblas -latlas
+    LIBS += -L/opt/local/lib -llapack -lblas -latlas
 
     HDF5 = t
 

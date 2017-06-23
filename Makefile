@@ -148,7 +148,7 @@ contrib_pack: ;
 
 #Define dependencies
 
-$(OBJS) : $(MODS) $(COMMOM_MODS)
+$(OBJS) : $(MODS) $(COMMON_MODS)
 
 #Define patterns
 
