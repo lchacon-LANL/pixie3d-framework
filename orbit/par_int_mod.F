@@ -2109,6 +2109,174 @@ c     Fill global arrays
 
       end subroutine get_global_data
 
+#if 0
+c     get_global_data_from_file
+c     ##############################################################
+      subroutine get_global_data_from_file
+
+c     --------------------------------------------------------------
+c     Finds global data (B,geometry) from Poincare file
+c     --------------------------------------------------------------
+
+        implicit none
+
+        integer :: upixie=12345,ierr
+
+        integer,pointer,dimension(:) :: mupixie
+
+        integer :: ifl,ilmg,ihpg,jlmg,jhpg,klmg,khpg,nfiles,bcnd(6)
+
+        logical :: tor
+
+        real(8),pointer,dimension(:) :: xx,yy,zz
+
+c     Begin program
+
+        if (my_rank == 0) then
+          write (*,*) 'Asynchronous input in Lagrangian step'
+        endif
+
+c     Check file configuration
+
+        ierr = openFiles(my_rank,np,upixie,trim(poinc_file),mupixie)
+
+        if (ierr /= 0) call pstop('get_global_data_from_file'
+     .                           ,'Cannot find files')
+
+c     Read setup info
+
+        nfiles = size(mupixie)
+
+        do ifl=1,nfiles
+          read (mupixie(ifl)) nxg,nyg,nzg,bcnd,tor
+        enddo
+
+        if (tor .and. (coords /= 'vmc' .and. coords /= 'tor')) then
+          call closeFiles(mupixie)
+          call pstop('get_global_data_from_file'
+     .              ,'Coordinates are not toroidal')
+        endif
+
+        if (sum(bcnd-bcond) /= 0) then
+          call closeFiles(mupixie)
+          call pstop('get_global_data_from_file'
+     .              ,'BC conf. does not agree')
+        endif
+
+        if (nxd /= nxg .or. nyd /= nyg .or. nzd /= nzg) then
+          call closeFiles(mupixie)
+          write (*,*) 'Grid size=',nxg,nyg,nzg
+          call pstop('get_global_data_from_file'
+     .              ,'Global grid size does not agree')
+        endif
+
+c     Allocate global arrays
+
+        allocate(xx(0:nxg+1),yy(0:nyg+1),zz(0:nzg+1))
+
+        allocate(bg   (0:nxg+1,0:nyg+1,0:nzg+1,3)
+     .          ,bcarg(0:nxg+1,0:nyg+1,0:nzg+1,3)
+     .          ,carg (0:nxg+1,0:nyg+1,0:nzg+1,3)
+     .          ,jacg (0:nxg+1,0:nyg+1,0:nzg+1  ))
+
+c     Read global arrays
+
+        do ifl=1,nfiles
+
+          read (mupixie(ifl)) xx
+          read (mupixie(ifl)) yy
+          read (mupixie(ifl)) zz
+
+          if (nfiles > 1) then
+            read (mupixie(ifl)) ilmg,ihpg,jlmg,jhpg,klmg,khpg
+          else
+            ilmg = 0
+            ihpg = nxg+1
+
+            jlmg = 0
+            jhpg = nyg+1
+
+            klmg = 0
+            khpg = nzg+1
+          endif
+
+          read (mupixie(ifl)) bg   (ilmg:ihpg,jlmg:jhpg,klmg:khpg,1)
+          read (mupixie(ifl)) bg   (ilmg:ihpg,jlmg:jhpg,klmg:khpg,2)
+          read (mupixie(ifl)) bg   (ilmg:ihpg,jlmg:jhpg,klmg:khpg,3)
+
+          read (mupixie(ifl),iostat=ierr)
+     .                        bcarg(ilmg:ihpg,jlmg:jhpg,klmg:khpg,1)
+         
+          if (ierr /= 0) then   !bxcar not available: assume cylindrical coords
+            do k=klmg,khpg
+              do j=jlmg,jhpg
+                do i=ilmg,ihpg
+                  bcarg(i,j,k,1) = bg(i,j,k,1)*cos(yy(j))
+     .                           - bg(i,j,k,2)*sin(yy(j))
+                  bcarg(i,j,k,2) = bg(i,j,k,1)*sin(yy(j))
+     .                           + bg(i,j,k,2)*cos(yy(j))
+                  bcarg(i,j,k,3) = bg(i,j,k,3)
+
+                  bg(i,j,k,1)    = xx(i)*bg(i,j,k,1)
+                  bg(i,j,k,3)    = xx(i)*bg(i,j,k,3)
+
+                  jacg(i,j,k)    = xx(i)
+                  carg(i,j,k,1)  = xx(i)*cos(yy(j))
+                  carg(i,j,k,2)  = xx(i)*sin(yy(j))
+                  carg(i,j,k,3)  = zz(k)
+                enddo
+              enddo
+            enddo
+          else
+            read (mupixie(ifl),iostat=ierr)
+     .           bcarg(ilmg:ihpg,jlmg:jhpg,klmg:khpg,2)
+            if (ierr /= 0) goto 100
+            read (mupixie(ifl),iostat=ierr)
+     .           bcarg(ilmg:ihpg,jlmg:jhpg,klmg:khpg,3)
+            if (ierr /= 0) goto 100
+            read (mupixie(ifl),iostat=ierr)
+     .           jacg (ilmg:ihpg,jlmg:jhpg,klmg:khpg)
+            if (ierr /= 0) goto 100
+            read (mupixie(ifl),iostat=ierr)
+     .           carg (ilmg:ihpg,jlmg:jhpg,klmg:khpg,:)
+            if (ierr /= 0) goto 100
+          endif
+
+        enddo
+
+c     Assign local B arrays
+
+        bb = bg(ilomg:ihipg,jlomg:jhipg,klomg:khipg,:)
+
+c     Update grid metrics
+
+        !Find physical domain limits
+        call poinc_domain_limits(xx,bcnd(1),xmin,xmax)
+        call poinc_domain_limits(yy,bcnd(3),ymin,ymax)
+        call poinc_domain_limits(zz,bcnd(5),zmin,zmax)
+
+        !Recreate mesh and metrics
+        call createGrid(nxg,nyg,nzg,xmin,xmax,ymin,ymax,zmin,zmax,g_def)
+
+        if (.not.checkAnalMapDatabase()) then
+          call defineGridMetric(g_def
+     .           ,xcar=carg(ilomg:ihipg,jlomg:jhipg,klomg:khipg,:))
+        endif
+
+c     Close files
+
+        call closeFiles(mupixie)
+
+        deallocate(xx,yy,zz)
+        return
+
+ 100    call pstop('get_global_data_from_file'
+     .            ,'Problem reading poincare file; aborting')
+
+      end subroutine get_global_data_from_file
+
+#else
+
 c     get_global_data_from_file
 c     ##############################################################
       subroutine get_global_data_from_file
@@ -2133,12 +2301,9 @@ c     Begin program
 c     Read POINCARE data
 
         sporder = spline_order
-        call read_poinc_files(poinc_file) !This sets up orbit and splines
+        call read_poinc_files(g_def,poinc_file) !This sets up orbit, splines, and mesh
 
-c     Recreate mesh and grid metrics (using POINCARE file info)
-
-        call get_poinc_domain_ptys(xmin,xmax,ymin,ymax,zmin,zmax,bcond) !Reset domain limits
-        call createGrid(nxg,nyg,nzg,xmin,xmax,ymin,ymax,zmin,zmax,g_def)!Recreate mesh
+c     Interpolate global fields
 
         allocate(car (0:nx+1,0:ny+1,0:nz+1,3)
      .          ,car0(0:nx+1,0:ny+1,0:nz+1,3)
@@ -2236,7 +2401,8 @@ c     Destroy work space
         call orbit_destroy !Destroys orbit and splines
 
       end subroutine get_global_data_from_file
-      
+#endif
+
 c     find_beta_3d
 c     ##############################################################
       subroutine find_beta_3d

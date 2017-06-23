@@ -196,7 +196,7 @@ c       Deallocate memory
 
 c     read_poinc_files
 c     ##############################################################
-      subroutine read_poinc_files(file)
+      subroutine read_poinc_files(g_def,file)
 
         implicit none
 
@@ -205,7 +205,8 @@ c     Read poincare file for grid and field data
 c     --------------------------------------------------------------
 
 c     Call variables
-
+        
+        type(grid_mg_def),pointer :: g_def
         character(*) :: file
 
 c     Local variables
@@ -241,7 +242,7 @@ c     Read POINCARE data
 c     Orbit initialization on global array
 
         call createGrid(nxg,nyg,nzg,pxmin,pxmax,pymin,pymax,pzmin,pzmax
-     .                 ,g_poinc)
+     .                 ,g_def)
 cc        call allocateGridStructure(1,1,1,1,1,1,nxg,nyg,nzg,g_poinc)
 cc
 cc        g_poinc%gxmin = xmin
@@ -255,7 +256,7 @@ cc        g_poinc%xg = xx
 cc        g_poinc%yg = yy
 cc        g_poinc%zg = zz
 
-        call orbit_setup(g_poinc,1
+        call orbit_setup(g_def,1
      .                  ,bg(:,:,:,1)
      .                  ,bg(:,:,:,2)
      .                  ,bg(:,:,:,3)
@@ -661,12 +662,17 @@ c     Begin program
 
         nn = size(x)
 
-        if (bc == PER) then  !Ghost cell is at x(1)
-          x = x - 0.5*(x(1)+x(2))          !Set angle = 0 at face
+        if (bc == PER) then     !Ghost cell is at x(1)
+cc          x = x - x(2)  !Set angle = 0 at x(2)
+cc          if (x(2) /= 0d0) then !PIXIE3D data, not SPECYL
+cc            x = x - 0.5*(x(1)+x(2)) !Set angle = 0 at face
+cc          endif
+          xmin = 0d0 ; xmax = x(nn)-x(2)
+cc          xmin = -0.5*(x(2)-x(1)) ; xmax = x(nn)-xmin
+        else
+          xmin = 5d-1*(x(1   )+x(2 ))
+          xmax = 5d-1*(x(nn-1)+x(nn))
         endif
-
-        xmin = 5d-1*(x(1)+x(2))
-        xmax = 5d-1*(x(nn-1)+x(nn))
 
 c     End program
 
