@@ -1908,7 +1908,7 @@ cc                endif
           r = x - reshape(b0(1:nx,1:ny,1:nz),shape(x))
 
           !Convergence test
-          beta_err = sqrt(dot2(r/x,r/x)/nxg/nyg/nzg)
+          beta_err = sqrt(dot2(r/x,r/x)/(nxg*nyg*nzg))
 
           if (my_rank == 0) write (*,*) '  >> Beta error=',beta_err
 
@@ -1967,7 +1967,6 @@ c     Local variables
         integer :: nxg,nyg,nzg,i,j,k,ig,jg,kg,nx,ny,nz
         real(8) :: x0,y0,z0
 
-        real(8),pointer,dimension(:)       :: xx,yy,zz
         real(8),pointer,dimension(:,:,:  ) :: jacg
         real(8),pointer,dimension(:,:,:,:) :: bcar,bg,bcarg,carg
 
@@ -1992,9 +1991,9 @@ c     Begin program
         nyg = g_def%nygl(igrid)
         nzg = g_def%nzgl(igrid)
 
-        nx = g_def%nxv(igrid)
-        ny = g_def%nyv(igrid)
-        nz = g_def%nzv(igrid)
+        nx  = g_def%nxv(igrid)
+        ny  = g_def%nyv(igrid)
+        nz  = g_def%nzv(igrid)
 
         bwgt = B_wgt
 
@@ -2058,7 +2057,7 @@ c     Orbit initialization on global array
 
 c     Deallocate memory
 
-        deallocate(bg,bcarg,jacg,carg,bcar,xx,yy,zz)
+        deallocate(bg,bcarg,jacg,carg)
 
 c     End program
 
@@ -2068,25 +2067,21 @@ c     get_global_data
 c     ##############################################################
       subroutine get_global_data
 
+      implicit none
+
 c     --------------------------------------------------------------
 c     Finds global data (B,geometry) from Poincare file
 c     --------------------------------------------------------------
+
+        real(8),pointer,dimension(:,:,:,:) :: bcar
 
 c     Find local cartesian components
 
         allocate(bcar(0:nx+1,0:ny+1,0:nz+1,3))
 
-        bcar = bb
-
-        call transformVector(g_def,igrid,igrid,igrid
-     .                      ,0,nx+1,0,ny+1,0,nz+1
-     .                      ,bcar(:,:,:,1)
-     .                      ,bcar(:,:,:,2)
-     .                      ,bcar(:,:,:,3),'cnv','car')
+        bcar = XformToCar(g_def,igrid,bb,.false.)
 
 c     Fill global arrays
-
-        allocate(xx(nxg+2),yy(nyg+2),zz(nzg+2))
 
         allocate(bg   (0:nxg+1,0:nyg+1,0:nzg+1,3)
      .          ,bcarg(0:nxg+1,0:nyg+1,0:nzg+1,3)
@@ -2109,134 +2104,10 @@ c     Fill global arrays
         call find_global(g_def%gmetric%grid(igrid)%car,carg
      .                  ,map_bc=.true.)
 #endif
-        xx = g_def%xg
-        yy = g_def%yg
-        zz = g_def%zg
+
+        deallocate(bcar)
 
       end subroutine get_global_data
-
-ccc     get_global_data_from_file
-ccc     ##############################################################
-cc      subroutine get_global_data_from_file
-cc
-ccc     --------------------------------------------------------------
-ccc     Finds global data (B,geometry) from Poincare file
-ccc     --------------------------------------------------------------
-cc
-cc        implicit none
-cc
-cc        integer :: upixie=12345,ierr
-cc
-cc        integer,pointer,dimension(:) :: mupixie
-cc
-cc        integer :: ifl,ilmg,ihpg,jlmg,jhpg,klmg,khpg,nx,ny,nz,nfiles
-cc     .            ,bcnd(6)
-cc
-cc        logical :: tor
-cc
-ccc     Begin program
-cc
-cc        if (my_rank == 0) then
-cc          write (*,*) 'Asynchronous input in Lagrangian step'
-cc        endif
-cc
-ccc     Check file configuration
-cc
-cc        ierr = openFiles(my_rank,np,upixie,trim(poinc_file),mupixie)
-cc
-cc        if (ierr /= 0) call pstop('get_global_data_from_file'
-cc     .                           ,'Cannot find files')
-cc
-ccc     Read setup info
-cc
-cc        nfiles = size(mupixie)
-cc
-cc        do ifl=1,nfiles
-cc          read (mupixie(ifl)) nxg,nyg,nzg,bcnd,tor
-cc        enddo
-cc
-cc        if (tor .and. (coords /= 'vmc' .and. coords /= 'tor')) then
-cc          call closeFiles(mupixie)
-cc          call pstop('get_global_data_from_file'
-cc     .              ,'Coordinates are not toroidal')
-cc        endif
-cc
-cc        if (sum(bcnd-bcond) /= 0) then
-cc          call closeFiles(mupixie)
-cc          call pstop('get_global_data_from_file'
-cc     .              ,'BC conf. does not agree')
-cc        endif
-cc
-cc        if (nxd /= nxg .or. nyd /= nyg .or. nzd /= nzg) then
-cc          call closeFiles(mupixie)
-cc          write (*,*) 'Grid size=',nxg,nyg,nzg
-cc          call pstop('get_global_data_from_file'
-cc     .              ,'Global grid size does not agree')
-cc        endif
-cc
-ccc     Allocate global arrays
-cc
-cc        allocate(xx(nxg+2),yy(nyg+2),zz(nzg+2))
-cc
-cc        allocate(bg   (0:nxg+1,0:nyg+1,0:nzg+1,3)
-cc     .          ,bcarg(0:nxg+1,0:nyg+1,0:nzg+1,3)
-cc     .          ,carg (0:nxg+1,0:nyg+1,0:nzg+1,3)
-cc     .          ,jacg (0:nxg+1,0:nyg+1,0:nzg+1  ))
-cc
-ccc     Read global arrays
-cc
-cc        do ifl=1,nfiles
-cc
-cc          read (mupixie(ifl)) xx
-cc          read (mupixie(ifl)) yy
-cc          read (mupixie(ifl)) zz
-cc
-cc          if (nfiles > 1) then
-cc            read (mupixie(ifl)) ilmg,ihpg,jlmg,jhpg,klmg,khpg
-cc          else
-cc            ilmg = 0
-cc            ihpg = nxg+1
-cc
-cc            jlmg = 0
-cc            jhpg = nyg+1
-cc
-cc            klmg = 0
-cc            khpg = nzg+1
-cc          endif
-cc
-cc          read (mupixie(ifl)) bg   (ilmg:ihpg,jlmg:jhpg,klmg:khpg,1)
-cc          read (mupixie(ifl)) bg   (ilmg:ihpg,jlmg:jhpg,klmg:khpg,2)
-cc          read (mupixie(ifl)) bg   (ilmg:ihpg,jlmg:jhpg,klmg:khpg,3)
-cc          read (mupixie(ifl)) bcarg(ilmg:ihpg,jlmg:jhpg,klmg:khpg,1)
-cc          read (mupixie(ifl)) bcarg(ilmg:ihpg,jlmg:jhpg,klmg:khpg,2)
-cc          read (mupixie(ifl)) bcarg(ilmg:ihpg,jlmg:jhpg,klmg:khpg,3)
-cc          read (mupixie(ifl)) jacg (ilmg:ihpg,jlmg:jhpg,klmg:khpg)
-cc          read (mupixie(ifl)) carg (ilmg:ihpg,jlmg:jhpg,klmg:khpg,3)
-cc
-cc        enddo
-cc
-ccc     Assign local B arrays
-cc
-cc        bb = bg(ilomg:ihipg,jlomg:jhipg,klomg:khipg,:)
-cc
-ccc     Update grid metrics
-cc
-cc        nxl = ihipg-ilomg-1
-cc        nyl = jhipg-jlomg-1
-cc        nzl = khipg-klomg-1
-cc
-cc        call defineGridMetric(grid_params
-cc     .           ,xcar=carg(ilomg:ihipg,jlomg:jhipg,klomg:khipg,:))
-cc
-cc        gmetric => grid_params%gmetric
-cc
-ccc     Close files
-cc
-cc        call closeFiles(mupixie)
-cc
-cc        deallocate(mupixie)
-cc
-cc      end subroutine get_global_data_from_file
 
 c     get_global_data_from_file
 c     ##############################################################
@@ -2248,14 +2119,10 @@ c     --------------------------------------------------------------
 
         implicit none
 
-        integer :: upixie=12345,ierr
+        integer :: nfiles,ig,jg,kg,i,j,k,bcnd(6,3)
+        real(8) :: x1,x2,x3
 
-        integer,pointer,dimension(:) :: mupixie
-
-        integer :: ifl,ilmg,ihpg,jlmg,jhpg,klmg,khpg,nx,ny,nz,nfiles
-     .            ,bcnd(6)
-
-        logical :: tor
+        real(8),pointer,dimension(:,:,:,:) :: car,car0,bcov,bcar
 
 c     Begin program
 
@@ -2263,102 +2130,113 @@ c     Begin program
           write (*,*) 'Asynchronous input in Lagrangian step'
         endif
 
-c     Check file configuration
+c     Read POINCARE data
 
-        ierr = openFiles(my_rank,np,upixie,trim(poinc_file),mupixie)
+        sporder = spline_order
+        call read_poinc_files(poinc_file) !This sets up orbit and splines
 
-        if (ierr /= 0) call pstop('get_global_data_from_file'
-     .                           ,'Cannot find files')
+c     Recreate mesh and grid metrics (using POINCARE file info)
 
-c     Read setup info
+        call get_poinc_domain_ptys(xmin,xmax,ymin,ymax,zmin,zmax,bcond) !Reset domain limits
+        call createGrid(nxg,nyg,nzg,xmin,xmax,ymin,ymax,zmin,zmax,g_def)!Recreate mesh
 
-        nfiles = size(mupixie)
+        allocate(car (0:nx+1,0:ny+1,0:nz+1,3)
+     .          ,car0(0:nx+1,0:ny+1,0:nz+1,3)
+     .          ,bcar(0:nx+1,0:ny+1,0:nz+1,3)
+     .          ,bcov(0:nx+1,0:ny+1,0:nz+1,3))
 
-        do ifl=1,nfiles
-          read (mupixie(ifl)) nxg,nyg,nzg,bcnd,tor
+        if (.not.checkAnalMapDatabase()) then
+          do k=0,nz+1
+            do j=0,ny+1
+              do i=0,nx+1
+                call getCurvilinearCoordinates(g_def,i,j,k
+     .                                        ,igrid,igrid,igrid
+     .                                        ,ig,jg,kg,x1,x2,x3)
+                x1 = min(max(x1,xmin),xmax)
+                x2 = min(max(x2,ymin),ymax)
+                x3 = min(max(x3,zmin),zmax)
+                call evalX(x1,x2,x3
+     .                    ,car(i,j,k,1)
+     .                    ,car(i,j,k,2)
+     .                    ,car(i,j,k,3),ierr)
+              enddo
+            enddo
+          enddo
+
+          !Map BCs
+          car0 = car !Assign EQU boundary values
+          call map_bc(g_def,1,igrid,nx,ny,nz,car(:,:,:,1),car0(:,:,:,1))
+          call map_bc(g_def,2,igrid,nx,ny,nz,car(:,:,:,2),car0(:,:,:,2))
+          call map_bc(g_def,3,igrid,nx,ny,nz,car(:,:,:,3),car0(:,:,:,3))
+
+          !Rebuild metrics
+          call defineGridMetric(g_def,xcar=car)
+        endif
+
+c     Assign LOCAL B by interpolating POINCARE data
+
+        do k=0,nz+1
+          do j=0,ny+1
+            do i=0,nx+1
+              call getCurvilinearCoordinates(g_def,i,j,k
+     .                                      ,igrid,igrid,igrid
+     .                                      ,ig,jg,kg,x1,x2,x3)
+              
+              call chk_pos(x1,x2,x3,warning=.false.,ierr=ierr)
+              if (ierr/=0) x1=min(max(x1,xmin),xmax)
+              if (ierr/=0) x2=min(max(x2,ymin),ymax)
+              if (ierr/=0) x3=min(max(x3,zmin),zmax)
+
+              call evalB(x1,x2,x3
+     .                  ,bb(i,j,k,1)
+     .                  ,bb(i,j,k,2)
+     .                  ,bb(i,j,k,3),ierr)
+            enddo
+          enddo
         enddo
 
-        if (tor .and. (coords /= 'vmc' .and. coords /= 'tor')) then
-          call closeFiles(mupixie)
-          call pstop('lag_init','Coordinates are not toroidal')
-        endif
+        !BCs
+        car0 = bb               !Assign EQU boundary values
+        bcnd(:,1) = bcond
+        bcnd(:,2) = bcond
+        bcnd(:,3) = bcond
+        where (bcnd == DEF) bcnd = EQU
+        call setBC(g_def,0,3,nx,ny,nz,bb,bcov,car0,bcnd
+     .            ,igrid,igrid,igrid,iorder=1)
 
-        if (sum(bcnd-bcond) /= 0) then
-          call closeFiles(mupixie)
-          call pstop('lag_init','BC conf. does not agree')
-        endif
-
-        if (nxd /= nxg .or. nyd /= nyg .or. nzd /= nzg) then
-          call closeFiles(mupixie)
-          write (*,*) 'Grid size=',nxg,nyg,nzg
-          call pstop('lag_init'
-     .              ,'Global grid size does not agree')
-        endif
-
-c     Allocate global arrays
-
-        allocate(xx(nxg+2),yy(nyg+2),zz(nzg+2))
+        !Cartesian components
+        bcar = XformToCar(g_def,igrid,bb,.false.)
+        
+c     Assign GLOBAL arrays
 
         allocate(bg   (0:nxg+1,0:nyg+1,0:nzg+1,3)
      .          ,bcarg(0:nxg+1,0:nyg+1,0:nzg+1,3)
      .          ,carg (0:nxg+1,0:nyg+1,0:nzg+1,3)
-     .          ,jacg (0:nxg+1,0:nyg+1,0:nzg+1  ))
+     .          ,jacg (0:nxg+1,0:nyg+1,0:nzg+1))
 
-c     Read global arrays
+#if defined(petsc)
+        call find_global(bb  ,bg   ,mpi_comm=g_def%mpi_comm)
+        call find_global(bcar,bcarg,mpi_comm=g_def%mpi_comm)
 
-        do ifl=1,nfiles
+        call find_global(g_def%gmetric%grid(igrid)%jac,jacg
+     .                  ,mpi_comm=g_def%mpi_comm)
+        call find_global(g_def%gmetric%grid(igrid)%car,carg
+     .                  ,map_bc=.true.,mpi_comm=g_def%mpi_comm)
+#else
+        call find_global(bb  ,bg   )
+        call find_global(bcar,bcarg)
 
-          read (mupixie(ifl)) xx
-          read (mupixie(ifl)) yy
-          read (mupixie(ifl)) zz
+        call find_global(g_def%gmetric%grid(igrid)%jac,jacg)
+        call find_global(g_def%gmetric%grid(igrid)%car,carg
+     .                  ,map_bc=.true.)
+#endif
+c     Destroy work space
 
-          if (nfiles > 1) then
-            read (mupixie(ifl)) ilmg,ihpg,jlmg,jhpg,klmg,khpg
-          else
-            ilmg = 0
-            ihpg = nxg+1
-
-            jlmg = 0
-            jhpg = nyg+1
-
-            klmg = 0
-            khpg = nzg+1
-          endif
-
-          read (mupixie(ifl)) bg   (ilmg:ihpg,jlmg:jhpg,klmg:khpg,1)
-          read (mupixie(ifl)) bg   (ilmg:ihpg,jlmg:jhpg,klmg:khpg,2)
-          read (mupixie(ifl)) bg   (ilmg:ihpg,jlmg:jhpg,klmg:khpg,3)
-          read (mupixie(ifl)) bcarg(ilmg:ihpg,jlmg:jhpg,klmg:khpg,1)
-          read (mupixie(ifl)) bcarg(ilmg:ihpg,jlmg:jhpg,klmg:khpg,2)
-          read (mupixie(ifl)) bcarg(ilmg:ihpg,jlmg:jhpg,klmg:khpg,3)
-          read (mupixie(ifl)) jacg (ilmg:ihpg,jlmg:jhpg,klmg:khpg)
-          read (mupixie(ifl)) carg (ilmg:ihpg,jlmg:jhpg,klmg:khpg,3)
-
-        enddo
-
-c     Assign local B arrays
-
-        bb = bg(ilomg:ihipg,jlomg:jhipg,klomg:khipg,:)
-
-c     Update grid metrics
-
-        nxl = ihipg-ilomg-1
-        nyl = jhipg-jlomg-1
-        nzl = khipg-klomg-1
-
-        call defineGridMetric(g_def
-     .           ,xcar=carg(ilomg:ihipg,jlomg:jhipg,klomg:khipg,:))
-
-cc        gmetric => g_def%gmetric
-
-c     Close files
-
-        call closeFiles(mupixie)
-
-        deallocate(mupixie)
+        deallocate(car,car0,bcov,bcar)
+        call orbit_destroy !Destroys orbit and splines
 
       end subroutine get_global_data_from_file
-
+      
 c     find_beta_3d
 c     ##############################################################
       subroutine find_beta_3d

@@ -19,7 +19,6 @@
         type(grid_mg_def),pointer :: g_poinc => null()
 
         !Global arrays
-        real(8),pointer,private,dimension(:)       :: xx,yy,zz
         real(8),pointer,private,dimension(:,:,:)   :: jacg
         real(8),pointer,private,dimension(:,:,:,:) :: bg,bcarg,carg
 
@@ -72,7 +71,7 @@ c     Begin program
 
         write (*,*)
         write (*,*) '*****************************************'
-        write (*,*) 'Opening file ',trim(file),'...(read_file)'
+        write (*,*) 'Opening file ',trim(file),'...(sync)'
         write (*,*) '*****************************************'
         write (*,*)
 
@@ -209,7 +208,7 @@ c     Call variables
 
 c     Local variables
 
-        integer :: nfiles,nx,ny,nz
+        integer :: nfiles
 
 c     Begin program
 
@@ -232,34 +231,27 @@ c     Read POINCARE data
           call pstop('read_poinc_files'
      .              ,'Cannot find POINCARE files')
         elseif (nfiles /= np) then
-          call read_poincare_data_async(file)
+          call read_poincare_data_async(file,nfiles)
         else
           call read_poincare_data_sync(file)
         endif
 
 c     Orbit initialization on global array
 
-        !Add ghost cells
-        nx = nxg+2
-        ny = nyg+2
-        nz = nzg+2
-
-        call set_sp_domain_limits(xx,bcnd(1),xmin,xmax)
-        call set_sp_domain_limits(yy,bcnd(3),ymin,ymax)
-        call set_sp_domain_limits(zz,bcnd(5),zmin,zmax)
-
-        call allocateGridStructure(1,1,1,1,1,1,nxg,nyg,nzg,g_poinc)
-
-        g_poinc%gxmin = xmin
-        g_poinc%gxmax = xmax
-        g_poinc%gymin = ymin
-        g_poinc%gymax = ymax
-        g_poinc%gzmin = zmin
-        g_poinc%gzmax = zmax
-
-        g_poinc%xg = xx
-        g_poinc%yg = yy
-        g_poinc%zg = zz
+        call createGrid(nxg,nyg,nzg,pxmin,pxmax,pymin,pymax,pzmin,pzmax
+     .                 ,g_poinc)
+cc        call allocateGridStructure(1,1,1,1,1,1,nxg,nyg,nzg,g_poinc)
+cc
+cc        g_poinc%gxmin = xmin
+cc        g_poinc%gxmax = xmax
+cc        g_poinc%gymin = ymin
+cc        g_poinc%gymax = ymax
+cc        g_poinc%gzmin = zmin
+cc        g_poinc%gzmax = zmax
+cc
+cc        g_poinc%xg = xx
+cc        g_poinc%yg = yy
+cc        g_poinc%zg = zz
 
         call orbit_setup(g_poinc,1
      .                  ,bg(:,:,:,1)
@@ -314,6 +306,7 @@ c     Local variables
 
         integer :: ilmg,ihpg,jlmg,jhpg,klmg,khpg,nx,ny,nz
      .            ,i,j,k
+        real(8),pointer,dimension(:)       :: xx,yy,zz
         real(8),pointer,dimension(:,:,:)   :: jac
         real(8),pointer,dimension(:,:,:,:) :: bb,bcar,car
 
@@ -331,7 +324,7 @@ c     Begin program
 
         write (*,*)
         write (*,*) '***********************************************'
-        write (*,*) 'Opening file ',trim(poincfile),'...(read files)'
+        write (*,*) 'Opening file ',trim(poincfile),'...(sync)'
         write (*,*) '***********************************************'
         write (*,*)
 
@@ -339,14 +332,6 @@ c     Begin program
      .      ,form='unformatted')
 
         read (upixie) nxg,nyg,nzg,bcnd,tor
-
-cc        if (tor .and. (coords /= 'vmc' .and. coords /= 'tor')) then
-cc          call pstop('lagrangian_init','Coordinates are not toroidal')
-cc        endif
-cc
-cc        if (sum(bcnd-bcond) /= 0) then
-cc          call pstop('lagrangian_init','BC conf. does not agree')
-cc        endif
 
 c     Read poincare position arrays
 
@@ -356,9 +341,8 @@ c     Read poincare position arrays
         read (upixie) yy
         read (upixie) zz
 
-cc        call sp_domain_limits(xx,bcnd(1),xmin,xmax)
-cc        call sp_domain_limits(yy,bcnd(3),ymin,ymax)
-cc        call sp_domain_limits(zz,bcnd(5),zmin,zmax)
+c     Set computational domain limits
+
         call poinc_domain_limits(xx,bcnd(1),pxmin,pxmax)
         call poinc_domain_limits(yy,bcnd(3),pymin,pymax)
         call poinc_domain_limits(zz,bcnd(5),pzmin,pzmax)
@@ -450,7 +434,7 @@ c     Fill global arrays
 
 c     Deallocate memory
 
-        deallocate(bb,bcar,jac,car)
+        deallocate(bb,bcar,jac,car,xx,yy,zz)
 
         return
 
@@ -461,7 +445,7 @@ c     Deallocate memory
 
 c     read_poincare_data_async
 c     ##################################################################
-      subroutine read_poincare_data_async(file)
+      subroutine read_poincare_data_async(file,nfiles)
 
 c     ------------------------------------------------------------------
 c     Reads poincare data from PIXIE3D files in an asynchronous manner
@@ -472,30 +456,20 @@ c     ------------------------------------------------------------------
 
 c     Call variables
 
-cc        integer :: nfiles
+        integer :: nfiles
 
         character(*) :: file
 
 c     Local variables
 
-        integer :: ifl,ilmg,ihpg,jlmg,jhpg,klmg,khpg,i,j,k,nfiles,ierr
+        integer :: ifl,ilmg,ihpg,jlmg,jhpg,klmg,khpg,i,j,k,ierr
         integer,pointer,dimension(:) :: mupixie
+        real(8),pointer,dimension(:) :: xx,yy,zz
         character(60),allocatable,dimension(:) :: mpixie
 
 c     Begin program
 
 c     Setup files
-
-        if (is_file(file)) then !Single file
-          nfiles = 1
-        else
-          !Find out number of graphics files
-          nfiles = 0
-          do while (is_file(trim(file)//'_proc'
-     .                    //trim(int2char(nfiles))))
-            nfiles=nfiles+1
-          enddo
-        endif
 
         allocate(mupixie(nfiles),mpixie(nfiles))
 
@@ -633,14 +607,13 @@ c     Read global arrays
 
         enddo
 
-c     Set domain limits
+c     Set computational domain limits
 
-cc        call sp_domain_limits(xx,bcnd(1),xmin,xmax)
-cc        call sp_domain_limits(yy,bcnd(3),ymin,ymax)
-cc        call sp_domain_limits(zz,bcnd(5),zmin,zmax)
         call poinc_domain_limits(xx,bcnd(1),pxmin,pxmax)
         call poinc_domain_limits(yy,bcnd(3),pymin,pymax)
         call poinc_domain_limits(zz,bcnd(5),pzmin,pzmax)
+
+        deallocate(xx,yy,zz)
 
 c     Deallocate memory
 
@@ -657,7 +630,7 @@ c     dealloc_poincare_data
 c     ##################################################################
       subroutine dealloc_poincare_data
 
-        deallocate(bg,bcarg,jacg,carg,xx,yy,zz)
+        deallocate(bg,bcarg,jacg,carg)
         call deallocateGridStructure(g_poinc)
 
       end subroutine dealloc_poincare_data

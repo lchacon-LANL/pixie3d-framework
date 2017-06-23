@@ -506,8 +506,7 @@ c       Prepare boundaries
 
 c     Fill ghost cells
 
-        call map_bc(dim,igc,nxc,nyc,nzc,xc_j,x0_j,bcs=bcs
-     .             ,g_def=g_def)
+        call map_bc(g_def,dim,igc,nxc,nyc,nzc,xc_j,x0_j,bcs=bcs)
 
       end subroutine crse_map_comp
 
@@ -515,7 +514,7 @@ c     Fill ghost cells
 
 c     map_bc
 c     #################################################################
-      subroutine map_bc(dim,igrid,nxl,nyl,nzl,x_j,x0_j,iorder,bcs,g_def)
+      subroutine map_bc(g_def,dim,igrid,nxl,nyl,nzl,x_j,x0_j,iorder,bcs)
 
 c     -----------------------------------------------------------------
 c     Impose BCs on map component x_j using boundary of x0_j.
@@ -525,6 +524,8 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
+        type(grid_mg_def),pointer :: g_def
+
         integer :: dim,igrid,nxl,nyl,nzl
 
         real(8) :: x_j (0:nxl+1,0:nyl+1,0:nzl+1)
@@ -532,8 +533,6 @@ c     Call variables
 
         integer,optional,intent(IN) :: iorder
         integer,optional :: bcs(6)
-
-        type(grid_mg_def),pointer :: g_def
 
 c     Local variables
 
