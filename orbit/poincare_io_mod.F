@@ -144,9 +144,9 @@ c     Begin program
 
         !Setup orbit
 
-        call sp_domain_limits(xx,bcnd(1),xmin,xmax)
-        call sp_domain_limits(yy,bcnd(3),ymin,ymax)
-        call sp_domain_limits(zz,bcnd(5),zmin,zmax)
+        call set_sp_domain_limits(xx,bcnd(1),xmin,xmax)
+        call set_sp_domain_limits(yy,bcnd(3),ymin,ymax)
+        call set_sp_domain_limits(zz,bcnd(5),zmin,zmax)
 
         call allocateGridStructure(1,1,1,1,1,1,nxg,nyg,nzg,g_poinc)
 
@@ -244,9 +244,9 @@ c     Orbit initialization on global array
         ny = nyg+2
         nz = nzg+2
 
-        call sp_domain_limits(xx,bcnd(1),xmin,xmax)
-        call sp_domain_limits(yy,bcnd(3),ymin,ymax)
-        call sp_domain_limits(zz,bcnd(5),zmin,zmax)
+        call set_sp_domain_limits(xx,bcnd(1),xmin,xmax)
+        call set_sp_domain_limits(yy,bcnd(3),ymin,ymax)
+        call set_sp_domain_limits(zz,bcnd(5),zmin,zmax)
 
         call allocateGridStructure(1,1,1,1,1,1,nxg,nyg,nzg,g_poinc)
 

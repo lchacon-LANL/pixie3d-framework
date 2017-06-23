@@ -428,7 +428,7 @@ ifeq ($(findstring Marias,$(HOST)),Marias)
 
     LIBS += -latlas
   else
-    LIBS += -L/usr/lib -llapack -lblas -latlas
+    LIBS += -L/opt/local/lib -llapack -lblas -latlas
 
     HDF5 = t
 

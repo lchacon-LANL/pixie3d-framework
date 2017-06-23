@@ -354,9 +354,9 @@ c     Initialize spline domain arrays
 
 c     Define spline domain limits
 
-        call sp_domain_limits(xs,sbcnd(1),xsmin,xsmax)
-        call sp_domain_limits(ys,sbcnd(3),ysmin,ysmax)
-        call sp_domain_limits(zs,sbcnd(5),zsmin,zsmax)
+        call set_sp_domain_limits(xs,sbcnd(1),xsmin,xsmax)
+        call set_sp_domain_limits(ys,sbcnd(3),ysmin,ysmax)
+        call set_sp_domain_limits(zs,sbcnd(5),zsmin,zsmax)
 
 c     Prepare 3d spline interpolation
 

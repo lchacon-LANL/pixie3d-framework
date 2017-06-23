@@ -36,7 +36,7 @@ c Interfaces
       END INTERFACE
 
       INTERFACE
-        subroutine preProcessSol(vn,vnm)
+        subroutine preProcessSol(vnm,vn)
         use var_setup
         type(var_array),pointer :: vn,vnm
         end subroutine preProcessSol
