@@ -567,8 +567,8 @@ c     Initialize Picard
 
       call initialize_it(dx_err)
 
-! ADAM: NO SUBSTEPPING - CAREFUL.
-      dt_sub = dtp
+! ADAM: Uncommenting the following will switch off substepping (also see Boris solve) - CAREFUL.
+!      dt_sub = dtp
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
       it=0
@@ -995,8 +995,8 @@ c     Begin program
              end if
            end if
 
-! ADAM: TURNED OFF. CAREFUL!
-!           dt_sub(i) = min(dt_sub(i),dtb(i,1),dtb(i,2),dtb(i,3))
+! ADAM: Commenting the following turns off substepping. CAREFUL!
+           dt_sub(i) = min(dt_sub(i),dtb(i,1),dtb(i,2),dtb(i,3))
 !!!!!!!!!!!!!!!!!!!!!!!!!!! 
         end do
 
