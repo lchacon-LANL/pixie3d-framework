@@ -567,6 +567,10 @@ c     Initialize Picard
 
       call initialize_it(dx_err)
 
+! ADAM: NO SUBSTEPPING - CAREFUL.
+      dt_sub = dtp
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
       it=0
 
       substeps = 0
@@ -991,8 +995,9 @@ c     Begin program
              end if
            end if
 
-           dt_sub(i) = min(dt_sub(i),dtb(i,1),dtb(i,2),dtb(i,3))
- 
+! ADAM: TURNED OFF. CAREFUL!
+!           dt_sub(i) = min(dt_sub(i),dtb(i,1),dtb(i,2),dtb(i,3))
+!!!!!!!!!!!!!!!!!!!!!!!!!!! 
         end do
 
         dx(:,1) = dt_sub*vhcurv(:,1)
@@ -2012,52 +2017,52 @@ c ######################################################################
 
       contains
 
-c$$$c     pic_update_tnp
-c$$$c     ##################################################################
-c$$$      subroutine pic_update_tnp(A,DtA,test,init)
-c$$$
-c$$$c     ------------------------------------------------------------------
-c$$$c     Update particle position and velocities in time, compute inflow
-c$$$c     np filling.
-c$$$c     ------------------------------------------------------------------
-c$$$
-c$$$      implicit none
-c$$$
-c$$$c     Call variables
-c$$$
-c$$$      real(8), intent(in) :: A(0:,0:,1:),DtA(0:,0:,1:)
-c$$$
-c$$$      character(*) :: test
-c$$$
-c$$$      logical :: init
-c$$$
-c$$$c     Local variables
-c$$$
-c$$$      integer :: isp,ipc,Np,npc1,ierr !count the # of particle in the first cell
-c$$$      integer :: numspcs,nxg,nyg,nzg,nng
-c$$$      real(8) :: cm(3),ihx,ihy,ihz
-c$$$      real(_prec) :: v2
-c$$$      real(_prec) :: xp(_Npg), yp(_Npg)
-c$$$      integer :: i0(_Npg), j0(_Npg), k0(_Npg)
-c$$$      integer :: i, i_n(_Npg),j_n(_Npg),k_n(_Npg)
-c$$$
-c$$$c     Begin program
-c$$$
-c$$$c     Update moments
-c$$$
-c$$$      momsn = moms
-c$$$
-c$$$      if (init) return
-c$$$
-c$$$c     Update particle info
-c$$$
-c$$$      call get_inverse_h(ihx,ihy,ihz)
-c$$$      call get_global_grid_size(nxg,nyg,nzg)
-c$$$      nng = nxg*nyg*nzg
-c$$$
-c$$$      numspcs = size(spcs)
-c$$$
-c$$$      select case(test)
+c    hyb_update_tnp
+c    ##################################################################
+c      subroutine pic_update_tnp(A,DtA,test,init)
+      subroutine hyb_update_tnp(test,init)
+c     ------------------------------------------------------------------
+c     Update particle position and velocities in time, compute inflow
+c     np filling.
+c     ------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+c      real(8), intent(in) :: A(0:,0:,1:),DtA(0:,0:,1:)
+
+      character(*) :: test
+
+      logical :: init
+
+c     Local variables
+
+      integer :: isp,ipc,Np,npc1,ierr !count the # of particle in the first cell
+      integer :: numspcs,nxg,nyg,nzg,nng
+      real(8) :: cm(3),ihx,ihy,ihz
+      real(_prec) :: v2
+      real(_prec) :: xp(_Npg), yp(_Npg)
+      integer :: i0(_Npg), j0(_Npg), k0(_Npg)
+      integer :: i, i_n(_Npg),j_n(_Npg),k_n(_Npg)
+
+c     Begin program
+
+c     Update moments
+
+      momsn = moms
+
+      if (init) return
+
+c     Update particle info
+
+      call get_inverse_h(ihx,ihy,ihz)
+      call get_global_grid_size(nxg,nyg,nzg)
+      nng = nxg*nyg*nzg
+
+      numspcs = size(spcs)
+
+      select case(test)
 c$$$      case('slow_shock')
 c$$$        npc1 = 0
 c$$$
@@ -2139,36 +2144,37 @@ c$$$        if(nip < 0) then
 c$$$          print *, "no more inactive particles, quit."
 c$$$          stop
 c$$$        end if
-c$$$
-c$$$      case default
-c$$$
-c$$$        if (particle_sort) then
-c$$$          call sort_particles(nxg,nng,n_sp)
-c$$$        else
-c$$$          do isp=1,numspcs
-c$$$            Np = size(spcs(isp)%pcles)
-c$$$!$omp parallel DEFAULT(SHARED) private(ipc)
-c$$$            do ipc=nip+1,Np
-c$$$              spcs(isp)%pcles(ipc)%x_n = spcs(isp)%pcles(ipc)%x_np
-c$$$              spcs(isp)%pcles(ipc)%v_n = spcs(isp)%pcles(ipc)%v_np
-c$$$              spcs(isp)%pcles(ipc)%ijk_n = spcs(isp)%pcles(ipc)%ijk_np
-c$$$              spcs(isp)%pcles(ipc)%w_n = spcs(isp)%pcles(ipc)%w_np
-c$$$            end do
-c$$$!$omp end parallel 
-c$$$          end do
-c$$$        endif
-c$$$
-c$$$      end select
-c$$$
-c$$$c     Dump particles for restart
-c$$$
-c$$$      if (TS_chk_dump().and.(.not.tst_flg)) then
-c$$$        ierr = pic_dump_pcles(time)
-c$$$      endif
-c$$$
-c$$$c     End program
-c$$$
-c$$$      end subroutine pic_update_tnp
+
+      case default
+
+        if (particle_sort) then
+          call sort_particles(nxg,nng,n_sp)
+        else
+          do isp=1,numspcs
+            Np = size(spcs(isp)%pcles)
+!$omp parallel DEFAULT(SHARED) private(ipc)
+            do ipc=nip+1,Np
+              spcs(isp)%pcles(ipc)%x_n = spcs(isp)%pcles(ipc)%x_np
+              spcs(isp)%pcles(ipc)%v_n = spcs(isp)%pcles(ipc)%v_np
+              spcs(isp)%pcles(ipc)%ijk_n = spcs(isp)%pcles(ipc)%ijk_np
+              spcs(isp)%pcles(ipc)%w_n = spcs(isp)%pcles(ipc)%w_np
+            end do
+!$omp end parallel 
+          end do
+        endif
+
+      end select
+
+c     Dump particles for restart
+
+      if (TS_chk_dump().and.(.not.tst_flg)) then
+        ierr = pic_dump_pcles(time)
+      endif
+
+c     End program
+
+c      end subroutine pic_update_tnp
+      end subroutine hyb_update_tnp
 
 c$$$c     find_cb
 c$$$c     ##################################################################
