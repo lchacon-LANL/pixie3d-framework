@@ -845,8 +845,8 @@ c     Call variables
 
 c     Local variables
 
-        integer :: he,imin,imax,jmin,jmax,kmin,kmax,nx,ny,nz
-     .            ,bcond_sv(6),bcs(6)
+        integer :: he,nx,ny,nz,bcond_sv(6),bcs(6)
+cc     .            ,imin,imax,jmin,jmax,kmin,kmax
 
         real(8) :: r(3,3),cnv(3,3),cov(3,3),gsub(3,3),gsup(3,3),jac,ijac
      .            ,gamma(3,3,3),d2r(3,3)
@@ -856,14 +856,14 @@ c     Local variables
 
 c     Begin program
 
-        imin = ilom
-        imax = ihip
-
-        jmin = jlom
-        jmax = jhip
-
-        kmin = klom
-        kmax = khip
+cc        imin = ilom
+cc        imax = ihip
+cc
+cc        jmin = jlom
+cc        jmax = jhip
+cc
+cc        kmin = klom
+cc        kmax = khip
 
         he = 1
 
@@ -894,9 +894,12 @@ c     Evaluate dr=dx/dxi vectors at vertices
 
 c     Evaluate grid quantities (at vertices)
 
-        do k = kmin,kmax
-          do j = jmin,jmax
-            do i = imin,imax
+cc        do k = kmin,kmax
+cc          do j = jmin,jmax
+cc            do i = imin,imax
+        do k = klom,khi
+          do j = jlom,jhi
+            do i = ilom,ihi
               r = dr(i,j,k,:,:)
 
               !Jacobian <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
@@ -959,9 +962,12 @@ c     Evaluate grid quantities (at vertices)
 
 c     Christoffel symbols (at cell centers; BCs enforced in findCellMetrics)
 
-        do k = kmin+1,kmax
-          do j = jmin+1,jmax
-            do i = imin+1,imax
+cc        do k = kmin+1,kmax
+cc          do j = jmin+1,jmax
+cc            do i = imin+1,imax
+        do k = klo,khi
+          do j = jlo,jhi
+            do i = ilo,ihi
 
               cov = 0.125*(
      .             g_def%gmetric%grid(igrid)%cov_v(i-1,j-1,k-1,:,:)
@@ -1615,8 +1621,8 @@ c     Call variables
 
         type(grid_mg_def),pointer :: g_def
 
-        integer    :: igrid
-        real(8)    :: dr(0:,0:,0:,:,:)
+        integer :: igrid
+        real(8) :: dr(0:,0:,0:,:,:)
 
 c     Local variables
 
@@ -1642,7 +1648,6 @@ cc        call set_force_corners(.true.)
           call imposeBConVector_ez(g_def,igrid,dr(:,:,:,i,:)
      .                            ,.false.,bcs,2)
         enddo
-cc        write (*,*) 'after',my_rank,dr(:,0,1,1,1)
 
         !Recover original setup
 cc        call set_force_corners(.false.)
@@ -1671,48 +1676,59 @@ c     Call variables
 
 c     Local variables
 
-        integer :: i,j,bcond_sv(6),bcs(6),nxl,nyl,nzl
+        integer :: i,j,bcs(6,3)
+cc        integer :: bcs(6),bcond_sv(6),nxl,nyl,nzl
 
 c     External
 
 c     Begin program
 
-        nxl = size(dr,1)-2
-        nyl = size(dr,2)-2
-        nzl = size(dr,3)-2
-        
-        !Modify BC setup to do staggered
-        bcond_sv = bcond
-        bcs = bcond
-        !Do no overwrite i=j=k=0
-        if (bcs(2) == DEF) bcs(2) = EXT
-        if (bcs(4) == DEF) bcs(4) = EXT 
-        if (bcs(6) == DEF) bcs(6) = EXT 
-        if (bcs(2) == FSYM .or. bcs(2) == SYM) then
-          bcs  (2) = NEU
-          bcond(2) = SYM  !Set BCs to do NEU across face
-        endif
-        if (bcs(4) == FSYM .or. bcs(4) == SYM) then
-          bcs  (4) = NEU 
-          bcond(4) = SYM  !Set BCs to do NEU across face
-        endif
-        if (bcs(6) == FSYM .or. bcs(6) == SYM) then
-          bcs  (6) = NEU
-          bcond(6) = SYM  !Set BCs to do NEU across face
-        endif
+cc        nxl = size(dr,1)-2
+cc        nyl = size(dr,2)-2
+cc        nzl = size(dr,3)-2
+cc        
+cc        !Modify BC setup to do staggered
+cc        bcond_sv = bcond
+cc        bcs = bcond
+cc        !Do no overwrite i=j=k=0
+cc        if (bcs(2) == DEF) bcs(2) = EXT
+cc        if (bcs(4) == DEF) bcs(4) = EXT 
+cc        if (bcs(6) == DEF) bcs(6) = EXT 
+cc        if (bcs(2) == FSYM .or. bcs(2) == SYM) then
+cc          bcs  (2) = NEU
+cc          bcond(2) = SYM  !Set BCs to do NEU across face
+cc        endif
+cc        if (bcs(4) == FSYM .or. bcs(4) == SYM) then
+cc          bcs  (4) = NEU 
+cc          bcond(4) = SYM  !Set BCs to do NEU across face
+cc        endif
+cc        if (bcs(6) == FSYM .or. bcs(6) == SYM) then
+cc          bcs  (6) = NEU
+cc          bcond(6) = SYM  !Set BCs to do NEU across face
+cc        endif
+cc
+cccc        call set_force_corners(.true.)
+cc        
+cc        do i=1,3
+cc          do j=1,3
+cc            call setMGBC(g_def,0,1,nxl,nyl,nzl,igrid,dr(:,:,:,i:i,j),bcs
+cc     .                  ,iorder=2)
+cc            write (*,*) my_rank,'after',dr(nxl+1,:,1,1,1)
+cc            stop
+cc          enddo
+cc        enddo
+cc
+cc        !Recover original setup
+cccc        call set_force_corners(.false.)
+cc        bcond = bcond_sv
 
-cc        call set_force_corners(.true.)
-        
+        bcs(:,1) = bcond
+        bcs(:,2) = bcond
+        bcs(:,3) = bcond
         do i=1,3
-          do j=1,3
-            call setMGBC(g_def,0,1,nxl,nyl,nzl,igrid,dr(:,:,:,i,j),bcs
-     .                  ,iorder=2)
-          enddo
+          call imposeBConVector_stg_ez(g_def,igrid,dr(:,:,:,i,:)
+     .                                ,.false.,bcs,2)
         enddo
-
-        !Recover original setup
-cc        call set_force_corners(.false.)
-        bcond = bcond_sv
 
 c     End program
 
