@@ -11,11 +11,13 @@
 
         use OMP
 
-!lyap private variables
-      logical :: lyap,connect
-!$OMP THREADPRIVATE(lyap,connect)
-       logical :: auto_corr
-!$OMP THREADPRIVATE(auto_corr)
+        logical :: lssx,lssy,lssz,rzss,ss_io=.false.
+
+!private variables
+       logical :: lyap=.false.,connect=.false.,ridge=.false.
+!$OMP THREADPRIVATE(lyap,connect,ridge)
+       logical :: auto_corr=.false., ac_rtrn
+!$OMP THREADPRIVATE(auto_corr,ac_rtrn)
        integer :: intersect_x, intersect_y, intersect_z
 !$OMP THREADPRIVATE(intersect_x,intersect_y,intersect_z)
        integer :: intersect_tor
@@ -30,11 +32,15 @@
 !$OMP THREADPRIVATE(slyp,slyp_old)
        real(8) :: big_n=100000000.d0
 !$OMP THREADPRIVATE(big_n)
+       integer :: delta_y,delta_z
+!$OMP THREADPRIVATE(delta_y,delta_z)
 
 !#! Marco, attention
        character(200) :: init_cond_file
 
        integer, dimension(:), allocatable :: cnctx
+       integer, dimension(:), allocatable :: ridgex
+
 !connect private variables
 
 !#!auto_corr
@@ -114,6 +120,144 @@
 
       end subroutine
 
+!     ridge_io_init
+!     #################################################################
+      subroutine ridge_io_init(file,y_surf,z_surf,rz_ss)
+
+!     -----------------------------------------------------------------
+!     Sets up ridge IO
+!     -----------------------------------------------------------------
+
+        implicit none
+
+!     Call variables
+
+        character(*) :: file
+        logical :: y_surf, z_surf
+        logical, optional :: rz_ss
+
+!     Local variables
+
+        integer :: cpos,nfiles,ifile,ith,iproc,ierr,ic
+
+        character(50),dimension(:),allocatable :: ridge_file
+
+!     Begin program
+        thr_tot = 1
+
+#ifdef _OPENMP
+!$omp parallel
+        thr_tot = omp_get_num_threads()
+!$omp end parallel                                                             
+#endif
+
+        if (PRESENT(rz_ss)) then
+          rzss = rz_ss
+        else
+          rzss = .false.
+        endif
+
+        ss_io = .true.   !Turn on SS XDRAW IO
+
+        cpos = index(trim(file),'.bin') - 1
+
+        nfiles = np*thr_tot
+        write(*,*) "DIAG_ridge_io", np, thr_tot
+
+        allocate(ridge_file(0:nfiles-1))
+
+        if (y_surf) then
+         do ith=0,thr_tot-1
+           do iproc=0,np-1
+             ifile = ith+thr_tot*iproc
+             ridge_file(ifile) = 'ridgey_proc'//int2char(ifile)
+           enddo
+         enddo
+
+!!# Marco: *.bin files opening
+         allocate(ridgex(0:thr_tot-1))
+         do ic = 0, thr_tot - 1
+          ridgex(ic) = 51127+ic
+         enddo
+ 
+         do ic = 0, thr_tot - 1
+          ifile = ic + thr_tot*my_rank 
+          open(unit=ridgex(ic),file=trim(ridge_file(ifile))
+     .        ,form='unformatted')
+         enddo
+        endif
+
+        if (z_surf) then
+         do ith=0,thr_tot-1
+           do iproc=0,np-1
+             ifile = ith+thr_tot*iproc
+             ridge_file(ifile) = 'ridgez_proc'//int2char(ifile)
+           enddo
+         enddo
+
+!!# Marco: *.bin files opening
+         allocate(ridgex(0:thr_tot-1))
+         do ic = 0, thr_tot - 1
+          ridgex(ic) = 51127+ic
+         enddo
+!         write(*,*) 'DIAGa',ridgex 
+         do ic = 0, thr_tot - 1
+          ifile = ic + thr_tot*my_rank 
+          open(unit=ridgex(ic),file=trim(ridge_file(ifile))
+     .        ,form='unformatted')
+         enddo
+        endif
+
+        deallocate(ridge_file)
+
+      end subroutine ridge_io_init
+
+!     ridge_io_end
+!     #################################################################
+      subroutine ridge_io_end
+
+!     -----------------------------------------------------------------
+!     Closes XDRAW surface of section output files
+!     -----------------------------------------------------------------
+
+        implicit none
+
+!     Call variables
+
+!     Local variables
+
+        integer :: ith
+
+!     Begin program
+
+        do ith=0,thr_tot-1
+          close(ridgex(ith))
+        enddo
+
+        deallocate(ridgex)
+
+      end subroutine ridge_io_end
+
+      subroutine ridge_write(x_1,x_2,thr_num)
+
+!     ------------------------------------------------------------------------
+!     Write intersections when needed
+!     ------------------------------------------------------------------------
+       
+        implicit none
+
+!     Call variables
+        real(8) :: x_1, x_2
+        integer :: thr_num
+
+!     Local variables
+
+!        write(*,'(a,i2,i2,i0,2f18.8)') 'DIAGw1, thr_num ',my_rank
+!     .           ,thr_num
+!     .           ,ridgex(thr_num),x_1,x_2
+        write(ridgex(thr_num)) x_1,x_2
+
+      end subroutine ridge_write
 
 !     lyap_io_end
 !     #################################################################
@@ -135,6 +279,351 @@
           close(nunitx)
 
       end subroutine lyap_io_end
+
+!#! Marco, post-processing routines to determine the Lyapunov exponent.
+
+!     orbit_couples
+!     #################################################################
+      subroutine lyap_orbit_couples(idxx,idyy,idzz)
+
+       implicit none
+       
+       integer, intent(in) :: idxx,idyy,idzz
+       integer :: idxaa, idxbb, k
+       character(100) :: tfile
+
+       if (idxx .gt. 2 .or. idxx .lt. 0) then 
+        write(*,*) 'Lyapunov exponent can be computed only between a
+     .              couple of orbits! ciao!',idxx
+        stop
+       endif
+       if (idxx .eq. 2) then
+
+!#! Marco, write the coupled orbits, in case a new run of lypnv2 is
+!needed (mainly to tune the parameters alfa, delta, nmax etc)
+        tfile='couples'//trim(int2char(my_rank))//'.bin'
+        open(unit=my_rank+16674,file=trim(tfile),
+     .     form='unformatted',status='unknown',
+     .     action='write')
+
+        do k=0, (idxx*idyy*idzz) / 2 - 1
+         write(my_rank+16674) my_rank*idxx*idyy*idzz + 2 * k 
+     .            , my_rank*idxx*idyy*idzz + 2 * k + 1
+         write(*,*) 'cp  ', my_rank*idxx*idyy*idzz + 2 * k 
+     .            , my_rank*idxx*idyy*idzz + 2 * k + 1
+         idxaa = my_rank*idxx*idyy*idzz + 2 * k
+         idxbb = my_rank*idxx*idyy*idzz + 2 * k + 1
+         call lypnv2(idxaa,idxbb)
+        enddo
+
+        close(my_rank+16674)
+
+       else !(idxx eq 1)
+        do k=0, (idxx*idyy*idzz) - 1
+!#! to be determined
+         write(*,*) k, k + idxx*idyy*idzz , 'attenzione, write
+     .             code, though this should be right'
+         idxaa = k
+         idxbb = k + idxx*idyy*idzz
+         call lypnv2(idxaa,idxbb)
+         exit
+        enddo 
+       endif
+
+!#! final computation, must be done serially, at the end of the parallel
+!part
+      
+ 
+      end subroutine lyap_orbit_couples
+
+!     lypnv2
+!     #################################################################
+      subroutine lypnv2(idxa,idxb)
+
+       implicit none
+
+       integer, intent(in) :: idxa, idxb
+
+!#! local variables 
+       character(100) :: tfile, string, orb0, orb1, kk
+       integer :: ninx, maxq
+       integer :: io, i, j, k, p, q, unitt, a
+ 
+       real(8) :: dumr, dums, deltad
+       real(8) :: dumx(0:1)
+!#! dum matrix: 
+!#!             dimension1: internal index of the couple (0,1)
+!#!             dimension2: radial coordinate, arc-length
+!#!             dimension3: steps
+       real(8),allocatable :: dum(:,:,:)
+       real(8),allocatable :: couples(:), doubling(:)
+       real(8) :: mut_dist, catch_len, arc_len
+       integer :: qmax(0:1), n_int
+
+!#! parameters for Lyapunov calculation
+!#! deltan=alfa^n * delta
+       real(8) :: delta, alfa, tol
+       integer :: nmax
+       real(8), allocatable :: deltan(:)
+
+       alfa = 1.10d0
+       delta = 5.e-5
+       nmax = 97
+
+       allocate(dum(0:1,0:1,0:1000000))
+       allocate(deltan(0:nmax))
+       allocate(couples(0:nmax))
+       allocate(doubling(0:nmax))
+      
+       do i=0,nmax
+        deltan(i) = alfa**(i) * delta
+       enddo
+ 
+!!#! read the files
+       q=0
+       io=0
+       open(unit=my_rank+235,file=
+     .      'split/lyap_'//trim(int2char(idxa)),
+     .      form='unformatted',action='read',
+     .      status='unknown')
+
+       do while (io .eq. 0)
+        read(my_rank+235,IOSTAT=io) dumx
+        dum(0,0,q) = dumx(0)
+        dum(0,1,q) = dumx(1)
+       
+        q = q + 1 
+        if (q .gt. size(dum,3)) then
+         write(*,*) 'lyap: enlarge temporary array'
+         exit
+        endif
+       
+        if (io .lt. 0) then 
+         qmax(0) = q
+!#! test to see if the particles arrive at the fixed max-arclenght in
+!the same number of integration steps
+!          write(*,*) i,p,qmax
+         continue
+        endif
+
+       enddo
+       close(my_rank+235)
+
+       q=0
+       p=1
+       open(unit=my_rank+236,file=
+     .      'split/lyap_'//trim(int2char(idxb)),
+     .      form='unformatted',action='read',
+     .      status='unknown')
+
+       io = 0
+       do while (io .eq. 0)
+        read(my_rank+236,IOSTAT=io) dumx
+        dum(1,0,q) = dumx(0)
+        dum(1,1,q) = dumx(1)
+       
+        q = q + 1 
+       
+        if (io .lt. 0) then 
+         qmax(1) = q
+!#! test to see if the particles arrive at the fixed max-arclenght in
+!the same number of integration steps
+!          write(*,*) i,p,qmax(i,p)
+         continue
+        endif
+
+       enddo
+       close(my_rank+236)
+
+!#! define the tollerance used to look for the positions where the
+!distance between the two particles forming a couple are equal to
+!deltan(i)
+       tol = 1.e-6
+       couples = 0.d0
+   
+       if (my_rank .eq. 0) then
+        tfile='split/par_lypnv'
+        open(unit=26574,file=trim(tfile),
+     .      form='unformatted',status='unknown',
+     .      action='write')
+         write(26574) alfa
+         write(26574) delta
+         write(26574) nmax
+         write(26574) tol
+        close(26574)
+       endif
+
+       write(*,*) 'lyapunov computation'
+!#! calculate mutual distance
+       maxq = max(qmax(0),qmax(1))
+       catch_len = deltan(1)
+       n_int = 1
+
+       lp2: do q=0, maxq-1
+         mut_dist = abs(dum(1,0,q) - dum(0,0,q))
+         arc_len = (dum(0,1,q) + dum(1,1,q)) / 2.d0
+         deltad = abs(dum(0,1,q)-dum(1,1,q)) / arc_len * 100.d0
+         if (deltad .gt. 50.d0) then
+          write(*,*) 'attention reduce time step',deltad,n_int
+          exit
+         endif
+!#! in couples(i,n_int) it is written the arclength needed to arrive to
+!deltan(n_int)
+!#! once the mutual distance deltan(n_int) is reached, look for the next
+!one, deltan(n_int+1)
+         do while ( abs(mut_dist) .gt. catch_len ) 
+          couples(n_int) = arc_len
+!          write(*,'(a,i4,2f13.7)') '*+*',n_int,catch_len,couples(n_int)
+          n_int = n_int + 1
+          catch_len = deltan(n_int)
+          if (n_int .gt. int(nmax)) then
+!           write(*,*) 'out from the cycle',n_int,int(nmax)
+           exit lp2
+          endif
+         enddo
+       end do lp2
+        
+       write(*,*) 'N_sep reached',n_int
+
+
+!!#! in the new version of couples the element couples(i,n_int)
+!!represents the arclength needed to pass from deltan(n_int-1) to
+!!deltan(n_int)
+       doubling(0) = 0.d0
+       do q=1,nmax
+        doubling(q) = couples(q)-couples(q-1)
+       enddo
+
+       tfile='split/coupl'//trim(int2char(idxa))
+       open(unit=my_rank+6574,file=tfile,
+     .     form='unformatted',status='unknown',
+     .     action='write')
+       write(unit=my_rank+6574) nmax
+       write(unit=my_rank+6574) n_int
+       do q=0,nmax-1
+        write(unit=my_rank+6574) couples(q),doubling(q)
+!        write(*,'(i3,2f13.6)') q,couples(q),doubling(q)
+       enddo
+       close(unit=my_rank+6574)
+!       write(kk,'(i0)') idxa 
+!       tfile='split/blyap'//trim(kk)
+!       open(unit=6575,file=tfile,
+!     .     form='unformatted',status='unknown',
+!     .     action='write')
+!!       write(unit=6575) nmax
+!!       write(unit=6575) n_int
+!       do q=0,nmax
+!        write(unit=6575) couples(q)
+!       enddo
+!       close(unit=6575)
+       deallocate(deltan,couples,doubling,dum)
+
+      end subroutine lypnv2
+
+!     lypnv3
+!     #################################################################
+      subroutine lypnv3(ncoupl,npp)
+  
+       implicit none
+
+       integer, intent(in) :: ncoupl, npp
+
+       character(100) :: tfile
+       integer :: i,maxn,n_int0,n_int,iunit,q,k,l,j
+       integer :: i0, i1, nmax
+       real(8) :: delta, alfa, tol
+       real(8) :: dum0, dum1
+       integer, allocatable :: couples(:)
+       real(8), allocatable :: deltan(:)
+       real(8), allocatable :: arc(:,:,:)
+       real(8), allocatable :: lyap(:), coupl(:)
+
+
+
+       tfile='split/par_lypnv'
+       open(unit=26574,file=trim(tfile),
+     .     form='unformatted',status='unknown',
+     .     action='read')
+        read(26574) alfa
+        read(26574) delta
+        read(26574) nmax
+        read(26574) tol
+       close(26574)
+!       write(*,*) alfa,delta,nmax,tol
+
+       allocate(deltan(0:nmax))
+       do i=0,nmax
+        deltan(i) = alfa**(i) * delta
+       enddo
+    
+       allocate(couples(npp*(ncoupl+1)))
+       do k=0, npp-1
+        tfile='couples'//trim(int2char(k))//'.bin'
+        open(unit=k+16574,file=trim(tfile),
+     .       form='unformatted',status='unknown',
+     .       action='read')
+         do l=0,ncoupl
+          read(k+16574) i0,i1
+          couples(k*(ncoupl+1)+l) = i0
+         end do
+        close(k+16574)
+       end do
+
+!#! Marco: compute the maximum number of separation distances reached by
+!all the couples of orbits
+       n_int = 1
+       allocate(arc(0:1,0:size(couples,1),0:nmax))
+       do q=0, size(couples,1) - 1
+
+        tfile='split/coupl'//trim(int2char(2*q))
+!        write(*,*) 'tfile',tfile
+        iunit = 26575+q
+        open(unit=iunit,file=trim(tfile),
+     .     form='unformatted',status='unknown',
+     .     action='read')
+!#! Marco, read the split/coupl* files. Their names are coupl(2*k) with
+!k=[0:ncoupl]
+        read(unit=iunit) maxn
+        read(unit=iunit) n_int0
+        if (n_int0 .gt. n_int) then
+         n_int = n_int0
+        endif
+
+!#! Marco. arc(0,*,*) contains 'couples'
+!#! Marco. arc(1,*,*) contains 'doubling'
+        do k=0,nmax-1
+         read(unit=iunit) dum0, dum1
+         arc(0,q,k) = dum0
+         arc(1,q,k) = dum1
+        enddo
+
+        close(iunit)
+       enddo
+
+       allocate(lyap(0:n_int),coupl(0:n_int))
+      
+       do j=0, n_int 
+        lyap(j) = sum(arc(1,:,j)) / (max(1,size(arc(1,:,j))))
+        coupl(j) = sum(arc(0,:,j)) / (max(1,size(arc(0,:,j))))
+       enddo
+
+       open(1,file='delta.dat',form='unformatted')
+         write(1) n_int
+         write(1) deltan(0:n_int)
+       close(1)
+       write(*,*) '****************'
+       open(2,file='lyap.dat',form='unformatted')
+         write(2) lyap(0:n_int)
+       close(2)
+       write(*,*) '****************'
+       open(3,file='coupl.dat',form='unformatted')
+         write(3) coupl(0:n_int)
+       close(3)
+       write(*,*) '****************'
+
+       deallocate(deltan, coupl, arc, lyap)
+      end subroutine lypnv3
+
 
 !     connect_io_init
 !     #################################################################
@@ -165,6 +654,7 @@
         thr_tot = omp_get_num_threads()
 !$omp end parallel                                                             
 #endif
+
         cpos = index(trim(file),'.bin') - 1
 
         nfiles = np*thr_tot
@@ -244,11 +734,11 @@ c     ###############################################################
 
 !#! REMIND: depending on which is the selected 'time-like' variable
 !choose wheter to open outfile{1,3,5} (respectively {L,th,z})
-        outfile1='split/auto_cors'//trim(str_fin_len)
-        outfile2='split/auto_corr'//trim(str_fin_len)
-        outfile3='split/auto_corth'//trim(str_fin_len)
+        outfile1='split/auto_cors'//int2char(ilup)
+        outfile2='split/auto_corr'//int2char(ilup)
+        outfile3='split/auto_corth'//int2char(ilup)
         outfile4='split/deltass'
-        outfile5='split/auto_corz'//trim(str_fin_len)
+        outfile5='split/auto_corz'//int2char(ilup)
 !#! to be uncommented if time is arclength
 !         open(unit=173+ilup,file=outfile1
 !     .        ,form='unformatted'
@@ -273,7 +763,6 @@ c     ###############################################################
      .        ,form='unformatted'
      .        ,action='write',status='unknown')
 
-          write(*,*) 'inside', deltass
           write(17) deltass
           write(17) ss_min
          close(17)
@@ -292,7 +781,6 @@ c     ###############################################################
 !#! this is valid when the time is the z
          ss_check = z00
          write(100173+ilup) x00,y00,z00
-         write(*,*) 'ilup',ilup,x00,y00,z00
 
       end subroutine auto_corr_io_init
 
@@ -460,7 +948,7 @@ c     ###############################################################
 
 c     auto_corr_write
 c     ###############################################################
-      subroutine auto_corr_write(x,y,z,atc_tol,deltass,ss_chk)
+      subroutine auto_corr_write(x,y,z,atc_tol,deltass,ss_chk,rtrn)
 
 !     ------------------------------------------------------------------------
 !     Write orbit position when needed
@@ -472,6 +960,7 @@ c     ###############################################################
         real(8) :: x, y, z     
         real(8) :: deltass, atc_tol
         real(8), intent(inout) :: ss_chk
+        logical, intent(out) :: rtrn
 
 !     Local variables
 
@@ -531,9 +1020,12 @@ c     ###############################################################
             if (abs((z-ss_chk)) .gt. 3./2.*deltass) then
 	     write(*,*) 'Reduce time step or raise atc_tol'
 	     !exit
-             return
+             rtrn = .true.
+!             return
             endif
-            if (abs(z - ss_chk) .gt. deltass/2.) then
+!            if (abs(z - ss_chk) .gt. deltass/2.) then
+            if (abs(z - ss_chk) .gt. deltass/2. 
+     .          .and. (.not. rtrn)) then
 	     write(400173+ilup) z
 	     write(100173+ilup) x,y,z
 	     ss_chk = z

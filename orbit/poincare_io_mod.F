@@ -6,33 +6,39 @@
 
         use grid
 
-        use grid_mpi
-
         use orbit
 
         integer :: upixie=12345,ierr
 
         !Grid configuration
-        integer :: nxg,nyg,nzg
-
-        integer :: bcnd(6)
-
-        logical :: tor
-
+        real(8),private :: pxmin,pxmax,pymin,pymax,pzmin,pzmax
+        integer,private :: nxg,nyg,nzg
+        integer,private :: bcnd(6)
+        logical,private :: tor
+        
         type(grid_mg_def),pointer :: g_poinc => null()
 
         !Global arrays
-        real(8),pointer,dimension(:)       :: xx,yy,zz
-        real(8),pointer,dimension(:,:,:)   :: jacg
-        real(8),pointer,dimension(:,:,:,:) :: bg,bcarg,carg
+        real(8),pointer,private,dimension(:,:,:)   :: jacg
+        real(8),pointer,private,dimension(:,:,:,:) :: bg,bcarg,carg
 
         !Spline configuration
-        integer :: a_gauge,sporder
+        integer :: a_gauge=2   !Gauge (1->A1=0, 2->A2=0)
+     .            ,sporder=3   !Order of splines
 
         !ODE configuration
-        integer :: niter,odeorder
-        real(8) :: dtime,tmax,smax,rtol,atol
-        logical :: forward,solen,picard
+        integer :: niter=8     !# Picard its. to converge in CN
+     .            ,odeorder=1  !Order of ODE integration
+
+        real(8) :: dtime=0.02d0
+     .            ,tmax=0d0    !Maximum time
+     .            ,smax=0d0    !Maximum arc length (in system normalized length units)
+     .            ,rtol=0d-10  !Relative error tolerance in ODE convergence
+     .            ,atol=1d-10  !Absolute error tolerance in CN convergence
+
+        logical :: solen=.true.   !Whether to use A or B formulation
+cc     .            ,forward=.true. !Whether to go forward or backward in field lines integration
+     .            ,picard=.true.  !Whether we use Newton or Picard in CN stepping
 
       contains
 
@@ -65,7 +71,7 @@ c     Begin program
 
         write (*,*)
         write (*,*) '*****************************************'
-        write (*,*) 'Opening file ',trim(file),'...(read_file)'
+        write (*,*) 'Opening file ',trim(file),'...(sync)'
         write (*,*) '*****************************************'
         write (*,*)
 
@@ -137,22 +143,24 @@ c     Begin program
 
         !Setup orbit
 
-        call sp_domain_limits(xx,bcnd(1),xmin,xmax)
-        call sp_domain_limits(yy,bcnd(3),ymin,ymax)
-        call sp_domain_limits(zz,bcnd(5),zmin,zmax)
+        call poinc_domain_limits(xx,bcnd(1),pxmin,pxmax)
+        call poinc_domain_limits(yy,bcnd(3),pymin,pymax)
+        call poinc_domain_limits(zz,bcnd(5),pzmin,pzmax)
 
-        call allocateGridStructure(1,1,1,1,1,1,nxg,nyg,nzg,g_poinc)
-
-        g_poinc%gxmin = xmin
-        g_poinc%gxmax = xmax
-        g_poinc%gymin = ymin
-        g_poinc%gymax = ymax
-        g_poinc%gzmin = zmin
-        g_poinc%gzmax = zmax
-
-        g_poinc%xg = xx
-        g_poinc%yg = yy
-        g_poinc%zg = zz
+        call createGrid(nxg,nyg,nzg,pxmin,pxmax,pymin,pymax,pzmin,pzmax
+     .                 ,g_poinc)
+cc        call allocateGridStructure(1,1,1,1,1,1,nxg,nyg,nzg,g_poinc)
+cc
+cc        g_poinc%gxmin = xmin
+cc        g_poinc%gxmax = xmax
+cc        g_poinc%gymin = ymin
+cc        g_poinc%gymax = ymax
+cc        g_poinc%gzmin = zmin
+cc        g_poinc%gzmax = zmax
+cc
+cc        g_poinc%xg = xx
+cc        g_poinc%yg = yy
+cc        g_poinc%zg = zz
 
         call orbit_setup(g_poinc,1
      .                  ,bx,by,bz,bxcar,bycar,bzcar
@@ -188,21 +196,22 @@ c       Deallocate memory
 
 c     read_poinc_files
 c     ##############################################################
-      subroutine read_poinc_files(file)
+      subroutine read_poinc_files(g_def,file)
 
-      implicit none
+        implicit none
 
 c     --------------------------------------------------------------
 c     Read poincare file for grid and field data
 c     --------------------------------------------------------------
 
 c     Call variables
-
+        
+        type(grid_mg_def),pointer :: g_def
         character(*) :: file
 
 c     Local variables
 
-        integer :: nfiles,nx,ny,nz
+        integer :: nfiles
 
 c     Begin program
 
@@ -215,17 +224,14 @@ c     Check file configuration
      .                    //trim(int2char(nfiles))))
             nfiles=nfiles+1
           enddo
-
         else
-
           nfiles = 1
-
         endif
 
 c     Read POINCARE data
 
         if (nfiles == 0) then
-          call pstop('openGraphicsfiles'
+          call pstop('read_poinc_files'
      .              ,'Cannot find POINCARE files')
         elseif (nfiles /= np) then
           call read_poincare_data_async(file,nfiles)
@@ -235,29 +241,22 @@ c     Read POINCARE data
 
 c     Orbit initialization on global array
 
-        !Add ghost cells
-        nx = nxg+2
-        ny = nyg+2
-        nz = nzg+2
+        call createGrid(nxg,nyg,nzg,pxmin,pxmax,pymin,pymax,pzmin,pzmax
+     .                 ,g_def)
+cc        call allocateGridStructure(1,1,1,1,1,1,nxg,nyg,nzg,g_poinc)
+cc
+cc        g_poinc%gxmin = xmin
+cc        g_poinc%gxmax = xmax
+cc        g_poinc%gymin = ymin
+cc        g_poinc%gymax = ymax
+cc        g_poinc%gzmin = zmin
+cc        g_poinc%gzmax = zmax
+cc
+cc        g_poinc%xg = xx
+cc        g_poinc%yg = yy
+cc        g_poinc%zg = zz
 
-        call sp_domain_limits(xx,bcnd(1),xmin,xmax)
-        call sp_domain_limits(yy,bcnd(3),ymin,ymax)
-        call sp_domain_limits(zz,bcnd(5),zmin,zmax)
-
-        call allocateGridStructure(1,1,1,1,1,1,nxg,nyg,nzg,g_poinc)
-
-        g_poinc%gxmin = xmin
-        g_poinc%gxmax = xmax
-        g_poinc%gymin = ymin
-        g_poinc%gymax = ymax
-        g_poinc%gzmin = zmin
-        g_poinc%gzmax = zmax
-
-        g_poinc%xg = xx
-        g_poinc%yg = yy
-        g_poinc%zg = zz
-
-        call orbit_setup(g_poinc,1
+        call orbit_setup(g_def,1
      .                  ,bg(:,:,:,1)
      .                  ,bg(:,:,:,2)
      .                  ,bg(:,:,:,3)
@@ -308,8 +307,9 @@ c     Call variables
 
 c     Local variables
 
-        integer :: ilomg,ihipg,jlomg,jhipg,klomg,khipg,nx,ny,nz
+        integer :: ilmg,ihpg,jlmg,jhpg,klmg,khpg,nx,ny,nz
      .            ,i,j,k
+        real(8),pointer,dimension(:)       :: xx,yy,zz
         real(8),pointer,dimension(:,:,:)   :: jac
         real(8),pointer,dimension(:,:,:,:) :: bb,bcar,car
 
@@ -327,7 +327,7 @@ c     Begin program
 
         write (*,*)
         write (*,*) '***********************************************'
-        write (*,*) 'Opening file ',trim(poincfile),'...(read files)'
+        write (*,*) 'Opening file ',trim(poincfile),'...(sync)'
         write (*,*) '***********************************************'
         write (*,*)
 
@@ -335,14 +335,6 @@ c     Begin program
      .      ,form='unformatted')
 
         read (upixie) nxg,nyg,nzg,bcnd,tor
-
-cc        if (tor .and. (coords /= 'vmc' .and. coords /= 'tor')) then
-cc          call pstop('lagrangian_init','Coordinates are not toroidal')
-cc        endif
-cc
-cc        if (sum(bcnd-bcond) /= 0) then
-cc          call pstop('lagrangian_init','BC conf. does not agree')
-cc        endif
 
 c     Read poincare position arrays
 
@@ -352,24 +344,30 @@ c     Read poincare position arrays
         read (upixie) yy
         read (upixie) zz
 
+c     Set computational domain limits
+
+        call poinc_domain_limits(xx,bcnd(1),pxmin,pxmax)
+        call poinc_domain_limits(yy,bcnd(3),pymin,pymax)
+        call poinc_domain_limits(zz,bcnd(5),pzmin,pzmax)
+
 c     Local limits
 
         if (np > 1) then
-          read (upixie) ilomg,ihipg,jlomg,jhipg,klomg,khipg
+          read (upixie) ilmg,ihpg,jlmg,jhpg,klmg,khpg
         else
-          ilomg = 0
-          ihipg = nxg+1
+          ilmg = 0
+          ihpg = nxg+1
 
-          jlomg = 0
-          jhipg = nyg+1
+          jlmg = 0
+          jhpg = nyg+1
 
-          klomg = 0
-          khipg = nzg+1
+          klmg = 0
+          khpg = nzg+1
         endif
 
-        nx = ihipg-ilomg - 1
-        ny = jhipg-jlomg - 1
-        nz = khipg-klomg - 1
+        nx = ihpg-ilmg - 1
+        ny = jhpg-jlmg - 1
+        nz = khpg-klmg - 1
 
 c     Allocate local arrays
 
@@ -439,7 +437,7 @@ c     Fill global arrays
 
 c     Deallocate memory
 
-        deallocate(bb,bcar,jac,car)
+        deallocate(bb,bcar,jac,car,xx,yy,zz)
 
         return
 
@@ -467,8 +465,9 @@ c     Call variables
 
 c     Local variables
 
-        integer :: ifl,ilmg,ihpg,jlmg,jhpg,klmg,khpg,i,j,k
-        integer,allocatable,dimension(:) :: mupixie
+        integer :: ifl,ilmg,ihpg,jlmg,jhpg,klmg,khpg,i,j,k,ierr
+        integer,pointer,dimension(:) :: mupixie
+        real(8),pointer,dimension(:) :: xx,yy,zz
         character(60),allocatable,dimension(:) :: mpixie
 
 c     Begin program
@@ -485,11 +484,19 @@ c     Setup files
             mupixie(ifl) = upixie+ifl
             mpixie (ifl) = trim(file)//'_proc'//trim(int2char(ifl-1))
             write (*,*) '  => ',trim(mpixie(ifl))
-     $               ,', unit=',mupixie(ifl)
+     $                 ,', unit=',mupixie(ifl)
           enddo
         endif
 
 c     Read setup info
+
+#if defined(use_mpi)
+        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
+#endif
+        if (my_rank == 0) then
+          write (*,*)
+          write (*,*) '*****************************************'
+        endif
 
         do ifl=1,nfiles
 
@@ -504,19 +511,20 @@ c     Read setup info
         enddo
 
 cc        if (tor .and. (coords /= 'vmc' .and. coords /= 'tor')) then
-cc          do ifl=1,nfiles
-cc            close(mupixie(ifl))
-cc          enddo
-cc          call pstop('lagrangian_init','Coordinates are not toroidal')
+cc          call closeFiles(mupixie)
+cc          call pstop('get_global_data_from_file'
+cc     .              ,'Coordinates are not toroidal')
 cc        endif
-
+cc
 cc        if (sum(bcnd-bcond) /= 0) then
+cc          call closeFiles(mupixie)
 cc          call pstop('lagrangian_init','BC conf. does not agree')
 cc        endif
 cc
 cc        if (nxd /= nxg .or. nyd /= nyg .or. nzd /= nzg) then
+cc          call closeFiles(mupixie)
 cc          write (*,*) 'Grid size=',nxg,nyg,nzg
-cc          call pstop('lagrangian_init'
+cc          call pstop('get_global_data_from_file'
 cc     .              ,'Global grid size does not agree')
 cc        endif
 
@@ -602,10 +610,18 @@ c     Read global arrays
 
         enddo
 
+c     Set computational domain limits
+
+        call poinc_domain_limits(xx,bcnd(1),pxmin,pxmax)
+        call poinc_domain_limits(yy,bcnd(3),pymin,pymax)
+        call poinc_domain_limits(zz,bcnd(5),pzmin,pzmax)
+
+        deallocate(xx,yy,zz)
+
 c     Deallocate memory
 
-        deallocate(mupixie,mpixie)
-
+        deallocate(mupixie)
+        deallocate(mpixie)
         return
 
  100    call pstop('read_poincare_data_async'
@@ -617,9 +633,90 @@ c     dealloc_poincare_data
 c     ##################################################################
       subroutine dealloc_poincare_data
 
-        deallocate(bg,bcarg,jacg,carg,xx,yy,zz)
+        deallocate(bg,bcarg,jacg,carg)
         call deallocateGridStructure(g_poinc)
 
       end subroutine dealloc_poincare_data
+
+c     poinc_domain_limits
+c     ##################################################################
+      subroutine poinc_domain_limits(x,bc,xmin,xmax)
+
+c     ------------------------------------------------------------------
+c     Set domain limits according to dimension vector x and boundary
+c     condition bc.
+c     ------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer :: bc
+        real(8) :: x(:),xmin,xmax
+
+c     Local Variables
+
+        integer :: nn
+
+c     Begin program
+
+        nn = size(x)
+
+        if (bc == PER) then     !Ghost cell is at x(1)
+cc          x = x - x(2)  !Set angle = 0 at x(2)
+cc          if (x(2) /= 0d0) then !PIXIE3D data, not SPECYL
+cc            x = x - 0.5*(x(1)+x(2)) !Set angle = 0 at face
+cc          endif
+          xmin = 0d0 ; xmax = x(nn)-x(2)
+cc          xmin = -0.5*(x(2)-x(1)) ; xmax = x(nn)-xmin
+        else
+          xmin = 5d-1*(x(1   )+x(2 ))
+          xmax = 5d-1*(x(nn-1)+x(nn))
+        endif
+
+c     End program
+
+      end subroutine poinc_domain_limits
+
+c     get_poinc_domain_config
+c     ##################################################################
+      subroutine get_poinc_domain_ptys(xmin,xmax,ymin,ymax,zmin,zmax
+     .                                ,bcnds,nx_g,ny_g,nz_g,toroidal)
+
+c     ------------------------------------------------------------------
+c     Extract domain properties from POINCARE file
+c     ------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer :: bcnds(6)
+        real(8) :: xmin,xmax,ymin,ymax,zmin,zmax
+        integer,optional :: nx_g,ny_g,nz_g
+        logical,optional :: toroidal
+
+c     Local Variables
+
+c     Begin program
+
+        xmin = pxmin
+        xmax = pxmax
+        ymin = pymin
+        ymax = pymax
+        zmin = pzmin
+        zmax = pzmax
+
+        bcnds = bcnd
+
+        if (PRESENT(nx_g)) nx_g = nxg
+        if (PRESENT(ny_g)) ny_g = nyg
+        if (PRESENT(nz_g)) nz_g = nzg
+
+        if (PRESENT(toroidal)) toroidal = tor
+
+c     End program
+
+      end subroutine get_poinc_domain_ptys
 
       end module poincare_io

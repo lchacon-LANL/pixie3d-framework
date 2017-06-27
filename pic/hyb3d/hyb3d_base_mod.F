@@ -1658,10 +1658,7 @@ c     Call variables
       map_g  = xmap(:,:,:,:)
 
       if (.not.no_map.and.global_splines) then
-        call setupSplines(nxg+2,nyg+2,nzg+2,xin,yin,zin
-     .                   ,3 !Spline order
-     .                   ,xmin,xmax,ymin,ymax,zmin,zmax,bcond) !Limits are output
-
+        call setupSplines(nxg+2,nyg+2,nzg+2,xin,yin,zin,3,bcond)
         call splineJ(jac )
         call splineX(xmap)
       endif

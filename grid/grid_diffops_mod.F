@@ -8604,7 +8604,9 @@ c     ################################################################
      .                 ,par_order,method,vol,tmp0) result(par2)
 c     ----------------------------------------------------------------
 c     Calculates div.(BB.grad) in 3D with 2nd or 4th order
-c     accuracy.
+c     accuracy. Here:
+c       * par_order=2,4 (discretization order)
+c       * method='symm','sharma','mimetic','central'
 c     ----------------------------------------------------------------
 
       implicit none
