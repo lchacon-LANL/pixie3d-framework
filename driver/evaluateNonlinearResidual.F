@@ -1,9 +1,10 @@
-c evaluateNonlinearResidual
+c evaluateNonlinearResidual_tr
 c####################################################################
-      subroutine evaluateNonlinearResidual(ntot,x,f)
+      subroutine evaluateNonlinearResidual_tr(ntot,x,f)
 c--------------------------------------------------------------------
 c     Calculates nonlinear residuals, of the form:
 c             dt Ui + Fi(Uj) = 0
+c     using the trapezoidal rule (Crank-Nicolson for theta=0.5)
 c--------------------------------------------------------------------
 
       use grid
@@ -53,17 +54,11 @@ c Compute source
 
 c Temporal update
 
-      do k = klo,khi
-        do j = jlo,jhi
-          do i = ilo,ihi
-            ii = neqd*vPos(gv%gparams,igrid,(/i,j,k/))
-
-            f(ii+1:ii+neqd) = xdot(ii+1:ii+neqd)*dt*one_over_dt
-     .                      + (1d0-cnf)*f   (ii+1:ii+neqd)
-     .                      +      cnf *fold(ii+1:ii+neqd)
-     .                      - src(ii+1:ii+neqd)
-          enddo
-        enddo
+      do ii=0,ntot-1,neqd
+        f(ii+1:ii+neqd) = xdot(ii+1:ii+neqd)*dt*one_over_dt
+     .                  + (1d0-cnf)*f   (ii+1:ii+neqd)
+     .                  +      cnf *fold(ii+1:ii+neqd)
+     .                  - src(ii+1:ii+neqd)
       enddo
 
 c Scale by volume
@@ -75,7 +70,93 @@ c End program
 
       deallocate(src,xdot)
 
-      end subroutine evaluateNonlinearResidual
+      end subroutine evaluateNonlinearResidual_tr
+
+c evaluateNonlinearResidual_mp
+c####################################################################
+      subroutine evaluateNonlinearResidual_mp(ntot,x,f)
+c--------------------------------------------------------------------
+c     Calculates nonlinear residuals, of the form:
+c             dt Ui + Fi(Uj) = 0
+c     using the mid-point method.
+c--------------------------------------------------------------------
+
+      use grid
+
+      use variables
+
+      use timeStepping
+
+      use nk, ONLY: pseudo_dt,pdt,nk_conf
+
+#if defined(MK)
+      use mk
+#endif
+
+      implicit none
+
+c Call variables
+
+      integer :: ntot
+      real(8) :: x(ntot),f(ntot)
+
+c Local variables
+
+      integer :: i,j,k,ieq,ii,ig,jg,kg,igrid
+
+      real(8),pointer,dimension(:) :: src,xdot,xh
+
+c Begin program
+
+      igrid = 1
+
+      allocate(src(ntot),xdot(ntot),xh(ntot))
+
+c Evaluate nonlinear function Fi(Uj) at time level (n+1)
+
+      !xdot
+      if (pseudo_dt) then
+cc        xdot = (x-nk_conf%xk)/pdt
+        do ii=0,ntot-1,neqd
+          xdot(ii+1:ii+neqd) =
+     .         (x         (ii+1:ii+neqd)
+     .         -nk_conf%xk(ii+1:ii+neqd))/pdt*dt*one_over_dt
+        enddo
+      else
+cc        xdot = cnp*(x-x_old)/dt
+        do ii=0,ntot-1,neqd
+          xdot(ii+1:ii+neqd) =
+     .         cnp*(x    (ii+1:ii+neqd)
+     .             -x_old(ii+1:ii+neqd))*one_over_dt
+        enddo
+      endif
+
+      !xhalf
+      do ii=0,ntot-1,neqd
+        xh(ii+1:ii+neqd) = (1d0-cnf)*x    (ii+1:ii+neqd)
+     .                   +      cnf *x_old(ii+1:ii+neqd)
+      enddo
+
+      call evaluateNonlinearFunction(igrid,ntot,xh,f)
+
+c Compute source
+
+      call evaluateSource(igrid,ntot,src)
+
+c Temporal update
+
+      f = xdot + f - src
+
+c Scale by volume
+
+      if (vol_wgt)
+     .     call scaleVector_by_vol1(gv%gparams,igrid,neqd,f,'mul')
+
+c End program
+
+      deallocate(src,xdot,xh)
+
+      end subroutine evaluateNonlinearResidual_mp
 
 c evaluateNonlinearFunction
 c####################################################################
