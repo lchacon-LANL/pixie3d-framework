@@ -140,7 +140,7 @@ ifeq ($(HOST),jetta)
       SPRNG_INC = $(SPRNG_SER_HOME)/include
     endif
 
-    NETCDF=f
+    NETCDF=t
     NETCDF_LIBS = -lnetcdff -lnetcdf
     NETCDF_INC  = -I/usr/include
 
