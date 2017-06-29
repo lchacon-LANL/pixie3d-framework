@@ -69,6 +69,7 @@ c ###################################################################
         character(2) :: krylov_method='gm'
         logical      :: vol_wgt=.true.
         logical      :: deferred_correction=.false.
+        logical      :: implicit_mid_point=.false.
 
         !FPA setup
         type (fpa_state) :: fpas
@@ -1823,24 +1824,14 @@ c     Begin program
 
 c     Evaluate nonlinear residual
 
-      call evaluateNonlinearResidual(ntot,x,f)
-
-c$$$c     Add pseudo-transient term
-c$$$
-c$$$      if (pseudo_dt) then
-c$$$        invpdt = 1d0/pdt
-c$$$        if (abs(invpdt) < 1d-5) invpdt = 0d0
-c$$$        f = (x - xk )*invpdt + f  !This doesn't really work for vol-weighed residuals!!!
-c$$$cc        f = (x - xx0)*invpdt + f
-c$$$        if (nk_conf%vol_wgt) then
-c$$$          write (*,*) 'WARNING: psedo-transient term only works for'//
-c$$$     .               ' non-vol-weighed residuals'
-c$$$        endif
-c$$$      endif
+      if (nk_conf%implicit_mid_point) then
+        call evaluateNonlinearResidual_mp(ntot,x,f)
+      else
+        call evaluateNonlinearResidual_tr(ntot,x,f)
+      endif
 
 c     End program
 
       end subroutine evaluateNewtonResidual
-
 
       end module nk
