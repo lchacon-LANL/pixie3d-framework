@@ -74,8 +74,8 @@
          <attribute name="description" path="/bconds"
                     value="Boundary conditions, 6 values per variable "/>
     </adios-group>
-    <method method="MPI_LUSTRE" group="record"/>
+    <method method="MPI" group="record"/>
     <!--method method="POSIX" group="record"/-->
-    <buffer size-MB="1000"/>
+    <buffer size-MB="10"/>
     <!-- or free-memory-percentage="90" allocate-time="oncall" -->
 </adios-config>

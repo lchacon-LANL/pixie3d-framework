@@ -490,13 +490,13 @@ c     Setup files
 
 c     Read setup info
 
-#if defined(use_mpi)
-        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
-#endif
         if (my_rank == 0) then
           write (*,*)
           write (*,*) '*****************************************'
         endif
+#if defined(use_mpi) || defined(petsc)
+        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
+#endif
 
         do ifl=1,nfiles
 
