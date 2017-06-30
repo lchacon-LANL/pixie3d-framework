@@ -305,7 +305,7 @@ c     Prepare 3d spline interpolation
 
 !$omp parallel
         call set_omp_thread_id()
-!$omp end parallel                                                             
+!$omp end parallel
 
 	dime = ky*kz + 3*max(kx,ky,kz) + kz
 	allocate(worke(dime*thr_tot),stat=alloc_stat)
@@ -1522,11 +1522,9 @@ c     Begin program
 
       ierror = ORB_OK
 
-c     Compute initial condition around singular point
-
-      x1 = sqrt(x*x+y*y)  !Radius
-      x2 = acos(x/x1)     !Theta
-      x3 = z              !Z
+c$$$      x1 = sqrt(x*x+y*y)  !Radius
+c$$$      x2 = acos(x/x1)     !Theta
+c$$$      x3 = z              !Z
 
       if (prnt) then
         write (*,*)
