@@ -1523,7 +1523,7 @@ c     End program
 
 c     find_global_field_vec
 c     ##############################################################
-      subroutine find_global_field_vec(lf,gf,dump,map_bc,mpi_comm)
+      subroutine find_global_field_vec(lf,gf,dump,map_bc,no_bc,mpi_comm)
 
       use xdraw_io
 
@@ -1537,7 +1537,7 @@ c     Call variables
 
       real(8),dimension(0:,0:,0:,:) :: lf,gf
 
-      logical,optional :: dump,map_bc
+      logical,optional :: dump,map_bc,no_bc
 
       integer,optional :: mpi_comm
 
@@ -1546,22 +1546,28 @@ c     Local variables
       integer :: i,j,k,dl(4),dg(4),lsize,gsize,ibc,ieq,dim,loc
       real(8),pointer,dimension(:) :: local_x,global_x
 
-      logical :: dmp,mapbc
+      logical :: dmp,mapbc,nobc
 
       integer :: mpicomm,npxl,npyl,npzl,npl
 
 c     Begin program
 
       if (PRESENT(dump)) then
-        dmp=dump
+        dmp = dump
       else
-        dmp=.false.
+        dmp = .false.
       endif
 
       if (PRESENT(map_bc)) then
-         mapbc = map_bc
+        mapbc = map_bc
       else
-         mapbc = .true.
+        mapbc = .false.
+      endif
+
+      if (PRESENT(no_bc)) then
+        nobc = no_bc
+      else
+        nobc = .true.
       endif
 
       if (PRESENT(mpi_comm)) then
@@ -1643,7 +1649,7 @@ c     Synchronize global periodic boundaries
             endif
           enddo
         enddo
-      else
+      elseif (.not.nobc) then
         do ibc =1,6
           if (bcond(ibc) == PER) then
             do ieq=1,dg(4)

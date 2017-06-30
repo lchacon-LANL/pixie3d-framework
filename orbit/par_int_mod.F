@@ -1592,15 +1592,14 @@ c     Fill global arrays
         call find_global(g_def%gmetric%grid(igrid)%jac,jacg
      .                  ,mpi_comm=g_def%mpi_comm)
         call find_global(g_def%gmetric%grid(igrid)%car,carg
-     .                  ,map_bc=.true.,mpi_comm=g_def%mpi_comm)
+     .                  ,mpi_comm=g_def%mpi_comm)
 #else
         call find_global(bb,bg)
 
         call find_global(bcar,bcarg)
 
         call find_global(g_def%gmetric%grid(igrid)%jac,jacg)
-        call find_global(g_def%gmetric%grid(igrid)%car,carg
-     .                  ,map_bc=.true.)
+        call find_global(g_def%gmetric%grid(igrid)%car,carg)
 #endif
 
 c     Output
@@ -2095,14 +2094,13 @@ c     Fill global arrays
         call find_global(g_def%gmetric%grid(igrid)%jac,jacg
      .                  ,mpi_comm=g_def%mpi_comm)
         call find_global(g_def%gmetric%grid(igrid)%car,carg
-     .                  ,map_bc=.true.,mpi_comm=g_def%mpi_comm)
+     .                  ,mpi_comm=g_def%mpi_comm)
 #else
         call find_global(bb  ,bg   )
         call find_global(bcar,bcarg)
 
         call find_global(g_def%gmetric%grid(igrid)%jac,jacg)
-        call find_global(g_def%gmetric%grid(igrid)%car,carg
-     .                  ,map_bc=.true.)
+        call find_global(g_def%gmetric%grid(igrid)%car,carg)
 #endif
 
         deallocate(bcar)
@@ -2329,10 +2327,9 @@ c     Interpolate global fields
           enddo
 
           !Map BCs
-          car0 = car !Assign EQU boundary values
-          call map_bc(g_def,1,igrid,nx,ny,nz,car(:,:,:,1),car0(:,:,:,1))
-          call map_bc(g_def,2,igrid,nx,ny,nz,car(:,:,:,2),car0(:,:,:,2))
-          call map_bc(g_def,3,igrid,nx,ny,nz,car(:,:,:,3),car0(:,:,:,3))
+          call map_bc(g_def,1,igrid,nx,ny,nz,car(:,:,:,1))
+          call map_bc(g_def,2,igrid,nx,ny,nz,car(:,:,:,2))
+          call map_bc(g_def,3,igrid,nx,ny,nz,car(:,:,:,3))
 
           !Rebuild metrics
           call defineGridMetric(g_def,xcar=car)
@@ -2386,15 +2383,15 @@ c     Assign GLOBAL arrays
         call find_global(g_def%gmetric%grid(igrid)%jac,jacg
      .                  ,mpi_comm=g_def%mpi_comm)
         call find_global(g_def%gmetric%grid(igrid)%car,carg
-     .                  ,map_bc=.true.,mpi_comm=g_def%mpi_comm)
+     .                  ,mpi_comm=g_def%mpi_comm)
 #else
         call find_global(bb  ,bg   )
         call find_global(bcar,bcarg)
 
         call find_global(g_def%gmetric%grid(igrid)%jac,jacg)
-        call find_global(g_def%gmetric%grid(igrid)%car,carg
-     .                  ,map_bc=.true.)
+        call find_global(g_def%gmetric%grid(igrid)%car,carg)
 #endif
+
 c     Destroy work space
 
         deallocate(car,car0,bcov,bcar)

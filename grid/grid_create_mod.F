@@ -348,7 +348,7 @@ c     Call variables
 
 c     Local variables
 
-        integer :: nxl,nyl,nzl,ierr
+        integer :: nxl,nyl,nzl,ierr,dim
         real(8),pointer,dimension(:,:,:,:) :: xc
         type(grid_mg_def),pointer :: gc_def => null()
      .                              ,gf_def => null()
@@ -376,6 +376,9 @@ c     Cycle through grid hierarchies
 
         do while (associated(gc_def))
 
+          if (my_rank == 0)
+     .         write (*,*) '   >>> New coarse grid hierarchy'
+
           nxl = gc_def%nxv(1)
           nyl = gc_def%nyv(1)
           nzl = gc_def%nzv(1)
@@ -384,13 +387,11 @@ c     Cycle through grid hierarchies
           !Gather coarsest mesh over sub-procs
           call find_global(gf_def%gmetric%grid(gf_def%ngrid)%car,xc
 #if defined(petsc) 
-     .                    ,map_bc=.true.,mpi_comm=gc_def%mpi_comm_crse
+     .                    ,mpi_comm=gc_def%mpi_comm_crse
 #endif
      .                    )
 
           call defineGridMetric(gc_def,xcar=xc,ierr=ierr)
-
-          if (my_rank == 0) write (*,*) 'defineGrid error',ierr
 
           deallocate(xc)
 
@@ -399,8 +400,10 @@ c     Cycle through grid hierarchies
 
           !Check for negative Jac, and if so deallocate subsequent grid levels and exit
           if (ierr /= 0) then
-            if (my_rank == 0)
-     .           write (*,*) ' >>> Discarding last mesh due to jac < 0'
+            if (my_rank == 0) then
+              write (*,*) ' >>> defineGridMetric error',ierr
+              write (*,*) ' >>> Discarding leftover meshes due to jac<0'
+            endif
             call deallocateGridStructure(gc_def)
             exit                
           endif

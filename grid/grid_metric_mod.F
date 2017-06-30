@@ -488,7 +488,7 @@ c     Fill ghost cells
 
 c     map_bc
 c     #################################################################
-      subroutine map_bc(g_def,dim,igrid,nxl,nyl,nzl,x_j,x0_j,iorder,bcs)
+      subroutine map_bc(g_def,dim,igrid,nxl,nyl,nzl,x_j,iorder,bcs)
 
 c     -----------------------------------------------------------------
 c     Impose BCs on map component x_j using boundary of x0_j.
@@ -510,7 +510,7 @@ c     Call variables
 c     Local variables
 
         integer :: bcnd(6),iibc,order
-        real(8) :: x0_j(0:nxc+1,0:nyc+1,0:nzc+1)
+        real(8) :: x0_j(0:nxl+1,0:nyl+1,0:nzl+1)
 
 c     Begin program
 
@@ -542,26 +542,26 @@ c     Setup boundary conditions
 
 c     Prepare boundaries
 
-        x0_j = xc_j
+        x0_j = x_j
 
-        if ((nxc == 1).and.(dim == 1)) then
+        if ((nxl == 1).and.(dim == 1)) then
           i=0
           x0_j(i,:,:) = 0.5*(x0_j(i,:,:)+x0_j(i+1,:,:))
-          i=nxc+1
+          i=nxl+1
           x0_j(i,:,:) = 0.5*(x0_j(i,:,:)+x0_j(i-1,:,:))
         endif
 
-        if ((nyc == 1).and.(dim == 2)) then
+        if ((nyl == 1).and.(dim == 2)) then
           j=0
           x0_j(:,j,:) = 0.5*(x0_j(:,j,:)+x0_j(:,j+1,:))
-          j=nyc+1
+          j=nyl+1
           x0_j(:,j,:) = 0.5*(x0_j(:,j,:)+x0_j(:,j-1,:))
         endif
 
-        if ((nzc == 1).and.(dim == 3)) then
+        if ((nzl == 1).and.(dim == 3)) then
           k=0
           x0_j(:,:,k) = 0.5*(x0_j(:,:,k)+x0_j(:,:,k+1))
-          k=nzc+1
+          k=nzl+1
           x0_j(:,:,k) = 0.5*(x0_j(:,:,k)+x0_j(:,:,k-1))
         endif
 
@@ -720,17 +720,20 @@ c       NUMERICAL QUANTITIES ***********************************
 
           call findVertexMetrics(g_def)
 
-          if (my_rank == 0) write (*,*) nx,ny,nz
-     $         ,'findvertexmetrics error',lerr
-
           call findCellMetrics(g_def)
-
-          if (my_rank == 0) write (*,*) nx,ny,nz
-     $         ,'findcellmetrics error',lerr
 
         endif
 
-        if (return_error) ierr = lerr
+c     Gather error flags
+
+        if (return_error) then
+#if defined(petsc)
+          call MPI_Allreduce(lerr,ierr,1,MPI_INTEGER
+     .                      ,MPI_MAX,g_def%mpi_comm,mpierr)
+#else
+          ierr = lerr
+#endif
+        endif
 
 c     End program
 
@@ -1805,20 +1808,23 @@ c     Allocate arrays
 c     Find grid metrics
 
         do igrid=igrmin,igrmax
-          call findGridMetrics(g_def,igrid,.not.PRESENT(igr),ierr=ierr)
-          if (my_rank == 0) write (*,*) 'igrid=',igrid,
-     $                            'findGridMetrics error',ierr
+          call findGridMetrics(g_def,igrid,.not.PRESENT(igr),ierr=lerr)
+c$$$          if (my_rank == 0) write (*,*) 'igrid=',igrid,
+c$$$     $                            'findGridMetrics error',lerr
+          if (lerr /= 0) exit
         enddo
+
+        !Reset grid level to last usable
+        if (lerr /= 0 .and. (.not.PRESENT(igr))) g_def%ngrid = igrid - 1
+
+        if (g_def%ngrid < 1) then
+          call pstop("defineGridMetric"
+     .              ,"Cannot evaluate metrics on top mesh")
+        endif
 
 c     Gather error flags
 
-#if defined(petsc)
-        if (PRESENT(ierr)) then
-          lerr = ierr
-          call MPI_Allreduce(lerr,ierr,1,MPI_INTEGER
-     .                      ,MPI_MAX,g_def%mpi_comm,mpierr)
-        endif
-#endif
+        if (PRESENT(ierr)) ierr = lerr
 
 c     End program
 
