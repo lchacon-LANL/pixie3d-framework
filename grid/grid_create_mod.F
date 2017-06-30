@@ -390,6 +390,8 @@ c     Cycle through grid hierarchies
 
           call defineGridMetric(gc_def,xcar=xc,ierr=ierr)
 
+          if (my_rank == 0) write (*,*) 'defineGrid error',ierr
+
           deallocate(xc)
 
           gf_def => gc_def

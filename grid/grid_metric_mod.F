@@ -440,7 +440,6 @@ c     Local variables
 
         integer    :: igf,ic,jc,kc,if,jf,kf,mgx,mgy,mgz
      .               ,i_off,j_off,k_off
-        real(8)    :: x0_j(0:nxc+1,0:nyc+1,0:nzc+1)
 
         real(8)    :: volc,ac
 
@@ -479,34 +478,9 @@ c     Begin program
           enddo
         enddo
 
-c       Prepare boundaries
-
-        x0_j = xc_j
-
-        if ((nxc == 1).and.(dim == 1)) then
-          i=0
-          x0_j(i,:,:) = 0.5*(x0_j(i,:,:)+x0_j(i+1,:,:))
-          i=nxc+1
-          x0_j(i,:,:) = 0.5*(x0_j(i,:,:)+x0_j(i-1,:,:))
-        endif
-
-        if ((nyc == 1).and.(dim == 2)) then
-          j=0
-          x0_j(:,j,:) = 0.5*(x0_j(:,j,:)+x0_j(:,j+1,:))
-          j=nyc+1
-          x0_j(:,j,:) = 0.5*(x0_j(:,j,:)+x0_j(:,j-1,:))
-        endif
-
-        if ((nzc == 1).and.(dim == 3)) then
-          k=0
-          x0_j(:,:,k) = 0.5*(x0_j(:,:,k)+x0_j(:,:,k+1))
-          k=nzc+1
-          x0_j(:,:,k) = 0.5*(x0_j(:,:,k)+x0_j(:,:,k-1))
-        endif
-
 c     Fill ghost cells
 
-        call map_bc(g_def,dim,igc,nxc,nyc,nzc,xc_j,x0_j,bcs=bcs)
+        call map_bc(g_def,dim,igc,nxc,nyc,nzc,xc_j,bcs=bcs)
 
       end subroutine crse_map_comp
 
@@ -529,7 +503,6 @@ c     Call variables
         integer :: dim,igrid,nxl,nyl,nzl
 
         real(8) :: x_j (0:nxl+1,0:nyl+1,0:nzl+1)
-     .            ,x0_j(0:nxl+1,0:nyl+1,0:nzl+1)
 
         integer,optional,intent(IN) :: iorder
         integer,optional :: bcs(6)
@@ -537,6 +510,7 @@ c     Call variables
 c     Local variables
 
         integer :: bcnd(6),iibc,order
+        real(8) :: x0_j(0:nxc+1,0:nyc+1,0:nzc+1)
 
 c     Begin program
 
@@ -564,6 +538,31 @@ c     Setup boundary conditions
           end select
 
           where(bcnd == DEF) bcnd = EXT
+        endif
+
+c     Prepare boundaries
+
+        x0_j = xc_j
+
+        if ((nxc == 1).and.(dim == 1)) then
+          i=0
+          x0_j(i,:,:) = 0.5*(x0_j(i,:,:)+x0_j(i+1,:,:))
+          i=nxc+1
+          x0_j(i,:,:) = 0.5*(x0_j(i,:,:)+x0_j(i-1,:,:))
+        endif
+
+        if ((nyc == 1).and.(dim == 2)) then
+          j=0
+          x0_j(:,j,:) = 0.5*(x0_j(:,j,:)+x0_j(:,j+1,:))
+          j=nyc+1
+          x0_j(:,j,:) = 0.5*(x0_j(:,j,:)+x0_j(:,j-1,:))
+        endif
+
+        if ((nzc == 1).and.(dim == 3)) then
+          k=0
+          x0_j(:,:,k) = 0.5*(x0_j(:,:,k)+x0_j(:,:,k+1))
+          k=nzc+1
+          x0_j(:,:,k) = 0.5*(x0_j(:,:,k)+x0_j(:,:,k-1))
         endif
 
 c     Impose BCs
@@ -721,7 +720,13 @@ c       NUMERICAL QUANTITIES ***********************************
 
           call findVertexMetrics(g_def)
 
+          if (my_rank == 0) write (*,*) nx,ny,nz
+     $         ,'findvertexmetrics error',lerr
+
           call findCellMetrics(g_def)
+
+          if (my_rank == 0) write (*,*) nx,ny,nz
+     $         ,'findcellmetrics error',lerr
 
         endif
 
@@ -959,6 +964,12 @@ cc            do i = imin,imax
           enddo
         enddo
 
+        if (lerr == 1) then
+           deallocate(dr)
+           nullify(xc)
+           return
+        endif
+
 c     Christoffel symbols (at cell centers; BCs enforced in findCellMetrics)
 
 cc        do k = kmin+1,kmax
@@ -1187,6 +1198,12 @@ c     Evaluate grid quantities
             enddo
           enddo
         enddo
+
+        if (lerr == 2) then
+           deallocate(dr)
+           nullify(xc)
+           return
+        endif
 
         !Zero-force condition on Christoffle symbols 
         if (igrid == 1) call hessianZeroForceCorr(igrid)
@@ -1789,6 +1806,8 @@ c     Find grid metrics
 
         do igrid=igrmin,igrmax
           call findGridMetrics(g_def,igrid,.not.PRESENT(igr),ierr=ierr)
+          if (my_rank == 0) write (*,*) 'igrid=',igrid,
+     $                            'findGridMetrics error',ierr
         enddo
 
 c     Gather error flags

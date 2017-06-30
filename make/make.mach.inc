@@ -938,7 +938,9 @@ ifeq ($(findstring wf,$(HOST)),wf)
 
   ifeq ($(findstring gfortran,$(FC)),gfortran)
 
-    NETCDF=f
+    NETCDF=t
+    NETCDF_LIBS = -lnetcdff -lnetcdf
+    NETCDF_INC  = -I/usr/include
 
     ifdef BOPT
      PETSC_DIR =/turquoise/usr/projects/magreconn/soft/petsc-3.0.0-p7
