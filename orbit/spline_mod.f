@@ -1569,13 +1569,13 @@ c     Perform iteration
 
         !Linesearch
 c$$$        if (iter > 1) then
-          call linesearch(x1,x2,x3,dxi(:,1),error(iter),damp(iter)
-     .                   ,ierror)
+c$$$          call linesearch(x1,x2,x3,dxi(:,1),error(iter),damp(iter)
+c$$$     .                   ,ierror)
 c$$$        else
-c$$$          damp(iter) = 1d0
-c$$$          x1 = x1 + dxi(1,1)
-c$$$          x2 = x2 + dxi(2,1)
-c$$$          x3 = x3 + dxi(3,1)
+          damp(iter) = 1d0
+          x1 = x1 + dxi(1,1)
+          x2 = x2 + dxi(2,1)
+          x3 = x3 + dxi(3,1)
 c$$$        endif
 
         if (ierror /= ORB_OK) exit
