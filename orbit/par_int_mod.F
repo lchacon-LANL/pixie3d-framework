@@ -2293,16 +2293,17 @@ c     --------------------------------------------------------------
 c     Begin program
 
         if (my_rank == 0) then
-          write (*,*) 'Asynchronous input in Lagrangian step'
+          write (*,*) 'External POINCARE input in Lagrangian step'
         endif
 
-c     Read POINCARE data
+c     Read POINCARE data (this sets up orbit, splines)
 
         sporder = spline_order
-        call read_poinc_files(poinc_file,xmin,xmax,ymin,ymax,zmin,zmax) !This sets up orbit, splines, and mesh
+        call read_poinc_files(poinc_file,xmin,xmax,ymin,ymax,zmin,zmax) 
 
 c     Recreate grid structure
 
+        call deallocateGridStructure(g_def)
         call createGrid(nxd,nyd,nzd,xmin,xmax,ymin,ymax,zmin,zmax,g_def)
 
 c     Interpolate global fields
