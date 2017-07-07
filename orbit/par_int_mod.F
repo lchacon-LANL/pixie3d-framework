@@ -2299,7 +2299,11 @@ c     Begin program
 c     Read POINCARE data
 
         sporder = spline_order
-        call read_poinc_files(g_def,poinc_file) !This sets up orbit, splines, and mesh
+        call read_poinc_files(poinc_file,xmin,xmax,ymin,ymax,zmin,zmax) !This sets up orbit, splines, and mesh
+
+c     Recreate grid structure
+
+        call createGrid(nxd,nyd,nzd,xmin,xmax,ymin,ymax,zmin,zmax,g_def)
 
 c     Interpolate global fields
 
