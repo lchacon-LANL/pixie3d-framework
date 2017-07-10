@@ -227,7 +227,7 @@ c     Begin program
         endif
       else
         if (ierror /= 0.and.message)
-     .       write (*,*) my_rank,'Error in chk_pos: out of domain!'
+     .    write (*,*) 'Proc=',my_rank,'Error in chk_pos: out of domain!'
         ierr = ierror
       endif
 

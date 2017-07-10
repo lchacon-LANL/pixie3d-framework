@@ -503,6 +503,14 @@ c     Read setup info
 
         enddo
 
+#if defined(use_mpi) || defined(petsc)
+        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
+#endif
+        if (my_rank == 0) then
+          write (*,*) '*****************************************'
+          write (*,*)
+        endif
+
 cc        if (tor .and. (coords /= 'vmc' .and. coords /= 'tor')) then
 cc          call closeFiles(mupixie)
 cc          call pstop('get_global_data_from_file'

@@ -2002,6 +2002,11 @@ c     Compute Green's integral cut-offs
 
 c     Find global arrays
 
+        allocate(bg   (0:nxg+1,0:nyg+1,0:nzg+1,3)
+     .          ,bcarg(0:nxg+1,0:nyg+1,0:nzg+1,3)
+     .          ,carg (0:nxg+1,0:nyg+1,0:nzg+1,3)
+     .          ,jacg (0:nxg+1,0:nyg+1,0:nzg+1))
+
         if (PRESENT(poinc_file)) then
           call get_global_data_from_file
         else
@@ -2054,7 +2059,7 @@ c     Orbit initialization on global array
      .                  ,ds_is_Bds=bwgt   !Use B.ds as integration variable
      .                  )
 
-c     Deallocate memory
+c     Deallocate LOCAL memory
 
         deallocate(bg,bcarg,jacg,carg)
 
@@ -2081,11 +2086,6 @@ c     Find local cartesian components
         bcar = XformToCar(g_def,igrid,bb,.false.)
 
 c     Fill global arrays
-
-        allocate(bg   (0:nxg+1,0:nyg+1,0:nzg+1,3)
-     .          ,bcarg(0:nxg+1,0:nyg+1,0:nzg+1,3)
-     .          ,carg (0:nxg+1,0:nyg+1,0:nzg+1,3)
-     .          ,jacg (0:nxg+1,0:nyg+1,0:nzg+1))
 
 #if defined(petsc)
         call find_global(bb  ,bg   ,mpi_comm=g_def%mpi_comm)
@@ -2171,11 +2171,6 @@ c     Read setup info
 c     Allocate global arrays
 
         allocate(xx(0:nxg+1),yy(0:nyg+1),zz(0:nzg+1))
-
-        allocate(bg   (0:nxg+1,0:nyg+1,0:nzg+1,3)
-     .          ,bcarg(0:nxg+1,0:nyg+1,0:nzg+1,3)
-     .          ,carg (0:nxg+1,0:nyg+1,0:nzg+1,3)
-     .          ,jacg (0:nxg+1,0:nyg+1,0:nzg+1  ))
 
 c     Read global arrays
 
@@ -2376,11 +2371,6 @@ c     Assign LOCAL B by interpolating POINCARE data
         
 c     Assign GLOBAL arrays
 
-        allocate(bg   (0:nxg+1,0:nyg+1,0:nzg+1,3)
-     .          ,bcarg(0:nxg+1,0:nyg+1,0:nzg+1,3)
-     .          ,carg (0:nxg+1,0:nyg+1,0:nzg+1,3)
-     .          ,jacg (0:nxg+1,0:nyg+1,0:nzg+1))
-
 #if defined(petsc)
         call find_global(bb  ,bg   ,mpi_comm=g_def%mpi_comm)
         call find_global(bcar,bcarg,mpi_comm=g_def%mpi_comm)
@@ -2400,6 +2390,7 @@ c     Assign GLOBAL arrays
 c     Destroy work space
 
         deallocate(car,car0,bcov,bcar)
+
         call orbit_destroy !Destroys orbit and splines
 
       end subroutine get_global_data_from_file
