@@ -1053,7 +1053,7 @@ c     ----------------------------------------------------------------------
 
         logical :: exitl
 
-        exit_loop = exitl
+        exit_loop = exitl.or.chk_lsode_err()
 
       end subroutine set_orbit_exit
 
@@ -3263,6 +3263,18 @@ cc      pause
       if ((x11-x0 )*(x22-x0 ) <= 0d0) xss = x0 +pp*(xmax-xmin)
 
       end function chk_ss_pos
+
+c     chk_lsode_err
+c     ##################################################################
+      function chk_lsode_err() result(lsode_err)
+
+      implicit none
+
+      logical :: lsode_err
+
+      lsode_err = (LSODE_IERR /= ORB_OK)
+
+      end function chk_lsode_err
 
       end module orbit
 

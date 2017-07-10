@@ -211,8 +211,8 @@ c     Begin program
         endif
       endif
 
-cc      if (.not.PRESENT(ierr)) then
-        if (ierror /= 0.and.message) then
+      if (.not.PRESENT(ierr)) then
+        if (ierror /= 0) then
           write (*,*) 
           write (*,*) 'Error in chk_pos: out of domain!'
           write (*,*)
@@ -223,17 +223,13 @@ cc      if (.not.PRESENT(ierr)) then
           write (*,*) 'Z domain limits=',zsmin,zsmax
           write (*,*)
           write (*,*) 'BCs',sbcnd
-cc          stop
+          stop
         endif
-cc      else
-cc        ierr = ierror
-cc      endif
-
-        if (PRESENT(ierr)) then
-          ierr = ierror
-        else
-          if (ierror /= 0) stop
-        endif
+      else
+        if (ierror /= 0.and.message)
+     .       write (*,*) my_rank,'Error in chk_pos: out of domain!'
+        ierr = ierror
+      endif
 
 c     End program
 
@@ -280,14 +276,18 @@ c     Initialize spline domain arrays
 
 c     Define domain limits
 
-        xsmin = g_def%gxmin
-        xsmax = g_def%gxmax
-          
-        ysmin = g_def%gymin
-        ysmax = g_def%gymax
-          
-        zsmin = g_def%gzmin
-        zsmax = g_def%gzmax
+        call set_sp_domain_limits(xs,sbcnd(1),xsmin,xsmax)
+        call set_sp_domain_limits(ys,sbcnd(3),ysmin,ysmax)
+        call set_sp_domain_limits(zs,sbcnd(5),zsmin,zsmax)
+
+c$$$        xsmin = g_def%gxmin
+c$$$        xsmax = g_def%gxmax
+c$$$          
+c$$$        ysmin = g_def%gymin
+c$$$        ysmax = g_def%gymax
+c$$$          
+c$$$        zsmin = g_def%gzmin
+c$$$        zsmax = g_def%gzmax
 
 c     Prepare 3d spline interpolation
 
