@@ -25,6 +25,8 @@ c ######################################################################
      .            ,quota=1d30  !Max CPU time (in seconds)
         real(8) :: rstep,dfreq,dtexp
 
+        logical,private :: ts_after_restart
+
 #if !defined(samrai)
 
 cc        real(8),pointer,dimension(:,:) :: old_f
@@ -429,6 +431,10 @@ c     Begin program
         call calculate_cnfactor
       endif
 
+c     Reset restart flags
+
+      ts_after_restart = ts_restart !Detect whether we are right after restart
+
       ts_restart = .false.
 
 c     End program
@@ -561,6 +567,31 @@ c     #######################################################################
       end subroutine calculate_cnfactor
 
       end subroutine TS_find_new_dt
+
+c     TS_chk_after_restart
+c     ###############################################################
+      function TS_chk_after_restart() result(flag)
+
+c     ---------------------------------------------------------------
+c     Check for end of time loop
+c     ---------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      logical :: flag
+
+c     Local variables
+
+c     Begin program
+
+      flag = ts_after_restart
+
+c     End program
+
+      end function TS_chk_after_restart
+
 #endif
 
       end module ts_base
