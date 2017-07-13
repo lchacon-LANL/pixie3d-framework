@@ -32,6 +32,7 @@ c ######################################################################
      .            ,dtexp = 0d0   !Explicit time accumulator
      .            ,exec_time=0d0 !Execution time (in seconds)
 
+        logical,private :: ts_after_restart
 
 #if !defined(samrai)
 
@@ -321,6 +322,10 @@ c     Begin program
         call calculate_cnfactor
       endif
 
+c     Reset restart flags
+
+      ts_after_restart = ts_restart
+
       ts_restart = .false.
 
 c     End program
@@ -497,6 +502,31 @@ c     #######################################################################
       end subroutine calculate_cnfactor
 
       end subroutine TS_find_new_dt
+
+c     TS_chk_after_restart
+c     ###############################################################
+      function TS_chk_after_restart() result(flag)
+
+c     ---------------------------------------------------------------
+c     Check for end of time loop
+c     ---------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      logical :: flag
+
+c     Local variables
+
+c     Begin program
+
+      flag = ts_after_restart
+
+c     End program
+
+      end function TS_chk_after_restart
+
 #endif
 
       end module ts_base
