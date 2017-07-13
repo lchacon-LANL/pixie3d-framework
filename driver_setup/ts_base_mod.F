@@ -32,7 +32,7 @@ c ######################################################################
      .            ,dtexp = 0d0   !Explicit time accumulator
      .            ,exec_time=0d0 !Execution time (in seconds)
 
-        logical,private :: ts_after_restart
+        logical,private :: ts_after_restart = .false.
 
 #if !defined(samrai)
 
@@ -324,7 +324,7 @@ c     Begin program
 
 c     Reset restart flags
 
-      ts_after_restart = ts_restart
+      if (ts_restart) ts_after_restart = .true.
 
       ts_restart = .false.
 
@@ -505,7 +505,7 @@ c     #######################################################################
 
 c     TS_chk_after_restart
 c     ###############################################################
-      function TS_chk_after_restart() result(flag)
+      function TS_chk_after_restart(time_slices) result(flag)
 
 c     ---------------------------------------------------------------
 c     Check for end of time loop
@@ -517,11 +517,17 @@ c     Call variables
 
       logical :: flag
 
+      integer :: time_slices
+
 c     Local variables
+
+      integer, save :: counter = 0
 
 c     Begin program
 
-      flag = ts_after_restart
+      counter = counter + 1
+
+      flag = ts_after_restart.and.(counter <= time_slices)
 
 c     End program
 
