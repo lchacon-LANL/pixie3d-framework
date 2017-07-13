@@ -25,7 +25,7 @@ c ######################################################################
      .            ,quota=1d30  !Max CPU time (in seconds)
         real(8) :: rstep,dfreq,dtexp
 
-        logical,private :: ts_after_restart
+        logical,private :: ts_after_restart = .false.
 
 #if !defined(samrai)
 
@@ -433,7 +433,7 @@ c     Begin program
 
 c     Reset restart flags
 
-      ts_after_restart = ts_restart !Detect whether we are right after restart
+      if (ts_restart) ts_after_restart = .true. !Detect whether we are right after restart
 
       ts_restart = .false.
 
@@ -570,7 +570,7 @@ c     #######################################################################
 
 c     TS_chk_after_restart
 c     ###############################################################
-      function TS_chk_after_restart() result(flag)
+      function TS_chk_after_restart(time_slices) result(flag)
 
 c     ---------------------------------------------------------------
 c     Check for end of time loop
@@ -580,13 +580,18 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
+      integer :: time_slices
       logical :: flag
 
 c     Local variables
 
+      integer, save :: counter = 0
+
 c     Begin program
 
-      flag = ts_after_restart
+      counter = counter + 1
+
+      flag = ts_after_restart .and. (counter <= time_slices)
 
 c     End program
 
