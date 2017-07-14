@@ -901,12 +901,9 @@ c     Evaluate dr=dx/dxi vectors at vertices
 
 c     Evaluate grid quantities (at vertices)
 
-cc        do k = kmin,kmax
-cc          do j = jmin,jmax
-cc            do i = imin,imax
-        do k = klom,khi
-          do j = jlom,jhi
-            do i = ilom,ihi
+        do k = klom,khip
+          do j = jlom,jhip
+            do i = ilom,ihip
               r = dr(i,j,k,:,:)
 
               !Jacobian <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
@@ -1744,6 +1741,10 @@ cc        bcond = bcond_sv
         bcs(:,1) = bcond
         bcs(:,2) = bcond
         bcs(:,3) = bcond
+        where (bcs(2,:) == DEF) bcs(2,:) = EXT
+        where (bcs(4,:) == DEF) bcs(4,:) = EXT 
+        where (bcs(6,:) == DEF) bcs(6,:) = EXT 
+
         do i=1,3
           call imposeBConVector_stg_ez(g_def,igrid,dr(:,:,:,i,:)
      .                                ,.false.,bcs,2)
