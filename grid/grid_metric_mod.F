@@ -912,20 +912,21 @@ c     Evaluate grid quantities (at vertices)
 
               if (jac <= 0d0
      .           .and. (.not.isSP2(g_def,i+1,igrid,ibc=1))) then
-                if (.not.check_grid .and. (.not.return_error)) then
-                  write (*,*) 'Negative Jacobian in half mesh'
-                  write (*,*) 'Grid level',igrid
-                  write (*,*) 'Processor rank=',my_rank
-                  write (*,*) 'Grid position=',i,j,k
-                  write (*,*) 'dr/dxi_1=',r(:,1)
-                  write (*,*) 'dr/dxi_2=',r(:,2)
-                  write (*,*) 'dr/dxi_3=',r(:,3)
-                  write (*,*) 'Jacobian=',jac
 
-                  call sstop(0,'findVertexMetrics','Inverted Jacobian')
-                elseif (return_error) then
-                  lerr = 1 ; exit
-                endif
+                write (*,*) 'Negative Jacobian in half mesh'
+                write (*,*) 'Grid level',igrid
+                write (*,*) 'Processor rank=',my_rank
+                write (*,*) 'Grid position=',i,j,k
+                write (*,*) 'dr/dxi_1=',r(:,1)
+                write (*,*) 'dr/dxi_2=',r(:,2)
+                write (*,*) 'dr/dxi_3=',r(:,3)
+                write (*,*) 'Jacobian=',jac
+
+                if (.not.(check_grid.or.return_error))
+     .             call sstop(0,'findVertexMetrics','Inverted Jacobian')
+
+                lerr = 1
+                exit
               elseif (isSP2(g_def,i+1,igrid,ibc=1)) then
                 ijac = 0d0
               else
@@ -1692,51 +1693,52 @@ c     Call variables
 
 c     Local variables
 
-        integer :: i,j,bcs(6,3)
-cc        integer :: bcs(6),bcond_sv(6),nxl,nyl,nzl
+c$$$        integer :: i,j,bcs(6),bcond_sv(6),nxl,nyl,nzl
 
 c     External
 
 c     Begin program
 
-cc        nxl = size(dr,1)-2
-cc        nyl = size(dr,2)-2
-cc        nzl = size(dr,3)-2
-cc        
-cc        !Modify BC setup to do staggered
-cc        bcond_sv = bcond
-cc        bcs = bcond
-cc        !Do no overwrite i=j=k=0
-cc        if (bcs(2) == DEF) bcs(2) = EXT
-cc        if (bcs(4) == DEF) bcs(4) = EXT 
-cc        if (bcs(6) == DEF) bcs(6) = EXT 
-cc        if (bcs(2) == FSYM .or. bcs(2) == SYM) then
-cc          bcs  (2) = NEU
-cc          bcond(2) = SYM  !Set BCs to do NEU across face
-cc        endif
-cc        if (bcs(4) == FSYM .or. bcs(4) == SYM) then
-cc          bcs  (4) = NEU 
-cc          bcond(4) = SYM  !Set BCs to do NEU across face
-cc        endif
-cc        if (bcs(6) == FSYM .or. bcs(6) == SYM) then
-cc          bcs  (6) = NEU
-cc          bcond(6) = SYM  !Set BCs to do NEU across face
-cc        endif
-cc
-cccc        call set_force_corners(.true.)
-cc        
-cc        do i=1,3
-cc          do j=1,3
-cc            call setMGBC(g_def,0,1,nxl,nyl,nzl,igrid,dr(:,:,:,i:i,j),bcs
-cc     .                  ,iorder=2)
-cc            write (*,*) my_rank,'after',dr(nxl+1,:,1,1,1)
-cc            stop
-cc          enddo
-cc        enddo
-cc
-cc        !Recover original setup
-cccc        call set_force_corners(.false.)
-cc        bcond = bcond_sv
+c$$$        nxl = size(dr,1)-2
+c$$$        nyl = size(dr,2)-2
+c$$$        nzl = size(dr,3)-2
+c$$$        
+c$$$        !Modify BC setup to do staggered
+c$$$        bcond_sv = bcond
+c$$$        bcs = bcond
+c$$$        !Do no overwrite i=j=k=0
+c$$$        if (bcs(2) == DEF) bcs(2) = EXT
+c$$$        if (bcs(4) == DEF) bcs(4) = EXT 
+c$$$        if (bcs(6) == DEF) bcs(6) = EXT 
+c$$$        if (bcs(2) == FSYM .or. bcs(2) == SYM) then
+c$$$          bcs  (2) = NEU
+c$$$          bcond(2) = SYM  !Set BCs to do NEU across face
+c$$$        endif
+c$$$        if (bcs(4) == FSYM .or. bcs(4) == SYM) then
+c$$$          bcs  (4) = NEU 
+c$$$          bcond(4) = SYM  !Set BCs to do NEU across face
+c$$$        endif
+c$$$        if (bcs(6) == FSYM .or. bcs(6) == SYM) then
+c$$$          bcs  (6) = NEU
+c$$$          bcond(6) = SYM  !Set BCs to do NEU across face
+c$$$        endif
+c$$$
+c$$$cc        call set_force_corners(.true.)
+c$$$        
+c$$$        do i=1,3
+c$$$          do j=1,3
+c$$$            call setMGBC(g_def,0,1,nxl,nyl,nzl,igrid,dr(:,:,:,i:i,j),bcs
+c$$$     .                  ,iorder=2)
+c$$$c$$$            write (*,*) my_rank,'after',dr(nxl+1,:,1,1,1)
+c$$$c$$$            stop
+c$$$          enddo
+c$$$        enddo
+c$$$
+c$$$        !Recover original setup
+c$$$cc        call set_force_corners(.false.)
+c$$$        bcond = bcond_sv
+
+        integer :: i,bcs(6,3)
 
         bcs(:,1) = bcond
         bcs(:,2) = bcond
