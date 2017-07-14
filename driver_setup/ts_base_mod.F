@@ -585,11 +585,11 @@ c     Call variables
 
 c     Local variables
 
-      integer, save :: counter = 0
+      integer :: counter
 
 c     Begin program
 
-      counter = counter + 1
+      counter = itime-inewtime + 1
 
       flag = ts_after_restart .and. (counter <= time_slices)
 
