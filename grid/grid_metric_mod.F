@@ -1695,8 +1695,6 @@ c     Local variables
 
 c$$$        integer :: i,j,bcs(6),bcond_sv(6),nxl,nyl,nzl
 
-c     External
-
 c     Begin program
 
 c$$$        nxl = size(dr,1)-2
