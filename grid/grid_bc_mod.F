@@ -2085,7 +2085,7 @@ c     Fill PETSc/PERIODIC ghost cells
         enddo
       endif
 #elif !defined(samrai)
-      call sync_bc(PER)
+      call set_bc(PER)
 #endif
 
       !Exit if all periodic domains 
@@ -2097,7 +2097,7 @@ c     Fill PETSc/PERIODIC ghost cells
       
 c     Fill SP ghost cells independently on cnv and cov staggered vectors
 
-      call sync_bc(SP)
+      call set_bc(SP)
 
 c     Impose BCs
 
@@ -2156,7 +2156,7 @@ c     Fill corners (for both cnv and cov components)
 c     Periodic boundary synchronizing
 
 #if defined(PER_BC_SYNC) && !defined(samrai)
-      call sync_bc(PER)
+      call sync_bc(.false.)
 #endif
 
 c     End program
@@ -2166,9 +2166,15 @@ c     End program
 
       contains
 
-c     sync_bc
+c     set_bc
 c     #################################################################
-      subroutine sync_bc(bctype)
+      subroutine set_bc(bctype)
+
+      implicit none
+      
+c     -----------------------------------------------------------------
+c     Set BC "bctype" independently for cov and cnv vectors
+c     -----------------------------------------------------------------
 
       integer :: bctype
 
@@ -2184,6 +2190,56 @@ c     #################################################################
      .                               ,bctype,v_cnv,var0)
               call FillGhostNodes_vec(gbc_def,ieq,ivar,ncomp,dim,loc
      .                               ,bctype,v_cov,var0,cnv=.false.)
+            endif
+          enddo
+
+        enddo
+      enddo
+
+      end subroutine set_bc
+
+c     sync_bc
+c     #################################################################
+      subroutine sync_bc(only_per)
+
+c     Call variables
+
+      logical :: only_per
+
+c     Local variables
+      
+c     Begin program
+
+      !Periodic: order by dimension first
+      do dim=1,3
+        do loc=0,1
+          ibc = (1+loc)+2*(dim-1)
+
+          do ivar = 1,ncomp
+            if (abs(bcnd(ibc,ivar)) == PER) then
+              call FillGhostNodes_vec(gbc_def,0,ivar,ncomp,dim,loc
+     .                               ,PER,v_cnv,var0,cnv=.true.)
+              call FillGhostNodes_vec(gbc_def,ieq,ivar,ncomp,dim,loc
+     .                               ,PER,v_cov,var0,cnv=.false.)
+            endif
+          enddo
+
+        enddo
+      enddo
+
+      if (only_per) return
+
+      !Other: order by location first
+      do loc=0,1
+        do dim=1,3
+          ibc = (1+loc)+2*(dim-1)
+
+          do ivar = 1,ncomp
+            if (abs(bcnd(ibc,ivar)) /= PER) then
+              call FillGhostNodes_vec(gbc_def,0,ivar,ncomp,dim,loc
+     .                               ,SYNC,v_cnv,var0,cnv=.true.)
+              call FillGhostNodes_vec(gbc_def,0,ivar,ncomp,dim,loc
+     .                               ,SYNC,v_cov,var0,cnv=.false.)
             endif
           enddo
 
@@ -2527,7 +2583,7 @@ c     Fill PETSc ghost cells and PER BCs
         enddo
       endif
 #elif !defined(samrai)
-      call sync_bc(PER)
+      call sync_bc(.true.)
 #endif
 
       !Exit if all periodic domains 
@@ -2536,10 +2592,6 @@ c     Fill PETSc ghost cells and PER BCs
         if (flg_sc) skip_corners=.false. !Reset skip_corners
         return
       endif
-
-ccc     Fill SP ghost cells
-cc
-cc      call sync_bc(SP)
 
 c     Impose physical BCs
 
@@ -2577,7 +2629,7 @@ c     Fill corners
 c     Periodic boundary synchronizing
 
 #if defined(PER_BC_SYNC) && !defined(samrai)
-      call sync_bc(PER)
+      call sync_bc(.false.)
 #endif
 
       deallocate(vec0)
@@ -2589,22 +2641,68 @@ c     End program
 
       contains
 
+c$$$c     sync_bc
+c$$$c     #################################################################
+c$$$      subroutine sync_bc(bctype)
+c$$$
+c$$$      implicit none
+c$$$
+c$$$      integer,INTENT(IN) :: bctype
+c$$$
+c$$$      do dim=1,3
+c$$$        do loc=0,1
+c$$$          ibc = (1+loc)+2*(dim-1)
+c$$$
+c$$$          do ivar = 1,ncomp
+c$$$            if (abs(bcnd(ibc,ivar)) == bctype) then
+c$$$              call FillGhostNodes_vec(gbc_def,0,ivar,ncomp,dim,loc
+c$$$     .                               ,bctype,vec,vec0,cnv=is_cnv)
+c$$$            endif
+c$$$          enddo
+c$$$
+c$$$        enddo
+c$$$      enddo
+c$$$
+c$$$      end subroutine sync_bc
+
 c     sync_bc
 c     #################################################################
-      subroutine sync_bc(bctype)
+      subroutine sync_bc(only_per)
 
-      implicit none
+c     Call variables
 
-      integer,INTENT(IN) :: bctype
+      logical :: only_per
 
+c     Local variables
+      
+c     Begin program
+
+      !Periodic: order by dimension first
       do dim=1,3
         do loc=0,1
           ibc = (1+loc)+2*(dim-1)
 
           do ivar = 1,ncomp
-            if (abs(bcnd(ibc,ivar)) == bctype) then
+            if (abs(bcnd(ibc,ivar)) == PER) then
               call FillGhostNodes_vec(gbc_def,0,ivar,ncomp,dim,loc
-     .                               ,bctype,vec,vec0,cnv=is_cnv)
+     .                               ,PER,vec,vec0,cnv=is_cnv)
+            endif
+          enddo
+
+        enddo
+      enddo
+
+      if (only_per) return
+
+      !Other: order by location first
+      do loc=0,1
+        do dim=1,3
+          ibc = (1+loc)+2*(dim-1)
+
+          do ivar = 1,ncomp
+            if (abs(bcnd(ibc,ivar)) /= PER) then
+              call FillGhostNodes_vec(gbc_def,0,ivar,ncomp,dim,loc
+     .                               ,SYNC,vec,vec0,cnv=is_cnv)
             endif
           enddo
 
