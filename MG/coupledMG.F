@@ -5700,7 +5700,7 @@ c Local variables
 
       real(8),pointer,dimension(:,:) :: diag
 
-      logical :: fpointers=.false.,galerkin
+      logical :: fpointers=.false.,galerkin,mg_mode
 
       type(mg_ctx),pointer :: mgctx
 
@@ -5789,12 +5789,7 @@ c Set pointers and find ngrid
 
 c Check limits
 
-      if (igmax == 0) then
-c$$$        igmax = (mgctx%ngrid+1) - (igmin-1)  !Determines maximum # of grid levels
-c$$$                                             !  (ngrid+1): total number of levels
-c$$$                                             !  igmin: coarsest level from below
-        igmax = mgctx%ngrid
-      endif
+      if (igmax == 0) igmax = mgctx%ngrid
 
       mgctx%igmax = igmax
 
@@ -5803,10 +5798,14 @@ c$$$                                             !  igmin: coarsest level from b
      $          ,' Grid level is below minimum grid resolution needed')
       endif
 
-      if (out.gt.2.and.igmax.gt.igrid.and.prnt) write (*,5)
+c Prepare output levels
+
+      mg_mode = igmax.gt.igrid !Check for multiple grids
+
+      if (out.gt.2.and.mg_mode.and.prnt) write (*,5)
 
       outc = out
-      if (igmax.gt.igrid) outc = out - 2
+      if (mg_mode) outc = out - 2
 
 c Find diagonal for smoothers
 
@@ -5815,25 +5814,6 @@ c Find diagonal for smoothers
       else
         nblk = 1
       endif
-
-cc      if (fdiag) then
-cc
-cc        if (allocated(diag)) then !Diagonal is known
-cc          if(out.ge.2.and.prnt) write(*,*)'Diagonal already allocated'
-cc          fdiag = .false.
-cc        elseif (associated(options%diag)) then !Diagonal provided externally
-cc          if(out.ge.2.and.prnt) write(*,*)'Diagonal externally provided'
-cc          allocate(diag(neq*nblk,2*ntot*nblk))
-cc          diag = options%diag
-cc        else                      !Form diagonal
-cc          if (out.ge.2.and.prnt) write (*,*) 'Forming diagonal...'
-cc          allocate(diag(neq*nblk,2*ntot*nblk))
-cc          call find_mf_diag(neq,nblk,ntot,matvec,igrid,bcnd,diag
-cc     .                     ,ncolors,volf,galerkin)
-cc          if (out.ge.2.and.prnt) write (*,*) 'Finished!'
-cc        endif
-cc
-cc      endif
 
       if (associated(diag)) then !Diagonal provided externally
         if(out.gt.2.and.prnt) write(*,*)'Diagonal externally provided'
@@ -5888,7 +5868,7 @@ c Start mu-cycle
 
       do ivcyc = 1,vcyc
 
-        if (outc.ge.1.and.igmax.gt.igrid.and.prnt) then
+        if (outc.ge.1.and.mg_mode.and.prnt) then
           if (mu == 1) write (*,7) ivcyc
           if (mu == 2) write (*,8) ivcyc
         endif
@@ -5951,7 +5931,7 @@ c MG convergence info
 
       mag1 = mag/rr0
 
-      if (igmax.gt.igrid) then
+      if (mg_mode) then
         if (out.eq.1.and.prnt) then
           if (mu == 1)
      .         write (*,20) trim(coarse),mag,mag2,mag1,min(ivcyc,vcyc)
@@ -6039,8 +6019,6 @@ c     Local variables
 
         integer    :: igc,isigc,isig,nn,nnc,imu,iplot
         character(50) :: dbg_desc(4*neq)
-
-cc        external     matvec
 
 c     Begin program
 
@@ -7271,7 +7249,7 @@ c     Local variables
 
         integer :: nn,ng,isig,depth1,nxg,nyg,nzg,ii,iig,ig,jg,kg
      .            ,igv(3),ilv(3),nxl,nyl,nzl,i,j,k,iout,il,jl,kl
-     .            ,imin,jmin,kmin
+     .            ,imin,jmin,kmin,lout
 
         type(grid_mg_def),pointer :: g_crse_def
      .                              ,g_fine_def
@@ -7360,8 +7338,15 @@ c$$$     .   ,MG_get_coarse_solve()
 cc          optns_new%mg_smooth_only = .true.
 cc          optns_new%mg_coarse_grid_level = 1
 
-          !Call MG with new solver context
-          call mg(neq,ng,yg,xg,matvec,optns_new,1,bcnd,guess2,out,depth)
+          !Call MG with new solver context (adjusting output level in first call)
+          if (.not.options%is_coarse_proc_MG_solve) then
+            lout = out-1
+          else
+            lout = out
+          endif
+
+          call mg(neq,ng,yg,xg,matvec,optns_new,1,bcnd,guess2,lout
+     .           ,depth)
 
 c diag ****
 c$$$          call allocMGPointers(neq,optns_new%mg_grid_def,optns_new%mgctx

@@ -615,7 +615,7 @@ c     Finalize B diagnostics
 
 c     orbit_find
 c     ######################################################################
-      subroutine orbit_find(iout,x0,y0,z0,fwd,line_int,lsode_f!,ss_order
+      subroutine orbit_find(iout,x0,y0,z0,fwd,line_int,lsode_f
      .                     ,t_max,s_max,ierror,lsode_sum)
 
 c     ----------------------------------------------------------------------
@@ -629,7 +629,6 @@ c       * line_int: external routine to perform line integrals
 c       * lsode_f: external routine to perform line integrals using LSODE
 c       * ss_check: check for surface of section (default: not when
 c                   performing integrals along line)
-ccc       * ss_order: order of interpolation for SS (default: 1)
 c       * t_max,s_max: override maximum orbit lengths, measured in pseudotime
 c                      units (t_max, for solenoidal int), or arclength (s_max)
 c     Optional output:
@@ -645,7 +644,6 @@ c     Call variables
         real(8),intent(IN) :: x0,y0,z0
         logical :: fwd
 
-cc        integer,optional,INTENT(IN) :: ss_order
         real(8),optional,INTENT(IN) :: t_max,s_max
 
         integer,optional,INTENT(OUT) :: ierror
