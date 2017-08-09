@@ -1325,7 +1325,7 @@ c     op_on_MGArray
 c     #################################################################
       subroutine op_on_MGArray(operator,in_mgarray,out_mgarray)
 c     -----------------------------------------------------------------
-c     Applies operation on 
+c     Applies operation on in_mgarray, and returns out_mgarray
 c     -----------------------------------------------------------------
 
       implicit none    !For safe fortran
@@ -1364,7 +1364,7 @@ c$$$        write (*,*) 'Aborting...'
 c$$$        stop
 c$$$      endif
 
-c     Compute curl in first grid level array
+c     Compute operator in first grid level array
 
       do igr=1,in_mgarray%g_def%ngrid
         out_mgarray%grid(igr)%array =
@@ -1397,6 +1397,63 @@ c     Take care of COARSER meshes
 c     End program
 
       end subroutine op_on_MGArray
+
+c     J_div_MGArray
+c     #################################################################
+      subroutine J_div_MGArray(mgarray)
+c     -----------------------------------------------------------------
+c     Divides MGArray by Jacobian in all grids
+c     -----------------------------------------------------------------
+
+      implicit none    !For safe fortran
+
+c     Call variables
+
+      type(mg_array),target :: mgarray
+
+c     Local variables
+
+      integer :: igr,ieq,neq
+
+      type(mg_array),pointer :: mg_temp
+
+c     Begin program
+
+c     Divide by Jacobian in first grid level array
+
+      do igr=1,mgarray%g_def%ngrid
+        neq = size(mgarray%grid(igr)%array,4)
+
+        do ieq=1,neq
+          mgarray%grid(igr)%array(:,:,:,ieq) =
+     .         mgarray%grid(igr)%array(:,:,:,ieq)
+     .        /mgarray%g_def%gmetric%grid(igr)%jac
+        enddo
+      enddo
+
+c     Take care of COARSER meshes
+
+      mg_temp => mgarray%mg_crse_array
+
+      do while (associated(mg_temp))
+
+        do igr=1,mg_temp%g_def%ngrid
+          neq = size(mg_temp%grid(igr)%array,4)
+          do ieq=1,neq
+            mg_temp%grid(igr)%array(:,:,:,ieq) =
+     .         mg_temp%grid(igr)%array(:,:,:,ieq)
+     .        /mg_temp%g_def%gmetric%grid(igr)%jac
+          enddo
+        enddo
+
+        mg_temp => mg_temp%mg_crse_array
+      enddo
+
+      nullify(mg_temp)
+
+c     End program
+
+      end subroutine J_div_MGArray
 
 c     interpArray_setup
 c     #################################################################
