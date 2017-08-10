@@ -1335,46 +1335,38 @@ c     Call variables
       type(mg_array),target :: in_mgarray,out_mgarray
 
       INTERFACE
-        function operator(g_def,igr,array1) result(array2)
+        function operator(g_def,igr,array1,neqout) result(array2)
           use grid
           type(grid_mg_def),pointer :: g_def
-          integer :: igr
-          real(8) :: array1(:,:,:),array2(0:size(array1,1)-1
-     .                                   ,0:size(array1,2)-1
-     .                                   ,0:size(array1,3)-1,3)
+          integer :: igr,neqout
+          real(8) :: array1(0:,0:,0:,:)
+     .              ,array2(0:size(array1,1)-1
+     .                     ,0:size(array1,2)-1
+     .                     ,0:size(array1,3)-1,neqout)
         end function operator
       END INTERFACE
 
 c     Local variables
 
-      integer :: igr
+      integer :: igr,nout
 
       type(mg_array),pointer :: in_mg_temp,out_mg_temp
-     .                         ,in_mg_old ,out_mg_old
 
 c     Begin program
 
-c     Consistency check
-
-c$$$      if (   size(in_mgarray%grid(igrid)%array,4) /= 1
-c$$$     .   .or.size(out_mgarray%grid(igrid)%array,4) /= 3) then
-c$$$        write (*,*) 'Cannot compute curl of MG array: ',
-c$$$     .              'inconsistent number of components'
-c$$$        write (*,*) 'Aborting...'
-c$$$        stop
-c$$$      endif
+      nout = size(out_mgarray%grid(1)%array,4)
 
 c     Compute operator in first grid level array
 
       do igr=1,in_mgarray%g_def%ngrid
         out_mgarray%grid(igr)%array =
      .       operator(in_mgarray%g_def,igr
-     .               ,in_mgarray%grid(igr)%array(:,:,:,1))
+     .               ,in_mgarray%grid(igr)%array,nout)
       enddo
 
 c     Take care of COARSER meshes
 
-      in_mg_temp => in_mgarray%mg_crse_array
+      in_mg_temp  =>  in_mgarray%mg_crse_array
       out_mg_temp => out_mgarray%mg_crse_array
 
       do while (associated(in_mg_temp))
@@ -1382,17 +1374,14 @@ c     Take care of COARSER meshes
         do igr=1,in_mg_temp%g_def%ngrid
           out_mg_temp%grid(igr)%array =
      .       operator(in_mg_temp%g_def,igr
-     .               ,in_mg_temp%grid(igr)%array(:,:,:,1))
+     .               ,in_mg_temp%grid(igr)%array,nout)
         enddo
 
-        in_mg_old  => in_mg_temp
-        out_mg_old  => out_mg_temp
-
-        in_mg_temp => in_mg_old%mg_crse_array
-        out_mg_temp => out_mg_old%mg_crse_array
+        in_mg_temp  =>  in_mg_temp%mg_crse_array
+        out_mg_temp => out_mg_temp%mg_crse_array
       enddo
 
-      nullify(in_mg_old,out_mg_old,in_mg_temp,out_mg_temp)
+      nullify(in_mg_temp,out_mg_temp)
 
 c     End program
 

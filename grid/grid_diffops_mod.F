@@ -8596,12 +8596,69 @@ c ######################################################################
 
         use grid_create
 
+        INTERFACE par_diff
+          module procedure par_diff_ijk,par_diff_mesh
+        end INTERFACE
+
       contains
 
-c     par_diff
+c     par_diff_mesh
+c     ###############################################################
+      function par_diff_mesh(g_def,igrid,arr,BB,par_order,method,vol
+     .                      ,tmp0) result(lap)
+
+c     ---------------------------------------------------------------
+c     Calculates grad(A) in general non-orthogonal coordinates. Is
+c     boundary-ready (can extrapolate). The vector A is
+c     covariant, and returns the contravariant component "comp".
+c     ---------------------------------------------------------------
+
+      implicit none           !For safe fortran
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
+
+      integer :: igrid,par_order
+
+      real(8) :: arr(0:,0:,0:)
+     .          ,lap(0:size(arr,1)-1,0:size(arr,2)-1,0:size(arr,3)-1)
+      real(8) :: BB(0:,0:,0:,:)
+
+      character(*) :: method
+
+      logical,optional :: vol
+      real(8),optional :: tmp0(0:size(arr,1)-1
+     .                        ,0:size(arr,2)-1
+     .                        ,0:size(arr,3)-1)
+
+c     Local variables
+
+      integer :: nx,ny,nz,i,j,k
+
+c     Begin program
+
+      nx = g_def%nxv(igrid)
+      ny = g_def%nyv(igrid)
+      nz = g_def%nzv(igrid)
+
+      do k=1,nz
+        do j=1,ny
+          do i=1,nx
+            lap(i,j,k)=par_diff_ijk(g_def,i,j,k,igrid,arr,BB,par_order
+     .                             ,method,vol=vol,tmp0=tmp0)
+          enddo
+        enddo
+      enddo
+
+c     End program
+
+      end function par_diff_mesh
+
+c     par_diff_ijk
 c     ################################################################
-      function par_diff(g_def,i,j,k,nx,ny,nz,igx,igy,igz,tmp,Bx,By,Bz
-     .                 ,par_order,method,vol,tmp0) result(par2)
+      function par_diff_ijk(g_def,i,j,k,igr,tmp,BB,par_order,method,vol
+     .                     ,tmp0) result(par2)
 c     ----------------------------------------------------------------
 c     Calculates div.(BB.grad) in 3D with 2nd or 4th order
 c     accuracy. Here:
@@ -8615,16 +8672,16 @@ c     Call variables
 
       type(grid_mg_def),pointer :: g_def
 
-      integer  :: i,j,k,nx,ny,nz,igx,igy,igz,par_order
-      real(8)  :: tmp(0:nx+1,0:ny+1,0:nz+1),par2
-      real(8)  :: Bx(0:nx+1,0:ny+1,0:nz+1)
-     .           ,By(0:nx+1,0:ny+1,0:nz+1)
-     .           ,Bz(0:nx+1,0:ny+1,0:nz+1)
+      integer  :: i,j,k,igr,par_order
+      real(8)  :: tmp(0:,0:,0:),par2
+      real(8)  :: BB(0:,0:,0:,:)
 
       character(*) :: method
 
       logical,optional :: vol
-      real(8),optional :: tmp0(0:nx+1,0:ny+1,0:nz+1)
+      real(8),optional :: tmp0(0:size(tmp,1)-1
+     .                        ,0:size(tmp,2)-1
+     .                        ,0:size(tmp,3)-1)
 
 c     Local variables
 
@@ -8632,11 +8689,14 @@ c     Local variables
      .           ,Fluxy(i-1:i,j-1:j,k-1:k)
      .           ,Fluxz(i-1:i,j-1:j,k-1:k)
 
-      real(8)  :: bx2,by2,bxby,dtx,dty,a1,a2,sgn,bb,flx0,flxp
-      integer  :: ii,jj,kk,ig,jg,kg
+      integer  :: nx,ny,nz,ig,jg,kg
       logical  :: vol_wgt,limited
 
 c     Begin program
+
+      nx = g_def%nxv(igr)
+      ny = g_def%nyv(igr)
+      nz = g_def%nzv(igr)
 
       Fluxx=0d0
       Fluxy=0d0
@@ -8649,15 +8709,18 @@ c     Find fluxes
 
       select case(par_order)
       case(2)                   !second order
-        call par_flux_2nd(g_def,i,j,k,nx,ny,nz,igx,igy,igz,tmp,Bx,By,Bz
+        call par_flux_2nd(g_def,i,j,k,nx,ny,nz,igr,igr,igr,tmp
+     .                   ,BB(:,:,:,1),BB(:,:,:,2),BB(:,:,:,3)
      .                   ,Fluxx,Fluxy,Fluxz,method,tmp0=tmp0)
       case(4)                   !fourth order, 5-pt stencil in co-directed dervs.
         limited = (trim(method) == 'sharma')
-        call par_flux_4th(g_def,i,j,k,nx,ny,nz,igx,igy,igz,tmp,Bx,By,Bz
+        call par_flux_4th(g_def,i,j,k,nx,ny,nz,igr,igr,igr,tmp
+     .                   ,BB(:,:,:,1),BB(:,:,:,2),BB(:,:,:,3)
      .                   ,Fluxx,Fluxy,Fluxz,limited=limited,stencil=5)
       case(-4) !fourth order, 7-pt stencil in co-directed dervs.
         limited = (trim(method) == 'sharma')
-        call par_flux_4th(g_def,i,j,k,nx,ny,nz,igx,igy,igz,tmp,Bx,By,Bz
+        call par_flux_4th(g_def,i,j,k,nx,ny,nz,igr,igr,igr,tmp
+     .                   ,BB(:,:,:,1),BB(:,:,:,2),BB(:,:,:,3)
      .                   ,Fluxx,Fluxy,Fluxz,limited=limited,stencil=7)
       case default
         write (*,*) 'Order not implemented'
@@ -8666,17 +8729,17 @@ c     Find fluxes
 
 c     Assemble fluxes
 
-      call getMGmap(g_def,i,j,k,igx,igy,igz,ig,jg,kg)
+      call getMGmap(g_def,i,j,k,igr,igr,igr,ig,jg,kg)
 
       par2 = (Fluxx(i,j,k)-Fluxx(i-1,j,k))/g_def%dxh(ig)
      .      +(Fluxy(i,j,k)-Fluxy(i,j-1,k))/g_def%dyh(jg)
      .      +(Fluxz(i,j,k)-Fluxz(i,j,k-1))/g_def%dzh(kg)
 
-      par2 = par2/g_def%gmetric%grid(igx)%jac(i,j,k)
+      par2 = par2/g_def%gmetric%grid(igr)%jac(i,j,k)
 
-      if (vol_wgt) par2=par2*g_def%gmetric%grid(igx)%dvol(i,j,k)
+      if (vol_wgt) par2=par2*g_def%gmetric%grid(igr)%dvol(i,j,k)
 
-      end function par_diff
+      end function par_diff_ijk
 
 c     par_flux_2nd
 c     ################################################################
