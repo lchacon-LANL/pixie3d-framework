@@ -1693,62 +1693,36 @@ c     Call variables
 
 c     Local variables
 
-c$$$        integer :: i,j,bcs(6),bcond_sv(6),nxl,nyl,nzl
+        integer :: bcond_sv(6),bcs(6,3),i
 
 c     Begin program
 
-c$$$        nxl = size(dr,1)-2
-c$$$        nyl = size(dr,2)-2
-c$$$        nzl = size(dr,3)-2
-c$$$        
-c$$$        !Modify BC setup to do staggered
-c$$$        bcond_sv = bcond
-c$$$        bcs = bcond
-c$$$        !Do no overwrite i=j=k=0
-c$$$        if (bcs(2) == DEF) bcs(2) = EXT
-c$$$        if (bcs(4) == DEF) bcs(4) = EXT 
-c$$$        if (bcs(6) == DEF) bcs(6) = EXT 
-c$$$        if (bcs(2) == FSYM .or. bcs(2) == SYM) then
-c$$$          bcs  (2) = NEU
-c$$$          bcond(2) = SYM  !Set BCs to do NEU across face
-c$$$        endif
-c$$$        if (bcs(4) == FSYM .or. bcs(4) == SYM) then
-c$$$          bcs  (4) = NEU 
-c$$$          bcond(4) = SYM  !Set BCs to do NEU across face
-c$$$        endif
-c$$$        if (bcs(6) == FSYM .or. bcs(6) == SYM) then
-c$$$          bcs  (6) = NEU
-c$$$          bcond(6) = SYM  !Set BCs to do NEU across face
-c$$$        endif
-c$$$
-c$$$cc        call set_force_corners(.true.)
-c$$$        
-c$$$        do i=1,3
-c$$$          do j=1,3
-c$$$            call setMGBC(g_def,0,1,nxl,nyl,nzl,igrid,dr(:,:,:,i:i,j),bcs
-c$$$     .                  ,iorder=2)
-c$$$c$$$            write (*,*) my_rank,'after',dr(nxl+1,:,1,1,1)
-c$$$c$$$            stop
-c$$$          enddo
-c$$$        enddo
-c$$$
-c$$$        !Recover original setup
-c$$$cc        call set_force_corners(.false.)
-c$$$        bcond = bcond_sv
-
-        integer :: i,bcs(6,3)
+        !Save topological BC config
+        bcond_sv = bcond
 
         bcs(:,1) = bcond
         bcs(:,2) = bcond
         bcs(:,3) = bcond
+
         where (bcs(2,:) == DEF) bcs(2,:) = EXT
         where (bcs(4,:) == DEF) bcs(4,:) = EXT 
         where (bcs(6,:) == DEF) bcs(6,:) = EXT 
+
+        if (bcond_sv(2) == FSYM .or. bcond_sv(2) == SYM) bcond(2) = SYM !Set BCs to do NEU across face
+        if (bcond_sv(4) == FSYM .or. bcond_sv(4) == SYM) bcond(4) = SYM !Set BCs to do NEU across face
+        if (bcond_sv(6) == FSYM .or. bcond_sv(6) == SYM) bcond(6) = SYM !Set BCs to do NEU across face
+
+        where (bcs(2,:) == FSYM .or. bcs(2,:) == SYM) bcs(2,:) = NEU
+        where (bcs(4,:) == FSYM .or. bcs(4,:) == SYM) bcs(4,:) = NEU
+        where (bcs(6,:) == FSYM .or. bcs(6,:) == SYM) bcs(6,:) = NEU
 
         do i=1,3
           call imposeBConVector_stg_ez(g_def,igrid,dr(:,:,:,i,:)
      .                                ,.false.,bcs,2)
         enddo
+
+        !Recover topological BC config
+        bcond = bcond_sv
 
 c     End program
 
