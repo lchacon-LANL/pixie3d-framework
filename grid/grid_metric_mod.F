@@ -1708,9 +1708,10 @@ c     Begin program
         where (bcs(4,:) == DEF) bcs(4,:) = EXT 
         where (bcs(6,:) == DEF) bcs(6,:) = EXT 
 
-        if (bcond_sv(2) == FSYM .or. bcond_sv(2) == SYM) bcond(2) = SYM !Set BCs to do NEU across face
-        if (bcond_sv(4) == FSYM .or. bcond_sv(4) == SYM) bcond(4) = SYM !Set BCs to do NEU across face
-        if (bcond_sv(6) == FSYM .or. bcond_sv(6) == SYM) bcond(6) = SYM !Set BCs to do NEU across face
+        !Set BCs to do NEU across face
+        if (bcond_sv(2) == FSYM .or. bcond_sv(2) == SYM) bcond(2) = SYM
+        if (bcond_sv(4) == FSYM .or. bcond_sv(4) == SYM) bcond(4) = SYM
+        if (bcond_sv(6) == FSYM .or. bcond_sv(6) == SYM) bcond(6) = SYM
 
         where (bcs(2,:) == FSYM .or. bcs(2,:) == SYM) bcs(2,:) = NEU
         where (bcs(4,:) == FSYM .or. bcs(4,:) == SYM) bcs(4,:) = NEU
