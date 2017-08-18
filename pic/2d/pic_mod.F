@@ -17,9 +17,9 @@ c ######################################################################
      .             ,pit_counter=0    !Total number of picard iterations
      .             ,psh_counter=0    !Total number of particle pushes
 
-      integer :: pit_max=0           !Maximum picard iterations per substep
-     .          ,pst_max=0           !Maximum number of particle substeps per timestep
-     .          ,ntot_pcles=0        !Total number of particles
+      integer(8) :: pit_max=0           !Maximum picard iterations per substep
+     .             ,pst_max=0           !Maximum number of particle substeps per timestep
+     .             ,ntot_pcles=0        !Total number of particles
 
       real(8) :: pit_avg=0           !Average picard iterations per substep
      .          ,pst_avg=0           !Average number of particle substeps per timestep
@@ -47,8 +47,9 @@ c     Local variables
 
       integer :: ipc,isp,i0(_Npg),j0(_Npg),i(_Npg),j(_Npg)
       integer :: im,it,k,psh_sum
-     .          ,pits,pit_sum,pitmax
-     .          ,psts,pst_sum,pstmax
+     .          ,pits,pit_sum
+     .          ,psts,pst_sum
+      integer(8) :: pitmax,pstmax
       integer :: numpcles,numspcs,nxg,nyg,nzg
       real(_prec) :: d_x (_Npg,3)
       real(_prec) :: v_np(_Npg,3)
