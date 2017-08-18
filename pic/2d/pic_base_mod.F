@@ -3747,6 +3747,9 @@ c     Find PIC physical quantities
          Jnpc_avg(isp) = (nps(isp))/sum(Jns(1:nxg,1:nyg,isp))
          n0 = Jnpc_avg(isp)/(hx*hy*hz)     !Add volume factor
 
+         if (n0 <= 0) call pstop("setup_pic_2d"
+     .            ,"Not enough particles for species "//int2char(isp))
+
          charge(isp) = sign(1d0,q_m(isp))/n0
          mass(isp) = charge(isp)/q_m(isp)
 
@@ -3955,7 +3958,7 @@ c     Begin program
      $            sum(Jns  (1:nxg,1:nyg,isp)
      .               *jac_g(1:nxg,1:nyg)**(betaj-1d0))
 
-      if (gnpc_avg.le.0) then
+      if (gnpc_avg.le.0d0) then
         write (*,'(a,i4)')
      .       'Not enough particles to satisfy minimum per cell of'
      .       ,min_pcles*pgroup
@@ -3977,7 +3980,7 @@ c     Begin program
             end do
          end do
       end do      
-      
+
 !     Check the total accumulated particles
 
       if(nint(npc_acm(ii)).ne.gtot_np/pgroup) then
@@ -4021,9 +4024,9 @@ cc               if(ii==8) print *,my_rank_pic,ii,mnpc_int_s(ii),mnpc_r
          end do
       end do
 
-
-cc      print *,"after arranging particles:",my_rank_pic,sum(npc_int_s),tot_np
-
+c$$$      print *,"after arranging particles:",my_rank_pic,sum(npc_int_s)
+c$$$     .       ,tot_np
+      
 #if defined(petsc)
 !     find the index of counting particles per mpi process
       call MPI_SCAN(npc_int_s,npc_scan_s,nng,MPI_INTEGER,MPI_SUM
