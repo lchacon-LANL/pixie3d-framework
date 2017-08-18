@@ -60,13 +60,13 @@ c     Local variables
       real(_prec) :: xp(_Npg),yp(_Npg),xfp(_Npg),yfp(_Npg)
      .              ,v2(_Npg),w_pcle(_Npg),m_sp,q_sp
 
-      real(_prec) :: garr_n  (0:size(A,1)-1,0:size(A,2)-1)
-     $              ,garr_vx (0:size(A,1)-1,0:size(A,2)-1)
-     $              ,garr_vy (0:size(A,1)-1,0:size(A,2)-1)
-     $              ,garr_vz (0:size(A,1)-1,0:size(A,2)-1)
-     $              ,garr_vx2(0:size(A,1)-1,0:size(A,2)-1)
-     $              ,garr_vy2(0:size(A,1)-1,0:size(A,2)-1)
-     $              ,garr_vz2(0:size(A,1)-1,0:size(A,2)-1)
+      real(_prec),allocatable,dimension(:,:) :: garr_n  
+     $                                         ,garr_vx 
+     $                                         ,garr_vy 
+     $                                         ,garr_vz 
+     $                                         ,garr_vx2
+     $                                         ,garr_vy2
+     $                                         ,garr_vz2
 
       real(_prec) :: My2(_Npg,1,3),Mx2(_Npg,3,1),My1(_Npg,1,2)
       real(_prec) :: Mx1(_Npg,2,1),Mxy2(_Npg,3,3)
@@ -81,6 +81,14 @@ c     Local variables
       type(particle) :: pcle_nu
 
 c     Begin program
+
+      allocate(garr_n  (0:size(A,1)-1,0:size(A,2)-1)
+     $        ,garr_vx (0:size(A,1)-1,0:size(A,2)-1)
+     $        ,garr_vy (0:size(A,1)-1,0:size(A,2)-1)
+     $        ,garr_vz (0:size(A,1)-1,0:size(A,2)-1)
+     $        ,garr_vx2(0:size(A,1)-1,0:size(A,2)-1)
+     $        ,garr_vy2(0:size(A,1)-1,0:size(A,2)-1)
+     $        ,garr_vz2(0:size(A,1)-1,0:size(A,2)-1))
 
 c     Particle pusher timer - C. Mikida, 05/16
 
@@ -378,6 +386,14 @@ cc           !VECTOR SIMD
          moms_g(:,:,1,isp,IS33) = garr_vz2
 
       end do                    !species
+
+      deallocate(garr_n  
+     $          ,garr_vx 
+     $          ,garr_vy 
+     $          ,garr_vz 
+     $          ,garr_vx2
+     $          ,garr_vy2
+     $          ,garr_vz2)
 
 c     Particle pusher timing end - C. Mikida, 05/16
       
