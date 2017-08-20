@@ -444,7 +444,7 @@ c Extract options
      .  write (*,*)
      .     '>>> GMRES SINGULAR MAT: processing singular matrix'
 
-      if (atol == 0d0) atol = epsmac*sqrt(1.*nn)
+      if (atol == 0d0) atol = epsmac*sqrt(1d0*nn)
 
 #if defined(petsc)
       if (associated(options%mg_grid_def)) then
@@ -685,7 +685,7 @@ c      Check convergence and restart outer loop if necessary
 
         if (ro <= tol) then
           if (ro > rtol .and. ro < atol) then
-            roundoff_stop = .true.
+cc            roundoff_stop = .true.
             if (iout > 1 .and. my_rank == 0) write (*,*)
             if (iout.gt.1.and. my_rank == 0)
      .        write(*,*)'GMRES solution is in round-off. Terminating.'
