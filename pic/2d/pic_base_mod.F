@@ -2242,7 +2242,8 @@ c     Begin program
 
 c     Wrap moments around boundaries
 
-      call wrap_moments_nodes(mments,wrap_currents=.true.)
+      call wrap_moments_nodes(mments,wrap_currents=.false.
+     .                       ,wrap_density=.true.)
 
 c     End program
 
@@ -2250,19 +2251,19 @@ c     End program
 
 c     wrap_moments_nodes
 c     ##################################################################
-      subroutine wrap_moments_nodes(mments,wrap_currents)
+      subroutine wrap_moments_nodes(mments,wrap_currents,wrap_density)
       
       implicit none
 
 c     Call variables
 
       real(8), intent(inout) :: mments(0:,0:,:,0:)
-      logical, optional :: wrap_currents
+      logical, optional :: wrap_currents,wrap_density
 
 c     local variables
 
       real(8),allocatable,dimension(:) :: send_buf,rec_buf
-      logical :: wcurr
+      logical :: wcurr,wdens
 
 c     Begin program
 
@@ -2270,6 +2271,12 @@ c     Begin program
         wcurr = wrap_currents
       else
         wcurr = .true.
+      endif
+
+      if (PRESENT(wrap_density)) then
+        wdens = wrap_density
+      else
+        wdens = .false.
       endif
 
       if (pbcond(1) == pPER) then
@@ -2326,14 +2333,17 @@ c$$$     .                           +mments(nxg+1,:,:,Ipz)
           mments(0    ,:,:,Ipz) = 0d0
           mments(nxg+1,:,:,Ipz) = 0d0
 
-          !Rho
+        endif
+
+        !Rho (needed to inventory all particle contributions)
+        if (wdens) then 
           mments(1  ,:,:,Ins) = mments(1    ,:,:,Ins)
      .                         +mments(0    ,:,:,Ins)
           mments(nxg,:,:,Ins) = mments(nxg  ,:,:,Ins)
      .                         +mments(nxg+1,:,:,Ins)
         endif
 
-        !S11
+        !S11 (Needed to inventory all kinetic energy)
         mments(1  ,:,:,IS11) = mments(1    ,:,:,IS11)
      .                        +mments(0    ,:,:,IS11)
         mments(nxg,:,:,IS11) = mments(nxg  ,:,:,IS11)
@@ -2405,15 +2415,17 @@ c$$$     .                           +mments(:,nyg+1,:,Ipz)
 
           mments(:,0    ,:,Ipz) = 0d0
           mments(:,nyg+1,:,Ipz) = 0d0
+        endif
 
-          !Rho
+        !Rho  (needed to inventory all particle contributions)
+        if (wdens) then
           mments(:,1  ,:,Ins) = mments(:,1    ,:,Ins)
      .                         +mments(:,0    ,:,Ins)
           mments(:,nyg,:,Ins) = mments(:,nyg  ,:,Ins)
      .                         +mments(:,nyg+1,:,Ins)
         endif
 
-        !S11
+        !S11 (Needed to inventory all kinetic energy)
         mments(:,1  ,:,IS11) = mments(:,1    ,:,IS11)
      .                        +mments(:,0    ,:,IS11)
         mments(:,nyg,:,IS11) = mments(:,nyg  ,:,IS11)

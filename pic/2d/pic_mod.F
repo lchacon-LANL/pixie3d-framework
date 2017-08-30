@@ -408,7 +408,7 @@ c     Append to particle pusher timer/counters
 
 c     Synchronize moments
 
-      call wrap_moments_nodes(moms_g(:,:,1,:,:))
+      call wrap_moments_nodes(moms_g(:,:,1,:,:),wrap_density=.false.)
       moms_g(:,:,0,:,:) = moms_g(:,:,1,:,:)
       moms_g(:,:,2,:,:) = moms_g(:,:,1,:,:)
 
