@@ -2389,7 +2389,8 @@ cc                        if(id/=3.and.(i>nxbc.or.j>nybc.or.k>nzbc)) cycle  !2D 
 
                 elseif (.not.cov_to_cnv(ibc,ic1)) then   !ic1 is contravariant, ic2 is covariant
 
-                  call pstop('sync_stg','Code untested')
+                  call pstop('sync_stg'
+     .                      ,'Code untested: ic1 cnv, ic2 cov')
 
                   do k=kmin,kmax
                     do j=jmin,jmax
@@ -2428,7 +2429,8 @@ cc                        if(ic2/=3.and.(i>nxbc.or.j>nybc.or.k>nzbc))cycle  !2D 
 
                 elseif (.not.cov_to_cnv(ibc,ic2)) then   !ic2 is contravariant, ic1 is covariant
 
-                  call pstop('sync_stg','Code untested')
+                  call pstop('sync_stg'
+     .                      ,'Code untested: ic1 cov, ic2 cnv')
 
                   do k=kmin,kmax
                     do j=jmin,jmax

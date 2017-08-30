@@ -10090,7 +10090,6 @@ c     Integrate
 
             integral = integral + array(i,j,k)*dvol
             !Averages in logical volume don't make sense
-cc            dvol = g_def%gmetric%grid(igx)%dvol(i,j,k)
             volume = volume + dvol
           enddo
         enddo
@@ -10115,7 +10114,6 @@ cc            dvol = g_def%gmetric%grid(igx)%dvol(i,j,k)
 
             integral = integral + array(i,j,k)*dvol
             !Averages in logical volume don't make sense
-cc            dvol = g_def%gmetric%grid(igx)%dvol(i,j,k)
             volume = volume + dvol
           enddo
         enddo
@@ -10140,7 +10138,6 @@ cc            dvol = g_def%gmetric%grid(igx)%dvol(i,j,k)
 
             integral = integral + array(i,j,k)*dvol
             !Averages in logical volume don't make sense
-cc            dvol = g_def%gmetric%grid(igx)%dvol(i,j,k)
             volume = volume + dvol
           enddo
         enddo
@@ -10165,7 +10162,6 @@ cc            dvol = g_def%gmetric%grid(igx)%dvol(i,j,k)
 
             integral = integral + array(i,j,k)*dvol
             !Averages in logical volume don't make sense
-cc            dvol = g_def%gmetric%grid(igx)%dvol(i,j,k)
             volume = volume + dvol
           enddo
         enddo
