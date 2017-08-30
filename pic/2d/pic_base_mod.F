@@ -1952,8 +1952,6 @@ c     Begin program
       allocate(momsn (0:nx +1,0:ny +1,0:nz +1,n_sp,0:6))
       allocate(moms_g(0:nxd+1,0:nyd+1,0:nzd+1,n_sp,0:6))
 
-      allocate(mom_bcs(6,0:6))
-
       moms = 0d0
       momsn= 0d0
 
@@ -1965,7 +1963,9 @@ c     dealloc_moms
 c     ##################################################################
       subroutine dealloc_moms
 
-      deallocate(moms,momsn,mom_bcs,moms_g)
+      deallocate(moms,momsn,moms_g)
+
+      call dealloc_moms_bcs
 
       end subroutine dealloc_moms
 
@@ -1999,6 +1999,8 @@ c     Begin program
 
       order_moms = 1
 
+      allocate(mom_bcs(6,0:6))
+
       mom_bcs = DEF
 
       !for cell-centered moments
@@ -2020,30 +2022,41 @@ c     Begin program
 
       !for staggered moments
       mom_bcs(:,Ipx) = pbcond
+      !Open BCs
       where (mom_bcs(:,Ipx) == pOPN) mom_bcs(:,Ipx) = DIR !All
-
-c$$$      where (mom_bcs(3:6,Ipx) == pREF) mom_bcs(3:6,Ipx) = NEU !Y,Z
-c$$$      where (mom_bcs(1:2,Ipx) == pREF) mom_bcs(1:2,Ipx) = DIR !X
-      where (mom_bcs(:,Ipx) == pREF) mom_bcs(:,Ipx) = DIR !All
+      !Reflective BCs
+      where (mom_bcs(1:2,Ipx) == pREF) mom_bcs(1:2,Ipx) = DEF !Do not do anything in X for Px component
+      where (mom_bcs(3:6,Ipx) == pREF) mom_bcs(3:6,Ipx) = DIR !Y,Z
+c$$$      where (mom_bcs(:,Ipx) == pREF) mom_bcs(:,Ipx) = DIR !All
 
       mom_bcs(:,Ipy) = pbcond
+      !Open BCs
       where (mom_bcs(:,Ipy) == pOPN) mom_bcs(:,Ipy) = DIR !All
-
-c$$$      where (mom_bcs(1:2,Ipy) == pREF) mom_bcs(1:2,Ipy) = NEU !X
-c$$$      where (mom_bcs(3:4,Ipy) == pREF) mom_bcs(3:4,Ipy) = DIR !Y
-c$$$      where (mom_bcs(5:6,Ipy) == pREF) mom_bcs(5:6,Ipy) = NEU !Z
-      where (mom_bcs(:,Ipy) == pREF) mom_bcs(:,Ipy) = DIR !All
+      !Reflective BCs
+      where (mom_bcs(1:2,Ipy) == pREF) mom_bcs(1:2,Ipy) = DIR !X
+      where (mom_bcs(3:4,Ipy) == pREF) mom_bcs(3:4,Ipy) = DEF !Do not do anything in Y for Py component
+      where (mom_bcs(5:6,Ipy) == pREF) mom_bcs(5:6,Ipy) = DIR !Z
+c$$$      where (mom_bcs(:,Ipy) == pREF) mom_bcs(:,Ipy) = DIR !All
 
       mom_bcs(:,Ipz) = pbcond
+      !Open BCs
       where (mom_bcs(:,Ipz) == pOPN) mom_bcs(:,Ipz) = DIR !All
-
-c$$$      where (mom_bcs(1:4,Ipz) == pREF) mom_bcs(1:4,Ipz) = NEU !X,Y
-c$$$      where (mom_bcs(5:6,Ipz) == pREF) mom_bcs(5:6,Ipz) = DIR !Z
-      where (mom_bcs(:,Ipz) == pREF) mom_bcs(:,Ipz) = DIR !All
+      !Reflective BCs
+      where (mom_bcs(1:4,Ipz) == pREF) mom_bcs(1:4,Ipz) = DIR !X,Y
+      where (mom_bcs(5:6,Ipz) == pREF) mom_bcs(5:6,Ipz) = DEF !Do not do anything in Z for Pz component
+c$$$      where (mom_bcs(:,Ipz) == pREF) mom_bcs(:,Ipz) = DIR !All
 
 c     End program
 
       end subroutine defineBCs_moms
+
+c     dealloc_moms_bcs
+c     ##################################################################
+      subroutine dealloc_moms_bcs
+
+      deallocate(mom_bcs)
+
+      end subroutine dealloc_moms_bcs
 
 c     gather_moments
 c     ##################################################################
@@ -2266,11 +2279,11 @@ c     Begin program
          mments(0    ,:,:,:) = mments(nxg,:,:,:)
       else
         if (wcurr) then
-          !Jx
-          if (     pbcond(1) == pREF
-     .        .or. pbcond(1) == pOPN) mments(0  ,:,:,Ipx) = 0d0
-          if (     pbcond(2) == pREF
-     .        .or. pbcond(2) == pOPN) mments(nxg,:,:,Ipx) = 0d0
+c$$$          !Jx
+c$$$          if (     pbcond(1) == pREF
+c$$$     .        .or. pbcond(1) == pOPN) mments(0  ,:,:,Ipx) = 0d0
+c$$$          if (     pbcond(2) == pREF
+c$$$     .        .or. pbcond(2) == pOPN) mments(nxg,:,:,Ipx) = 0d0
 
           !Recover left-over deposition for second-order splines at ghost cell
           ! for staggered quantities
@@ -2278,30 +2291,40 @@ c     Begin program
           if (pbcond(1) == pOPN)
      .      mments(1  ,:,:,Ipy) = mments(1    ,:,:,Ipy)
      .                           -mments(0    ,:,:,Ipy)
-          if (pbcond(1) == pREF)
-     .      mments(1  ,:,:,Ipy) = mments(1    ,:,:,Ipy)
-     .                           +mments(0    ,:,:,Ipy)
+          !Screws up energy conservation
+c$$$          if (pbcond(1) == pREF)
+c$$$     .      mments(1  ,:,:,Ipy) = mments(1    ,:,:,Ipy)
+c$$$     .                           +mments(0    ,:,:,Ipy)
           if (pbcond(2) == pOPN)
      .      mments(nxg,:,:,Ipy) = mments(nxg  ,:,:,Ipy)
      .                           -mments(nxg+1,:,:,Ipy)
-          if (pbcond(2) == pREF)
-     .      mments(nxg,:,:,Ipy) = mments(nxg  ,:,:,Ipy)
-     .                           +mments(nxg+1,:,:,Ipy)
+          !Screws up energy conservation
+c$$$          if (pbcond(2) == pREF)
+c$$$     .      mments(nxg,:,:,Ipy) = mments(nxg  ,:,:,Ipy)
+c$$$     .                           +mments(nxg+1,:,:,Ipy)
+
+          mments(0    ,:,:,Ipy) = 0d0
+          mments(nxg+1,:,:,Ipy) = 0d0
 
           !Jz
           if (pbcond(1) == pOPN)
      .      mments(1  ,:,:,Ipz) = mments(1    ,:,:,Ipz)
      .                           -mments(0    ,:,:,Ipz)
-          if (pbcond(1) == pREF)
-     .      mments(1  ,:,:,Ipz) = mments(1    ,:,:,Ipz)
-     .                           +mments(0    ,:,:,Ipz)
+          !Screws up energy conservation
+c$$$          if (pbcond(1) == pREF)
+c$$$     .      mments(1  ,:,:,Ipz) = mments(1    ,:,:,Ipz)
+c$$$     .                           +mments(0    ,:,:,Ipz)
 
           if (pbcond(2) == pOPN)
      .      mments(nxg,:,:,Ipz) = mments(nxg  ,:,:,Ipz)
      .                           -mments(nxg+1,:,:,Ipz)
-          if (pbcond(2) == pREF)
-     .      mments(nxg,:,:,Ipz) = mments(nxg  ,:,:,Ipz)
-     .                           +mments(nxg+1,:,:,Ipz)
+          !Screws up energy conservation
+c$$$          if (pbcond(2) == pREF)
+c$$$     .      mments(nxg,:,:,Ipz) = mments(nxg  ,:,:,Ipz)
+c$$$     .                           +mments(nxg+1,:,:,Ipz)
+
+          mments(0    ,:,:,Ipz) = 0d0
+          mments(nxg+1,:,:,Ipz) = 0d0
 
           !Rho
           mments(1  ,:,:,Ins) = mments(1    ,:,:,Ins)
@@ -2336,10 +2359,10 @@ c     Begin program
       else
         if (wcurr) then
           !Jy
-          if (     pbcond(3) == pREF
-     .        .or. pbcond(3) == pOPN) mments(:,0  ,:,Ipy) = 0d0
-          if (     pbcond(4) == pREF               
-     .        .or. pbcond(4) == pOPN) mments(:,nyg,:,Ipy) = 0d0
+c$$$          if (     pbcond(3) == pREF
+c$$$     .        .or. pbcond(3) == pOPN) mments(:,0  ,:,Ipy) = 0d0
+c$$$          if (     pbcond(4) == pREF               
+c$$$     .        .or. pbcond(4) == pOPN) mments(:,nyg,:,Ipy) = 0d0
 
           !Recover left-over deposition for second-order splines at ghost cell
           ! for staggered quantities
@@ -2347,39 +2370,47 @@ c     Begin program
           if (pbcond(3) == pOPN)
      .      mments(:,1  ,:,Ipx) = mments(:,1    ,:,Ipx)
      .                           -mments(:,0    ,:,Ipx)
-          if (pbcond(3) == pREF)
-     .      mments(:,1  ,:,Ipx) = mments(:,1    ,:,Ipx)
-     .                           +mments(:,0    ,:,Ipx)
+          !Screws up energy conservation
+c$$$          if (pbcond(3) == pREF)
+c$$$     .      mments(:,1  ,:,Ipx) = mments(:,1    ,:,Ipx)
+c$$$     .                           +mments(:,0    ,:,Ipx)
 
           if (pbcond(4) == pOPN)
      .      mments(:,nyg,:,Ipx) = mments(:,nyg  ,:,Ipx)
      .                           -mments(:,nyg+1,:,Ipx)
-          if (pbcond(4) == pREF)
-     .      mments(:,nyg,:,Ipx) = mments(:,nyg  ,:,Ipx)
-     .                           +mments(:,nyg+1,:,Ipx)
+          !Screws up energy conservation
+c$$$          if (pbcond(4) == pREF)
+c$$$     .      mments(:,nyg,:,Ipx) = mments(:,nyg  ,:,Ipx)
+c$$$     .                           +mments(:,nyg+1,:,Ipx)
+
+          mments(:,0    ,:,Ipx) = 0d0
+          mments(:,nyg+1,:,Ipx) = 0d0
 
           !Jz
           if (pbcond(3) == pOPN)
      .      mments(:,1  ,:,Ipz) = mments(:,1    ,:,Ipz)
      .                           -mments(:,0    ,:,Ipz)
-          if (pbcond(3) == pREF)
-     .      mments(:,1  ,:,Ipz) = mments(:,1    ,:,Ipz)
-     .                           +mments(:,0    ,:,Ipz)
+          !Screws up energy conservation
+c$$$          if (pbcond(3) == pREF)
+c$$$     .      mments(:,1  ,:,Ipz) = mments(:,1    ,:,Ipz)
+c$$$     .                           +mments(:,0    ,:,Ipz)
 
           if (pbcond(4) == pOPN)
      .      mments(:,nyg,:,Ipz) = mments(:,nyg  ,:,Ipz)
      .                           -mments(:,nyg+1,:,Ipz)
-          if (pbcond(4) == pREF)
-     .      mments(:,nyg,:,Ipz) = mments(:,nyg  ,:,Ipz)
-     .                           +mments(:,nyg+1,:,Ipz)
+          !Screws up energy conservation
+c$$$          if (pbcond(4) == pREF)
+c$$$     .      mments(:,nyg,:,Ipz) = mments(:,nyg  ,:,Ipz)
+c$$$     .                           +mments(:,nyg+1,:,Ipz)
+
+          mments(:,0    ,:,Ipz) = 0d0
+          mments(:,nyg+1,:,Ipz) = 0d0
 
           !Rho
           mments(:,1  ,:,Ins) = mments(:,1    ,:,Ins)
      .                         +mments(:,0    ,:,Ins)
           mments(:,nyg,:,Ins) = mments(:,nyg  ,:,Ins)
      .                         +mments(:,nyg+1,:,Ins)
-#if defined(PIC_CM_DIAG)
-#endif
         endif
 
         !S11
@@ -2536,8 +2567,58 @@ c     Define current
 
       end subroutine find_J_from_pcles
 
+c     find_kin_energy
+c     ############################################################
+      subroutine find_kin_energy(KE)
+
+      implicit none
+
+c     Call variables
+
+      real(8) :: KE(:)
+
+c     Local variables
+
+      integer :: isp,nx,ny,nz,nsp,ipc
+      real(8),allocatable,dimension(:) :: send_buf
+
+c     Get kinetic energies
+
+      nsp = size(KE)
+
+      nx = size(moms,1)-2
+      ny = size(moms,2)-2
+      nz = size(moms,3)-2
+
+      do isp=1,nsp
+        KE(isp) = 0.5d0*spcs(isp)%m*(
+     .           sum(moms(1:nx,1:ny,1:nz,isp,IS11))
+     .          +sum(moms(1:nx,1:ny,1:nz,isp,IS22))
+     .          +sum(moms(1:nx,1:ny,1:nz,isp,IS33)) )
+      enddo
+
+c$$$      KE = 0d0
+c$$$      do isp=1,nsp
+c$$$         do ipc=nip+1,size(spcs(isp)%pcles)
+c$$$           KE(isp) = KE(isp) + sum(spcs(isp)%pcles(ipc)%w_np
+c$$$     .                            *sum(spcs(isp)%pcles(ipc)%v_np**2,2))
+c$$$         enddo
+c$$$         KE(isp) =  0.5d0*spcs(isp)%m*KE(isp)
+c$$$      enddo
+
+#if defined(petsc)
+      allocate(send_buf(nsp))
+      send_buf = KE
+      call MPI_Allreduce(send_buf,KE,nsp,MPI_DOUBLE_PRECISION
+     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+      deallocate(send_buf)
+#endif
+
+      end subroutine find_kin_energy
+
       end module pic_moments
 
+#if !defined(plotting)
 c pic_mass_matrix
 c ######################################################################    
       module pic_mass_matrix
@@ -4093,6 +4174,13 @@ c     Initialize particle new info
 c     Find particle weights and drift velocities
 
       if (mass_matrix_solve) then
+        if (my_rank == 0) then
+          write (*,*)
+          write (*,*) '******************'
+          write (*,*) 'Mass matrix solver'
+          write (*,*) '******************'
+        endif
+
         call gather_moments
 
         call setup_mass_matrix(nxl,nyl,nzl,nxg,nyg,nzg)
@@ -5134,4 +5222,4 @@ c End program
 
       end subroutine massmat_mtvc
 
-
+#endif  !Plotting

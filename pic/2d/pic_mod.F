@@ -233,11 +233,11 @@ c$$$             end if
 
              call shape2_offset(xp ,dum1)
              call shape2_offset(xfp,dum2)
-             Mx2(:,1:3,1) = (-dum1+dum2)*0.5d0 !careful
+             Mx2(:,1:3,1) = (dum2-dum1)*0.5d0 !careful
 
              call shape2_offset(yp ,dum1)
              call shape2_offset(yfp,dum2)
-             My2(:,1,1:3) = (-dum1+dum2)*0.5d0
+             My2(:,1,1:3) = (dum2-dum1)*0.5d0
 
              !VECTOR SIMD
              do k=1,_Npg
@@ -256,6 +256,7 @@ c$$$             end if
              call shape2_offset(yfp,dum2)
              My2(:,1,1:3) = (dum1+dum2)*0.5d0
 
+             !VECTOR SIMD
              do k=1, _Npg
 #ifdef __GNU
                 Mxy2(k,1:3,1:3)= Mxy2(k,1:3,1:3)
@@ -514,6 +515,7 @@ c     Local variables
       real(_prec) :: dxl(_Npg,2),dxr(_Npg,2)
 
       real(_prec) :: DtA_1(_Npg,2,3), DtA_2(_Npg,3,2), DtA_3(_Npg,3,3)
+      real(_prec) :: E_1(_Npg,2,3), E_2(_Npg,3,2), E_3(_Npg,3,3)
       real(_prec) :: A_1(_Npg,2,3), A_2(_Npg,3,2), A_3(_Npg,3,3)
       real(_prec) :: phi_loc(_Npg,3,3)
       real(_prec) :: xnp_loc(_Npg,3),vnp_loc(_Npg,3)
@@ -562,6 +564,12 @@ c     Also define some insets of arrays for later use (C. Mikida)
 
          phi_loc(i,:,:) = real(phi(i0(i)-1:i0(i)+1,j0(i)-1:j0(i)+1)
      $                        ,_prec)
+
+         E_1(i,:,:) =-DtA_1(i,:,:)
+     .               -(phi_loc(i,2:3,:)-phi_loc(i,1:2,:))*ihx
+         E_2(i,:,:) =-DtA_2(i,:,:)
+     .               -(phi_loc(i,:,2:3)-phi_loc(i,:,1:2))*ihy
+         E_3(i,:,:) =-DtA_3(i,:,:)
       end do
 
 c     Estimate sub-time-step 
@@ -1028,26 +1036,18 @@ c     Begin program
 
 c     Find E
 
-      call opt_matvec_tr_pcle(DSx,phi_loc,dum3)
-      call opt_matvec_23_pcle(DtA_1,Sy2,dum2)
-      call dot_product_3_pcle(dum3,Sy2,dum1)
-      Ep(:,1) = -dum1
-      call dot_product_2_pcle(dum2,Sx1,dum1)
-      Ep(:,1) = Ep(:,1) - dum1
+      call opt_matvec_23_pcle(E_1,Sy2,dum2)
+      call dot_product_2_pcle(dum2,Sx1,Ep(:,1))
      
-      call opt_matvec_2_pcle(Sx2,DtA_2,dum2)
-      call opt_matvec_tr_pcle(Sx2,phi_loc,dum3)
-      call dot_product_2_pcle(dum2,Sy1,dum1)
-      Ep(:,2) = -dum1
-      call dot_product_3_pcle(dum3,DSy,dum1)
-      Ep(:,2) = Ep(:,2) - dum1
+      call opt_matvec_2_pcle(Sx2,E_2,dum2)
+      call dot_product_2_pcle(dum2,Sy1,Ep(:,2))
 
-      call opt_matvec_tr_pcle(Sx2,DtA_3,dum3)
+      call opt_matvec_tr_pcle(Sx2,E_3,dum3)
       call dot_product_3_pcle(dum3,Sy2,dum1)
-      call opt_matvec_tr_pcle(Sxd,DtA_3,dum3)
-      Ep(:,3) = -dum1
+      call opt_matvec_tr_pcle(Sxd,E_3,dum3)
+      Ep(:,3) = dum1
       call dot_product_3_pcle(dum3,Syd,dum1)
-      Ep(:,3) = Ep(:,3) - dum1
+      Ep(:,3) = Ep(:,3) + dum1
 
 c     Find B
       
@@ -1135,26 +1135,18 @@ c     Find E
       Sxd = (Sx2_n-Sx2_o)*0.5d0
       Syd = (Sy2_n-Sy2_o)*0.5d0
 
-      call opt_matvec_tr_pcle(DSx,phi_loc,dum3)
-      call opt_matvec_23_pcle(DtA_1,Sy2,dum2)
-      call dot_product_3_pcle(dum3,Sy2,dum1)
-      Ep(:,1) = -dum1
-      call dot_product_2_pcle(dum2,Sx1,dum1)
-      Ep(:,1) = Ep(:,1) - dum1
+      call opt_matvec_23_pcle(E_1,Sy2,dum2)
+      call dot_product_2_pcle(dum2,Sx1,Ep(:,1))
      
-      call opt_matvec_2_pcle(Sx2,DtA_2,dum2)
-      call opt_matvec_tr_pcle(Sx2,phi_loc,dum3)
-      call dot_product_2_pcle(dum2,Sy1,dum1)
-      Ep(:,2) = -dum1
-      call dot_product_3_pcle(dum3,DSy,dum1)
-      Ep(:,2) = Ep(:,2) - dum1
+      call opt_matvec_2_pcle(Sx2,E_2,dum2)
+      call dot_product_2_pcle(dum2,Sy1,Ep(:,2))
 
-      call opt_matvec_tr_pcle(Sx2,DtA_3,dum3)
+      call opt_matvec_tr_pcle(Sx2,E_3,dum3)
       call dot_product_3_pcle(dum3,Sy2,dum1)
-      call opt_matvec_tr_pcle(Sxd,DtA_3,dum3)
-      Ep(:,3) = -dum1
+      call opt_matvec_tr_pcle(Sxd,E_3,dum3)
+      Ep(:,3) = dum1
       call dot_product_3_pcle(dum3,Syd,dum1)
-      Ep(:,3) = Ep(:,3) - dum1
+      Ep(:,3) = Ep(:,3) + dum1
 
 c     Find B
 
