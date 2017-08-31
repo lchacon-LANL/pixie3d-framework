@@ -333,7 +333,7 @@ c pic_BCs
 c ######################################################################    
       module pic_BCs
 
-      use grid, ONLY: bcond,PER,NEU,DIR,DEF,SP,OPN
+      use grid, ONLY: bcond,PER,NEU,DIR,DEF,SP,OPN,FSYM
 
       use pic_io, ONLY: p_stop
 
@@ -362,7 +362,7 @@ c     Begin program
 
       pbcond = bcond  !Topological BCs
 
-      where (pbcond == DEF) pbcond = pREF
+      where (pbcond == DEF.or.pbcond == FSYM) pbcond = pREF
 
 c     End program
 
@@ -2025,26 +2025,25 @@ c     Begin program
       !Open BCs
       where (mom_bcs(:,Ipx) == pOPN) mom_bcs(:,Ipx) = DIR !All
       !Reflective BCs
-      where (mom_bcs(1:2,Ipx) == pREF) mom_bcs(1:2,Ipx) = DEF !Do not do anything in X for Px component
-      where (mom_bcs(3:6,Ipx) == pREF) mom_bcs(3:6,Ipx) = DIR !Y,Z
-c$$$      where (mom_bcs(:,Ipx) == pREF) mom_bcs(:,Ipx) = DIR !All
+      where (mom_bcs(1:2,Ipx) == pREF.and.bcond(1:2) /= FSYM)
+     .       mom_bcs(1:2,Ipx) = DEF !Do not do anything in X for Px unless symmetry
+      where (mom_bcs(:,Ipx) == pREF) mom_bcs(:,Ipx) = DIR !All
 
       mom_bcs(:,Ipy) = pbcond
       !Open BCs
       where (mom_bcs(:,Ipy) == pOPN) mom_bcs(:,Ipy) = DIR !All
       !Reflective BCs
-      where (mom_bcs(1:2,Ipy) == pREF) mom_bcs(1:2,Ipy) = DIR !X
-      where (mom_bcs(3:4,Ipy) == pREF) mom_bcs(3:4,Ipy) = DEF !Do not do anything in Y for Py component
-      where (mom_bcs(5:6,Ipy) == pREF) mom_bcs(5:6,Ipy) = DIR !Z
-c$$$      where (mom_bcs(:,Ipy) == pREF) mom_bcs(:,Ipy) = DIR !All
+      where (mom_bcs(3:4,Ipy) == pREF.and.bcond(3:4) /= FSYM)
+     .       mom_bcs(3:4,Ipy) = DEF !Do not do anything in Y for Py unless symmetry
+      where (mom_bcs(:,Ipy) == pREF) mom_bcs(:,Ipy) = DIR !All
 
       mom_bcs(:,Ipz) = pbcond
       !Open BCs
       where (mom_bcs(:,Ipz) == pOPN) mom_bcs(:,Ipz) = DIR !All
       !Reflective BCs
-      where (mom_bcs(1:4,Ipz) == pREF) mom_bcs(1:4,Ipz) = DIR !X,Y
-      where (mom_bcs(5:6,Ipz) == pREF) mom_bcs(5:6,Ipz) = DEF !Do not do anything in Z for Pz component
-c$$$      where (mom_bcs(:,Ipz) == pREF) mom_bcs(:,Ipz) = DIR !All
+      where (mom_bcs(5:6,Ipz) == pREF.and.bcond(5:6) /= FSYM)
+     .       mom_bcs(5:6,Ipz) = DEF !Do not do anything in Z for Pz unless symmetry
+      where (mom_bcs(:,Ipz) == pREF) mom_bcs(:,Ipz) = DIR !All
 
 c     End program
 
@@ -2252,8 +2251,13 @@ c     End program
 c     wrap_moments_nodes
 c     ##################################################################
       subroutine wrap_moments_nodes(mments,wrap_currents,wrap_density)
-      
+
       implicit none
+
+c     ------------------------------------------------------------------
+c     Wraps particle info at ghost cells into interior cells. Does NOT
+c     impose boundary conditions.
+c     ------------------------------------------------------------------
 
 c     Call variables
 
@@ -2282,18 +2286,8 @@ c     Begin program
       if (pbcond(1) == pPER) then
          mments(1  ,:,:,:) = mments(1,:,:,:)+mments(nxg+1,:,:,:)
          mments(nxg,:,:,:) = mments(0,:,:,:)+mments(nxg  ,:,:,:)
-         mments(nxg+1,:,:,:) = mments(1  ,:,:,:)
-         mments(0    ,:,:,:) = mments(nxg,:,:,:)
       else
         if (wcurr) then
-          !Jx
-c$$$          if (     pbcond(1) == pREF
-c$$$     .        .or. pbcond(1) == pOPN) mments(0  ,:,:,Ipx) = 0d0
-c$$$          if (     pbcond(2) == pREF
-c$$$     .        .or. pbcond(2) == pOPN) mments(nxg,:,:,Ipx) = 0d0
-          if (pbcond(1) == pOPN) mments(0  ,:,:,Ipx) = 0d0
-          if (pbcond(2) == pOPN) mments(nxg,:,:,Ipx) = 0d0
-
           !Recover left-over deposition for second-order splines at ghost cell
           ! for staggered quantities
           !Jy
@@ -2312,9 +2306,6 @@ c$$$          if (pbcond(2) == pREF)
 c$$$     .      mments(nxg,:,:,Ipy) = mments(nxg  ,:,:,Ipy)
 c$$$     .                           +mments(nxg+1,:,:,Ipy)
 
-          mments(0    ,:,:,Ipy) = 0d0
-          mments(nxg+1,:,:,Ipy) = 0d0
-
           !Jz
           if (pbcond(1) == pOPN)
      .      mments(1  ,:,:,Ipz) = mments(1    ,:,:,Ipz)
@@ -2332,15 +2323,15 @@ c$$$          if (pbcond(2) == pREF)
 c$$$     .      mments(nxg,:,:,Ipz) = mments(nxg  ,:,:,Ipz)
 c$$$     .                           +mments(nxg+1,:,:,Ipz)
 
-          mments(0    ,:,:,Ipz) = 0d0
-          mments(nxg+1,:,:,Ipz) = 0d0
-
         endif
 
         !Rho (needed to inventory all particle contributions)
-        if (wdens) then 
+        if (wdens.or.(bcond(1) == FSYM).or.(pbcond(1) == pOPN)) then 
           mments(1  ,:,:,Ins) = mments(1    ,:,:,Ins)
      .                         +mments(0    ,:,:,Ins)
+        endif
+
+        if (wdens.or.(bcond(2) == FSYM).or.(pbcond(2) == pOPN)) then 
           mments(nxg,:,:,Ins) = mments(nxg  ,:,:,Ins)
      .                         +mments(nxg+1,:,:,Ins)
         endif
@@ -2366,18 +2357,8 @@ c$$$     .                           +mments(nxg+1,:,:,Ipz)
       if (pbcond(3) == pPER) then
          mments(:  ,1,:,:) = mments(:,1,:,:)+mments(:,nyg+1,:,:)
          mments(:,nyg,:,:) = mments(:,0,:,:)+mments(:,nyg  ,:,:)
-         mments(:,nyg+1,:,:) = mments(:,1  ,:,:)
-         mments(:,0    ,:,:) = mments(:,nyg,:,:)
       else
         if (wcurr) then
-          !Jy
-c$$$          if (     pbcond(3) == pREF
-c$$$     .        .or. pbcond(3) == pOPN) mments(:,0  ,:,Ipy) = 0d0
-c$$$          if (     pbcond(4) == pREF               
-c$$$     .        .or. pbcond(4) == pOPN) mments(:,nyg,:,Ipy) = 0d0
-          if (pbcond(3) == pOPN) mments(:,0  ,:,Ipy) = 0d0
-          if (pbcond(4) == pOPN) mments(:,nyg,:,Ipy) = 0d0
-
           !Recover left-over deposition for second-order splines at ghost cell
           ! for staggered quantities
           !Jx
@@ -2397,9 +2378,6 @@ c$$$          if (pbcond(4) == pREF)
 c$$$     .      mments(:,nyg,:,Ipx) = mments(:,nyg  ,:,Ipx)
 c$$$     .                           +mments(:,nyg+1,:,Ipx)
 
-          mments(:,0    ,:,Ipx) = 0d0
-          mments(:,nyg+1,:,Ipx) = 0d0
-
           !Jz
           if (pbcond(3) == pOPN)
      .      mments(:,1  ,:,Ipz) = mments(:,1    ,:,Ipz)
@@ -2416,15 +2394,15 @@ c$$$     .                           +mments(:,0    ,:,Ipz)
 c$$$          if (pbcond(4) == pREF)
 c$$$     .      mments(:,nyg,:,Ipz) = mments(:,nyg  ,:,Ipz)
 c$$$     .                           +mments(:,nyg+1,:,Ipz)
-
-          mments(:,0    ,:,Ipz) = 0d0
-          mments(:,nyg+1,:,Ipz) = 0d0
         endif
 
         !Rho  (needed to inventory all particle contributions)
-        if (wdens) then
+        if (wdens.or.(bcond(3) == FSYM).or.(pbcond(3) == pOPN)) then 
           mments(:,1  ,:,Ins) = mments(:,1    ,:,Ins)
      .                         +mments(:,0    ,:,Ins)
+        endif
+
+        if (wdens.or.(bcond(4) == FSYM).or.(pbcond(4) == pOPN)) then 
           mments(:,nyg,:,Ins) = mments(:,nyg  ,:,Ins)
      .                         +mments(:,nyg+1,:,Ins)
         endif
