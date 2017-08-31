@@ -3548,12 +3548,12 @@ cc      use pic_io
      .          ,v0_z (nsp_max)=0d0        !Drift velocity
 
       real(8) :: nsubstep(nsp_max)=1       !for fixed number of substeps
-     .          ,eps_omg=0d0               !Perturbation frequency 
+cc     .          ,eps_omg=0d0               !Perturbation frequency 
      .          ,eps_pic=0d0               !Perturbation of particle positions
  
       logical :: phase_space_plot =.false. !Whether to plot phase space or not
      .          ,quiet_start      =.false. !For using quiet start 
-     .          ,eps_prop         =.false. !Perturbation propagate
+cc     .          ,eps_prop         =.false. !Perturbation propagate
      .          ,particle_sort    =.true.  !Whether to sort particles
 
       contains
@@ -3583,9 +3583,11 @@ c     Namelists
 
       namelist /picdef/ npcles,v0_x,v0_y,v0_z,v_thx,v_thy,v_thz
      .     ,n_sp,omega_p,q_m,min_pcles,npcles_cell
-     .     ,quiet_start,nsubstep,eps_prop,eps_omg,eps_pic
+     .     ,quiet_start,nsubstep,eps_pic
      .     ,n_b,i_b,r_b,nip,vinject,C_bkgrnd
      .     ,phase_space_plot,mass_matrix_solve,particle_sort
+     .     !Legacy
+cc     .     ,eps_prop,eps_omg
 
 c     Begin program
 
