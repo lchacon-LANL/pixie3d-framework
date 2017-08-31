@@ -2286,11 +2286,13 @@ c     Begin program
          mments(0    ,:,:,:) = mments(nxg,:,:,:)
       else
         if (wcurr) then
-c$$$          !Jx
+          !Jx
 c$$$          if (     pbcond(1) == pREF
 c$$$     .        .or. pbcond(1) == pOPN) mments(0  ,:,:,Ipx) = 0d0
 c$$$          if (     pbcond(2) == pREF
 c$$$     .        .or. pbcond(2) == pOPN) mments(nxg,:,:,Ipx) = 0d0
+          if (pbcond(1) == pOPN) mments(0  ,:,:,Ipx) = 0d0
+          if (pbcond(2) == pOPN) mments(nxg,:,:,Ipx) = 0d0
 
           !Recover left-over deposition for second-order splines at ghost cell
           ! for staggered quantities
@@ -2373,6 +2375,8 @@ c$$$          if (     pbcond(3) == pREF
 c$$$     .        .or. pbcond(3) == pOPN) mments(:,0  ,:,Ipy) = 0d0
 c$$$          if (     pbcond(4) == pREF               
 c$$$     .        .or. pbcond(4) == pOPN) mments(:,nyg,:,Ipy) = 0d0
+          if (pbcond(3) == pOPN) mments(:,0  ,:,Ipy) = 0d0
+          if (pbcond(4) == pOPN) mments(:,nyg,:,Ipy) = 0d0
 
           !Recover left-over deposition for second-order splines at ghost cell
           ! for staggered quantities
