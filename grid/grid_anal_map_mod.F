@@ -34,7 +34,7 @@ c     Input variables
 c     Begin program
 
         select case(coords)
-        case('car','cyl','hel','hl2','tor','sin','lpk','s3d')
+        case('car','cyl','hel','hl2','tor','sin','lpk','s3d','hsn')
 
           anal_map = .true.
 
@@ -107,7 +107,7 @@ c     Local variables
         integer :: inewt,ic
         real(8) :: xx,yy,zz,jac_mat(3,3),rhs(3),dx(3),rr,rr0,dd
      .            ,aa,bb,major_r,mm,kk,eps,phi,gp(ngparams)
-     .            ,xlog(3)
+     .            ,xlog(3),period1,period2
 
         real(8) :: xmax,ymax,zmax,xmin,ymin,zmin
 
@@ -172,6 +172,16 @@ c     Begin program
      .                          *sin(2*pi*xlog(2)/ymax)
           car(2) = xlog(2) + eps*sin(2*pi*xlog(1)/xmax)
      .                          *sin(2*pi*xlog(2)/ymax)
+          car(3) = xlog(3)
+        case ('hsn')
+          eps = gp(1)
+          if (bcond(1) /= PER) period1 = gp(2)
+          if (bcond(3) /= PER) period2 = gp(3)
+
+          car(1) = xlog(1) + eps*sin(period1*xlog(1)/xmax)
+     .                          *sin(period2*xlog(2)/ymax)
+          car(2) = xlog(2) + eps*sin(period1*xlog(1)/xmax)
+     .                          *sin(period2*xlog(2)/ymax)
           car(3) = xlog(3)
         case ('s3d')
           eps = gp(1)
