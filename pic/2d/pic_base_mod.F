@@ -1252,6 +1252,20 @@ c     Call variables
       zmax = 0.5*(zin(nzg)+zin(nzg+1))
       zmin = 0.5*(zin(0)  +zin(1)    )
 
+      !Dimensional failsafes
+      if (nxg == 1) then
+        xmax = 1d0 ; xmin = 0d0
+      endif
+
+      if (nyg == 1) then
+        ymax = 1d0; ymin = 0d0
+      endif
+
+      if (nzg == 1) then
+        zmax = 1d0; zmin = 0d0
+      endif
+
+      !Mesh spacings
       hx  = (xmax-xmin)/dble(nxg)
       hy  = (ymax-ymin)/dble(nyg)
       hz  = (zmax-zmin)/dble(nzg)
@@ -2072,8 +2086,6 @@ c     Call variables
 c     Begin program
 
       call gather_2d_moments(moms_g(:,:,1,1:n_sp,:))
-      moms_g(:,:,0,:,:) = moms_g(:,:,1,:,:)
-      moms_g(:,:,2,:,:) = moms_g(:,:,1,:,:)
 
       do im=0,size(moms,5)-1
        call find_local(gv%gparams,1,moms_g(:,:,:,:,im),moms(:,:,:,:,im))
