@@ -1973,12 +1973,14 @@ cc     $                eq.2) ) then
         !Calculate inflow np filling
         if(nip>0) then
           !keep the first cell particle number constant
-          npl = (npc1-npc1_0)
+          npl = (npc1/_Npg-npc1_0)
            
           do while(npl<0) 
             nip = nip - 1
             npl = npl + 1
           end do
+
+          write (*,*) 'Particle buffer number',nip
 
           cm = 0d0
           do isp=1,numspcs
