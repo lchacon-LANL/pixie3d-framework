@@ -38,8 +38,9 @@ c ######################################################################
       integer,parameter :: Imass=1,Imom=2,Ien=3,Icmx=4,Icmy=5,Icmz=6
       real(8) :: m_np(_Dim+3),m_n(_Dim+3),PoynFlux,cm_ex(3)
 
-      integer :: nip=0                   !Number of inactive particles
-
+      integer :: nip=0         !Number of inactive particles
+     .          ,npc1_0(6)=0   !Number of initial particles at open bdry
+ 
       integer :: gnip,pgroup
  
       integer :: nproc=1,my_rank_pic=0
@@ -197,7 +198,7 @@ c     Begin program
         time = pcle_time
       endif
 
-      read(ufile,iostat=ierror,end=100) nip,nsp,npcl,pgroup,gnip
+      read(ufile,iostat=ierror,end=100) nip,nsp,npcl,pgroup,gnip,npc1_0
       if (ierror /= 0) goto 200
 
       read(ufile,iostat=ierror,end=100) m_np,m_n,cm_ex,PoynFlux
@@ -282,7 +283,7 @@ c     Begin program
       enddo
 
       write (ufile) time
-      write (ufile) nip,nsp,npcl,pgroup,gnip
+      write (ufile) nip,nsp,npcl,pgroup,gnip,npc1_0
       write (ufile) m_np,m_n,cm_ex,PoynFlux
 
       do isp=1,nsp
@@ -3539,9 +3540,7 @@ cc      use pic_io
 
       !Diagnostics
       integer :: npa_int
-     .          ,npc1_0
-     .          ,npl                  !Lost particles
-
+ 
       !Input parameters defaults
       integer :: n_sp=nsp_max              !Number of species
      .          ,min_pcles=0               !Minimun number of particles
@@ -3861,7 +3860,7 @@ c     Initialize particle quantities
       !Allocate particle accumulators
       allocate(npc_acm(0:nng+1),npc_int(nng,n_sp),mnpc_int(nng,n_sp))
 
-      npc_acm = 0 ; npc_int = 0; mnpc_int = 0 ; npl  = 0
+      npc_acm = 0 ; npc_int = 0; mnpc_int = 0
 
       m_np = 0d0
       m_n  = 0d0
@@ -4130,7 +4129,7 @@ c$$$     .       ,tot_np
       end do
 #endif
 
-      npc1_0 = npc_int_s(1) +npc_int_s(2)
+      npc1_0(1) = npc_int_s(1) +npc_int_s(2)
       
       end subroutine compute_pcle_spat_dist
 

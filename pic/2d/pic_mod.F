@@ -1916,12 +1916,14 @@ c     Call variables
 c     Local variables
 
       integer :: isp,ipc,Np,npc1,ierr !count the # of particle in the first cell
-      integer :: numspcs,nxg,nyg,nzg,nng
+      integer :: numspcs,nxg,nyg,nzg,nng,npl
       real(8) :: cm(3),ihx,ihy,ihz
       real(_prec) :: v2
       real(_prec) :: xp(_Npg), yp(_Npg)
       integer :: i0(_Npg), j0(_Npg)
       integer :: i, i_n(_Npg),j_n(_Npg)
+
+      integer,pointer,dimension(:,:) :: Npcle_cell
 
 c     Begin program
 
@@ -1943,12 +1945,19 @@ c     Update particle info
       case('slow_shock')
         npc1 = 0
 
-        do isp=1,numspcs
-           Np = size(spcs(isp)%pcles)
+        if (particle_sort) then
+          allocate(Npcle_cell(nng,n_sp))
+          call sort_particles(nxg,nng,n_sp,Npart_cell=Npcle_cell)
+          isp = 2 !Electrons
+          npc1 = Npcle_cell(1,isp)+Npcle_cell(2,isp) !Sum first two cells
+          deallocate(Npcle_cell)
+        else
+          do isp=1,numspcs
+            Np = size(spcs(isp)%pcles)
 !$OMP PARALLEL DEFAULT(SHARED) private(ipc,i,i_n,j_n)
 !$OMP DO 
 !$OMP.REDUCTION (+:npc1)
-           do ipc=nip+1,Np
+            do ipc=nip+1,Np
               !Save old positions and velocities
               spcs(isp)%pcles(ipc)%x_n = spcs(isp)%pcles(ipc)%x_np
               spcs(isp)%pcles(ipc)%v_n = spcs(isp)%pcles(ipc)%v_np
@@ -1958,22 +1967,20 @@ c     Update particle info
               call xform_pcle_idx(spcs(isp)%pcles(ipc)%ijk_n
      .                           ,nxg,i_n,j_n)
               do i=1, _Npg
-                 if((i_n(i).eq.1.or.i_n(i).eq.2)
-     .               .and.(isp.eq.2) ) then
-cc                 if((pcles(ipc)%i_n.eq.1).and.(isp.
-cc     $                eq.2) ) then
-                    npc1 = npc1 + 1
-                 end if
+                if((i_n(i).eq.1.or.i_n(i).eq.2).and.(isp.eq.2)) then
+                  npc1 = npc1 + 1
+                end if
               end do
-           end do
+            end do
 !$OMP END DO
 !$OMP END PARALLEL 
-        end do
+          end do
+        endif
 
         !Calculate inflow np filling
         if(nip>0) then
           !keep the first cell particle number constant
-          npl = (npc1/_Npg-npc1_0)
+          npl = (npc1/_Npg-npc1_0(1))
            
           do while(npl<0) 
             nip = nip - 1
@@ -1988,7 +1995,7 @@ cc     $                eq.2) ) then
 !$OMP PARALLEL DEFAULT(SHARED) private(ipc,xp,yp,i0,j0,i)
 !$OMP DO 
 !$OMP.REDUCTION (+:v2,cm)
-            do ipc = nip+1,nip+npa_int
+            do ipc = nip+1,nip+npa_int  !What is npa_int for????
               xp = spcs(isp)%pcles(ipc)%x_np(:,1)*ihx 
               yp = spcs(isp)%pcles(ipc)%x_np(:,2)*ihy
               call xform_pcle_idx(spcs(isp)%pcles(ipc)%ijk_np,nxg,i0,j0)
