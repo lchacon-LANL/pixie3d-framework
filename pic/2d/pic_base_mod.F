@@ -4987,7 +4987,7 @@ c ######################################################################
 
 c     sort_particles
 c     ##################################################################
-      subroutine sort_particles(nxg,nng,n_sp,Npart_cell)
+      subroutine sort_particles(Npart_cell)
 
       implicit none
 
@@ -4997,14 +4997,13 @@ c     ------------------------------------------------------------------
 
 c     Call variables
 
-      integer, intent(in) :: nxg,nng,n_sp
-      integer,optional,intent(out) :: Npart_cell(nng,n_sp)
+      integer,optional,intent(out) :: Npart_cell(:,:,:,:)
 
 c     Local variables
 
-      integer :: isp,ipc,ipl,ip,ijk(_Npg),i,k,kl
-      integer :: part_cell_index(nng)
-     .          ,locl_cell_index(nng) !assume that particles see the whole domain
+      integer :: isp,ipc,ipl,ip,ijk(_Npg),i,j,k,kl,n_sp,nxg,nyg,nzg,nng
+      integer,pointer,dimension(:) :: part_cell_index
+     .                               ,locl_cell_index !assume that particles see the whole domain
       integer :: ti_0,ti_1,Np     
       real(8) :: vnp
       integer :: nthreads,tid,ct
@@ -5015,7 +5014,17 @@ c     Begin program
         write (*,'(a)',ADVANCE = "NO") "Sorting particles..."
       endif
 
-      do isp=1,size(spcs)
+      call get_global_grid_size(nxg,nyg,nzg)
+
+      nng = nxg*nyg*nzg
+
+      allocate(part_cell_index(nng),locl_cell_index(nng))
+
+      n_sp = size(spcs)
+
+      if(present(Npart_cell)) Npart_cell = 0d0
+
+      do isp=1,n_sp
 
         part_cell_index = 0
         locl_cell_index = 0
@@ -5087,16 +5096,24 @@ cc!$      tid      = omp_get_thread_num()
      .           = spcs(isp)%pcles(ipc)%w_np(k)
 
             locl_cell_index(ijk(k))=locl_cell_index(ijk(k))+1
+
+            call xform_pcle_idx_scl(ijk(k),nxg,i,j)
+
+c$$$            if(present(Npart_cell)) Npart_cell(i,j,1,isp)
+c$$$     .                            = Npart_cell(i,j,1,isp)+1
+         
           enddo
         end do
 !$OMP END DO
 !$OMP END PARALLEL 
 
-        if(present(Npart_cell)) Npart_cell(:,isp) = part_cell_index
+c$$$        if(present(Npart_cell)) Npart_cell(:,isp) = part_cell_index
          
       end do !species
 
       if (my_rank_pic == 0.and.(.not.tst_flg)) write (*,*) "Done!"
+
+      deallocate(part_cell_index,locl_cell_index)
 
       end subroutine sort_particles
 

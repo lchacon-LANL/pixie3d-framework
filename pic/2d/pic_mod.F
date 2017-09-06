@@ -1923,7 +1923,7 @@ c     Local variables
       integer :: i0(_Npg), j0(_Npg)
       integer :: i, i_n(_Npg),j_n(_Npg)
 
-      integer,pointer,dimension(:,:) :: Npcle_cell
+      integer,pointer,dimension(:,:,:,:) :: Npcle_cell
 
 c     Begin program
 
@@ -1946,10 +1946,10 @@ c     Update particle info
         npc1 = 0
 
         if (particle_sort) then
-          allocate(Npcle_cell(nng,n_sp))
-          call sort_particles(nxg,nng,n_sp,Npart_cell=Npcle_cell)
+          allocate(Npcle_cell(nxg,nyg,nzg,numspcs))
+          call sort_particles(Npart_cell=Npcle_cell)
           isp = 2 !Electrons
-          npc1 = Npcle_cell(1,isp)+Npcle_cell(2,isp) !Sum first two cells
+          npc1 = Npcle_cell(1,1,1,isp)+Npcle_cell(2,1,1,isp) !Sum first two cells
           deallocate(Npcle_cell)
         else
           do isp=1,numspcs
@@ -2033,7 +2033,7 @@ c     Update particle info
       case default
 
         if (particle_sort) then
-          call sort_particles(nxg,nng,n_sp)
+          call sort_particles
         else
           do isp=1,numspcs
             Np = size(spcs(isp)%pcles)
