@@ -5002,11 +5002,14 @@ c     Call variables
 c     Local variables
 
       integer :: isp,ipc,ipl,ip,ijk(_Npg),i,j,k,kl,n_sp,nxg,nyg,nzg,nng
-      integer,pointer,dimension(:) :: part_cell_index
-     .                               ,locl_cell_index !assume that particles see the whole domain
+      integer,allocatable,dimension(:) :: part_cell_index
+     .                                   ,locl_cell_index
+
       integer :: ti_0,ti_1,Np     
       real(8) :: vnp
       integer :: nthreads,tid,ct
+
+      integer,allocatable,dimension(:,:,:,:) :: Np_cell
 
 c     Begin program
 
@@ -5018,11 +5021,13 @@ c     Begin program
 
       nng = nxg*nyg*nzg
 
-      allocate(part_cell_index(nng),locl_cell_index(nng))
-
       n_sp = size(spcs)
 
-      if(present(Npart_cell)) Npart_cell = 0d0
+      allocate(part_cell_index(nng),locl_cell_index(nng))
+
+      allocate(Np_cell(nxg,nyg,nzg,n_sp))
+
+      Np_cell = 0
 
       do isp=1,n_sp
 
@@ -5035,8 +5040,6 @@ c     Begin program
 
 !$OMP PARALLEL DEFAULT(SHARED) firstprivate(locl_cell_index) 
 !$OMP. private(tid,nthreads,ct,i)
-cc!$      nthreads = omp_get_num_threads()
-cc!$      tid      = omp_get_thread_num()
         call set_omp_thread_id()
         call get_omp_thread_id(tid,nthreads)
 !$OMP DO private(ijk,k) schedule(static,2) 
@@ -5076,6 +5079,7 @@ cc!$      tid      = omp_get_thread_num()
 
         !Copy next
 !$OMP DO PRIVATE(ijk,ip,ipl,k,kl) schedule(static,2)
+!$OMP.REDUCTION (+:Np_cell)
         do ipc=nip+1,Np
           ijk = spcs(isp)%pcles(ipc)%ijk_np
             
@@ -5099,18 +5103,17 @@ cc!$      tid      = omp_get_thread_num()
 
             call xform_pcle_idx_scl(ijk(k),nxg,i,j)
 
-c$$$            if(present(Npart_cell)) Npart_cell(i,j,1,isp)
-c$$$     .                            = Npart_cell(i,j,1,isp)+1
+            Np_cell(i,j,1,isp) = Np_cell(i,j,1,isp)+1
          
           enddo
         end do
 !$OMP END DO
 !$OMP END PARALLEL 
 
-c$$$        if(present(Npart_cell)) Npart_cell(:,isp) = part_cell_index
-         
       end do !species
 
+      if(present(Npart_cell)) Npart_cell = Np_cell
+         
       if (my_rank_pic == 0.and.(.not.tst_flg)) write (*,*) "Done!"
 
       deallocate(part_cell_index,locl_cell_index)

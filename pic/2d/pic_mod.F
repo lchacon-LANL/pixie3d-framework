@@ -1987,7 +1987,9 @@ c     Update particle info
             npl = npl + 1
           end do
 
-          write (*,*) 'Particle buffer number',nip
+          if (my_rank_pic == 0.and.(.not.tst_flg)) then
+            write (*,*) 'Particle buffer number',nip
+          endif
 
           cm = 0d0
           do isp=1,numspcs
