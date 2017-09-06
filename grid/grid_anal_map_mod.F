@@ -175,7 +175,9 @@ c     Begin program
           car(3) = xlog(3)
         case ('hsn')
           eps = gp(1)
+          period1 = 2*pi
           if (bcond(1) /= PER) period1 = gp(2)
+          period2 = 2*pi
           if (bcond(3) /= PER) period2 = gp(3)
 
           car(1) = xlog(1) + eps*sin(period1*xlog(1)/xmax)
