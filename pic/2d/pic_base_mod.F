@@ -2576,13 +2576,13 @@ c     Define current
 
 c     find_kin_energy
 c     ############################################################
-      subroutine find_kin_energy(KE)
+      subroutine find_kin_energy(KE,KEn)
 
       implicit none
 
 c     Call variables
 
-      real(8) :: KE(:)
+      real(8) :: KE(:),KEn(:)
 
 c     Local variables
 
@@ -2602,6 +2602,10 @@ c     Get kinetic energies
      .           sum(moms(1:nx,1:ny,1:nz,isp,IS11))
      .          +sum(moms(1:nx,1:ny,1:nz,isp,IS22))
      .          +sum(moms(1:nx,1:ny,1:nz,isp,IS33)) )
+        KEn(isp) = 0.5d0*spcs(isp)%m*(
+     .           sum(momsn(1:nx,1:ny,1:nz,isp,IS11))
+     .          +sum(momsn(1:nx,1:ny,1:nz,isp,IS22))
+     .          +sum(momsn(1:nx,1:ny,1:nz,isp,IS33)) )
       enddo
 
 c$$$      KE = 0d0
