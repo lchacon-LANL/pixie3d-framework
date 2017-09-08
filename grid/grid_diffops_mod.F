@@ -1044,7 +1044,8 @@ c     End
 
 c     div_stg_mesh
 c     ###############################################################
-      function div_stg_mesh(g_def,igrid,curv,iscnv,bc) result(scl)
+      function div_stg_mesh(g_def,igrid,curv,iscnv,bc,bc_order)
+     .         result(scl)
 
 c     ---------------------------------------------------------------
 c     Calculates div of a staggered vector field in general
@@ -1064,6 +1065,7 @@ c     Call variables
      .          ,scl(0:size(curv,1)-1,0:size(curv,2)-1,0:size(curv,3)-1)
 
       logical,optional :: iscnv,bc
+      integer,optional :: bc_order
 
 c     Local variables
 
@@ -1078,6 +1080,7 @@ c     Local variables
      .               ,0:size(curv,3)-1)
 
       logical :: is_cnv,do_bc
+      integer :: bc_ord
 
 c     Begin program
 
@@ -1091,6 +1094,12 @@ c     Begin program
         do_bc = bc
       else
         do_bc = .false.
+      endif
+
+      if (PRESENT(bc_order)) then
+        bc_ord = bc_order
+      else
+        bc_ord = 1
       endif
 
 c     Compute divergence
@@ -1134,7 +1143,7 @@ c     Apply topological BCs to divergence
         where(bcs == DEF) bcs = DIR
         zero = 0d0
         call setBC(g_def,1,nx,ny,nz,scl,zero,bcs
-     .            ,igrid,igrid,igrid,iorder=1)
+     .            ,igrid,igrid,igrid,iorder=bc_ord)
       endif
 
 c     End program
@@ -5246,7 +5255,7 @@ c     End program
 
 c     veclap_stg_mesh
 c     ###############################################################
-      function veclap_stg_mesh(g_def,igrid,cov,vol) result(veclap)
+      function veclap_stg_mesh(g_def,igrid,cov,vol,order) result(veclap)
 c     ---------------------------------------------------------------
 c     Calculates contravariant components of vector Laplacian for
 c     covariant vector representation satisfying div(lap(A)) =
@@ -5268,6 +5277,7 @@ c     Call variables
      .                 ,3)
 
       logical,optional,intent(IN) :: vol
+      integer,optional :: order
 
 c     Local variables
 
@@ -5290,7 +5300,8 @@ c     Begin program
 
 c     Compute div(cov)
 
-      divA = div_stg(g_def,igrid,cov,iscnv=.false.,bc=.true.)
+      divA = div_stg(g_def,igrid,cov,iscnv=.false.,bc=.true.
+     .              ,bc_order=order)
 
 c     Assemble curl(curl) on the mesh
 

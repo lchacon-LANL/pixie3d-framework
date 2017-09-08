@@ -2587,7 +2587,7 @@ c     Call variables
 c     Local variables
 
       integer :: isp,nx,ny,nz,nsp,ipc
-      real(8),allocatable,dimension(:) :: send_buf
+      real(8),allocatable,dimension(:) :: send_buf,recv_buf
 
 c     Get kinetic energies
 
@@ -2618,11 +2618,15 @@ c$$$         KE(isp) =  0.5d0*spcs(isp)%m*KE(isp)
 c$$$      enddo
 
 #if defined(petsc)
-      allocate(send_buf(nsp))
-      send_buf = KE
-      call MPI_Allreduce(send_buf,KE,nsp,MPI_DOUBLE_PRECISION
+      allocate(send_buf(2*nsp),recv_buf(2*nsp))
+      send_buf(1:nsp) = KE
+      send_buf(nsp+1:2*nsp) = KEn
+      call MPI_Allreduce(send_buf,recv_buf,2*nsp,MPI_DOUBLE_PRECISION
      .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-      deallocate(send_buf)
+      KE = recv_buf(1:nsp)
+      KEn = recv_buf(nsp+1:2*nsp)
+
+      deallocate(send_buf,recv_buf)
 #endif
 
       end subroutine find_kin_energy
@@ -4853,7 +4857,7 @@ c     Begin program
           v(:,1) = vx*cos(theta) + vz*sin(theta) !parallel
           v(:,2) = vy
           v(:,3) = vz*cos(theta) - vx*sin(theta) !perpendicular
-          !VECTOR SIMD
+          !Do NOT vectorize: Memory race issues
           do k=1,_Npg
             Npc(ci(k),isp) = Npc(ci(k),isp)+1
             vd(ci(k),:,isp) = vd(ci(k),:,isp) + v(k,:)
@@ -5049,6 +5053,7 @@ c     Begin program
 !$OMP DO private(ijk,k) schedule(static,2) 
         do ipc=nip+1,Np
           ijk = spcs(isp)%pcles(ipc)%ijk_np
+          !Do NOT vectorize: Memory race issues
           do k=1,_Npg
             locl_cell_index(ijk(k)) = locl_cell_index(ijk(k))+1
           enddo

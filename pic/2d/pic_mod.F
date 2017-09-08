@@ -256,7 +256,7 @@ c$$$             end if
              call shape2_offset(yfp,dum2)
              My2(:,1,1:3) = (dum1+dum2)*0.5d0
 
-             !VECTOR SIMD
+             !Do NOT vectorize: memory race issues
              do k=1, _Npg
 #ifdef __GNU
                 Mxy2(k,1:3,1:3)= Mxy2(k,1:3,1:3)
@@ -329,6 +329,7 @@ c$$$             end if
            v0 = pcle_nu%v_n
            call xform_pcle_idx(pcle_nu%ijk_n,nxg,i0,j0)
 
+           !Do NOT vectorize: memory race issues
            do k=1,_Npg
               !accumulate n (quadratic in x,y)
               garr_n(i0(k)-1:i0(k)+1,j0(k)-1:j0(k)+1) = 
@@ -352,7 +353,7 @@ c$$$             end if
            end do 
 
            !Diagnostics
-cc           !VECTOR SIMD
+           !Do NOT vectorize: memory race issues
            do k=1,_Npg
               !Gather momenta
               pml = pml + m_sp*v0(k,:)*w_pcle(k)
