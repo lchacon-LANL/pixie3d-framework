@@ -2068,25 +2068,75 @@ c     Initialize GLOBAL limits
 
 c     Find cnv components
 
-      if (to_cnv) v_cnv =  XformToCnv_stg_mesh(gbc_def,igxbc,v_cov)
-
-c     Fill PETSc/PERIODIC ghost cells
-
+      if (to_cnv) then
+        !Cov ghost cells
 #if defined(petsc) && !defined(samrai)
-      !Determine whether we need to fill ghost cells using PETSc
-      petsc__bc = (.not.asm)
+        !Determine whether we need to fill ghost cells using PETSc
+        petsc__bc = (.not.asm)
 
-      !Fill ghost cells
-      if (petsc__bc) then
-        da_ctx => gbc_def%dactx(igxbc)
-        do ieq=1,ncomp
-          call fillPetscGhostCells(da_ctx,v_cov(:,:,:,ieq))
-          call fillPetscGhostCells(da_ctx,v_cnv(:,:,:,ieq))
-        enddo
-      endif
+        !Fill ghost cells
+        if (petsc__bc) then
+          da_ctx => gbc_def%dactx(igxbc)
+          do ieq=1,ncomp
+            call fillPetscGhostCells(da_ctx,v_cov(:,:,:,ieq))
+          enddo
+        endif
 #elif !defined(samrai)
-      call set_bc(PER)
+        call set_bc(PER,v_cov,.false.)
 #endif
+        !Xform to cnv
+        v_cnv =  XformToCnv_stg_mesh(gbc_def,igxbc,v_cov)
+
+        !Cnv ghost cells
+#if defined(petsc) && !defined(samrai)
+        !Determine whether we need to fill ghost cells using PETSc
+        petsc__bc = (.not.asm)
+
+        !Fill ghost cells
+        if (petsc__bc) then
+          da_ctx => gbc_def%dactx(igxbc)
+          do ieq=1,ncomp
+            call fillPetscGhostCells(da_ctx,v_cnv(:,:,:,ieq))
+          enddo
+        endif
+#elif !defined(samrai)
+        call set_bc(PER,v_cnv,.true.)
+#endif
+      else
+        !Cnv ghost cells
+#if defined(petsc) && !defined(samrai)
+        !Determine whether we need to fill ghost cells using PETSc
+        petsc__bc = (.not.asm)
+
+        !Fill ghost cells
+        if (petsc__bc) then
+          da_ctx => gbc_def%dactx(igxbc)
+          do ieq=1,ncomp
+            call fillPetscGhostCells(da_ctx,v_cnv(:,:,:,ieq))
+          enddo
+        endif
+#elif !defined(samrai)
+        call set_bc(PER,v_cnv,.true.)
+#endif
+        !Xform to Cov
+        v_cov =  XformToCov_stg_mesh(gbc_def,igxbc,v_cnv)
+
+        !Cov ghost cells
+#if defined(petsc) && !defined(samrai)
+        !Determine whether we need to fill ghost cells using PETSc
+        petsc__bc = (.not.asm)
+
+        !Fill ghost cells
+        if (petsc__bc) then
+          da_ctx => gbc_def%dactx(igxbc)
+          do ieq=1,ncomp
+            call fillPetscGhostCells(da_ctx,v_cov(:,:,:,ieq))
+          enddo
+        endif
+#elif !defined(samrai)
+        call set_bc(PER,v_cov,.false.)
+#endif
+      endif
 
       !Exit if all periodic domains 
       if (bcPER(1).and.bcPER(2).and.bcPER(3)) then
@@ -2097,7 +2147,8 @@ c     Fill PETSc/PERIODIC ghost cells
       
 c     Fill SP ghost cells independently on cnv and cov staggered vectors
 
-      call set_bc(SP)
+      call set_bc(SP,v_cnv,.true.)
+      call set_bc(SP,v_cov,.false.)
 
 c     Impose BCs
 
@@ -2131,9 +2182,9 @@ c     Impose BCs
         enddo
       enddo
 
-c     Synchronize covariant and contravariant components
+c     Synchronize covariant and contravariant components (only bottom bdrys)
 
-      call synchronize_stg(ncomp,v_cnv,v_cov,bcnd,cov_to_cnv)
+      call synchronize_stg(ncomp,v_cnv,v_cov,bcnd,cov_to_cnv,loc=0)
 
 c     Fill edges (for both cnv and cov components)
 
@@ -2168,7 +2219,7 @@ c     End program
 
 c     set_bc
 c     #################################################################
-      subroutine set_bc(bctype)
+      subroutine set_bc(bctype,vec,cnv)
 
       implicit none
       
@@ -2177,6 +2228,8 @@ c     Set BC "bctype" independently for cov and cnv vectors
 c     -----------------------------------------------------------------
 
       integer :: bctype
+      real(8) :: vec(:,:,:,:)
+      logical :: cnv
 
       do dim=1,3
         do loc=0,1
@@ -2187,9 +2240,7 @@ c     -----------------------------------------------------------------
 
             if (abs(bcnd(ibc,ivar)) == bctype) then
               call FillGhostNodes_vec(gbc_def,ieq,ivar,ncomp,dim,loc
-     .                               ,bctype,v_cnv,var0)
-              call FillGhostNodes_vec(gbc_def,ieq,ivar,ncomp,dim,loc
-     .                               ,bctype,v_cov,var0,cnv=.false.)
+     .                               ,bctype,vec,var0,cnv=cnv)
             endif
           enddo
 
@@ -2265,8 +2316,8 @@ c     -----------------------------------------------------------------
 c     Call variables
 
       integer :: ncomp,bcond(6,ncomp)
-      real(8) :: v_cnv(0:nxbc+1,0:nybc+1,0:nzbc+1,ncomp)
-     .          ,v_cov(0:nxbc+1,0:nybc+1,0:nzbc+1,ncomp)
+      real(8) :: v_cnv(0:,0:,0:,:)
+     .          ,v_cov(0:,0:,0:,:)
       logical :: cov_to_cnv(6,3)
       integer,optional :: dim,loc
 
@@ -2277,11 +2328,11 @@ c     Local variables
      .          ,ld,hd,ll,hl,id,il,im,jm,km
       real(8) :: x1,x2,x3,gsup,gsub,cnv(3),cov(3)
 
-      type(MG_grid_metrics),pointer :: gmetric 
+      real(8),dimension(:,:,:,:,:),pointer :: gtensor
 
 c     Begin program
 
-      gmetric => gbc_def%gmetric
+      gtensor => gbc_def%gmetric%grid(igxbc)%gsup_v
 
       if (PRESENT(dim)) then
         ld = dim
@@ -2303,7 +2354,9 @@ c     Begin program
         do il = ll,hl
           ibc = (1+il)+2*(id-1)
 
-          if(.not.selectFace(gbc_def,ibc).or.bcPER(id).or.bcSP(id))cycle !Do nothing for logical, periodic, or SP boundaries
+          if ((.not.selectFace(gbc_def,ibc))
+     .       .or.bcPER(id)
+     .       .or.bcSP(ibc)) cycle !Do nothing for logical, periodic, or SP boundaries
 
           !Do NOT change: SAMRAI depends on it
           call findBCLoopLimits(gbc_def
@@ -2316,10 +2369,8 @@ c     Begin program
 
           if (     (.not.cov_to_cnv(ibc,1))
      .        .and.(.not.cov_to_cnv(ibc,2))
-     .        .and.(.not.cov_to_cnv(ibc,3))) then           !All contravariant: find covariant
+     .        .and.(.not.cov_to_cnv(ibc,3))) then  !All contravariant: find covariant
 
-            !This code is suspect
-cc            call pstop('sync_stg','Code is suspect')
             do k=kmin,kmax
               do j=jmin,jmax
                 do i=imin,imax
@@ -2329,151 +2380,147 @@ cc            call pstop('sync_stg','Code is suspect')
               enddo
             enddo
 
-          else   !Synchronize (assumes normal component is contravariant)
+          else     !Synchronize (assumes normal component is contravariant)
 
-cc            if (.not.selectFace(gbc_def,ibc)) cycle !Do nothing for logical boundaries
+            ic1 = mod(id+1,3)
+            if (ic1 == 0) ic1 = 3
 
-            do ivar = 1,ncomp
+            ic2 = mod(id+2,3)
+            if (ic2 == 0) ic2 = 3
 
-              if (ivar == id) then !Do nothing for normal component
+            if ( cov_to_cnv(ibc,ic1).and.cov_to_cnv(ibc,ic2) ) then  !Both tangentials are covariant
 
-                cycle
+              do k=kmin,kmax
+                do j=jmin,jmax
+                  do i=imin,imax
 
-              else
+                    im = i-1
+                    jm = j-1
+                    km = k-1
 
-cc                if (.not.selectFace(gbc_def,ibc)) cycle
+                    select case(id)
+                    case(1)
+                      if (jm < 0 .or. km < 0) cycle
+                      gsup = 0.25*(gtensor(i,j ,k ,1,1)
+     .                            +gtensor(i,jm,k ,1,1)
+     .                            +gtensor(i,j ,km,1,1)
+     .                            +gtensor(i,jm,km,1,1))
+                    case(2)
+                      if (im < 0 .or. km < 0) cycle
+                      gsup = 0.25*(gtensor(i ,j,k ,2,2)
+     .                            +gtensor(im,j,k ,2,2)
+     .                            +gtensor(i ,j,km,2,2)
+     .                            +gtensor(im,j,km,2,2))
+                    case(3)
+                      if (im < 0 .or. jm < 0) cycle
+                      gsup = 0.25*(gtensor(i ,j ,k,3,3)
+     .                            +gtensor(im,j ,k,3,3)
+     .                            +gtensor(i ,jm,k,3,3)
+     .                            +gtensor(im,jm,k,3,3))
+                    end select
 
-                ic1 = mod(id+1,3)
-                if (ic1 == 0) ic1 = 3
+                    v_cov(i,j,k,id) = 0d0
 
-                ic2 = mod(id+2,3)
-                if (ic2 == 0) ic2 = 3
-
-                if ( cov_to_cnv(ibc,ic1).and.cov_to_cnv(ibc,ic2) ) then  !Both are covariant
-
-                  do k=kmin,kmax
-                    do j=jmin,jmax
-                      do i=imin,imax
-
-                        im = max(i-1,0)
-                        jm = max(j-1,0)
-                        km = max(k-1,0)
-
-cc                        if(id/=3.and.(i>nxbc.or.j>nybc.or.k>nzbc)) cycle  !2D fix for now
-
-                        select case(id)
-                        case(1)
-                          gsup =
-     .                    0.5*(gmetric%grid(igxbc)%gsup_v(i,j ,k,id,id)
-     .                        +gmetric%grid(igxbc)%gsup_v(i,jm,k,id,id))
-                        case(2)
-                          gsup =
-     .                    0.5*(gmetric%grid(igxbc)%gsup_v(im,j,k,id,id)
-     .                        +gmetric%grid(igxbc)%gsup_v(i ,j,k,id,id))
-                        case(3)
-                          gsup = 1d0
-                        end select
-
-                        v_cov(i,j,k,id) = 0d0
-
-                        cnv =
-     .                     XformToCnv_stg_ijk(gbc_def,i,j,k,igxbc,v_cov)
-                        v_cov(i,j,k,id) =-cnv(id) - v_cnv(i,j,k,id)/gsup
-
-                        v_cnv(i,j,k,:) =
-     .                     XformToCnv_stg_ijk(gbc_def,i,j,k,igxbc,v_cov)
-
-                      enddo
-                    enddo
+                    cnv = XformToCnv_stg_ijk(gbc_def,i,j,k,igxbc,v_cov)
+                    v_cov(i,j,k,id) =(v_cnv(i,j,k,id) - cnv(id))/gsup
                   enddo
+                enddo
+              enddo
 
-                elseif (.not.cov_to_cnv(ibc,ic1)) then   !ic1 is contravariant, ic2 is covariant
-
-                  call pstop('sync_stg'
-     .                      ,'Code untested: ic1 cnv, ic2 cov')
-
-                  do k=kmin,kmax
-                    do j=jmin,jmax
-                      do i=imin,imax
-
-                        im = max(i-1,0)
-                        jm = max(j-1,0)
-                        km = max(k-1,0)
-
-cc                        if(ic2/=3.and.(i>nxbc.or.j>nybc.or.k>nzbc))cycle  !2D fix for now
-
-                        select case(ic2)
-                        case(1)
-                          gsub =
-     .                   .5*(gmetric%grid(igxbc)%gsub_v(i,j ,k,ic2,ic2)
-     .                      +gmetric%grid(igxbc)%gsub_v(i,jm,k,ic2,ic2))
-                        case(2)
-                          gsub =
-     .                   .5*(gmetric%grid(igxbc)%gsub_v(im,j,k,ic2,ic2)
-     .                      +gmetric%grid(igxbc)%gsub_v(i ,j,k,ic2,ic2))
-                        case(3)
-                          gsub = 1d0
-                        end select
-
-                        v_cnv(i,j,k,ic2) = 0d0
-                        cov =
-     .                     XformToCov_stg_ijk(gbc_def,i,j,k,igxbc,v_cnv)
-                        v_cnv(i,j,k,ic2)=-cov(ic2)-v_cov(i,j,k,ic2)/gsub
-
-                        v_cov(i,j,k,:) =
-     .                     XformToCov_stg_ijk(gbc_def,i,j,k,igxbc,v_cnv)
-
-                      enddo
-                    enddo
+              !Update contravariant tangential components
+              do k=kmin,kmax
+                do j=jmin,jmax
+                  do i=imin,imax
+                    cnv = XformToCnv_stg_ijk(gbc_def,i,j,k,igxbc,v_cov)
+                    v_cnv(i,j,k,ic1) = cnv(ic1)
+                    v_cnv(i,j,k,ic2) = cnv(ic2)
                   enddo
+                enddo
+              enddo
 
-                elseif (.not.cov_to_cnv(ibc,ic2)) then   !ic2 is contravariant, ic1 is covariant
+            elseif (.not.cov_to_cnv(ibc,ic1)) then   !ic1 is contravariant, ic2 is covariant
 
-                  call pstop('sync_stg'
-     .                      ,'Code untested: ic1 cov, ic2 cnv')
+              call pstop('sync_stg'
+     .                  ,'Code untested: ic1 cnv, ic2 cov')
 
-                  do k=kmin,kmax
-                    do j=jmin,jmax
-                      do i=imin,imax
+cc              do k=kmin,kmax
+cc                do j=jmin,jmax
+cc                  do i=imin,imax
+cc
+cc                    im = max(i-1,0)
+cc                    jm = max(j-1,0)
+cc                    km = max(k-1,0)
+cc
+cccc                    if(ic2/=3.and.(i>nxbc.or.j>nybc.or.k>nzbc))cycle  !2D fix for now
+cc
+cc                    select case(ic2)
+cc                    case(1)
+cc                      gsub =
+cc     .               .5*(gmetric%grid(igxbc)%gsub_v(i,j ,k,ic2,ic2)
+cc     .                  +gmetric%grid(igxbc)%gsub_v(i,jm,k,ic2,ic2))
+cc                    case(2)
+cc                      gsub =
+cc     .               .5*(gmetric%grid(igxbc)%gsub_v(im,j,k,ic2,ic2)
+cc     .                  +gmetric%grid(igxbc)%gsub_v(i ,j,k,ic2,ic2))
+cc                    case(3)
+cc                      gsub = 1d0
+cc                    end select
+cc
+cc                    v_cnv(i,j,k,ic2) = 0d0
+cc                    cov =
+cc     .                 XformToCov_stg_ijk(gbc_def,i,j,k,igxbc,v_cnv)
+cc                    v_cnv(i,j,k,ic2)=-cov(ic2)-v_cov(i,j,k,ic2)/gsub
+cc
+cc                    v_cov(i,j,k,:) =
+cc     .                 XformToCov_stg_ijk(gbc_def,i,j,k,igxbc,v_cnv)
+cc
+cc                  enddo
+cc                enddo
+cc              enddo
 
-                        im = max(i-1,0)
-                        jm = max(j-1,0)
-                        km = max(k-1,0)
+            elseif (.not.cov_to_cnv(ibc,ic2)) then   !ic2 is contravariant, ic1 is covariant
 
-cc                        if(ic1/=3.and.(i>nxbc.or.j>nybc.or.k>nzbc))cycle
+              call pstop('sync_stg'
+     .                  ,'Code untested: ic1 cov, ic2 cnv')
 
-                        select case(ic1)
-                        case(1)
-                          gsub =
-     .                   .5*(gmetric%grid(igxbc)%gsub_v(i,j ,k,ic1,ic1)
-     .                      +gmetric%grid(igxbc)%gsub_v(i,jm,k,ic1,ic1))
-                        case(2)
-                          gsub =
-     .                   .5*(gmetric%grid(igxbc)%gsub_v(im,j,k,ic1,ic1)
-     .                      +gmetric%grid(igxbc)%gsub_v(i ,j,k,ic1,ic1))
-                        case(3)
-                          gsub = 1d0
-                        end select
+cc              do k=kmin,kmax
+cc                do j=jmin,jmax
+cc                  do i=imin,imax
+cc
+cc                    im = max(i-1,0)
+cc                    jm = max(j-1,0)
+cc                    km = max(k-1,0)
+cc
+cccc                    if(ic1/=3.and.(i>nxbc.or.j>nybc.or.k>nzbc))cycle
+cc
+cc                    select case(ic1)
+cc                    case(1)
+cc                      gsub =
+cc     .               .5*(gmetric%grid(igxbc)%gsub_v(i,j ,k,ic1,ic1)
+cc     .                  +gmetric%grid(igxbc)%gsub_v(i,jm,k,ic1,ic1))
+cc                    case(2)
+cc                      gsub =
+cc     .               .5*(gmetric%grid(igxbc)%gsub_v(im,j,k,ic1,ic1)
+cc     .                  +gmetric%grid(igxbc)%gsub_v(i ,j,k,ic1,ic1))
+cc                    case(3)
+cc                      gsub = 1d0
+cc                    end select
+cc
+cc                    v_cnv(i,j,k,ic1) = 0d0
+cc                    cov =
+cc     .                 XformToCov_stg_ijk(gbc_def,i,j,k,igxbc,v_cnv)
+cc                    v_cnv(i,j,k,ic1)=-cov(ic1)-v_cov(i,j,k,ic1)/gsub
+cc
+cc                    v_cov(i,j,k,:) =
+cc     .                 XformToCov_stg_ijk(gbc_def,i,j,k,igxbc,v_cnv)
+cc
+cc                  enddo
+cc                enddo
+cc              enddo
 
-                        v_cnv(i,j,k,ic1) = 0d0
-                        cov =
-     .                     XformToCov_stg_ijk(gbc_def,i,j,k,igxbc,v_cnv)
-                        v_cnv(i,j,k,ic1)=-cov(ic1)-v_cov(i,j,k,ic1)/gsub
-
-                        v_cov(i,j,k,:) =
-     .                     XformToCov_stg_ijk(gbc_def,i,j,k,igxbc,v_cnv)
-
-                      enddo
-                    enddo
-                  enddo
-
-                endif
-
-             endif
-            enddo
+            endif
 
           endif
-
         enddo
       enddo
 

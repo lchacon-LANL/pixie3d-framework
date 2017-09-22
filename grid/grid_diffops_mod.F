@@ -1016,7 +1016,7 @@ c     Call variables
 c     Local variables
 
       integer :: ig,jg,kg,igrid,ip,im,jp,jm,kp,km,hx,hy,hz
-      real(8) :: dxx,dyy,dzz
+      real(8) :: idx,idy,idz
 
 c     Begin program
 
@@ -1028,13 +1028,16 @@ c     Begin program
       jm = j-1
       km = k-1
 
-      dxx = g_def%dxh(ig)
-      dyy = g_def%dyh(jg)
-      dzz = g_def%dzh(kg)
+      idx = 1d0/g_def%dxh(ig)
+      idy = 1d0/g_def%dyh(jg)
+      idz = 1d0/g_def%dzh(kg)
+      if (nx == 1) idx = 0d0
+      if (ny == 1) idy = 0d0
+      if (nz == 1) idz = 0d0
 
-      div =  (cnv(i,j,k,1)-cnv(im,j ,k ,1))/dxx
-     .      +(cnv(i,j,k,2)-cnv(i ,jm,k ,2))/dyy
-     .      +(cnv(i,j,k,3)-cnv(i ,j ,km,3))/dzz
+      div =  (cnv(i,j,k,1)-cnv(im,j ,k ,1))*idx
+     .      +(cnv(i,j,k,2)-cnv(i ,jm,k ,2))*idy
+     .      +(cnv(i,j,k,3)-cnv(i ,j ,km,3))*idz
 
       div = div/g_def%gmetric%grid(igrid)%jac(i,j,k)
       
@@ -1093,7 +1096,7 @@ c     Begin program
       if (PRESENT(bc)) then
         do_bc = bc
       else
-        do_bc = .false.
+        do_bc = PRESENT(bc_order)
       endif
 
       if (PRESENT(bc_order)) then
@@ -5255,7 +5258,8 @@ c     End program
 
 c     veclap_stg_mesh
 c     ###############################################################
-      function veclap_stg_mesh(g_def,igrid,cov,vol,order) result(veclap)
+      function veclap_stg_mesh(g_def,igrid,cov,vol,bc_order,apply_bc)
+     .         result(veclap)
 c     ---------------------------------------------------------------
 c     Calculates contravariant components of vector Laplacian for
 c     covariant vector representation satisfying div(lap(A)) =
@@ -5276,13 +5280,13 @@ c     Call variables
      .                 ,0:size(cov,3)-1
      .                 ,3)
 
-      logical,optional,intent(IN) :: vol
-      integer,optional :: order
+      logical,optional,intent(IN) :: vol,apply_bc
+      integer,optional :: bc_order
 
 c     Local variables
 
-      integer :: bcs(6),nx,ny,nz,i,j,k
-      logical :: vol_wgt
+      integer :: bcs(6,3),nx,ny,nz,i,j,k
+      logical :: vol_wgt,do_bc
       real(8) :: divA(0:size(cov,1)-1
      .               ,0:size(cov,2)-1
      .               ,0:size(cov,3)-1)
@@ -5298,10 +5302,13 @@ c     Begin program
       vol_wgt = .false.
       if (PRESENT(vol)) vol_wgt = vol
 
+      do_bc = .false.
+      if (PRESENT(apply_bc)) do_bc = apply_bc
+  
 c     Compute div(cov)
 
       divA = div_stg(g_def,igrid,cov,iscnv=.false.,bc=.true.
-     .              ,bc_order=order)
+     .              ,bc_order=bc_order)
 
 c     Assemble curl(curl) on the mesh
 
@@ -5309,9 +5316,9 @@ c     Assemble curl(curl) on the mesh
 
 c$$$      !Old way
 c$$$      veclap = 0d0
-c$$$      do k=1,nz
-c$$$        do j=1,ny
-c$$$          do i=1,nx
+c$$$      do k=0,nz
+c$$$        do j=0,ny
+c$$$          do i=0,nx
 c$$$            veclap(i,j,k,:)= -curlcurl_stg_ijk(g_def,i,j,k,nx,ny,nz
 c$$$     .                                        ,igrid,igrid,igrid,cov)
 c$$$          enddo
@@ -5336,6 +5343,15 @@ c     Assemble vector Laplacian on the mesh
           enddo
         enddo
       enddo
+
+      if (do_bc) then
+        call get_topol_bcs(bcs(:,1))
+        call get_topol_bcs(bcs(:,2))
+        call get_topol_bcs(bcs(:,3))
+        where(bcs == DEF) bcs = EXT
+        call setMGBC_stg(g_def,0,3,nx,ny,nz,igrid,veclap
+     .                  ,bcs,is_cnv=.true.,iorder=bc_order)
+      endif
 
 c     End program
 

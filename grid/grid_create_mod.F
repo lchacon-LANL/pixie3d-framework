@@ -1043,7 +1043,9 @@ c     Begin program
 
           call numericalGridCoeffsCheck
 
-          call graphicsCheck
+          call graphicsCheck_cc
+
+          call graphicsCheck_vrtx
 
           call hessianZeroForceCheck(1)
 
@@ -1417,9 +1419,9 @@ c     Begin program
 
       end subroutine numericalGridCoeffsCheck
 
-c     graphicsCheck
+c     graphicsCheck_cc
 c     #################################################################
-      subroutine graphicsCheck
+      subroutine graphicsCheck_cc
 
 c     -----------------------------------------------------------------
 c     Test of numerical calculation vs. analytical calculation of
@@ -1675,7 +1677,218 @@ cc     .              *gdef%gmetric%grid(igrid)%jac_v(i,j,k)
       write(funit,*) 'Done!'
       write(funit,*) 
 
-      end subroutine graphicsCheck
+      end subroutine graphicsCheck_cc
+
+c     graphicsCheck_vrtx
+c     #################################################################
+      subroutine graphicsCheck_vrtx
+
+c     -----------------------------------------------------------------
+c     Test of numerical calculation vs. analytical calculation of
+c     grid vectex quantities.
+c     -----------------------------------------------------------------
+
+      use xdraw_io
+
+      implicit none
+
+      integer    :: nx,ny,nz,i,j,k,l,m,n,igrid,ivar
+     .             ,nxg,nyg,nzg
+      real(8)    :: tensor(3,3,3),vec(3)
+
+      integer   ,parameter :: nvar=50
+      character(30) :: descr(nvar),drawfile,debugfile
+
+      logical :: dump_diff
+
+      real(8),allocatable,dimension(:,:,:) :: dbl
+
+c     Begin program
+
+c     Output
+
+      write(funit,*)
+      write(funit,*) 'Dumping grid debugging graphics...'
+      write(funit,*)
+
+      if (my_rank == 0) then
+        write(*  ,*)
+        write(*  ,*) 'Dumping grid debugging graphics...'
+        write(*  ,*)
+      endif
+
+      dump_diff = anal_map.and.numerical_grid.and.(.not.map_grid_pack)
+cc      dump_diff = .false.
+
+      if (dump_diff) then
+        if (my_rank == 0)
+     .    write(*    ,*)
+     .       '>> Analytical mapping available; dumping diffs...'
+        write(funit,*)
+     .       '>> Analytical mapping available; dumping diffs...'
+      else
+        if (.not.numerical_grid) then
+          if (my_rank == 0)
+     .      write(*    ,*)'>> Dumping analytical qtys...'
+          write(funit,*)'>> Dumping analytical qtys...'
+        else
+          if (my_rank == 0)
+     .      write(*    ,*)'>> Dumping numerical qtys...'
+          write(funit,*)'>> Dumping numerical qtys...'
+        endif
+      endif
+      write(funit,*)
+      if (my_rank == 0) write(*,*)
+
+c     Dump quantities
+
+      do igrid=1,gdef%ngrid
+
+        nx = gdef%nxv(igrid)
+        ny = gdef%nyv(igrid)
+        nz = gdef%nzv(igrid)
+
+        nxg = gdef%nxgl(igrid)
+        nyg = gdef%nygl(igrid)
+        nzg = gdef%nzgl(igrid)
+
+        do k=0,nz+1
+
+        write(funit,*)
+        write(funit,*) '   ******************************'
+        write(funit,*) '   Grid level',igrid,'on slice k=',k
+        write(funit,*) '   ******************************'
+        write(funit,*)
+
+        debugfile = trim(level)//'_vrtx_gl'//trim(int2char(igrid))
+     .                         //'_k='//trim(int2char(k))//'.bin'
+
+        !Allocate dummy array
+        allocate(dbl(0:nx+1,0:ny+1,0:nz+1))
+
+        !Jacobian
+        write(funit,*) '   Dumping Jacobian'
+        ivar = 1
+        descr(ivar) = 'jac'
+
+        do j=0,ny+1
+          do i=0,nx+1
+            dbl(i,j,1) = gdef%gmetric%grid(igrid)%jac_v(i,j,k)
+            if (dump_diff) dbl(i,j,1) = dbl(i,j,1)
+     .             -jacobian(gdef,i,j,k,igrid,igrid,igrid,vertex=.true.)
+          enddo
+        enddo
+
+        call dumpGlobalField(gdef,debugfile,nx,ny,nz,nxg,nyg,nzg,dbl,0)
+
+        !Metric tensors
+        do l=1,3
+          do m=l,3
+            write(funit,*) '   Dumping Gsub component',l,m
+            ivar = ivar+1
+            descr(ivar)='gsub('//trim(int2char(l))//','
+     .                         //trim(int2char(m))//')'
+
+            do j=0,ny+1
+              do i=0,nx+1
+                dbl(i,j,1) =
+     .               gdef%gmetric%grid(igrid)%gsub_v(i,j,k,l,m)
+     .              *gdef%gmetric%grid(igrid)%jac_v(i,j,k)
+                if (dump_diff) then
+                  tensor(:,:,1)  =
+     .                 g_sub(gdef,i,j,k,igrid,igrid,igrid,vertex=.true.)
+                  dbl(i,j,1) = dbl(i,j,1)
+     .                    -tensor(l,m,1)
+     .             *jacobian(gdef,i,j,k,igrid,igrid,igrid,vertex=.true.)
+                endif
+              enddo
+            enddo
+
+            call dumpGlobalField(gdef,debugfile,nx,ny,nz,nxg,nyg,nzg,dbl
+     .                          ,1)
+          enddo
+        enddo
+
+        do l=1,3
+          do m=l,3
+            write(funit,*) '   Dumping Gsup component',l,m
+            ivar = ivar+1
+            descr(ivar)='gsup('//trim(int2char(l))//','
+     .                         //trim(int2char(m))//')'
+
+            do j=0,ny+1
+              do i=0,nx+1
+                dbl(i,j,1) =
+     .               gdef%gmetric%grid(igrid)%gsup_v(i,j,k,l,m)
+     .              *gdef%gmetric%grid(igrid)%jac_v(i,j,k)
+                if (dump_diff) then
+                  tensor(:,:,1)  =
+     .                 g_sup(gdef,i,j,k,igrid,igrid,igrid,vertex=.true.)
+                  dbl(i,j,1) = dbl(i,j,1)
+     .                        -tensor(l,m,1)
+     .             *jacobian(gdef,i,j,k,igrid,igrid,igrid,vertex=.true.)
+                endif
+              enddo
+            enddo
+            call dumpGlobalField(gdef,debugfile,nx,ny,nz,nxg,nyg,nzg,dbl
+     .                          ,1)
+          enddo
+        enddo
+
+        !Cnv vectors
+        do l=1,3
+          do m=1,3
+            write(funit,*) '   Dumping Cnv vector',l,' component',m
+            ivar = ivar+1
+            descr(ivar)='Cnv_'//trim(int2char(l))//'('
+     .                        //trim(int2char(m))//')'
+
+            do j=0,ny+1
+              do i=0,nx+1
+                dbl(i,j,1) =
+     .               gdef%gmetric%grid(igrid)%cnv_v(i,j,k,l,m)
+     .              *gdef%gmetric%grid(igrid)%jac_v(i,j,k)
+                if (dump_diff) then
+                  vec =
+     .               contravariantVector(gdef,l,i,j,k,igrid,igrid,igrid
+     .                                  ,vertex=.true.)
+     .             *jacobian(gdef,i,j,k,igrid,igrid,igrid,vertex=.true.)
+                  dbl(i,j,1) = dbl(i,j,1)-vec(m)
+                endif
+              enddo
+            enddo
+            call dumpGlobalField(gdef,debugfile,nx,ny,nz,nxg,nyg,nzg,dbl
+     .                          ,1)
+          enddo
+        enddo
+
+        deallocate(dbl)
+
+        if (my_rank == 0) then
+          drawfile  = 'draw'//trim(level)//'_vrtx_gl'
+     .               //trim(int2char(igrid))
+     .               //'_k='//trim(int2char(k))//'.in'
+          !Create draw*.in file
+          call createDrawInCfile(ivar,debugfile,'Grid debug'
+     .                          ,'t','x','y',descr,'-c -X0 -L57'
+     .                          ,drawfile)
+        endif
+
+        enddo      !k loop
+     
+      enddo        !Grid level loop
+
+      if (my_rank == 0) then
+        write(*,*)
+        write(*,*) 'Done!'
+        write(*,*) 
+      endif
+      
+      write(funit,*)
+      write(funit,*) 'Done!'
+      write(funit,*) 
+
+      end subroutine graphicsCheck_vrtx
 
 c     hessianZeroForceCheck
 c     #################################################################
