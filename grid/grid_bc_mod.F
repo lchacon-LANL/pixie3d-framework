@@ -2362,9 +2362,9 @@ c     Begin program
 
           !Do NOT change: SAMRAI depends on it
           call findBCLoopLimits(gbc_def
-     .                         ,id,il,iimin-1,iimax!+1
-     .                               ,jjmin-1,jjmax!+1
-     .                               ,kkmin-1,kkmax!+1
+     .                         ,id,il,iimin-1,iimax+1
+     .                               ,jjmin-1,jjmax+1
+     .                               ,kkmin-1,kkmax+1
      .                               ,imin   ,imax
      .                               ,jmin   ,jmax
      .                               ,kmin   ,kmax)
