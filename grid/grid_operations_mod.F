@@ -2957,8 +2957,8 @@ c     XformVector_stg_mesh
 c     #################################################################
       function XformVector_stg_mesh(g_def,igrid,vec1,tocnv) result(vec2)
 c     -----------------------------------------------------------------
-c     Transforms a curvilinear vector from covariant to contravariant 
-c     (tocnv=.true.) or viceversa at cell centers on all mesh.
+c     Transforms a STAGGERED curvilinear vector from covariant to
+c     contravariant (tocnv=.true.) or viceversa
 c     -----------------------------------------------------------------
 
       implicit none
@@ -2994,8 +2994,7 @@ c     XformVector_stg_mesh2
 c     #################################################################
       subroutine XformVector_stg_mesh2(g_def,igrid,vec,in_repr,out_repr)
 c     -----------------------------------------------------------------
-c     Transforms a curvilinear vector from covariant to contravariant 
-c     (tocnv=.true.) or viceversa at cell centers on all mesh.
+c     Transforms a STAGGERED vector from one representation to another.
 c     -----------------------------------------------------------------
 
       implicit none

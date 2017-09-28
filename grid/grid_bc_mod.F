@@ -1952,7 +1952,7 @@ c     imposeBConVector_stg
 c     #################################################################
       subroutine imposeBConVector_stg(gbc_def,fcomp,ncomp,nx,ny,nz
      .          ,v_cnv,v_cov,var0,bcnd,iigx,iigy,iigz,i1,i2,j1,j2,k1,k2
-     .          ,iorder,is_cnv,is_vec)
+     .          ,iorder,is_cnv)
 c     -----------------------------------------------------------------
 c     Imposes BC on staggered vector field
 c     -----------------------------------------------------------------
@@ -1966,7 +1966,7 @@ c     Call variables
      .          ,var0 (0:nx+1,0:ny+1,0:nz+1,ncomp)
      .          ,v_cov(0:nx+1,0:ny+1,0:nz+1,ncomp)
       integer,optional,intent(IN) :: i1,i2,j1,j2,k1,k2,iorder
-      logical,optional,intent(IN) :: is_cnv,is_vec
+      logical,optional,intent(IN) :: is_cnv
 
       type(grid_mg_def),pointer :: gbc_def
 
@@ -1975,8 +1975,7 @@ c     Local variables
       integer :: i,j,k,imax,imin,jmax,jmin,kmax,kmin,xtrap_o
       integer :: ivar,ieq,ibc,loc,dim,bctype
      .          ,ilmin,jlmin,klmin,ilmax,jlmax,klmax
-      logical :: cov_to_cnv(6,3),to_cnv,is__vec,petsc__bc
-     .          ,flg_sc
+      logical :: cov_to_cnv(6,3),to_cnv,flg_sc
 
 #if defined(petsc)
       type(petsc_da_ctx),pointer :: da_ctx
@@ -1986,18 +1985,6 @@ c     Begin program
 
       !Indicate staggered vector treatment
       stg_vector = .true.
-
-      !By default, we assume input are vector components
-      if (PRESENT(is_vec)) then
-        is__vec = is_vec
-      else
-        is__vec = .true.
-      endif
-
-      if (is__vec .and. ncomp < 3) then
-        call pstop('imposeBConVector_stg'
-     .            ,'Cannot impose BC on vector; # components < 3')
-      endif
 
       !By default, we assume input is in cnv representation
       if (PRESENT(is_cnv)) then
@@ -2069,122 +2056,60 @@ c     Initialize GLOBAL limits
 c     Find cnv components
 
       if (to_cnv) then
-        !Cov ghost cells
-#if defined(petsc) && !defined(samrai)
-        !Determine whether we need to fill ghost cells using PETSc
-        petsc__bc = (.not.asm)
 
-        !Fill ghost cells
-        if (petsc__bc) then
-          da_ctx => gbc_def%dactx(igxbc)
-          do ieq=1,ncomp
-            call fillPetscGhostCells(da_ctx,v_cov(:,:,:,ieq))
-          enddo
-        endif
-#elif !defined(samrai)
-        call set_bc(PER,v_cov,.false.)
-#endif
+        !Cov ghost cells
+        call set_LOG_bc(v_cov,.false.)
+        call set_TOPOL_bc(SP,v_cov,.false.)
+
+        cov_to_cnv = .false.
+
+        do bctype=2,BCLIM       !Do not do PER=1; already done by PETSc or SAMRAI
+          if (bctype == SP) cycle
+          call set_bc(bctype,v_cov,.false.)
+        enddo
+
         !Xform to cnv
         v_cnv =  XformToCnv_stg_mesh(gbc_def,igxbc,v_cov)
 
         !Cnv ghost cells
-#if defined(petsc) && !defined(samrai)
-        !Determine whether we need to fill ghost cells using PETSc
-        petsc__bc = (.not.asm)
+        call set_LOG_bc(v_cnv,.true.)
+        call set_TOPOL_bc(SP,v_cnv,.true.)
 
-        !Fill ghost cells
-        if (petsc__bc) then
-          da_ctx => gbc_def%dactx(igxbc)
-          do ieq=1,ncomp
-            call fillPetscGhostCells(da_ctx,v_cnv(:,:,:,ieq))
-          enddo
-        endif
-#elif !defined(samrai)
-        call set_bc(PER,v_cnv,.true.)
-#endif
+        do bctype=2,BCLIM       !Do not do PER=1; already done by PETSc or SAMRAI
+          if (bctype == SP) cycle
+          call set_bc(bctype,v_cnv,.true.)
+        enddo
+
       else
-        !Cnv ghost cells
-#if defined(petsc) && !defined(samrai)
-        !Determine whether we need to fill ghost cells using PETSc
-        petsc__bc = (.not.asm)
 
-        !Fill ghost cells
-        if (petsc__bc) then
-          da_ctx => gbc_def%dactx(igxbc)
-          do ieq=1,ncomp
-            call fillPetscGhostCells(da_ctx,v_cnv(:,:,:,ieq))
-          enddo
-        endif
-#elif !defined(samrai)
-        call set_bc(PER,v_cnv,.true.)
-#endif
+        !Cnv ghost cells
+        call set_LOG_bc(v_cnv,.true.)
+        call set_TOPOL_bc(SP,v_cnv,.true.)
+
+        do bctype=2,BCLIM       !Do not do PER=1; already done by PETSc or SAMRAI
+          if (bctype == SP) cycle
+          call set_bc(bctype,v_cnv,.true.)
+        enddo
+
         !Xform to Cov
         v_cov =  XformToCov_stg_mesh(gbc_def,igxbc,v_cnv)
 
         !Cov ghost cells
-#if defined(petsc) && !defined(samrai)
-        !Determine whether we need to fill ghost cells using PETSc
-        petsc__bc = (.not.asm)
+        call set_LOG_bc(v_cov,.false.)
+        call set_TOPOL_bc(SP,v_cov,.false.)
 
-        !Fill ghost cells
-        if (petsc__bc) then
-          da_ctx => gbc_def%dactx(igxbc)
-          do ieq=1,ncomp
-            call fillPetscGhostCells(da_ctx,v_cov(:,:,:,ieq))
-          enddo
-        endif
-#elif !defined(samrai)
-        call set_bc(PER,v_cov,.false.)
-#endif
-      endif
+        cov_to_cnv = .false.
 
-      !Exit if all periodic domains 
-      if (bcPER(1).and.bcPER(2).and.bcPER(3)) then
-        stg_vector = .false.
-        if (flg_sc) skip_corners=.false. !Reset skip_corners
-        return
-      endif
-      
-c     Fill SP ghost cells independently on cnv and cov staggered vectors
-
-      call set_bc(SP,v_cnv,.true.)
-      call set_bc(SP,v_cov,.false.)
-
-c     Impose BCs
-
-      cov_to_cnv = .false.
-
-      do bctype=2,BCLIM             !Do not do PER=1; already done by PETSc or SAMRAI
-        if (bctype == SP) cycle
-        do dim=1,3
-          do loc=0,1
-            ibc = (1+loc)+2*(dim-1)
-
-            do ivar = 1,ncomp
-              ieq = ivar + fcomp - 1
-
-              if (abs(bcnd(ibc,ivar)) == bctype) then
-
-                if (bcnd(ibc,ivar) < 0 .and. is__vec) then
-                  call FillGhostNodes_vec(gbc_def,ieq,ivar,ncomp,dim,loc
-     .                                   ,bctype,v_cov,var0,cnv=.false.)
-                  cov_to_cnv(ibc,ivar) = .true.
-                else
-                  call FillGhostNodes_vec(gbc_def,ieq,ivar,ncomp,dim,loc
-     .                                   ,bctype,v_cnv,var0)
-                endif
-
-              endif
-
-            enddo
-
-          enddo
+        do bctype=2,BCLIM       !Do not do PER=1; already done by PETSc or SAMRAI
+          if (bctype == SP) cycle
+          call set_bc(bctype,v_cov,.false.)
         enddo
-      enddo
+
+      endif
 
 c     Synchronize covariant and contravariant components (only bottom bdrys)
 
-      call synchronize_stg(ncomp,v_cnv,v_cov,bcnd,cov_to_cnv,loc=0)
+      call synchronize_stg(ncomp,v_cnv,v_cov,bcnd,cov_to_cnv)
 
 c     Fill edges (for both cnv and cov components)
 
@@ -2217,14 +2142,45 @@ c     End program
 
       contains
 
-c     set_bc
+c     set_LOG_bc
 c     #################################################################
-      subroutine set_bc(bctype,vec,cnv)
+      subroutine set_LOG_bc(vec,cnv)
 
       implicit none
       
 c     -----------------------------------------------------------------
 c     Set BC "bctype" independently for cov and cnv vectors
+c     -----------------------------------------------------------------
+
+      real(8) :: vec(:,:,:,:)
+      logical :: cnv,petsc__bc
+      integer :: ieq
+
+#if defined(petsc) && !defined(samrai)
+        !Determine whether we need to fill ghost cells using PETSc
+        petsc__bc = (.not.asm)
+
+        !Fill ghost cells
+        if (petsc__bc) then
+          da_ctx => gbc_def%dactx(igxbc)
+          do ieq=1,ncomp
+            call fillPetscGhostCells(da_ctx,vec(:,:,:,ieq))
+          enddo
+        endif
+#elif !defined(samrai)
+        call set_TOPOL_bc(PER,vec,cnv)
+#endif
+
+      end subroutine set_LOG_bc
+
+c     set_TOPOL_bc
+c     #################################################################
+      subroutine set_TOPOL_bc(bctype,vec,cnv)
+
+      implicit none
+      
+c     -----------------------------------------------------------------
+c     Set topological BCs independently for cov and cnv vectors
 c     -----------------------------------------------------------------
 
       integer :: bctype
@@ -2241,6 +2197,52 @@ c     -----------------------------------------------------------------
             if (abs(bcnd(ibc,ivar)) == bctype) then
               call FillGhostNodes_vec(gbc_def,ieq,ivar,ncomp,dim,loc
      .                               ,bctype,vec,var0,cnv=cnv)
+            endif
+          enddo
+
+        enddo
+      enddo
+
+      end subroutine set_TOPOL_bc
+
+c     set_bc
+c     #################################################################
+      subroutine set_bc(bctype,vec,cnv)
+
+      implicit none
+      
+c     -----------------------------------------------------------------
+c     Set BC "bctype" independently for cov and cnv vectors
+c     -----------------------------------------------------------------
+
+c     Call variables
+
+      integer :: bctype
+      real(8) :: vec(:,:,:,:)
+      logical :: cnv
+
+c     Local variables
+
+      integer :: dim,loc,ibc,ivar,ieq
+
+c     Begin program
+
+      do dim=1,3
+        do loc=0,1
+          ibc = (1+loc)+2*(dim-1)
+
+          do ivar = 1,ncomp
+            ieq = ivar + fcomp - 1
+
+            if (abs(bcnd(ibc,ivar)) == bctype) then
+              if ((.not.cnv).and.bcnd(ibc,ivar) < 0) then
+                call FillGhostNodes_vec(gbc_def,ieq,ivar,ncomp,dim,loc
+     .                                 ,bctype,vec,var0,cnv=.false.)
+                cov_to_cnv(ibc,ivar) = .true.
+              elseif (cnv.and.bcnd(ibc,ivar) > 0) then
+                call FillGhostNodes_vec(gbc_def,ieq,ivar,ncomp,dim,loc
+     .                                 ,bctype,vec,var0,cnv=.true.)
+              endif
             endif
           enddo
 
@@ -2270,7 +2272,7 @@ c     Begin program
             if (abs(bcnd(ibc,ivar)) == PER) then
               call FillGhostNodes_vec(gbc_def,0,ivar,ncomp,dim,loc
      .                               ,PER,v_cnv,var0,cnv=.true.)
-              call FillGhostNodes_vec(gbc_def,ieq,ivar,ncomp,dim,loc
+              call FillGhostNodes_vec(gbc_def,0,ivar,ncomp,dim,loc
      .                               ,PER,v_cov,var0,cnv=.false.)
             endif
           enddo
@@ -2360,9 +2362,9 @@ c     Begin program
 
           !Do NOT change: SAMRAI depends on it
           call findBCLoopLimits(gbc_def
-     .                         ,id,il,iimin-1,iimax+1
-     .                               ,jjmin-1,jjmax+1
-     .                               ,kkmin-1,kkmax+1
+     .                         ,id,il,iimin-1,iimax!+1
+     .                               ,jjmin-1,jjmax!+1
+     .                               ,kkmin-1,kkmax!+1
      .                               ,imin   ,imax
      .                               ,jmin   ,jmax
      .                               ,kmin   ,kmax)
@@ -2421,7 +2423,7 @@ c     Begin program
 
                     v_cov(i,j,k,id) = 0d0
 
-                    cnv = XformToCnv_stg_ijk(gbc_def,i,j,k,igxbc,v_cov)
+                    cnv =XformToCnv_stg_ijk(gbc_def,i,j,k,igxbc,v_cov)
                     v_cov(i,j,k,id) =(v_cnv(i,j,k,id) - cnv(id))/gsup
                   enddo
                 enddo
@@ -2431,7 +2433,7 @@ c     Begin program
               do k=kmin,kmax
                 do j=jmin,jmax
                   do i=imin,imax
-                    cnv = XformToCnv_stg_ijk(gbc_def,i,j,k,igxbc,v_cov)
+                    cnv =XformToCnv_stg_ijk(gbc_def,i,j,k,igxbc,v_cov)
                     v_cnv(i,j,k,ic1) = cnv(ic1)
                     v_cnv(i,j,k,ic2) = cnv(ic2)
                   enddo
@@ -2533,7 +2535,7 @@ c     End program
 c     imposeBConVector_stg_ez
 c     #################################################################
       subroutine imposeBConVector_stg_ez(gbc_def,igrid,vec,is_cnv,bcnd
-     .                                  ,iorder)
+     .                                  ,iorder,fcomp,vec0)
 c     -----------------------------------------------------------------
 c     Imposes BC on vector field (easy interface: no cov-cnv coupling)
 c     -----------------------------------------------------------------
@@ -2545,18 +2547,21 @@ c     Call variables
       type(grid_mg_def),pointer :: gbc_def
 
       integer :: bcnd(:,:),igrid,iorder
-      real(8) :: vec (0:,0:,0:,:)
+      real(8) :: vec(0:,0:,0:,:)
 
       logical :: is_cnv
+
+      integer,optional :: fcomp
+      real(8),optional,target :: vec0(0:,0:,0:,:)
 
 c     Local variables
 
       integer :: i,j,k,imax,imin,jmax,jmin,kmax,kmin,nx,ny,nz
       integer :: ncomp,ivar,ibc,loc,dim,bctype,xtrap_o
-     .          ,ilmin,jlmin,klmin,ilmax,jlmax,klmax
+     .          ,ilmin,jlmin,klmin,ilmax,jlmax,klmax,fcmp
       logical :: petsc__bc,flg_sc
 
-      real(8),pointer :: vec0(:,:,:,:)
+      real(8),pointer :: vec_0(:,:,:,:)
 
 #if defined(petsc)
       type(petsc_da_ctx),pointer :: da_ctx
@@ -2574,6 +2579,12 @@ c     Begin program
         flg_sc = .true.
       endif
 
+      if (PRESENT(fcomp)) then
+        fcmp = fcomp
+      else
+        fcmp = 0
+      endif
+
 c     Initialize BC grid quantities
 
       nx = size(vec,1)-2
@@ -2581,8 +2592,12 @@ c     Initialize BC grid quantities
       nz = size(vec,3)-2
       ncomp = size(vec,4)
 
-      allocate(vec0(0:nx+1,0:ny+1,0:nz+1,3))
-      vec0 = 0d0
+      if (PRESENT(vec0)) then
+        vec_0 => vec0
+      else
+        allocate(vec_0(0:nx+1,0:ny+1,0:nz+1,3))
+        vec_0 = 0d0
+      endif
 
 c     Initialize GLOBAL limits
 
@@ -2651,8 +2666,8 @@ c     Impose physical BCs
 
             do ivar = 1,ncomp
               if (abs(bcnd(ibc,ivar)) == bctype) then
-                call FillGhostNodes_vec(gbc_def,0,ivar,ncomp,dim,loc
-     .                                 ,bctype,vec,vec0,cnv=is_cnv)
+                call FillGhostNodes_vec(gbc_def,fcmp,ivar,ncomp,dim,loc
+     .                                 ,bctype,vec,vec_0,cnv=is_cnv)
               endif
             enddo
 
@@ -2681,7 +2696,11 @@ c     Periodic boundary synchronizing
       call sync_bc(.false.)
 #endif
 
-      deallocate(vec0)
+      if (PRESENT(vec0)) then
+        nullify(vec_0)
+      else
+        deallocate(vec_0)
+      endif
 
 c     End program
 
@@ -2689,30 +2708,6 @@ c     End program
       if (flg_sc) skip_corners=.false. !Reset skip_corners
 
       contains
-
-c$$$c     sync_bc
-c$$$c     #################################################################
-c$$$      subroutine sync_bc(bctype)
-c$$$
-c$$$      implicit none
-c$$$
-c$$$      integer,INTENT(IN) :: bctype
-c$$$
-c$$$      do dim=1,3
-c$$$        do loc=0,1
-c$$$          ibc = (1+loc)+2*(dim-1)
-c$$$
-c$$$          do ivar = 1,ncomp
-c$$$            if (abs(bcnd(ibc,ivar)) == bctype) then
-c$$$              call FillGhostNodes_vec(gbc_def,0,ivar,ncomp,dim,loc
-c$$$     .                               ,bctype,vec,vec0,cnv=is_cnv)
-c$$$            endif
-c$$$          enddo
-c$$$
-c$$$        enddo
-c$$$      enddo
-c$$$
-c$$$      end subroutine sync_bc
 
 c     sync_bc
 c     #################################################################
@@ -2765,7 +2760,7 @@ c     Begin program
 c     fillGhostNodes_scl
 c     ###############################################################
       subroutine fillGhostNodes_scl(gbc_def,ieq,ivar,dim,loc,bctype
-     .                             ,array,array0,cnv)
+     .                             ,array,array0)
 
 c     ---------------------------------------------------------------
 c     Sets adequate boundary conditions on array.
@@ -2778,7 +2773,6 @@ c       * loc    -> location in dimension (0 -> right, 1 -> left)
 c       * bctype -> type of BC (dirichlet, neumann, periodic, etc.)
 c       * array  -> real array with ghost-nodes
 c       * array0 -> auxiliary real array
-c       * cnv    -> whether vector components are contravariant (optional)
 c     ---------------------------------------------------------------
 
       implicit none       !For safe fortran
@@ -2790,7 +2784,6 @@ c     Call variables
       integer    :: ieq,dim,loc,bctype,ivar
       real(8)    :: array (0:,0:,0:)
      .             ,array0(0:,0:,0:)
-      logical,optional :: cnv
 
 c     Local variables
 
@@ -2808,14 +2801,6 @@ c     Local variables
      .              ,arr0(0:,0:,0:)
         end subroutine scalarDirichletBC
 
-        subroutine vectorDirichletBC(g_def,i,arr,arr0,ieq,dim,loc,order)
-          use grid_def_st
-          type(grid_mg_def),pointer :: g_def
-          integer :: ieq,dim,loc,order,i
-          real(8) :: arr (0:,0:,0:,:)
-     .              ,arr0(0:,0:,0:,:)
-        end subroutine vectorDirichletBC
-
         subroutine scalarNeumannBC(g_def,arr,arr0,ieq,dim,loc)
           use grid_def_st
           type(grid_mg_def),pointer :: g_def
@@ -2823,23 +2808,9 @@ c     Local variables
           real(8) :: arr (0:,0:,0:)
      .              ,arr0(0:,0:,0:)
         end subroutine scalarNeumannBC
-
-        subroutine vectorNeumannBC(g_def,i,arr,arr0,ieq,dim,loc)
-          use grid_def_st
-          type(grid_mg_def),pointer :: g_def
-          integer :: ieq,dim,loc,i
-          real(8) :: arr (0:,0:,0:,:)
-     .              ,arr0(0:,0:,0:,:)
-        end subroutine vectorNeumannBC
       END INTERFACE
 
 c     Begin program
-
-      if (PRESENT(cnv)) then
-        cov = .not.cnv
-      else
-        cov = .false.
-      endif
 
       ibc = (1+loc)+2*(dim-1)
       
@@ -5921,7 +5892,8 @@ c     setMGBC_stg
 c     ###############################################################
       subroutine setMGBC_stg(gbc_def,gpos,neq,nnx,nny,nnz,iig,array,bcnd
      .                  ,arr_cov,arr0,icomp,is_cnv,is_vec,is_curv
-     .                  ,result_is_curv,out_iscnv,out_iscurv,iorder)
+     .                  ,result_is_curv,out_iscnv,out_iscurv,iorder
+     .                  ,force_top_bc)
 c     ---------------------------------------------------------------
 c     Interfaces staggered vector BC routines with MG code, for 
 c     preconditioning.
@@ -5985,6 +5957,7 @@ c     Call variables
       integer,optional,intent(IN) :: icomp(max(neq,3)/3),iorder
 
       logical,optional,intent(IN) ::is_cnv,is_vec,is_curv,result_is_curv
+     .                             ,force_top_bc
       logical,optional,intent(OUT)::out_iscnv,out_iscurv
 
       type(grid_mg_def),pointer :: gbc_def
@@ -6111,15 +6084,6 @@ c     Select operation
      .              ,array(:,:,:,1+3*(ieq-1):3*ieq),'car',cvec)
         enddo
 
-c$$$        do ieq=1,neql/3
-c$$$          call transformVector(iig,iig,iig
-c$$$     .         ,imnl-1,imxl+1,jmnl-1,jmxl+1,kmnl-1,kmxl+1
-c$$$     .   ,array(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,1+3*(ieq-1))
-c$$$     .   ,array(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,2+3*(ieq-1))
-c$$$     .   ,array(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,3+3*(ieq-1))
-c$$$     .                          ,'car',cvec)
-c$$$        enddo
-
       endif
 
       if (PRESENT(arr_cov)) then
@@ -6159,7 +6123,8 @@ c$$$        enddo
      .          ,bcnd (:    ,1+3*(ieq-1):3*ieq)
      .          ,iig,iig,iig
      .          ,i1=imng,i2=imxg,j1=jmng,j2=jmxg,k1=kmng,k2=kmxg
-     .          ,is_cnv=iscnv,is_vec=.true.,iorder=order)
+     .          ,is_cnv=iscnv,iorder=order
+     .          ,force_top_bc=force_top_bc)
       enddo
 
       if (.not.PRESENT(arr0)) deallocate(vv0)
@@ -6178,18 +6143,6 @@ c$$$        enddo
           call  XformVector_stg_mesh2(gbc_def,iig
      .              ,array(:,:,:,1+3*(ieq-1):3*ieq),cvec,'car')
         enddo
-          
-c$$$        call pstop('setMGBC_stg'
-c$$$     $       ,'Staggered transformation to Cartesian not implemented')
-
-c$$$        do ieq=1,neql/3
-c$$$          call transformVector(iig,iig,iig
-c$$$     .         ,imnl-1,imxl+1,jmnl-1,jmxl+1,kmnl-1,kmxl+1
-c$$$     .   ,array(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,1+3*(ieq-1))
-c$$$     .   ,array(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,2+3*(ieq-1))
-c$$$     .   ,array(imnl-1:imxl+1,jmnl-1:jmxl+1,kmnl-1:kmxl+1,3+3*(ieq-1))
-c$$$     .                        ,cvec,'car')
-c$$$        enddo
 
       endif
 
