@@ -5087,7 +5087,7 @@ c     Begin program
         end do
 
         !Copy next
-!$OMP DO PRIVATE(ijk,ip,ipl,k,kl) schedule(static,2)
+!$OMP DO PRIVATE(ijk,ip,ipl,k,kl,i,j) schedule(static,2)
 !$OMP.REDUCTION (+:Np_cell)
         do ipc=nip+1,Np
           ijk = spcs(isp)%pcles(ipc)%ijk_np
