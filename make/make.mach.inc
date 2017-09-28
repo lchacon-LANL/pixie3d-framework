@@ -1030,13 +1030,13 @@ endif
 
 ifeq ($(findstring cn,$(HOST)),cn)
   FC = ifort
-  M_ARCH = core-avx2
+#  M_ARCH = core-avx2
   LIBS += -llapack -lblas
 endif
 
 ifeq ($(findstring darwin,$(HOST)),darwin)
   FC = ifort
-  M_ARCH = core-avx2
+#  M_ARCH = core-avx2
   LIBS += -llapack -lblas
 endif
 
