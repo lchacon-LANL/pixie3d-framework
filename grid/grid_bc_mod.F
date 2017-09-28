@@ -5892,8 +5892,7 @@ c     setMGBC_stg
 c     ###############################################################
       subroutine setMGBC_stg(gbc_def,gpos,neq,nnx,nny,nnz,iig,array,bcnd
      .                  ,arr_cov,arr0,icomp,is_cnv,is_vec,is_curv
-     .                  ,result_is_curv,out_iscnv,out_iscurv,iorder
-     .                  ,force_top_bc)
+     .                  ,result_is_curv,out_iscnv,out_iscurv,iorder)
 c     ---------------------------------------------------------------
 c     Interfaces staggered vector BC routines with MG code, for 
 c     preconditioning.
@@ -5957,7 +5956,6 @@ c     Call variables
       integer,optional,intent(IN) :: icomp(max(neq,3)/3),iorder
 
       logical,optional,intent(IN) ::is_cnv,is_vec,is_curv,result_is_curv
-     .                             ,force_top_bc
       logical,optional,intent(OUT)::out_iscnv,out_iscurv
 
       type(grid_mg_def),pointer :: gbc_def
@@ -6123,8 +6121,7 @@ c     Select operation
      .          ,bcnd (:    ,1+3*(ieq-1):3*ieq)
      .          ,iig,iig,iig
      .          ,i1=imng,i2=imxg,j1=jmng,j2=jmxg,k1=kmng,k2=kmxg
-     .          ,is_cnv=iscnv,iorder=order
-     .          ,force_top_bc=force_top_bc)
+     .          ,is_cnv=iscnv,iorder=order)
       enddo
 
       if (.not.PRESENT(arr0)) deallocate(vv0)
