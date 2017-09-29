@@ -549,22 +549,15 @@ c     Initialize local registers
 c     Also define some insets of arrays for later use (C. Mikida)
       !VECTOR SIMD
       do i=1,_Npg
-         DtA_1(i,:,:) = real(DtA(i0(i)-1:i0(i)  , j0(i)-1:j0(i)+1, 1)
-     $                      ,_prec)
-         DtA_2(i,:,:) = real(DtA(i0(i)-1:i0(i)+1, j0(i)-1:j0(i)  , 2)
-     $                      ,_prec)
-         DtA_3(i,:,:) = real(DtA(i0(i)-1:i0(i)+1, j0(i)-1:j0(i)+1, 3)
-     $                      ,_prec)
+         DtA_1(i,:,:) = DtA(i0(i)-1:i0(i)  , j0(i)-1:j0(i)+1, 1)
+         DtA_2(i,:,:) = DtA(i0(i)-1:i0(i)+1, j0(i)-1:j0(i)  , 2)
+         DtA_3(i,:,:) = DtA(i0(i)-1:i0(i)+1, j0(i)-1:j0(i)+1, 3)
 
-         A_1(i,:,:)   = real(A(i0(i)-1:i0(i)  , j0(i)-1:j0(i)+1, 1)
-     $                      ,_prec)
-         A_2(i,:,:)   = real(A(i0(i)-1:i0(i)+1, j0(i)-1:j0(i)  , 2)
-     $                      ,_prec)
-         A_3(i,:,:)   = real(A(i0(i)-1:i0(i)+1, j0(i)-1:j0(i)+1, 3)
-     $                      ,_prec)
+         A_1(i,:,:)   = A(i0(i)-1:i0(i)  , j0(i)-1:j0(i)+1, 1)
+         A_2(i,:,:)   = A(i0(i)-1:i0(i)+1, j0(i)-1:j0(i)  , 2)
+         A_3(i,:,:)   = A(i0(i)-1:i0(i)+1, j0(i)-1:j0(i)+1, 3)
 
-         phi_loc(i,:,:) = real(phi(i0(i)-1:i0(i)+1,j0(i)-1:j0(i)+1)
-     $                        ,_prec)
+         phi_loc(i,:,:) = phi(i0(i)-1:i0(i)+1,j0(i)-1:j0(i)+1)
 
          E_1(i,:,:) =-DtA_1(i,:,:)
      .               -(phi_loc(i,2:3,:)-phi_loc(i,1:2,:))*ihx
@@ -587,11 +580,7 @@ c     Initialize Picard
 
       substeps = 0
 
-#if _prec == 8
-      do while(dx_err > 1d-13 .and. it<500) 
-#else
-      do while(dx_err > 1e-6  .and. it<500) 
-#endif
+      do
         it = it+1
 
         vh_k = vh
@@ -601,14 +590,30 @@ c     Initialize Picard
 
         call Boris_solve(it,x0_loc,v0_loc,dx,vh,dt_sub)
 
-        !Check convergence (very expensive!!!; needs optimization)
+        !Check convergence
+        if (it < 3) cycle  !Do at least 3 iterations w/o checking conv.
+
+        !very expensive!!!
 #if defined(L1_NORM)
-        dx_err = sum(abs(dx-dx_k))
-        dx_err = dx_err + sum(abs(vh-vh_k))
+        dx_err = 0d0
+        do i=1,_Npg
+           dx_err = max(dx_err, abs(dx(i,1)-dx_k(i,1))
+     $                         +abs(dx(i,2)-dx_k(i,2))
+     $                         +abs(dx(i,3)-dx_k(i,3))
+     $                         +abs(vh(i,1)-vh_k(i,1))
+     $                         +abs(vh(i,2)-vh_k(i,2))
+     $                         +abs(vh(i,3)-vh_k(i,3)))
+        enddo
 #else
 c$$$        dx_err = (sum(abs(dx-dx_k))
 c$$$     $           +sum(abs(vh-vh_k)))/(2*_Npg)
         dx_err = max(maxval(abs(dx-dx_k)),maxval(abs(vh-vh_k)))
+#endif
+
+#if _prec == 8
+        if (dx_err < 1d-13 .or. it>500) exit
+#else
+        if (dx_err < 1d-6  .or. it>500) exit
 #endif
       end do             
 
@@ -1054,11 +1059,38 @@ c     Find B
       
       dum1 = 0.5d0*dtau
 
+      !VECTOR SIMD
       do i=1,_Npg
          Az_nuh(i,:,:) = Az_nu0(i,:,:) + DtA_3(i,:,:)*dum1(i)
+      enddo
+
+      !VECTOR SIMD
+      do i=1,_Npg
          Ay_nuh(i,:,:) = Ay_nu0(i,:,:) + DtA_2(i,:,:)*dum1(i)
+      enddo
+
+      !VECTOR SIMD
+      do i=1,_Npg
          Ax_nuh(i,:,:) = Ax_nu0(i,:,:) + DtA_1(i,:,:)*dum1(i)
       enddo
+
+c$$$      do j=1,3
+c$$$         do i=1,3
+c$$$            Az_nuh(:,i,j) = Az_nu0(:,i,j) + DtA_3(:,i,j)*dum1
+c$$$         enddo
+c$$$      enddo
+c$$$
+c$$$      do j=1,2
+c$$$         do i=1,3
+c$$$            Ay_nuh(:,i,j) = Ay_nu0(:,i,j) + DtA_2(:,i,j)*dum1
+c$$$         enddo
+c$$$      enddo
+c$$$
+c$$$      do j=1,3
+c$$$         do i=1,2
+c$$$            Ax_nuh(:,i,j) = Ax_nu0(:,i,j) + DtA_1(:,i,j)*dum1
+c$$$         enddo
+c$$$      enddo
 
       call opt_matvec_tr_pcle(Sx2,Az_nuh,dum3)
       call dot_product_3_pcle(dum3,DSy,dum1)
@@ -1156,7 +1188,13 @@ c     Find B
       !VECTOR SIMD
       do i=1,_Npg
          Az_nuh(i,:,:) = Az_nu0(i,:,:) + DtA_3(i,:,:)*dum1(i)
+      enddo
+      !VECTOR SIMD
+      do i=1,_Npg
          Ay_nuh(i,:,:) = Ay_nu0(i,:,:) + DtA_2(i,:,:)*dum1(i)
+      enddo
+      !VECTOR SIMD
+      do i=1,_Npg
          Ax_nuh(i,:,:) = Ax_nu0(i,:,:) + DtA_1(i,:,:)*dum1(i)
       enddo
 
