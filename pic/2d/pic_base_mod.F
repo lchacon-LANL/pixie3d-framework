@@ -450,7 +450,8 @@ c     ##################################################################
 
       implicit none
 
-      integer :: ijk(:),nx,i(:),j(:)
+      integer :: ijk(_Npg),nx,i(_Npg),j(_Npg)
+c$$$      integer :: ijk(:),nx,i(:),j(:)
 
       j = (ijk-1)/nx + 1
       i = ijk - nx*(j-1)
@@ -521,7 +522,7 @@ c     End program
 
       end function shape2_offset_scalar
 
-c     Dx_shape2_offset
+c     Dx_shape2_offset_scalar
 c     ##################################################################
       function Dx_shape2_offset_scalar(x) result(ss)
 
@@ -543,7 +544,7 @@ c     End program
 
       end function Dx_shape2_offset_scalar
 
-c     Dy_shape2_offset
+c     Dy_shape2_offset_scalar
 c     ##################################################################
       function Dy_shape2_offset_scalar(x) result(ss)
 
@@ -565,7 +566,7 @@ c     End program
 
       end function Dy_shape2_offset_scalar
 
-c     Dxx_shape2_offset
+c     Dxx_shape2_offset_scalar
 c     ##################################################################
       function Dxx_shape2_offset_scalar(x) result(ss)
 
@@ -587,7 +588,7 @@ c     End program
 
       end function Dxx_shape2_offset_scalar
 
-c     Dyy_shape2_offset
+c     Dyy_shape2_offset_scalar
 c     ##################################################################
       function Dyy_shape2_offset_scalar(x) result(ss)
 
@@ -654,7 +655,7 @@ c     End program
 
 c     Dx_shape2_offset
 c     ##################################################################
-      function Dx_shape2_offset(x) result(ss)
+      subroutine Dx_shape2_offset(x,ss)
 
       implicit none
 
@@ -672,11 +673,11 @@ c     Begin program
 
 c     End program
 
-      end function Dx_shape2_offset
+      end subroutine Dx_shape2_offset
 
 c     Dy_shape2_offset
 c     ##################################################################
-      function Dy_shape2_offset(x) result(ss)
+      subroutine Dy_shape2_offset(x,ss)
 
       implicit none
 
@@ -694,11 +695,11 @@ c     Begin program
 
 c     End program
 
-      end function Dy_shape2_offset
+      end subroutine Dy_shape2_offset
 
 c     Dxx_shape2_offset
 c     ##################################################################
-      function Dxx_shape2_offset(x) result(ss)
+      subroutine Dxx_shape2_offset(x,ss)
 
       implicit none
 
@@ -716,11 +717,11 @@ c     Begin program
 
 c     End program
 
-      end function Dxx_shape2_offset
+      end subroutine Dxx_shape2_offset
 
 c     Dyy_shape2_offset
 c     ##################################################################
-      function Dyy_shape2_offset(x) result(ss)
+      subroutine Dyy_shape2_offset(x,ss)
 
       implicit none
 
@@ -738,11 +739,10 @@ c     Begin program
 
 c     End program
 
-      end function Dyy_shape2_offset
+      end subroutine Dyy_shape2_offset
 
 c     Optimized matrix dot product (2) (C. Mikida)
 c     ##################################################################
-cc      function dot_product_2_pcle(A,B) result(C)
       subroutine dot_product_2_pcle(A,B,C)
 
       implicit none
@@ -764,11 +764,9 @@ c     Local variables
       end do
 
       end subroutine dot_product_2_pcle
-cc      end function dot_product_2_pcle
 
 c     Optimized matrix dot product (3) (C. Mikida)
 c     ##################################################################
-cc      function dot_product_3_pcle(A,B) result(C)
       subroutine dot_product_3_pcle(A,B,C)
 
       implicit none
@@ -793,11 +791,9 @@ c     Local variables
       end do
 
       end subroutine dot_product_3_pcle
-cc      end function dot_product_3_pcle
 
 c     Optimized matrix-vector multiplication (2) (C. Mikida)
 c     ##################################################################
-cc      function opt_matvec_2_pcle(A,B) result(C)
       subroutine opt_matvec_2_pcle(A,B,C)
 
       implicit none
@@ -824,7 +820,6 @@ c     Local variables
       end do
  
       end subroutine opt_matvec_2_pcle
-cc      end function opt_matvec_2_pcle
 
 c     Optimized matrix-vector multiplication (2) (C. Mikida)
 c     ##################################################################
@@ -1441,10 +1436,10 @@ c     Begin program
 
 c     Tangential vectors (2D for now)
 
-      call  shape2_offset(xlog(:,1),Sx2)
-      call  shape2_offset(xlog(:,2),Sy2)
-      DSx = Dx_shape2_offset(xlog(:,1))
-      DSy = Dy_shape2_offset(xlog(:,2))
+      call    shape2_offset(xlog(:,1),Sx2)
+      call    shape2_offset(xlog(:,2),Sy2)
+      call Dx_shape2_offset(xlog(:,1),DSx)
+      call Dy_shape2_offset(xlog(:,2),DSy)
 
       !VECTOR SIMD
       do k=1,_Npg
@@ -1514,8 +1509,8 @@ c     -----------------------------------------------------------------
       gamma = 0d0
 
       !Gamma(:,1,2)
-      DSxx = Dxx_shape2_offset(xlog(:,1))
-      DSyy = Dyy_shape2_offset(xlog(:,2))
+      call Dxx_shape2_offset(xlog(:,1),DSxx)
+      call Dyy_shape2_offset(xlog(:,2),DSyy)
 c$$$         DSxx(1,:)=Dxx_shape2_offset_scalar(xlog(1))
 c$$$         DSyy(1,:)=Dyy_shape2_offset_scalar(xlog(2))
 c$$$
@@ -4364,10 +4359,10 @@ c     ##################################################################
 
 c     Call variables
 
-      real(_prec),intent(in)    :: dx(:,:)
-      real(_prec),intent(inout) :: xnp(:,:)
-      real(_prec),intent(inout) :: vnp(:,:)
-      integer,intent(inout) :: inp(:),jnp(:)
+      real(_prec),intent(in)    :: dx(_Npg,3)
+      real(_prec),intent(inout) :: xnp(_Npg,3)
+      real(_prec),intent(inout) :: vnp(_Npg,3)
+      integer,intent(inout) :: inp(_Npg),jnp(_Npg)
 
 c     Local variables
 

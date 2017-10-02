@@ -56,7 +56,7 @@ c     Local variables
       real(_prec) :: x_nh(_Npg,3)
 
       real(_prec) :: dt_sub(_Npg),dtp(_Npg)
-      real(_prec) :: v0(_Npg,3),dx(_Npg,3)!,x0(_Npg,3)
+      real(_prec) :: v0(_Npg,3),dx(_Npg,3)
       real(_prec) :: xp(_Npg),yp(_Npg),xfp(_Npg),yfp(_Npg)
      .              ,v2(_Npg),w_pcle(_Npg),m_sp,q_sp
 
@@ -178,29 +178,12 @@ c     Move particles
            do while(maxval(dtp)>0)
              it = it+1
 
-c$$$             if(isp==1.and.ipc==8179) then
-c$$$               print *,isp,ipc
-c$$$               print *,"xn ",pcle_nu%x_n
-c$$$               print *,"vn ",pcle_nu%v_n
-c$$$               print *
-c$$$             end if
-
              !Perform pcle substep
              call ACC_CN_incell_offset(spcs(isp)%q_m
      .                                ,spcs(isp)%pcles(ipc),pcle_nu
      $                                ,dt,dtp,dt_sub
      $                                ,DtA,B0,A,phi,dx
      $                                ,psts,pits)
-
-c$$$             !Check convergence
-c$$$             if(isp==1.and.ipc==8179) then
-c$$$               print *,isp,ipc,it,i0,j0,pits,psts
-c$$$               print *,"time",dt_sub,dtp
-c$$$               print *,"dx ",dx
-c$$$               print *,"xnp",spcs(isp)%pcles(ipc)%x_np
-c$$$               print *,"vnp",spcs(isp)%pcles(ipc)%v_np
-c$$$               print *
-c$$$             end if
 
              !Update pcle counters
              pst_sum = pst_sum + 1      !Particle substep counter
@@ -474,8 +457,8 @@ c     Call variables
       real(8),intent(in) :: dt,q_m
       real(8),intent(in) :: A(0:,0:,:),phi(0:,0:),DtA(0:,0:,:),B0(3)
 
-      real(_prec),intent(inout) :: dtp(:)
-      real(_prec),intent(out)   :: dt_sub(:),dx(:,:)
+      real(_prec),intent(inout) :: dtp(_Npg)
+      real(_prec),intent(out)   :: dt_sub(_Npg),dx(_Npg,3)
 
       integer,intent(out):: substeps,it
 
@@ -491,35 +474,29 @@ c     Local variables
       real(_prec), parameter :: eps  = 1d-12 !Buffer for dt computation in pcle Xing
      .                         ,eps2 = 1d-8  !Buffer for pcle Xing
 
-      real(_prec) :: ptola,alpha=0d0
+      real(_prec) :: ptola,alpha=0d0,dt_coeff=0.2
 
       real(_prec) :: am(_Npg,_Dim)
 
       real(_prec) :: x_k(_Npg),x_nh(_Npg),y_nh(_Npg),d_err(_Npg)
       real(_prec) :: dx_k(_Npg,3),vh_k(_Npg,3),dx_err
       
-      real(_prec) :: Ax_nu0(_Npg,2,3),Ay_nu0(_Npg,3,2),Az_nu0(_Npg,3,3)
-     $              ,Ax_nuh(_Npg,2,3),Ay_nuh(_Npg,3,2),Az_nuh(_Npg,3,3)
-     $              ,ac0(_Npg,3),v0curv(_Npg,3)
+      real(_prec) :: ac0(_Npg,3),v0curv(_Npg,3),vh(_Npg,3),vhes(_Npg,3)
+     $              ,vhcurv(_Npg,3)
 
-      real(_prec) :: Omegac(_Npg),omb(_Npg),dt_coeff=0.2, Bmax(_Npg)
-      real(_prec) :: vh(_Npg,3)
-
-      real(_prec) :: qm(_Npg) 
-
-      real(_prec) :: vhes(_Npg,3)
-      real(_prec) :: vdotB(_Npg)
+      real(_prec) :: Omegac(_Npg),omb(_Npg),qm(_Npg),dum1(_Npg)
+     $              ,Bmax(_Npg),vdotB(_Npg)
 
       real(_prec) :: Ep(_Npg,3),Bp(_Npg,3)
-      real(_prec) :: vhcurv(_Npg,3)
       real(_prec) :: xnp(_Npg),ynp(_Npg)
       real(_prec) :: dxl(_Npg,2),dxr(_Npg,2)
 
-      real(_prec) :: DtA_1(_Npg,2,3), DtA_2(_Npg,3,2), DtA_3(_Npg,3,3)
-      real(_prec) :: E_1(_Npg,2,3), E_2(_Npg,3,2), E_3(_Npg,3,3)
-      real(_prec) :: A_1(_Npg,2,3), A_2(_Npg,3,2), A_3(_Npg,3,3)
-      real(_prec) :: phi_loc(_Npg,3,3)
-      real(_prec) :: xnp_loc(_Npg,3),vnp_loc(_Npg,3)
+      real(_prec) :: DtA_1 (_Npg,2,3),DtA_2 (_Npg,3,2),DtA_3 (_Npg,3,3)
+      real(_prec) :: E_1   (_Npg,2,3),E_2   (_Npg,3,2),E_3   (_Npg,3,3)
+      real(_prec) :: A_1   (_Npg,2,3),A_2   (_Npg,3,2),A_3   (_Npg,3,3)
+      real(_prec) :: Ax_nuh(_Npg,2,3),Ay_nuh(_Npg,3,2),Az_nuh(_Npg,3,3)
+
+      real(_prec) :: phi_loc(_Npg,3,3),xnp_loc(_Npg,3),vnp_loc(_Npg,3)
       real(_prec) :: x0_loc(_Npg,3),v0_loc(_Npg,3)
       real(_prec) :: x0p(_Npg),y0p(_Npg)
       real(_prec) :: Sx2_o(_Npg,3),Sy2_o(_Npg,3)
@@ -547,6 +524,7 @@ c     Initialize local registers
       v0_loc = pcle_nu%v_n
 
 c     Also define some insets of arrays for later use (C. Mikida)
+
       !VECTOR SIMD
       do i=1,_Npg
          DtA_1(i,:,:) = DtA(i0(i)-1:i0(i)  , j0(i)-1:j0(i)+1, 1)
@@ -588,10 +566,21 @@ c     Initialize Picard
 
         substeps = substeps + _Npg
 
+        !Prepare vector potential at nu+1/2
+        dum1 = 0.5d0*(-2d0*dtp+dt+dt_sub)
+
+        !VECTOR SIMD
+        do i=1,_Npg
+           Ax_nuh(i,:,:) = A_1(i,:,:) + DtA_1(i,:,:)*dum1(i)
+           Ay_nuh(i,:,:) = A_2(i,:,:) + DtA_2(i,:,:)*dum1(i)
+           Az_nuh(i,:,:) = A_3(i,:,:) + DtA_3(i,:,:)*dum1(i)
+        enddo
+
+        !Perform Boris push
         call Boris_solve(it,x0_loc,v0_loc,dx,vh,dt_sub)
 
         !Check convergence
-        if (it < 3) cycle  !Do at least 3 iterations w/o checking conv.
+        if (mod(it,2) /= 0) cycle  !Check everyother iteration
 
         !very expensive!!!
 #if defined(L1_NORM)
@@ -734,23 +723,10 @@ c     Logical variables
 
 c     Begin program
 
-        dts   =1d-8     !Test timestep to estimate qtys
+        dts= 1d-8     !Test timestep to estimate qtys
 
         xp = x0_loc(:,1)*ihx
         yp = x0_loc(:,2)*ihy
-
-        !VECTOR SIMD
-        do i=1,_Npg
-           Az_nu0(i,:,:) =A_3(i,:,:)+DtA_3(i,:,:)*0.5d0*(-2d0*dtp(i)+dt)
-        end do 
-        !VECTOR SIMD
-        do i=1,_Npg
-           Ay_nu0(i,:,:) =A_2(i,:,:)+DtA_2(i,:,:)*0.5d0*(-2d0*dtp(i)+dt)
-        end do 
-        !VECTOR SIMD
-        do i=1,_Npg
-           Ax_nu0(i,:,:) =A_1(i,:,:)+DtA_1(i,:,:)*0.5d0*(-2d0*dtp(i)+dt)
-        end do 
 
 c     Initial acceleration
 
@@ -1034,8 +1010,8 @@ c     Begin program
       Sx2 = (Sx2_n+Sx2_o)*0.5d0
       Sy2 = (Sy2_n+Sy2_o)*0.5d0
 
-      DSx = Dx_shape2_offset(xhp(:,1))
-      DSy = Dy_shape2_offset(xhp(:,2))
+      call Dx_shape2_offset(xhp(:,1),DSx)
+      call Dy_shape2_offset(xhp(:,2),DSy)
 
       Sxd = (Sx2_n-Sx2_o)*0.5d0
       Syd = (Sy2_n-Sy2_o)*0.5d0
@@ -1057,41 +1033,6 @@ c     Find E
 
 c     Find B
       
-      dum1 = 0.5d0*dtau
-
-      !VECTOR SIMD
-      do i=1,_Npg
-         Az_nuh(i,:,:) = Az_nu0(i,:,:) + DtA_3(i,:,:)*dum1(i)
-      enddo
-
-      !VECTOR SIMD
-      do i=1,_Npg
-         Ay_nuh(i,:,:) = Ay_nu0(i,:,:) + DtA_2(i,:,:)*dum1(i)
-      enddo
-
-      !VECTOR SIMD
-      do i=1,_Npg
-         Ax_nuh(i,:,:) = Ax_nu0(i,:,:) + DtA_1(i,:,:)*dum1(i)
-      enddo
-
-c$$$      do j=1,3
-c$$$         do i=1,3
-c$$$            Az_nuh(:,i,j) = Az_nu0(:,i,j) + DtA_3(:,i,j)*dum1
-c$$$         enddo
-c$$$      enddo
-c$$$
-c$$$      do j=1,2
-c$$$         do i=1,3
-c$$$            Ay_nuh(:,i,j) = Ay_nu0(:,i,j) + DtA_2(:,i,j)*dum1
-c$$$         enddo
-c$$$      enddo
-c$$$
-c$$$      do j=1,3
-c$$$         do i=1,2
-c$$$            Ax_nuh(:,i,j) = Ax_nu0(:,i,j) + DtA_1(:,i,j)*dum1
-c$$$         enddo
-c$$$      enddo
-
       call opt_matvec_tr_pcle(Sx2,Az_nuh,dum3)
       call dot_product_3_pcle(dum3,DSy,dum1)
       Bp(:,1) = dum1 + B0(1)
@@ -1160,8 +1101,8 @@ c     Begin program
       call shape2_offset(xnp(:,2),Sy2_n)
       Sx2 = (Sx2_n+Sx2_o)*0.5d0
       Sy2 = (Sy2_n+Sy2_o)*0.5d0
-      DSx = Dx_shape2_offset(xhp(:,1))
-      DSy = Dy_shape2_offset(xhp(:,2))
+      call Dx_shape2_offset(xhp(:,1),DSx)
+      call Dy_shape2_offset(xhp(:,2),DSy)
 
 c     Find E
 
@@ -1182,21 +1123,6 @@ c     Find E
       Ep(:,3) = Ep(:,3) + dum1
 
 c     Find B
-
-      dum1 = 0.5d0*dtau
-
-      !VECTOR SIMD
-      do i=1,_Npg
-         Az_nuh(i,:,:) = Az_nu0(i,:,:) + DtA_3(i,:,:)*dum1(i)
-      enddo
-      !VECTOR SIMD
-      do i=1,_Npg
-         Ay_nuh(i,:,:) = Ay_nu0(i,:,:) + DtA_2(i,:,:)*dum1(i)
-      enddo
-      !VECTOR SIMD
-      do i=1,_Npg
-         Ax_nuh(i,:,:) = Ax_nu0(i,:,:) + DtA_1(i,:,:)*dum1(i)
-      enddo
 
       call opt_matvec_tr_pcle(Sx2,Az_nuh,dum3)
       call dot_product_3_pcle(dum3,DSy,dum1)
