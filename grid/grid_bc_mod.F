@@ -2680,7 +2680,7 @@ c     Fill edges
       xtrap_o = max(2,order)
 
       do ivar=1,ncomp
-        call fillEdges(gbc_def,vec(:,:,:,ivar),vec0(:,:,:,ivar)
+        call fillEdges(gbc_def,vec(:,:,:,ivar),vec_0(:,:,:,ivar)
      .                ,bcnd(:,ivar),xtrap_o)
       enddo
 
@@ -2729,7 +2729,7 @@ c     Begin program
           do ivar = 1,ncomp
             if (abs(bcnd(ibc,ivar)) == PER) then
               call FillGhostNodes_vec(gbc_def,0,ivar,ncomp,dim,loc
-     .                               ,PER,vec,vec0,cnv=is_cnv)
+     .                               ,PER,vec,vec_0,cnv=is_cnv)
             endif
           enddo
 
@@ -2746,7 +2746,7 @@ c     Begin program
           do ivar = 1,ncomp
             if (abs(bcnd(ibc,ivar)) /= PER) then
               call FillGhostNodes_vec(gbc_def,0,ivar,ncomp,dim,loc
-     .                               ,SYNC,vec,vec0,cnv=is_cnv)
+     .                               ,SYNC,vec,vec_0,cnv=is_cnv)
             endif
           enddo
 
