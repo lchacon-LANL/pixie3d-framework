@@ -1016,7 +1016,7 @@ c     Call variables
 c     Local variables
 
       integer :: ig,jg,kg,igrid,ip,im,jp,jm,kp,km,hx,hy,hz
-      real(8) :: dxx,dyy,dzz
+      real(8) :: idx,idy,idz
 
 c     Begin program
 
@@ -1028,13 +1028,16 @@ c     Begin program
       jm = j-1
       km = k-1
 
-      dxx = g_def%dxh(ig)
-      dyy = g_def%dyh(jg)
-      dzz = g_def%dzh(kg)
+      idx = 1d0/g_def%dxh(ig)
+      idy = 1d0/g_def%dyh(jg)
+      idz = 1d0/g_def%dzh(kg)
+      if (nx == 1) idx = 0d0
+      if (ny == 1) idy = 0d0
+      if (nz == 1) idz = 0d0
 
-      div =  (cnv(i,j,k,1)-cnv(im,j ,k ,1))/dxx
-     .      +(cnv(i,j,k,2)-cnv(i ,jm,k ,2))/dyy
-     .      +(cnv(i,j,k,3)-cnv(i ,j ,km,3))/dzz
+      div =  (cnv(i,j,k,1)-cnv(im,j ,k ,1))*idx
+     .      +(cnv(i,j,k,2)-cnv(i ,jm,k ,2))*idy
+     .      +(cnv(i,j,k,3)-cnv(i ,j ,km,3))*idz
 
       div = div/g_def%gmetric%grid(igrid)%jac(i,j,k)
       
@@ -1044,7 +1047,8 @@ c     End
 
 c     div_stg_mesh
 c     ###############################################################
-      function div_stg_mesh(g_def,igrid,curv,iscnv,bc) result(scl)
+      function div_stg_mesh(g_def,igrid,curv,iscnv,bc,bc_order)
+     .         result(scl)
 
 c     ---------------------------------------------------------------
 c     Calculates div of a staggered vector field in general
@@ -1064,6 +1068,7 @@ c     Call variables
      .          ,scl(0:size(curv,1)-1,0:size(curv,2)-1,0:size(curv,3)-1)
 
       logical,optional :: iscnv,bc
+      integer,optional :: bc_order
 
 c     Local variables
 
@@ -1078,6 +1083,7 @@ c     Local variables
      .               ,0:size(curv,3)-1)
 
       logical :: is_cnv,do_bc
+      integer :: bc_ord
 
 c     Begin program
 
@@ -1090,7 +1096,13 @@ c     Begin program
       if (PRESENT(bc)) then
         do_bc = bc
       else
-        do_bc = .false.
+        do_bc = PRESENT(bc_order)
+      endif
+
+      if (PRESENT(bc_order)) then
+        bc_ord = bc_order
+      else
+        bc_ord = 1
       endif
 
 c     Compute divergence
@@ -1134,7 +1146,7 @@ c     Apply topological BCs to divergence
         where(bcs == DEF) bcs = DIR
         zero = 0d0
         call setBC(g_def,1,nx,ny,nz,scl,zero,bcs
-     .            ,igrid,igrid,igrid,iorder=1)
+     .            ,igrid,igrid,igrid,iorder=bc_ord)
       endif
 
 c     End program
@@ -5246,7 +5258,8 @@ c     End program
 
 c     veclap_stg_mesh
 c     ###############################################################
-      function veclap_stg_mesh(g_def,igrid,cov,vol) result(veclap)
+      function veclap_stg_mesh(g_def,igrid,cov,vol,bc_order,apply_bc)
+     .         result(veclap)
 c     ---------------------------------------------------------------
 c     Calculates contravariant components of vector Laplacian for
 c     covariant vector representation satisfying div(lap(A)) =
@@ -5267,12 +5280,13 @@ c     Call variables
      .                 ,0:size(cov,3)-1
      .                 ,3)
 
-      logical,optional,intent(IN) :: vol
+      logical,optional,intent(IN) :: vol,apply_bc
+      integer,optional :: bc_order
 
 c     Local variables
 
-      integer :: bcs(6),nx,ny,nz,i,j,k
-      logical :: vol_wgt
+      integer :: bcs(6,3),nx,ny,nz,i,j,k
+      logical :: vol_wgt,do_bc
       real(8) :: divA(0:size(cov,1)-1
      .               ,0:size(cov,2)-1
      .               ,0:size(cov,3)-1)
@@ -5288,9 +5302,13 @@ c     Begin program
       vol_wgt = .false.
       if (PRESENT(vol)) vol_wgt = vol
 
+      do_bc = .false.
+      if (PRESENT(apply_bc)) do_bc = apply_bc
+  
 c     Compute div(cov)
 
-      divA = div_stg(g_def,igrid,cov,iscnv=.false.,bc=.true.)
+      divA = div_stg(g_def,igrid,cov,iscnv=.false.,bc=.true.
+     .              ,bc_order=bc_order)
 
 c     Assemble curl(curl) on the mesh
 
@@ -5298,9 +5316,9 @@ c     Assemble curl(curl) on the mesh
 
 c$$$      !Old way
 c$$$      veclap = 0d0
-c$$$      do k=1,nz
-c$$$        do j=1,ny
-c$$$          do i=1,nx
+c$$$      do k=0,nz
+c$$$        do j=0,ny
+c$$$          do i=0,nx
 c$$$            veclap(i,j,k,:)= -curlcurl_stg_ijk(g_def,i,j,k,nx,ny,nz
 c$$$     .                                        ,igrid,igrid,igrid,cov)
 c$$$          enddo
@@ -5325,6 +5343,15 @@ c     Assemble vector Laplacian on the mesh
           enddo
         enddo
       enddo
+
+      if (do_bc) then
+        call get_topol_bcs(bcs(:,1))
+        call get_topol_bcs(bcs(:,2))
+        call get_topol_bcs(bcs(:,3))
+        where(bcs == DEF) bcs = EXT
+        call setMGBC_stg(g_def,0,3,nx,ny,nz,igrid,veclap
+     .                  ,bcs,is_cnv=.true.,iorder=bc_order)
+      endif
 
 c     End program
 
@@ -8596,12 +8623,69 @@ c ######################################################################
 
         use grid_create
 
+        INTERFACE par_diff
+          module procedure par_diff_ijk,par_diff_mesh
+        end INTERFACE
+
       contains
 
-c     par_diff
+c     par_diff_mesh
+c     ###############################################################
+      function par_diff_mesh(g_def,igrid,arr,BB,par_order,method,vol
+     .                      ,tmp0) result(lap)
+
+c     ---------------------------------------------------------------
+c     Calculates grad(A) in general non-orthogonal coordinates. Is
+c     boundary-ready (can extrapolate). The vector A is
+c     covariant, and returns the contravariant component "comp".
+c     ---------------------------------------------------------------
+
+      implicit none           !For safe fortran
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
+
+      integer :: igrid,par_order
+
+      real(8) :: arr(0:,0:,0:)
+     .          ,lap(0:size(arr,1)-1,0:size(arr,2)-1,0:size(arr,3)-1)
+      real(8) :: BB(0:,0:,0:,:)
+
+      character(*) :: method
+
+      logical,optional :: vol
+      real(8),optional :: tmp0(0:size(arr,1)-1
+     .                        ,0:size(arr,2)-1
+     .                        ,0:size(arr,3)-1)
+
+c     Local variables
+
+      integer :: nx,ny,nz,i,j,k
+
+c     Begin program
+
+      nx = g_def%nxv(igrid)
+      ny = g_def%nyv(igrid)
+      nz = g_def%nzv(igrid)
+
+      do k=1,nz
+        do j=1,ny
+          do i=1,nx
+            lap(i,j,k)=par_diff_ijk(g_def,i,j,k,igrid,arr,BB,par_order
+     .                             ,method,vol=vol,tmp0=tmp0)
+          enddo
+        enddo
+      enddo
+
+c     End program
+
+      end function par_diff_mesh
+
+c     par_diff_ijk
 c     ################################################################
-      function par_diff(g_def,i,j,k,nx,ny,nz,igx,igy,igz,tmp,Bx,By,Bz
-     .                 ,par_order,method,vol,tmp0) result(par2)
+      function par_diff_ijk(g_def,i,j,k,igr,tmp,BB,par_order,method,vol
+     .                     ,tmp0) result(par2)
 c     ----------------------------------------------------------------
 c     Calculates div.(BB.grad) in 3D with 2nd or 4th order
 c     accuracy. Here:
@@ -8615,16 +8699,16 @@ c     Call variables
 
       type(grid_mg_def),pointer :: g_def
 
-      integer  :: i,j,k,nx,ny,nz,igx,igy,igz,par_order
-      real(8)  :: tmp(0:nx+1,0:ny+1,0:nz+1),par2
-      real(8)  :: Bx(0:nx+1,0:ny+1,0:nz+1)
-     .           ,By(0:nx+1,0:ny+1,0:nz+1)
-     .           ,Bz(0:nx+1,0:ny+1,0:nz+1)
+      integer  :: i,j,k,igr,par_order
+      real(8)  :: tmp(0:,0:,0:),par2
+      real(8)  :: BB(0:,0:,0:,:)
 
       character(*) :: method
 
       logical,optional :: vol
-      real(8),optional :: tmp0(0:nx+1,0:ny+1,0:nz+1)
+      real(8),optional :: tmp0(0:size(tmp,1)-1
+     .                        ,0:size(tmp,2)-1
+     .                        ,0:size(tmp,3)-1)
 
 c     Local variables
 
@@ -8632,11 +8716,14 @@ c     Local variables
      .           ,Fluxy(i-1:i,j-1:j,k-1:k)
      .           ,Fluxz(i-1:i,j-1:j,k-1:k)
 
-      real(8)  :: bx2,by2,bxby,dtx,dty,a1,a2,sgn,bb,flx0,flxp
-      integer  :: ii,jj,kk,ig,jg,kg
+      integer  :: nx,ny,nz,ig,jg,kg
       logical  :: vol_wgt,limited
 
 c     Begin program
+
+      nx = g_def%nxv(igr)
+      ny = g_def%nyv(igr)
+      nz = g_def%nzv(igr)
 
       Fluxx=0d0
       Fluxy=0d0
@@ -8649,15 +8736,18 @@ c     Find fluxes
 
       select case(par_order)
       case(2)                   !second order
-        call par_flux_2nd(g_def,i,j,k,nx,ny,nz,igx,igy,igz,tmp,Bx,By,Bz
+        call par_flux_2nd(g_def,i,j,k,nx,ny,nz,igr,igr,igr,tmp
+     .                   ,BB(:,:,:,1),BB(:,:,:,2),BB(:,:,:,3)
      .                   ,Fluxx,Fluxy,Fluxz,method,tmp0=tmp0)
       case(4)                   !fourth order, 5-pt stencil in co-directed dervs.
         limited = (trim(method) == 'sharma')
-        call par_flux_4th(g_def,i,j,k,nx,ny,nz,igx,igy,igz,tmp,Bx,By,Bz
+        call par_flux_4th(g_def,i,j,k,nx,ny,nz,igr,igr,igr,tmp
+     .                   ,BB(:,:,:,1),BB(:,:,:,2),BB(:,:,:,3)
      .                   ,Fluxx,Fluxy,Fluxz,limited=limited,stencil=5)
       case(-4) !fourth order, 7-pt stencil in co-directed dervs.
         limited = (trim(method) == 'sharma')
-        call par_flux_4th(g_def,i,j,k,nx,ny,nz,igx,igy,igz,tmp,Bx,By,Bz
+        call par_flux_4th(g_def,i,j,k,nx,ny,nz,igr,igr,igr,tmp
+     .                   ,BB(:,:,:,1),BB(:,:,:,2),BB(:,:,:,3)
      .                   ,Fluxx,Fluxy,Fluxz,limited=limited,stencil=7)
       case default
         write (*,*) 'Order not implemented'
@@ -8666,17 +8756,17 @@ c     Find fluxes
 
 c     Assemble fluxes
 
-      call getMGmap(g_def,i,j,k,igx,igy,igz,ig,jg,kg)
+      call getMGmap(g_def,i,j,k,igr,igr,igr,ig,jg,kg)
 
       par2 = (Fluxx(i,j,k)-Fluxx(i-1,j,k))/g_def%dxh(ig)
      .      +(Fluxy(i,j,k)-Fluxy(i,j-1,k))/g_def%dyh(jg)
      .      +(Fluxz(i,j,k)-Fluxz(i,j,k-1))/g_def%dzh(kg)
 
-      par2 = par2/g_def%gmetric%grid(igx)%jac(i,j,k)
+      par2 = par2/g_def%gmetric%grid(igr)%jac(i,j,k)
 
-      if (vol_wgt) par2=par2*g_def%gmetric%grid(igx)%dvol(i,j,k)
+      if (vol_wgt) par2=par2*g_def%gmetric%grid(igr)%dvol(i,j,k)
 
-      end function par_diff
+      end function par_diff_ijk
 
 c     par_flux_2nd
 c     ################################################################
@@ -10027,7 +10117,6 @@ c     Integrate
 
             integral = integral + array(i,j,k)*dvol
             !Averages in logical volume don't make sense
-cc            dvol = g_def%gmetric%grid(igx)%dvol(i,j,k)
             volume = volume + dvol
           enddo
         enddo
@@ -10052,7 +10141,6 @@ cc            dvol = g_def%gmetric%grid(igx)%dvol(i,j,k)
 
             integral = integral + array(i,j,k)*dvol
             !Averages in logical volume don't make sense
-cc            dvol = g_def%gmetric%grid(igx)%dvol(i,j,k)
             volume = volume + dvol
           enddo
         enddo
@@ -10077,7 +10165,6 @@ cc            dvol = g_def%gmetric%grid(igx)%dvol(i,j,k)
 
             integral = integral + array(i,j,k)*dvol
             !Averages in logical volume don't make sense
-cc            dvol = g_def%gmetric%grid(igx)%dvol(i,j,k)
             volume = volume + dvol
           enddo
         enddo
@@ -10102,7 +10189,6 @@ cc            dvol = g_def%gmetric%grid(igx)%dvol(i,j,k)
 
             integral = integral + array(i,j,k)*dvol
             !Averages in logical volume don't make sense
-cc            dvol = g_def%gmetric%grid(igx)%dvol(i,j,k)
             volume = volume + dvol
           enddo
         enddo

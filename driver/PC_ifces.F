@@ -290,7 +290,7 @@ c     Plot corresponding linear residual to PC solution
           if (my_rank == 0) then
             write (*,*)
             write (*,*) 'FPA RESIDUAL'
-            write (*,*) 'RMS res=',mag0
+            write (*,*) 'RMS dsol=',mag0
           endif
 
           call vec_plot_gl(gv%gparams,neqd,x,igrid,'res','Residual')
@@ -299,7 +299,7 @@ c     Plot corresponding linear residual to PC solution
           call scatterVector(yyy,x)
           do ieq=1,neqd
             mag = rms(yyy(:,ieq))
-            if (my_rank == 0) write (*,*) 'RMS residual eqn',ieq,':',mag
+            if (my_rank == 0) write (*,*) 'RMS sol update',ieq,':',mag
           enddo
 
         else

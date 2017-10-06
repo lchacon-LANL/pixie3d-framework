@@ -39,7 +39,7 @@ c     #################################################################
       subroutine get_grid_pack_config(gp)
 
 c     -----------------------------------------------------------------
-c     Computes slope for grid packing.
+c     Gets grid packing config
 c     -----------------------------------------------------------------
 
       implicit none
@@ -59,7 +59,7 @@ c     #################################################################
       function setup_grid_packing(map,gdef) result(map_grid_pack)
 
 c     -----------------------------------------------------------------
-c     Computes slope for grid packing.
+c     Sets up grid packing method
 c     -----------------------------------------------------------------
 
       implicit none
@@ -745,5 +745,29 @@ c     Convergence check
 c     End program
 
       end subroutine find_xi
+
+c     are_grid_packing
+c     #################################################################
+      function are_grid_packing(gdef) result(doing_grid_pack)
+
+c     -----------------------------------------------------------------
+c     Sets up grid packing method
+c     -----------------------------------------------------------------
+
+      implicit none
+
+      type(grid_mg_def),pointer :: gdef
+
+      logical :: doing_grid_pack
+
+c     Begin program
+
+        doing_grid_pack =  (    gdef%g_pack(1)%pack
+     .                      .or.gdef%g_pack(2)%pack
+     .                      .or.gdef%g_pack(3)%pack)
+
+c     End program
+
+      end function are_grid_packing
 
       end module grid_packing

@@ -140,7 +140,7 @@ ifeq ($(HOST),jetta)
       SPRNG_INC = $(SPRNG_SER_HOME)/include
     endif
 
-    NETCDF=f
+    NETCDF=t
     NETCDF_LIBS = -lnetcdff -lnetcdf
     NETCDF_INC  = -I/usr/include
 
@@ -278,7 +278,7 @@ ifeq ($(findstring quevedo,$(HOST)),quevedo)
 
   FC=gfortran
 
-  NETCDF=f
+  NETCDF=t
   NETCDF_LIBS = -L/opt/local/lib -lnetcdff -lnetcdf
   NETCDF_INC  = -I/opt/local/include
 
@@ -290,9 +290,9 @@ ifeq ($(findstring quevedo,$(HOST)),quevedo)
     PETSC_DIR =$(HOME)/Software/petsc-3.0.0-p7
 
     ifeq ($(BOPT),O)
-      PETSC_ARCH = macosx_gcc6.3.0_openmpi1.6.5_O
+      PETSC_ARCH = macosx_gcc6.3.0_openmpi1.10.3_O
     else
-      PETSC_ARCH = macosx_gcc6.3.0_openmpi1.6.5_g
+      PETSC_ARCH = macosx_gcc6.3.0_openmpi1.10.3_O
     endif
 
     HDF5 = t
@@ -938,7 +938,9 @@ ifeq ($(findstring wf,$(HOST)),wf)
 
   ifeq ($(findstring gfortran,$(FC)),gfortran)
 
-    NETCDF=f
+    NETCDF=t
+    NETCDF_LIBS = -lnetcdff -lnetcdf
+    NETCDF_INC  = -I/usr/include
 
     ifdef BOPT
      PETSC_DIR =/turquoise/usr/projects/magreconn/soft/petsc-3.0.0-p7
@@ -1028,13 +1030,13 @@ endif
 
 ifeq ($(findstring cn,$(HOST)),cn)
   FC = ifort
-  M_ARCH = core-avx2
+#  M_ARCH = core-avx2
   LIBS += -llapack -lblas
 endif
 
 ifeq ($(findstring darwin,$(HOST)),darwin)
   FC = ifort
-  M_ARCH = core-avx2
+#  M_ARCH = core-avx2
   LIBS += -llapack -lblas
 endif
 

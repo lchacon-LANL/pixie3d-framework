@@ -2119,8 +2119,6 @@ c     Local variables
         real(8) :: d_yy_jp,d_xy_imjp,d_yz_jpkp,d_yz_jpkm
         real(8) :: d_zz_kp,d_xz_imkp,d_yz_jmkp
 
-        real(8),pointer,dimension(:,:,:,:,:) :: gsup_v
-
 c     Begin program
 
         cnv = 0d0
@@ -2134,24 +2132,22 @@ c     Begin program
         kp = min(k+1,size(cov,3)-1)
         km = k-1
 
-        gsup_v => g_def%gmetric%grid(igrid)%gsup_v
-
         if (jm >= 0.and.km >= 0) then
           !i+1/2,j,k
-          d_xx_ip = 0.25*(gsup_v(i,j ,k ,1,1)
-     .                   +gsup_v(i,jm,k ,1,1)
-     .                   +gsup_v(i,j ,km,1,1)
-     .                   +gsup_v(i,jm,km,1,1))
+          d_xx_ip = 0.25*(g_def%gmetric%grid(igrid)%gsup_v(i,j ,k ,1,1)
+     .                   +g_def%gmetric%grid(igrid)%gsup_v(i,jm,k ,1,1)
+     .                   +g_def%gmetric%grid(igrid)%gsup_v(i,j ,km,1,1)
+     .                   +g_def%gmetric%grid(igrid)%gsup_v(i,jm,km,1,1))
 
-          d_xy_ipjp = 0.5*(gsup_v(i,j ,k ,1,2)
-     .                    +gsup_v(i,j ,km,1,2))
-          d_xy_ipjm = 0.5*(gsup_v(i,jm,k ,1,2)
-     .                    +gsup_v(i,jm,km,1,2))
+          d_xy_ipjp =0.5*(g_def%gmetric%grid(igrid)%gsup_v(i,j ,k ,1,2)
+     .                   +g_def%gmetric%grid(igrid)%gsup_v(i,j ,km,1,2))
+          d_xy_ipjm =0.5*(g_def%gmetric%grid(igrid)%gsup_v(i,jm,k ,1,2)
+     .                   +g_def%gmetric%grid(igrid)%gsup_v(i,jm,km,1,2))
 
-          d_xz_ipkp = 0.5*(gsup_v(i,j ,k ,1,3)
-     .                    +gsup_v(i,jm,k ,1,3))
-          d_xz_ipkm = 0.5*(gsup_v(i,j ,km,1,3)
-     .                    +gsup_v(i,jm,km,1,3))
+          d_xz_ipkp =0.5*(g_def%gmetric%grid(igrid)%gsup_v(i,j ,k ,1,3)
+     .                   +g_def%gmetric%grid(igrid)%gsup_v(i,jm,k ,1,3))
+          d_xz_ipkm =0.5*(g_def%gmetric%grid(igrid)%gsup_v(i,j ,km,1,3)
+     .                   +g_def%gmetric%grid(igrid)%gsup_v(i,jm,km,1,3))
 
           cnv(1) = d_xx_ip*cov(i,j,k,1)
      .           +0.25*d_xy_ipjp*(cov(i ,j ,k ,2)
@@ -2166,20 +2162,20 @@ c     Begin program
 
         if (im >= 0.and.km >= 0) then
           !i,j+1/2,k
-          d_xy_ipjp = 0.5*(gsup_v(i ,j,k ,1,2)
-     .                    +gsup_v(i ,j,km,1,2))
-          d_xy_imjp = 0.5*(gsup_v(im,j,k ,1,2)
-     .                    +gsup_v(im,j,km,1,2))
+          d_xy_ipjp =0.5*(g_def%gmetric%grid(igrid)%gsup_v(i ,j,k ,1,2)
+     .                   +g_def%gmetric%grid(igrid)%gsup_v(i ,j,km,1,2))
+          d_xy_imjp =0.5*(g_def%gmetric%grid(igrid)%gsup_v(im,j,k ,1,2)
+     .                   +g_def%gmetric%grid(igrid)%gsup_v(im,j,km,1,2))
 
-          d_yy_jp = 0.25*(gsup_v(i ,j,k ,2,2)
-     .                   +gsup_v(im,j,k ,2,2)
-     .                   +gsup_v(i ,j,km,2,2)
-     .                   +gsup_v(im,j,km,2,2))
+          d_yy_jp = 0.25*(g_def%gmetric%grid(igrid)%gsup_v(i ,j,k ,2,2)
+     .                   +g_def%gmetric%grid(igrid)%gsup_v(im,j,k ,2,2)
+     .                   +g_def%gmetric%grid(igrid)%gsup_v(i ,j,km,2,2)
+     .                   +g_def%gmetric%grid(igrid)%gsup_v(im,j,km,2,2))
 
-          d_yz_jpkp = 0.5*(gsup_v(i ,j,k ,2,3)
-     .                    +gsup_v(im,j,k ,2,3))
-          d_yz_jpkm = 0.5*(gsup_v(i ,j,km,2,3)
-     .                    +gsup_v(im,j,km,2,3))
+          d_yz_jpkp =0.5*(g_def%gmetric%grid(igrid)%gsup_v(i ,j,k ,2,3)
+     .                   +g_def%gmetric%grid(igrid)%gsup_v(im,j,k ,2,3))
+          d_yz_jpkm =0.5*(g_def%gmetric%grid(igrid)%gsup_v(i ,j,km,2,3)
+     .                   +g_def%gmetric%grid(igrid)%gsup_v(im,j,km,2,3))
 
           cnv(2) = d_yy_jp*cov(i,j,k,2)
      .        +0.25*d_xy_ipjp*(cov(i ,j ,k ,1)
@@ -2194,20 +2190,20 @@ c     Begin program
 
         if (im >= 0.and.jm >= 0) then
           !i,j,k+1/2
-          d_xz_ipkp = 0.5*(gsup_v(i ,j ,k,1,3)
-     .                    +gsup_v(i ,jm,k,1,3))
-          d_xz_imkp = 0.5*(gsup_v(im,j ,k,1,3)
-     .                    +gsup_v(im,jm,k,1,3))
+          d_xz_ipkp =0.5*(g_def%gmetric%grid(igrid)%gsup_v(i ,j ,k,1,3)
+     .                   +g_def%gmetric%grid(igrid)%gsup_v(i ,jm,k,1,3))
+          d_xz_imkp =0.5*(g_def%gmetric%grid(igrid)%gsup_v(im,j ,k,1,3)
+     .                   +g_def%gmetric%grid(igrid)%gsup_v(im,jm,k,1,3))
 
-          d_yz_jpkp = 0.5*(gsup_v(i ,j ,k,2,3)
-     .                    +gsup_v(im,j ,k,2,3))
-          d_yz_jmkp = 0.5*(gsup_v(i ,jm,k,2,3)
-     .                    +gsup_v(im,jm,k,2,3))
+          d_yz_jpkp =0.5*(g_def%gmetric%grid(igrid)%gsup_v(i ,j ,k,2,3)
+     .                   +g_def%gmetric%grid(igrid)%gsup_v(im,j ,k,2,3))
+          d_yz_jmkp =0.5*(g_def%gmetric%grid(igrid)%gsup_v(i ,jm,k,2,3)
+     .                   +g_def%gmetric%grid(igrid)%gsup_v(im,jm,k,2,3))
 
-          d_zz_kp = 0.25*(gsup_v(i ,j ,k,3,3)
-     .                   +gsup_v(im,j ,k,3,3)
-     .                   +gsup_v(i ,jm,k,3,3)
-     .                   +gsup_v(im,jm,k,3,3))
+          d_zz_kp = 0.25*(g_def%gmetric%grid(igrid)%gsup_v(i ,j ,k,3,3)
+     .                   +g_def%gmetric%grid(igrid)%gsup_v(im,j ,k,3,3)
+     .                   +g_def%gmetric%grid(igrid)%gsup_v(i ,jm,k,3,3)
+     .                   +g_def%gmetric%grid(igrid)%gsup_v(im,jm,k,3,3))
 
           cnv(3) = d_zz_kp*cov(i,j,k,3)
      .        +0.25*d_xz_ipkp*(cov(i ,j ,k ,1)
@@ -2248,8 +2244,6 @@ c     Local variables
         real(8) :: d_yy_jp,d_xy_imjp,d_yz_jpkp,d_yz_jpkm
         real(8) :: d_zz_kp,d_xz_imkp,d_yz_jmkp
 
-        real(8),pointer,dimension(:,:,:,:,:) :: gsub_v
-
 c     Begin program
 
         cov = 0d0
@@ -2263,24 +2257,22 @@ c     Begin program
         kp = min(k+1,size(cnv,3)-1)
         km = k-1
 
-        gsub_v => g_def%gmetric%grid(igrid)%gsub_v
-
         if (jm >= 0.and.km >= 0) then
           !i+1/2,j,k
-          d_xx_ip = 0.25*(gsub_v(i,j ,k ,1,1)
-     .                   +gsub_v(i,jm,k ,1,1)
-     .                   +gsub_v(i,j ,km,1,1)
-     .                   +gsub_v(i,jm,km,1,1))
+          d_xx_ip = 0.25*(g_def%gmetric%grid(igrid)%gsub_v(i,j ,k ,1,1)
+     .                   +g_def%gmetric%grid(igrid)%gsub_v(i,jm,k ,1,1)
+     .                   +g_def%gmetric%grid(igrid)%gsub_v(i,j ,km,1,1)
+     .                   +g_def%gmetric%grid(igrid)%gsub_v(i,jm,km,1,1))
 
-          d_xy_ipjp = 0.5*(gsub_v(i,j ,k ,1,2)
-     .                    +gsub_v(i,j ,km,1,2))
-          d_xy_ipjm = 0.5*(gsub_v(i,jm,k ,1,2)
-     .                    +gsub_v(i,jm,km,1,2))
+          d_xy_ipjp =0.5*(g_def%gmetric%grid(igrid)%gsub_v(i,j ,k ,1,2)
+     .                   +g_def%gmetric%grid(igrid)%gsub_v(i,j ,km,1,2))
+          d_xy_ipjm =0.5*(g_def%gmetric%grid(igrid)%gsub_v(i,jm,k ,1,2)
+     .                   +g_def%gmetric%grid(igrid)%gsub_v(i,jm,km,1,2))
 
-          d_xz_ipkp = 0.5*(gsub_v(i,j ,k ,1,3)
-     .                    +gsub_v(i,jm,k ,1,3))
-          d_xz_ipkm = 0.5*(gsub_v(i,j ,km,1,3)
-     .                    +gsub_v(i,jm,km,1,3))
+          d_xz_ipkp =0.5*(g_def%gmetric%grid(igrid)%gsub_v(i,j ,k ,1,3)
+     .                   +g_def%gmetric%grid(igrid)%gsub_v(i,jm,k ,1,3))
+          d_xz_ipkm =0.5*(g_def%gmetric%grid(igrid)%gsub_v(i,j ,km,1,3)
+     .                   +g_def%gmetric%grid(igrid)%gsub_v(i,jm,km,1,3))
 
           cov(1) = d_xx_ip*cnv(i,j,k,1)
      .           +0.25*d_xy_ipjp*(cnv(i ,j ,k ,2)
@@ -2295,20 +2287,20 @@ c     Begin program
 
         if (im >= 0.and.km >= 0) then
           !i,j+1/2,k
-          d_xy_ipjp = 0.5*(gsub_v(i ,j,k ,1,2)
-     .                    +gsub_v(i ,j,km,1,2))
-          d_xy_imjp = 0.5*(gsub_v(im,j,k ,1,2)
-     .                    +gsub_v(im,j,km,1,2))
+          d_xy_ipjp =0.5*(g_def%gmetric%grid(igrid)%gsub_v(i ,j,k ,1,2)
+     .                   +g_def%gmetric%grid(igrid)%gsub_v(i ,j,km,1,2))
+          d_xy_imjp =0.5*(g_def%gmetric%grid(igrid)%gsub_v(im,j,k ,1,2)
+     .                   +g_def%gmetric%grid(igrid)%gsub_v(im,j,km,1,2))
 
-          d_yy_jp = 0.25*(gsub_v(i ,j,k ,2,2)
-     .                   +gsub_v(im,j,k ,2,2)
-     .                   +gsub_v(i ,j,km,2,2)
-     .                   +gsub_v(im,j,km,2,2))
+          d_yy_jp = 0.25*(g_def%gmetric%grid(igrid)%gsub_v(i ,j,k ,2,2)
+     .                   +g_def%gmetric%grid(igrid)%gsub_v(im,j,k ,2,2)
+     .                   +g_def%gmetric%grid(igrid)%gsub_v(i ,j,km,2,2)
+     .                   +g_def%gmetric%grid(igrid)%gsub_v(im,j,km,2,2))
 
-          d_yz_jpkp = 0.5*(gsub_v(i ,j,k ,2,3)
-     .                    +gsub_v(im,j,k ,2,3))
-          d_yz_jpkm = 0.5*(gsub_v(i ,j,km,2,3)
-     .                    +gsub_v(im,j,km,2,3))
+          d_yz_jpkp =0.5*(g_def%gmetric%grid(igrid)%gsub_v(i ,j,k ,2,3)
+     .                   +g_def%gmetric%grid(igrid)%gsub_v(im,j,k ,2,3))
+          d_yz_jpkm =0.5*(g_def%gmetric%grid(igrid)%gsub_v(i ,j,km,2,3)
+     .                   +g_def%gmetric%grid(igrid)%gsub_v(im,j,km,2,3))
 
           cov(2) = d_yy_jp*cnv(i,j,k,2)
      .        +0.25*d_xy_ipjp*(cnv(i ,j ,k ,1)
@@ -2323,20 +2315,20 @@ c     Begin program
 
         if (im >= 0.and.jm >= 0) then
           !i,j,k+1/2
-          d_xz_ipkp = 0.5*(gsub_v(i ,j ,k,1,3)
-     .                    +gsub_v(i ,jm,k,1,3))
-          d_xz_imkp = 0.5*(gsub_v(im,j ,k,1,3)
-     .                    +gsub_v(im,jm,k,1,3))
+          d_xz_ipkp =0.5*(g_def%gmetric%grid(igrid)%gsub_v(i ,j ,k,1,3)
+     .                   +g_def%gmetric%grid(igrid)%gsub_v(i ,jm,k,1,3))
+          d_xz_imkp =0.5*(g_def%gmetric%grid(igrid)%gsub_v(im,j ,k,1,3)
+     .                   +g_def%gmetric%grid(igrid)%gsub_v(im,jm,k,1,3))
 
-          d_yz_jpkp = 0.5*(gsub_v(i ,j ,k,2,3)
-     .                    +gsub_v(im,j ,k,2,3))
-          d_yz_jmkp = 0.5*(gsub_v(i ,jm,k,2,3)
-     .                    +gsub_v(im,jm,k,2,3))
+          d_yz_jpkp =0.5*(g_def%gmetric%grid(igrid)%gsub_v(i ,j ,k,2,3)
+     .                   +g_def%gmetric%grid(igrid)%gsub_v(im,j ,k,2,3))
+          d_yz_jmkp =0.5*(g_def%gmetric%grid(igrid)%gsub_v(i ,jm,k,2,3)
+     .                   +g_def%gmetric%grid(igrid)%gsub_v(im,jm,k,2,3))
 
-          d_zz_kp = 0.25*(gsub_v(i ,j ,k,3,3)
-     .                   +gsub_v(im,j ,k,3,3)
-     .                   +gsub_v(i ,jm,k,3,3)
-     .                   +gsub_v(im,jm,k,3,3))
+          d_zz_kp = 0.25*(g_def%gmetric%grid(igrid)%gsub_v(i ,j ,k,3,3)
+     .                   +g_def%gmetric%grid(igrid)%gsub_v(im,j ,k,3,3)
+     .                   +g_def%gmetric%grid(igrid)%gsub_v(i ,jm,k,3,3)
+     .                   +g_def%gmetric%grid(igrid)%gsub_v(im,jm,k,3,3))
 
           cov(3) = d_zz_kp*cnv(i,j,k,3)
      .        +0.25*d_xz_ipkp*(cnv(i ,j ,k ,1)
@@ -2957,8 +2949,8 @@ c     XformVector_stg_mesh
 c     #################################################################
       function XformVector_stg_mesh(g_def,igrid,vec1,tocnv) result(vec2)
 c     -----------------------------------------------------------------
-c     Transforms a curvilinear vector from covariant to contravariant 
-c     (tocnv=.true.) or viceversa at cell centers on all mesh.
+c     Transforms a STAGGERED curvilinear vector from covariant to
+c     contravariant (tocnv=.true.) or viceversa
 c     -----------------------------------------------------------------
 
       implicit none
@@ -2994,8 +2986,7 @@ c     XformVector_stg_mesh2
 c     #################################################################
       subroutine XformVector_stg_mesh2(g_def,igrid,vec,in_repr,out_repr)
 c     -----------------------------------------------------------------
-c     Transforms a curvilinear vector from covariant to contravariant 
-c     (tocnv=.true.) or viceversa at cell centers on all mesh.
+c     Transforms a STAGGERED vector from one representation to another.
 c     -----------------------------------------------------------------
 
       implicit none

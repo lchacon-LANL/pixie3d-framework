@@ -44,7 +44,7 @@ cc     .            ,forward=.true. !Whether to go forward or backward in field 
 
 c     read_poinc_file
 c     #################################################################
-      subroutine read_poinc_file(file)
+      subroutine read_poinc_file(file,xmin,xmax,ymin,ymax,zmin,zmax)
 
         implicit none
 
@@ -55,6 +55,8 @@ c     -----------------------------------------------------------------
 c     Call variables
 
         character(*) :: file
+
+        real(8),INTENT(OUT) :: xmin,xmax,ymin,ymax,zmin,zmax
 
 c     Local variables
 
@@ -147,20 +149,15 @@ c     Begin program
         call poinc_domain_limits(yy,bcnd(3),pymin,pymax)
         call poinc_domain_limits(zz,bcnd(5),pzmin,pzmax)
 
+        xmin = pxmin
+        xmax = pxmax
+        ymin = pymin
+        ymax = pymax
+        zmin = pzmin
+        zmax = pzmax
+
         call createGrid(nxg,nyg,nzg,pxmin,pxmax,pymin,pymax,pzmin,pzmax
      .                 ,g_poinc)
-cc        call allocateGridStructure(1,1,1,1,1,1,nxg,nyg,nzg,g_poinc)
-cc
-cc        g_poinc%gxmin = xmin
-cc        g_poinc%gxmax = xmax
-cc        g_poinc%gymin = ymin
-cc        g_poinc%gymax = ymax
-cc        g_poinc%gzmin = zmin
-cc        g_poinc%gzmax = zmax
-cc
-cc        g_poinc%xg = xx
-cc        g_poinc%yg = yy
-cc        g_poinc%zg = zz
 
         call orbit_setup(g_poinc,1
      .                  ,bx,by,bz,bxcar,bycar,bzcar
@@ -196,7 +193,7 @@ c       Deallocate memory
 
 c     read_poinc_files
 c     ##############################################################
-      subroutine read_poinc_files(g_def,file)
+      subroutine read_poinc_files(file,xmin,xmax,ymin,ymax,zmin,zmax)
 
         implicit none
 
@@ -206,8 +203,9 @@ c     --------------------------------------------------------------
 
 c     Call variables
         
-        type(grid_mg_def),pointer :: g_def
         character(*) :: file
+
+        real(8),INTENT(OUT) :: xmin,xmax,ymin,ymax,zmin,zmax
 
 c     Local variables
 
@@ -241,22 +239,17 @@ c     Read POINCARE data
 
 c     Orbit initialization on global array
 
-        call createGrid(nxg,nyg,nzg,pxmin,pxmax,pymin,pymax,pzmin,pzmax
-     .                 ,g_def)
-cc        call allocateGridStructure(1,1,1,1,1,1,nxg,nyg,nzg,g_poinc)
-cc
-cc        g_poinc%gxmin = xmin
-cc        g_poinc%gxmax = xmax
-cc        g_poinc%gymin = ymin
-cc        g_poinc%gymax = ymax
-cc        g_poinc%gzmin = zmin
-cc        g_poinc%gzmax = zmax
-cc
-cc        g_poinc%xg = xx
-cc        g_poinc%yg = yy
-cc        g_poinc%zg = zz
+        xmin = pxmin
+        xmax = pxmax
+        ymin = pymin
+        ymax = pymax
+        zmin = pzmin
+        zmax = pzmax
 
-        call orbit_setup(g_def,1
+        call createGrid(nxg,nyg,nzg,pxmin,pxmax,pymin,pymax,pzmin,pzmax
+     .                 ,g_poinc)
+
+        call orbit_setup(g_poinc,1
      .                  ,bg(:,:,:,1)
      .                  ,bg(:,:,:,2)
      .                  ,bg(:,:,:,3)
@@ -490,13 +483,13 @@ c     Setup files
 
 c     Read setup info
 
-#if defined(use_mpi)
-        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
-#endif
         if (my_rank == 0) then
           write (*,*)
           write (*,*) '*****************************************'
         endif
+#if defined(use_mpi) || defined(petsc)
+        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
+#endif
 
         do ifl=1,nfiles
 
@@ -509,6 +502,14 @@ c     Read setup info
           read (mupixie(ifl)) nxg,nyg,nzg,bcnd,tor
 
         enddo
+
+#if defined(use_mpi) || defined(petsc)
+        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
+#endif
+        if (my_rank == 0) then
+          write (*,*) '*****************************************'
+          write (*,*)
+        endif
 
 cc        if (tor .and. (coords /= 'vmc' .and. coords /= 'tor')) then
 cc          call closeFiles(mupixie)

@@ -1325,7 +1325,7 @@ c     op_on_MGArray
 c     #################################################################
       subroutine op_on_MGArray(operator,in_mgarray,out_mgarray)
 c     -----------------------------------------------------------------
-c     Applies operation on 
+c     Applies operation on in_mgarray, and returns out_mgarray
 c     -----------------------------------------------------------------
 
       implicit none    !For safe fortran
@@ -1335,46 +1335,38 @@ c     Call variables
       type(mg_array),target :: in_mgarray,out_mgarray
 
       INTERFACE
-        function operator(g_def,igr,array1) result(array2)
+        function operator(g_def,igr,array1,neqout) result(array2)
           use grid
           type(grid_mg_def),pointer :: g_def
-          integer :: igr
-          real(8) :: array1(:,:,:),array2(0:size(array1,1)-1
-     .                                   ,0:size(array1,2)-1
-     .                                   ,0:size(array1,3)-1,3)
+          integer :: igr,neqout
+          real(8) :: array1(0:,0:,0:,:)
+     .              ,array2(0:size(array1,1)-1
+     .                     ,0:size(array1,2)-1
+     .                     ,0:size(array1,3)-1,neqout)
         end function operator
       END INTERFACE
 
 c     Local variables
 
-      integer :: igr
+      integer :: igr,nout
 
       type(mg_array),pointer :: in_mg_temp,out_mg_temp
-     .                         ,in_mg_old ,out_mg_old
 
 c     Begin program
 
-c     Consistency check
+      nout = size(out_mgarray%grid(1)%array,4)
 
-c$$$      if (   size(in_mgarray%grid(igrid)%array,4) /= 1
-c$$$     .   .or.size(out_mgarray%grid(igrid)%array,4) /= 3) then
-c$$$        write (*,*) 'Cannot compute curl of MG array: ',
-c$$$     .              'inconsistent number of components'
-c$$$        write (*,*) 'Aborting...'
-c$$$        stop
-c$$$      endif
-
-c     Compute curl in first grid level array
+c     Compute operator in first grid level array
 
       do igr=1,in_mgarray%g_def%ngrid
         out_mgarray%grid(igr)%array =
      .       operator(in_mgarray%g_def,igr
-     .               ,in_mgarray%grid(igr)%array(:,:,:,1))
+     .               ,in_mgarray%grid(igr)%array,nout)
       enddo
 
 c     Take care of COARSER meshes
 
-      in_mg_temp => in_mgarray%mg_crse_array
+      in_mg_temp  =>  in_mgarray%mg_crse_array
       out_mg_temp => out_mgarray%mg_crse_array
 
       do while (associated(in_mg_temp))
@@ -1382,21 +1374,75 @@ c     Take care of COARSER meshes
         do igr=1,in_mg_temp%g_def%ngrid
           out_mg_temp%grid(igr)%array =
      .       operator(in_mg_temp%g_def,igr
-     .               ,in_mg_temp%grid(igr)%array(:,:,:,1))
+     .               ,in_mg_temp%grid(igr)%array,nout)
         enddo
 
-        in_mg_old  => in_mg_temp
-        out_mg_old  => out_mg_temp
-
-        in_mg_temp => in_mg_old%mg_crse_array
-        out_mg_temp => out_mg_old%mg_crse_array
+        in_mg_temp  =>  in_mg_temp%mg_crse_array
+        out_mg_temp => out_mg_temp%mg_crse_array
       enddo
 
-      nullify(in_mg_old,out_mg_old,in_mg_temp,out_mg_temp)
+      nullify(in_mg_temp,out_mg_temp)
 
 c     End program
 
       end subroutine op_on_MGArray
+
+c     J_div_MGArray
+c     #################################################################
+      subroutine J_div_MGArray(mgarray)
+c     -----------------------------------------------------------------
+c     Divides MGArray by Jacobian in all grids
+c     -----------------------------------------------------------------
+
+      implicit none    !For safe fortran
+
+c     Call variables
+
+      type(mg_array),target :: mgarray
+
+c     Local variables
+
+      integer :: igr,ieq,neq
+
+      type(mg_array),pointer :: mg_temp
+
+c     Begin program
+
+c     Divide by Jacobian in first grid level array
+
+      do igr=1,mgarray%g_def%ngrid
+        neq = size(mgarray%grid(igr)%array,4)
+
+        do ieq=1,neq
+          mgarray%grid(igr)%array(:,:,:,ieq) =
+     .         mgarray%grid(igr)%array(:,:,:,ieq)
+     .        /mgarray%g_def%gmetric%grid(igr)%jac
+        enddo
+      enddo
+
+c     Take care of COARSER meshes
+
+      mg_temp => mgarray%mg_crse_array
+
+      do while (associated(mg_temp))
+
+        do igr=1,mg_temp%g_def%ngrid
+          neq = size(mg_temp%grid(igr)%array,4)
+          do ieq=1,neq
+            mg_temp%grid(igr)%array(:,:,:,ieq) =
+     .         mg_temp%grid(igr)%array(:,:,:,ieq)
+     .        /mg_temp%g_def%gmetric%grid(igr)%jac
+          enddo
+        enddo
+
+        mg_temp => mg_temp%mg_crse_array
+      enddo
+
+      nullify(mg_temp)
+
+c     End program
+
+      end subroutine J_div_MGArray
 
 c     interpArray_setup
 c     #################################################################
@@ -5700,7 +5746,7 @@ c Local variables
 
       real(8),pointer,dimension(:,:) :: diag
 
-      logical :: fpointers=.false.,galerkin
+      logical :: fpointers=.false.,galerkin,mg_mode
 
       type(mg_ctx),pointer :: mgctx
 
@@ -5789,12 +5835,7 @@ c Set pointers and find ngrid
 
 c Check limits
 
-      if (igmax == 0) then
-c$$$        igmax = (mgctx%ngrid+1) - (igmin-1)  !Determines maximum # of grid levels
-c$$$                                             !  (ngrid+1): total number of levels
-c$$$                                             !  igmin: coarsest level from below
-        igmax = mgctx%ngrid
-      endif
+      if (igmax == 0) igmax = mgctx%ngrid
 
       mgctx%igmax = igmax
 
@@ -5803,10 +5844,14 @@ c$$$                                             !  igmin: coarsest level from b
      $          ,' Grid level is below minimum grid resolution needed')
       endif
 
-      if (out.gt.2.and.igmax.gt.igrid.and.prnt) write (*,5)
+c Prepare output levels
+
+      mg_mode = igmax.gt.igrid !Check for multiple grids
+
+      if (out.gt.2.and.mg_mode.and.prnt) write (*,5)
 
       outc = out
-      if (igmax.gt.igrid) outc = out - 2
+      if (mg_mode) outc = out - 2
 
 c Find diagonal for smoothers
 
@@ -5815,25 +5860,6 @@ c Find diagonal for smoothers
       else
         nblk = 1
       endif
-
-cc      if (fdiag) then
-cc
-cc        if (allocated(diag)) then !Diagonal is known
-cc          if(out.ge.2.and.prnt) write(*,*)'Diagonal already allocated'
-cc          fdiag = .false.
-cc        elseif (associated(options%diag)) then !Diagonal provided externally
-cc          if(out.ge.2.and.prnt) write(*,*)'Diagonal externally provided'
-cc          allocate(diag(neq*nblk,2*ntot*nblk))
-cc          diag = options%diag
-cc        else                      !Form diagonal
-cc          if (out.ge.2.and.prnt) write (*,*) 'Forming diagonal...'
-cc          allocate(diag(neq*nblk,2*ntot*nblk))
-cc          call find_mf_diag(neq,nblk,ntot,matvec,igrid,bcnd,diag
-cc     .                     ,ncolors,volf,galerkin)
-cc          if (out.ge.2.and.prnt) write (*,*) 'Finished!'
-cc        endif
-cc
-cc      endif
 
       if (associated(diag)) then !Diagonal provided externally
         if(out.gt.2.and.prnt) write(*,*)'Diagonal externally provided'
@@ -5888,7 +5914,7 @@ c Start mu-cycle
 
       do ivcyc = 1,vcyc
 
-        if (outc.ge.1.and.igmax.gt.igrid.and.prnt) then
+        if (outc.ge.1.and.mg_mode.and.prnt) then
           if (mu == 1) write (*,7) ivcyc
           if (mu == 2) write (*,8) ivcyc
         endif
@@ -5951,7 +5977,7 @@ c MG convergence info
 
       mag1 = mag/rr0
 
-      if (igmax.gt.igrid) then
+      if (mg_mode) then
         if (out.eq.1.and.prnt) then
           if (mu == 1)
      .         write (*,20) trim(coarse),mag,mag2,mag1,min(ivcyc,vcyc)
@@ -6039,8 +6065,6 @@ c     Local variables
 
         integer    :: igc,isigc,isig,nn,nnc,imu,iplot
         character(50) :: dbg_desc(4*neq)
-
-cc        external     matvec
 
 c     Begin program
 
@@ -7271,7 +7295,7 @@ c     Local variables
 
         integer :: nn,ng,isig,depth1,nxg,nyg,nzg,ii,iig,ig,jg,kg
      .            ,igv(3),ilv(3),nxl,nyl,nzl,i,j,k,iout,il,jl,kl
-     .            ,imin,jmin,kmin
+     .            ,imin,jmin,kmin,lout
 
         type(grid_mg_def),pointer :: g_crse_def
      .                              ,g_fine_def
@@ -7360,8 +7384,15 @@ c$$$     .   ,MG_get_coarse_solve()
 cc          optns_new%mg_smooth_only = .true.
 cc          optns_new%mg_coarse_grid_level = 1
 
-          !Call MG with new solver context
-          call mg(neq,ng,yg,xg,matvec,optns_new,1,bcnd,guess2,out,depth)
+          !Call MG with new solver context (adjusting output level in first call)
+          if (.not.options%is_coarse_proc_MG_solve) then
+            lout = out-1
+          else
+            lout = out
+          endif
+
+          call mg(neq,ng,yg,xg,matvec,optns_new,1,bcnd,guess2,lout
+     .           ,depth)
 
 c diag ****
 c$$$          call allocMGPointers(neq,optns_new%mg_grid_def,optns_new%mgctx

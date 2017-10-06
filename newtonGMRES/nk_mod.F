@@ -652,13 +652,15 @@ cc      flimit= atol + rtol*f0
           exit                  !Do not continue Newton iteration
         endif
 
-        !Globalization procedure: damping coefficient
-        if (global >= 1) call findDamping (ntot,x,ddx,etak,fk,damp)
+        !Globalization procedure
+        if (global >= 1) then
+          call linesearch(ntot,x,ddx,etak,fk,damp)
+        else
+          x = x + damp*ddx
+        endif
 
-        !Update solution
-        x = x + damp*ddx
-
-        nk_conf%xk = x   !Save current Newton state
+        !Save current Newton state
+        nk_conf%xk = x
 
         !Evaluate rhs and norms
         call evaluateNewtonResidual(ntot,x,nk_conf%rk)
@@ -746,16 +748,16 @@ c     End program
 
       end subroutine find_etak
 
-c     findDamping
+c     linesearch
 c     ###############################################################
-      subroutine findDamping (ntot,x,ddx,etak,fk,damp)
+      subroutine linesearch (ntot,x,ddx,etak,fk,damp)
       implicit none       !For safe fortran
 c     ---------------------------------------------------------------
 c     If global is true, uses linesearch backtracking to ensure
 c     sufficient reduction in the Newton residual norm.
 c     In call:
 c       - ntot (input): vector dimension
-c       - x (input): current Newton state
+c       - x (input/output): current Newton state, next Newton state
 c       - ddx (input): Newton update
 c       - etak (input/output): forcing for inexact Newton
 c       - fk (input): current Newton residual
@@ -850,9 +852,11 @@ cc          write (*,*) 'Damping parameters',dampm,damp
         endif
       enddo
 
+      x = dummy
+
 c     End program
 
-      end subroutine findDamping
+      end subroutine linesearch
 
 c     chk_convergence
 c     ###################################################################
