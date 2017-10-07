@@ -17,9 +17,9 @@ c ######################################################################
      .             ,pit_counter=0    !Total number of picard iterations
      .             ,psh_counter=0    !Total number of particle pushes
 
-      integer :: pit_max=0           !Maximum picard iterations per substep
-     .          ,pst_max=0           !Maximum number of particle substeps per timestep
-     .          ,ntot_pcles=0        !Total number of particles
+      integer(8) :: pit_max=0        !Maximum picard iterations per substep
+     .             ,pst_max=0        !Maximum number of particle substeps per timestep
+     .             ,ntot_pcles=0     !Total number of particles
 
       real(8) :: pit_avg=0           !Average picard iterations per substep
      .          ,pst_avg=0           !Average number of particle substeps per timestep
@@ -49,31 +49,33 @@ c     Local variables
       integer :: ipc,isp,i0(_Npg),j0(_Npg),k0(_Npg),i(_Npg),j(_Npg)
      .          ,k(_Npg)
       integer :: im,it,ii,psh_sum
-     .          ,pits,pit_sum,pitmax
-     .          ,psts,pst_sum,pstmax
+     .          ,pits,pit_sum
+     .          ,psts,pst_sum
+      integer(8) :: pitmax,pstmax
       integer :: numpcles,numspcs,nxg,nyg,nzg
       real(_prec) :: d_x (_Npg,3)
       real(_prec) :: v_np(_Npg,3)
       real(_prec) :: x_nh(_Npg,3)
 
       real(_prec) :: dt_sub(_Npg),dtp(_Npg)
-      real(_prec) :: v0(_Npg,3),dx(_Npg,3)!,x0(_Npg,3)
+      real(_prec) :: v0(_Npg,3),dx(_Npg,3)
       real(_prec) :: xp(_Npg),yp(_Npg),zp(_Npg),xfp(_Npg),yfp(_Npg)
      .              ,zfp(_Npg),v2(_Npg),w_pcle(_Npg),m_sp,q_sp
 
-      real(_prec) :: garr_n  (0:size(A,1)-1,0:size(A,2)-1,0:size(A,3)-1)
-     $              ,garr_vx (0:size(A,1)-1,0:size(A,2)-1,0:size(A,3)-1)
-     $              ,garr_vy (0:size(A,1)-1,0:size(A,2)-1,0:size(A,3)-1)
-     $              ,garr_vz (0:size(A,1)-1,0:size(A,2)-1,0:size(A,3)-1)
-     $              ,garr_vx2(0:size(A,1)-1,0:size(A,2)-1,0:size(A,3)-1)
-     $              ,garr_vy2(0:size(A,1)-1,0:size(A,2)-1,0:size(A,3)-1)
-     $              ,garr_vz2(0:size(A,1)-1,0:size(A,2)-1,0:size(A,3)-1)
+      real(_prec),allocatable,dimension(:,:) :: garr_n  
+     $                                         ,garr_vx 
+     $                                         ,garr_vy 
+     $                                         ,garr_vz 
+     $                                         ,garr_vx2
+     $                                         ,garr_vy2
+     $                                         ,garr_vz2
 
       real(_prec) :: Mx1(_Npg,2,1,1),My1(_Npg,1,2,1),Mz1(_Npg,1,1,2)
       real(_prec) :: Mx2(_Npg,3,1,1),My2(_Npg,1,3,1),Mz2(_Npg,1,1,3)
       real(_prec) :: Myz2(_Npg,3,3),Mzx2(_Npg,3,3),Mxy2(_Npg,3,3)
       real(_prec) :: M_w_prod(_Npg,3,3,3)
       real(_prec) :: dumA(_Npg,3,1), dumB(_Npg,1,3), dumC(_Npg,1,3)
+     .              ,dumD(_Npg,3,3)
 
       real(_prec) :: rhon,rho,jip,ji,ecc,cml(3),pml(3),cmex(3)
      .              ,lacc(9),gacc(9)
@@ -86,6 +88,14 @@ c     Local variables
 c     Begin program
 
 !      write(*,*) size(A,3)
+
+      allocate(garr_n  (0:size(A,1)-1,0:size(A,2)-1,0:size(A,3)-1)
+     $        ,garr_vx (0:size(A,1)-1,0:size(A,2)-1,0:size(A,3)-1)
+     $        ,garr_vy (0:size(A,1)-1,0:size(A,2)-1,0:size(A,3)-1)
+     $        ,garr_vz (0:size(A,1)-1,0:size(A,2)-1,0:size(A,3)-1)
+     $        ,garr_vx2(0:size(A,1)-1,0:size(A,2)-1,0:size(A,3)-1)
+     $        ,garr_vy2(0:size(A,1)-1,0:size(A,2)-1,0:size(A,3)-1)
+     $        ,garr_vz2(0:size(A,1)-1,0:size(A,2)-1,0:size(A,3)-1)
 
 c     Particle pusher timer - C. Mikida, 05/16
 
@@ -175,31 +185,12 @@ c     Move particles
            do while(maxval(dtp)>0) ! Loop over substeps (up to field dt).
              it = it+1
 
-c$$$             if(isp==1.and.ipc==8179) then
-c$$$               print *,isp,ipc
-c$$$               print *,"xn ",pcle_nu%x_n
-c$$$               print *,"vn ",pcle_nu%v_n
-c$$$               print *
-c$$$             end if
-
              !Perform pcle substep
              call ACC_CN_incell_offset(spcs(isp)%q_m
      .                                ,spcs(isp)%pcles(ipc),pcle_nu
      $                                ,dt,dtp,dt_sub
      $                                ,DtA,B0,A,phi,dx
      $                                ,psts,pits)
-
-c$$$             !Check convergence
-c$$$             if(isp==1.and.ipc==8179) then
-c$$$               print *,isp,ipc,it,i0,j0,k0,pits,psts
-c$$$               print *,"time",dt_sub,dtp
-c$$$               print *,"dx ",dx
-c$$$               print *,"xnp",spcs(isp)%pcles(ipc)%x_np
-c$$$               print *,"vnp",spcs(isp)%pcles(ipc)%v_np
-c$$$               print *
-c$$$             end if
-
-!             write(*,*) 'h'
 
              !Update pcle counters
              pst_sum = pst_sum + 1      !Particle substep counter
@@ -234,95 +225,120 @@ c$$$             end if
              yfp = (pcle_nu%x_n(:,2)+dx(:,2))*ihy
              zfp = (pcle_nu%x_n(:,3)+dx(:,3))*ihz
 
-! ADAM: Compute S22(y,z)
+             ! ADAM: Compute S22(y,z)
              call shape2_offset(yp,dumA(:,1:3,1))
              call shape2_offset(zp,dumB(:,1,1:3))
 
-             !VECTOR SIMD
-             do ii=1,_Npg
-              Myz2(ii,1:3,1:3)=opt_vecvec_3(dumA(ii,:,1) ! ADAM: REPLACE LOOP OVER PARTICLES WITH opt_vecvec_3_pcle?
-     $               ,dumB(ii,1,:))*2d0
-             end do
+             call opt_vecvec_3_pcle(dumA,dumB,Myz2)
+             Myz2 = 2d0*Myz2
+c$$$             !VECTOR SIMD
+c$$$             do ii=1,_Npg
+c$$$               Myz2(ii,1:3,1:3)=opt_vecvec_3(dumA(ii,:,1) ! ADAM: REPLACE LOOP OVER PARTICLES WITH opt_vecvec_3_pcle?
+c$$$     $                                      ,dumB(ii,1,:))*2d0
+c$$$             end do
 
              dumC=dumB
              call shape2_offset(zfp,dumB(:,1,1:3))
 
-             !VECTOR SIMD
-             do ii=1,_Npg                                                                                             
-              Myz2(ii,1:3,1:3)=Myz2(ii,1:3,1:3)
-     $               +opt_vecvec_3(dumA(ii,:,1),dumB(ii,1,:))
-             end do
+             call opt_vecvec_3_pcle(dumA,dumB,dumD)
+             Myz2 = Myz2 + dumD
+c$$$             !VECTOR SIMD
+c$$$             do ii=1,_Npg
+c$$$               Myz2(ii,1:3,1:3) = Myz2(ii,1:3,1:3)
+c$$$     $               +opt_vecvec_3(dumA(ii,:,1),dumB(ii,1,:))
+c$$$             end do
 
              call shape2_offset(yfp,dumA(:,1:3,1))
 
-             !VECTOR SIMD
-             do ii=1,_Npg
-              Myz2(ii,1:3,1:3)=Myz2(ii,1:3,1:3)
-     $               +opt_vecvec_3(dumA(ii,:,1),dumC(ii,1,:))
-     $               +opt_vecvec_3(dumA(ii,:,1),dumB(ii,1,:))*2d0
-             end do
+             call opt_vecvec_3_pcle(dumA,dumC,dumD)
+             Myz2 = Myz2 + dumD
+             call opt_vecvec_3_pcle(dumA,dumB,dumD)
+             Myz2 = Myz2 + dumD*2d0
+c$$$             !VECTOR SIMD
+c$$$             do ii=1,_Npg
+c$$$               Myz2(ii,1:3,1:3) = Myz2(ii,1:3,1:3)
+c$$$     $               +opt_vecvec_3(dumA(ii,:,1),dumC(ii,1,:))
+c$$$     $               +opt_vecvec_3(dumA(ii,:,1),dumB(ii,1,:))*2d0
+c$$$             end do
 
-! ADAM: COMPUTE S22(z,x)
+             ! ADAM: COMPUTE S22(z,x)
              call shape2_offset(zp,dumA(:,1:3,1))
              call shape2_offset(xp,dumB(:,1,1:3))
 
-             !VECTOR SIMD
-             do ii=1,_Npg
-              Mzx2(ii,1:3,1:3)=opt_vecvec_3(dumA(ii,:,1)
-     $               ,dumB(ii,1,:))*2d0
-             end do
+             call opt_vecvec_3_pcle(dumA,dumB,Mzx2)
+             Mzx2 = 2d0*Mzx2
+c$$$             !VECTOR SIMD
+c$$$             do ii=1,_Npg
+c$$$              Mzx2(ii,1:3,1:3)=opt_vecvec_3(dumA(ii,:,1)
+c$$$     $               ,dumB(ii,1,:))*2d0
+c$$$             end do
 
              dumC=dumB
              call shape2_offset(xfp,dumB(:,1,1:3))
 
-             !VECTOR SIMD
-             do ii=1,_Npg
-              Mzx2(ii,1:3,1:3)=Mzx2(ii,1:3,1:3)
-     $               +opt_vecvec_3(dumA(ii,:,1),dumB(ii,1,:))
-             end do
+             call opt_vecvec_3_pcle(dumA,dumB,dumD)
+             Mzx2 = Mzx2 + dumD
+c$$$             !VECTOR SIMD
+c$$$             do ii=1,_Npg
+c$$$               Mzx2(ii,1:3,1:3) = Mzx2(ii,1:3,1:3)
+c$$$     $               +opt_vecvec_3(dumA(ii,:,1),dumB(ii,1,:))
+c$$$             end do
 
              call shape2_offset(zfp,dumA(:,1:3,1))
 
-             !VECTOR SIMD
-             do ii=1,_Npg
-              Mzx2(ii,1:3,1:3)=Mzx2(ii,1:3,1:3)
-     $               +opt_vecvec_3(dumA(ii,:,1),dumC(ii,1,:))
-     $               +opt_vecvec_3(dumA(ii,:,1),dumB(ii,1,:))*2d0
-             end do
+             call opt_vecvec_3_pcle(dumA,dumC,dumD)
+             Mzx2 = Mzx2 + dumD
+             call opt_vecvec_3_pcle(dumA,dumB,dumD)
+             Mzx2 = Mzx2 + dumD*2d0
+c$$$             !VECTOR SIMD
+c$$$             do ii=1,_Npg
+c$$$               Mzx2(ii,1:3,1:3) = Mzx2(ii,1:3,1:3)
+c$$$     $               +opt_vecvec_3(dumA(ii,:,1),dumC(ii,1,:))
+c$$$     $               +opt_vecvec_3(dumA(ii,:,1),dumB(ii,1,:))*2d0
+c$$$             end do
 
-! ADAM: COMPUTE S22(x,y)
+             ! ADAM: COMPUTE S22(x,y)
              call shape2_offset(xp,dumA(:,1:3,1))
              call shape2_offset(yp,dumB(:,1,1:3))
 
-             !VECTOR SIMD
-             do ii=1,_Npg
-              Mxy2(ii,1:3,1:3)=opt_vecvec_3(dumA(ii,:,1)
-     $               ,dumB(ii,1,:))*2d0
-             end do
+             call opt_vecvec_3_pcle(dumA,dumB,Mxy2)
+             Mxy2 = 2d0*Mxy2
+c$$$             !VECTOR SIMD
+c$$$             do ii=1,_Npg
+c$$$               Mxy2(ii,1:3,1:3) = opt_vecvec_3(dumA(ii,:,1)
+c$$$     $                                        ,dumB(ii,1,:))*2d0
+c$$$             end do
 
              dumC=dumB
              call shape2_offset(yfp,dumB(:,1,1:3))
 
-             !VECTOR SIMD
-             do ii=1,_Npg
-              Mxy2(ii,1:3,1:3)=Mxy2(ii,1:3,1:3)
-     $               +opt_vecvec_3(dumA(ii,:,1),dumB(ii,1,:))
-             end do
+             call opt_vecvec_3_pcle(dumA,dumB,dumD)
+             Mxy2 = Mxy2 + dumD
+c$$$             !VECTOR SIMD
+c$$$             do ii=1,_Npg
+c$$$               Mxy2(ii,1:3,1:3) = Mxy2(ii,1:3,1:3)
+c$$$     $               +opt_vecvec_3(dumA(ii,:,1),dumB(ii,1,:))
+c$$$             end do
 
              call shape2_offset(xfp,dumA(:,1:3,1))
 
-             !VECTOR SIMD
-             do ii=1,_Npg
-              Mxy2(ii,1:3,1:3)=Mxy2(ii,1:3,1:3)
-     $               +opt_vecvec_3(dumA(ii,:,1),dumC(ii,1,:))
-     $               +opt_vecvec_3(dumA(ii,:,1),dumB(ii,1,:))*2d0
-             end do
+             call opt_vecvec_3_pcle(dumA,dumC,dumD)
+             Mxy2 = Mxy2 + dumD
+             call opt_vecvec_3_pcle(dumA,dumB,dumD)
+             Mxy2 = Mxy2 + dumD*2d0
+c$$$             !VECTOR SIMD
+c$$$             do ii=1,_Npg
+c$$$               Mxy2(ii,1:3,1:3) = Mxy2(ii,1:3,1:3)
+c$$$     $               +opt_vecvec_3(dumA(ii,:,1),dumC(ii,1,:))
+c$$$     $               +opt_vecvec_3(dumA(ii,:,1),dumB(ii,1,:))*2d0
+c$$$             end do
 
-! DIVIDE BY 6!!
+             ! DIVIDE BY 6!!
              Myz2=Myz2/6d0
              Mzx2=Mzx2/6d0
              Mxy2=Mxy2/6d0
 
+             !Do NOT vectorize: memory race issues
              do ii=1, _Npg
 !#ifdef __GNU
 !                Mxy2(ii,1:3,1:3)= Mxy2(ii,1:3,1:3)
@@ -376,8 +392,6 @@ c$$$             end if
              dtp = dtp-dt_sub
 
            end do               !sub-stepping
-
-!           write(*,*) 'i'
 
            !Maximum number of substeps per timestep
            pstmax  = max(it,pstmax)
@@ -434,7 +448,7 @@ c$$$             end if
            end do 
 
            !Diagnostics
-cc           !VECTOR SIMD
+           !Do NOT vectorize: memory race issues
            do ii=1,_Npg
               !Gather momenta
               pml = pml + m_sp*v0(ii,:)*w_pcle(ii)
@@ -471,6 +485,14 @@ cc           !VECTOR SIMD
 
       end do                    !species
 
+      deallocate(garr_n  
+     $          ,garr_vx 
+     $          ,garr_vy 
+     $          ,garr_vz 
+     $          ,garr_vx2
+     $          ,garr_vy2
+     $          ,garr_vz2)
+
 c     Particle pusher timing end - C. Mikida, 05/16
       
 c      call stop_collection()
@@ -482,23 +504,9 @@ c     Append to particle pusher timer/counters
      .                        /real(clock_rate)
 
 c     Synchronize moments
-!!! ADAM TEMPORARY WRAP OVER Z - WORKS FOR 2D.
-!      moms_g(:,:,1,:,:) = moms_g(:,:,1,:,:)+moms_g(:,:,0,:,:)
-!     .     + moms_g(:,:,2,:,:)
-!!!
 
-!      write(*,*) moms_g(:,:,:,1,Ipz)
-!      stop
+      call wrap_moments_nodes3d(moms_g(:,:,:,:,:),wrap_density=.false.)
 
-      call wrap_moments_nodes3d(moms_g(:,:,:,:,:)) ! Adam: Only works for periodic in z.
-!      moms_g(:,:,0,:,:) = moms_g(:,:,1,:,:)
-!      moms_g(:,:,2,:,:) = moms_g(:,:,1,:,:)
-
-!      write(*,*) moms_g(:,:,:,1,Ipz)
-!      stop
-
-
-!      write(*,*) 'k'
 c     Scatter moments to local mesh
 
       do im=0,size(moms,5)-1
@@ -562,8 +570,8 @@ c     Call variables
       real(8),intent(in) :: A(0:,0:,0:,:),phi(0:,0:,0:)
      .                     ,DtA(0:,0:,0:,:),B0(3)
 
-      real(_prec),intent(inout) :: dtp(:)
-      real(_prec),intent(out)   :: dt_sub(:),dx(:,:)
+      real(_prec),intent(inout) :: dtp(_Npg)
+      real(_prec),intent(out)   :: dt_sub(_Npg),dx(_Npg,3)
 
       integer,intent(out):: substeps,it
 
@@ -580,19 +588,16 @@ c     Local variables
       real(_prec), parameter :: eps  = 1d-12 !Buffer for dt computation in pcle Xing
      .                         ,eps2 = 1d-8  !Buffer for pcle Xing
 
-      real(_prec) :: ptola,alpha=0d0
+      real(_prec) :: ptola,alpha=0d0,dt_coeff=0.2
 
       real(_prec) :: am(_Npg,_Dim)
 
       real(_prec) :: x_k(_Npg),x_nh(_Npg),y_nh(_Npg),d_err(_Npg)
       real(_prec) :: dx_k(_Npg,3),vh_k(_Npg,3),dx_err
       
-      real(_prec) :: Ax_nu0(_Npg,2,3,3),Ay_nu0(_Npg,3,2,3)
-     $              ,Az_nu0(_Npg,3,3,2),Ax_nuh(_Npg,2,3,3)
-     $              ,Ay_nuh(_Npg,3,2,3),Az_nuh(_Npg,3,3,2)
-     $              ,ac0(_Npg,3),v0curv(_Npg,3)
+      real(_prec) :: ac0(_Npg,3),v0curv(_Npg,3)
 
-      real(_prec) :: Omegac(_Npg),omb(_Npg),dt_coeff=0.2, Bmax(_Npg)
+      real(_prec) :: Omegac(_Npg),omb(_Npg),Bmax(_Npg)
       real(_prec) :: vh(_Npg,3)
 
       real(_prec) :: qm(_Npg) 
@@ -602,17 +607,24 @@ c     Local variables
 
       real(_prec) :: Ep(_Npg,3),Bp(_Npg,3)
       real(_prec) :: vhcurv(_Npg,3)
-!      real(_prec) :: xnp(_Npg),ynp(_Npg)!znp
       real(_prec) :: dxl(_Npg,3),dxr(_Npg,3)
 
-      real(_prec) :: DtA_1(_Npg,2,3,3),DtA_2(_Npg,3,2,3)
-     .              ,DtA_3(_Npg,3,3,2)
-      real(_prec) :: A_1(_Npg,2,3,3),A_2(_Npg,3,2,3),A_3(_Npg,3,3,2)
+      real(_prec) :: DtA_1 (_Npg,2,3,3)
+     .              ,DtA_2 (_Npg,3,2,3)
+     .              ,DtA_3 (_Npg,3,3,2)
+      real(_prec) :: A_1   (_Npg,2,3,3)
+     .              ,A_2   (_Npg,3,2,3)
+     .              ,A_3   (_Npg,3,3,2)
+      real(_prec) :: E_1   (_Npg,2,3,3)
+     .              ,E_2   (_Npg,3,2,3)
+     .              ,E_3   (_Npg,3,3,2)
+      real(_prec) :: Ax_nuh(_Npg,2,3,3)
+     $              ,Ay_nuh(_Npg,3,2,3)
+     .              ,Az_nuh(_Npg,3,3,2)
+
       real(_prec) :: phi_loc(_Npg,3,3,3)
       real(_prec) :: xnp_loc(_Npg,3),vnp_loc(_Npg,3)
-      real(_prec) :: x0_loc(_Npg,3),v0_loc(_Npg,3)
-!      real(_prec) :: x0p(_Npg),y0p(_Npg)!z0p
-!      real(_prec) :: Sx2_o(_Npg,3),Sy2_o(_Npg,3)
+      real(_prec) :: x0_loc (_Npg,3),v0_loc (_Npg,3)
       real(_prec) :: scatter_zeroes(_Npg)
 
 c     Begin program
@@ -640,22 +652,37 @@ c     Also define some insets of arrays for later use (C. Mikida)
 
       !VECTOR SIMD
       do i=1,_Npg
-         DtA_1(i,:,:,:) = real(DtA(i0(i)-1:i0(i)  , j0(i)-1:j0(i)+1 
-     $        ,k0(i)-1:k0(i)+1, 1),_prec)         
-         DtA_2(i,:,:,:) = real(DtA(i0(i)-1:i0(i)+1, j0(i)-1:j0(i)  
-     $        ,k0(i)-1:k0(i)+1, 2),_prec)       
-         DtA_3(i,:,:,:) = real(DtA(i0(i)-1:i0(i)+1, j0(i)-1:j0(i)+1
-     $        ,k0(i)-1:k0(i), 3),_prec)       
+         DtA_1(i,:,:,:) = DtA(i0(i)-1:i0(i)
+     .                       ,j0(i)-1:j0(i)+1 
+     $                       ,k0(i)-1:k0(i)+1, 1)
+         DtA_2(i,:,:,:) = DtA(i0(i)-1:i0(i)+1
+     .                       ,j0(i)-1:j0(i)  
+     $                       ,k0(i)-1:k0(i)+1, 2)
+         DtA_3(i,:,:,:) = DtA(i0(i)-1:i0(i)+1
+     .                       ,j0(i)-1:j0(i)+1
+     $                       ,k0(i)-1:k0(i)  , 3)
 
-         A_1(i,:,:,:)   = real(A(i0(i)-1:i0(i)  , j0(i)-1:j0(i)+1
-     $        ,k0(i)-1:k0(i)+1, 1),_prec)
-         A_2(i,:,:,:)   = real(A(i0(i)-1:i0(i)+1, j0(i)-1:j0(i) 
-     $        ,k0(i)-1:k0(i)+1, 2),_prec)
-         A_3(i,:,:,:)   = real(A(i0(i)-1:i0(i)+1, j0(i)-1:j0(i)+1
-     $        ,k0(i)-1:k0(i), 3),_prec)
+         A_1(i,:,:,:)   = A(i0(i)-1:i0(i)
+     .                     ,j0(i)-1:j0(i)+1
+     $                     ,k0(i)-1:k0(i)+1, 1)
+         A_2(i,:,:,:)   = A(i0(i)-1:i0(i)+1
+     .                     ,j0(i)-1:j0(i) 
+     $                     ,k0(i)-1:k0(i)+1, 2)
+         A_3(i,:,:,:)   = A(i0(i)-1:i0(i)+1
+     .                     ,j0(i)-1:j0(i)+1
+     $                     ,k0(i)-1:k0(i)  , 3)
 
-         phi_loc(i,:,:,:) = real(phi(i0(i)-1:i0(i)+1,j0(i)-1:j0(i)+1 
-     $        ,k0(i)-1:k0(i)+1),_prec)
+         phi_loc(i,:,:,:) = phi(i0(i)-1:i0(i)+1
+     .                         ,j0(i)-1:j0(i)+1 
+     $                         ,k0(i)-1:k0(i)+1)
+
+         E_1(i,:,:,:) =-DtA_1(i,:,:,:)
+     .               -(phi_loc(i,2:3,:,:)-phi_loc(i,1:2,:,:))*ihx
+         E_2(i,:,:,:) =-DtA_2(i,:,:,:)
+     .               -(phi_loc(i,:,2:3,:)-phi_loc(i,:,1:2,:))*ihy
+         E_3(i,:,:,:) =-DtA_3(i,:,:,:)
+     .               -(phi_loc(i,:,:,2:3)-phi_loc(i,:,:,1:2))*ihz
+
       end do
 
 c     Estimate sub-time-step 
@@ -674,11 +701,7 @@ c     Initialize Picard
 
       substeps = 0
 
-#if _prec == 8
-      do while(dx_err > 1d-13 .and. it<500) 
-#else
-      do while(dx_err > 1e-6  .and. it<500) 
-#endif
+      do
         it = it+1
 
         vh_k = vh
@@ -686,16 +709,43 @@ c     Initialize Picard
 
         substeps = substeps + _Npg
 
+        !Prepare vector potential at nu+1/2
+        dum1 = 0.5d0*(-2d0*dtp+dt+dt_sub)
+
+        !VECTOR SIMD
+        do i=1,_Npg
+           Ax_nuh(i,:,:,:) = A_1(i,:,:,:) + DtA_1(i,:,:,:)*dum1(i)
+           Ay_nuh(i,:,:,:) = A_2(i,:,:,:) + DtA_2(i,:,:,:)*dum1(i)
+           Az_nuh(i,:,:,:) = A_3(i,:,:,:) + DtA_3(i,:,:,:)*dum1(i)
+        enddo
+
+        !Perform Boris push
+ 
         call Boris_solve(it,x0_loc,v0_loc,dx,vh,dt_sub)
 
-        !Check convergence (very expensive!!!; needs optimization)
+        !Check convergence
+        if (mod(it,2) /= 0) cycle !Check everyother iteration
+        
 #if defined(L1_NORM)
-        dx_err = sum(abs(dx-dx_k))
-        dx_err = dx_err + sum(abs(vh-vh_k))
+        dx_err = 0d0
+        do i=1,_Npg
+           dx_err = max(dx_err, abs(dx(i,1)-dx_k(i,1))
+     $                         +abs(dx(i,2)-dx_k(i,2))
+     $                         +abs(dx(i,3)-dx_k(i,3))
+     $                         +abs(vh(i,1)-vh_k(i,1))
+     $                         +abs(vh(i,2)-vh_k(i,2))
+     $                         +abs(vh(i,3)-vh_k(i,3)))
+        enddo
 #else
 c$$$        dx_err = (sum(abs(dx-dx_k))
 c$$$     $           +sum(abs(vh-vh_k)))/(2*_Npg)
         dx_err = max(maxval(abs(dx-dx_k)),maxval(abs(vh-vh_k)))
+#endif
+
+#if _prec == 8
+        if (dx_err < 1d-13 .or. it>500) exit
+#else
+        if (dx_err < 1d-6  .or. it>500) exit
 #endif
       end do             
 
@@ -836,27 +886,11 @@ c     Logical variables
 
 c     Begin program
 
-        dts   =1d-8     !Test timestep to estimate qtys
+        dts = 1d-8     !Test timestep to estimate qtys
 
         xp = x0_loc(:,1)*ihx
         yp = x0_loc(:,2)*ihy
         zp = x0_loc(:,3)*ihz
-
-        !VECTOR SIMD
-        do i=1,_Npg
-           Az_nu0(i,:,:,:) = A_3(i,:,:,:)
-     .          +DtA_3(i,:,:,:)*0.5d0*(-2d0*dtp(i)+dt)
-        end do 
-        !VECTOR SIMD
-        do i=1,_Npg
-           Ay_nu0(i,:,:,:) = A_2(i,:,:,:)
-     .          +DtA_2(i,:,:,:)*0.5d0*(-2d0*dtp(i)+dt)
-        end do 
-        !VECTOR SIMD
-        do i=1,_Npg
-           Ax_nu0(i,:,:,:) = A_1(i,:,:,:)
-     .          +DtA_1(i,:,:,:)*0.5d0*(-2d0*dtp(i)+dt)
-        end do 
 
 c     Initial acceleration
 
@@ -1170,15 +1204,13 @@ c     Begin program
       Sy2 = (Sy2_n+Sy2_o)*0.5d0
       Sz2 = (Sz2_n+Sz2_o)*0.5d0
 
-      DSx = Dx_shape2_offset(xhp(:,1))
-      DSy = Dy_shape2_offset(xhp(:,2))
-      DSz = Dz_shape2_offset(xhp(:,3))
+      call Dx_shape2_offset(xhp(:,1),DSx)
+      call Dy_shape2_offset(xhp(:,2),DSy)
+      call Dz_shape2_offset(xhp(:,3),DSz)
 
-!      Sxd = (Sx2_n-Sx2_o)*0.5d0
-!      Syd = (Sy2_n-Sy2_o)*0.5d0
+c     Find Ep_1
 
-
-! ADAM: Compute S22(y,z)
+      !ADAM: Compute S22(y,z)
       dumA(:,1:3,1)=Sy2_o(:,1:3)
       dumB(:,1,1:3)=Sz2_o(:,1:3)
       dum33(:,1:3,1:3)=opt_vecvec_3_pcle(dumA(:,1:3,1)
@@ -1196,19 +1228,20 @@ c     Begin program
 
       dum33=dum33/6d0
 
-c     Find E
-c      call opt_matvec_tr_pcle(DSx,phi_loc(:,:,:,1),dum3)
-c      call opt_matvec_23_pcle(DtA_1(:,:,:,1),Sy2,dum2)
-      dum3(:,:) = opt_matmat_333_yz_pcle(phi_loc(:,:,:,:),dum33(:,:,:))
-      dum2(:,:) = opt_matmat_233_yz_pcle(DtA_1(:,:,:,:),dum33(:,:,:))
+c$$$      dum3(:,:) = opt_matmat_333_yz_pcle(phi_loc(:,:,:,:),dum33(:,:,:))
+c$$$      dum2(:,:) = opt_matmat_233_yz_pcle(DtA_1  (:,:,:,:),dum33(:,:,:))
+c$$$
+c$$$      call dot_product_2_pcle(dum2,Sx1,dum1)
+c$$$      Ep(:,1) = -dum1
+c$$$      call dot_product_3_pcle(dum3,DSx,dum1)
+c$$$      Ep(:,1) = Ep(:,1) - dum1
 
-      call dot_product_2_pcle(dum2,Sx1,dum1)
-      Ep(:,1) = -dum1
-      call dot_product_3_pcle(dum3,DSx,dum1)
-      Ep(:,1) = Ep(:,1) - dum1
+      dum2 = opt_matmat_233_yz_pcle(E_1,dum33)
+      call dot_product_2_pcle(dum2,Sx1,Ep(:,1))
 
+c     Find Ep_2
 
-! ADAM: Compute S22(z,x)
+      ! ADAM: Compute S22(z,x)
       dumA(:,1:3,1)=Sz2_o(:,1:3)
       dumB(:,1,1:3)=Sx2_o(:,1:3)
       dum33(:,1:3,1:3)=opt_vecvec_3_pcle(dumA(:,1:3,1)
@@ -1226,17 +1259,20 @@ c      call opt_matvec_23_pcle(DtA_1(:,:,:,1),Sy2,dum2)
 
       dum33=dum33/6d0
 
-      dum3(:,:) = opt_matmat_333_zx_pcle(phi_loc(:,:,:,:),dum33(:,:,:))
-      dum2(:,:) = opt_matmat_323_zx_pcle(DtA_2(:,:,:,:),dum33(:,:,:))
+c$$$      dum3(:,:) = opt_matmat_333_zx_pcle(phi_loc(:,:,:,:),dum33(:,:,:))
+c$$$      dum2(:,:) = opt_matmat_323_zx_pcle(DtA_2(:,:,:,:),dum33(:,:,:))
+c$$$
+c$$$      call dot_product_2_pcle(dum2,Sy1,dum1)
+c$$$      Ep(:,2) = -dum1
+c$$$      call dot_product_3_pcle(dum3,DSy,dum1)
+c$$$      Ep(:,2) = Ep(:,2) - dum1
 
-!      call opt_matvec_2_pcle(Sx2,DtA_2(:,:,:,1),dum2)
-!      call opt_matvec_tr_pcle(Sx2,phi_loc(:,:,:,1),dum3)
-      call dot_product_2_pcle(dum2,Sy1,dum1)
-      Ep(:,2) = -dum1
-      call dot_product_3_pcle(dum3,DSy,dum1)
-      Ep(:,2) = Ep(:,2) - dum1
+      dum2 = opt_matmat_323_zx_pcle(E_2,dum33)
+      call dot_product_2_pcle(dum2,Sy1,Ep(:,2))
 
-! ADAM: Compute S22(x,y)
+c     Find Ep_3
+      
+      ! ADAM: Compute S22(x,y)
       dumA(:,1:3,1)=Sx2_o(:,1:3)
       dumB(:,1,1:3)=Sy2_o(:,1:3)
       dum33(:,1:3,1:3)=opt_vecvec_3_pcle(dumA(:,1:3,1)
@@ -1254,53 +1290,18 @@ c      call opt_matvec_23_pcle(DtA_1(:,:,:,1),Sy2,dum2)
 
       dum33=dum33/6d0
 
-      dum3(:,:) = opt_matmat_333_xy_pcle(phi_loc(:,:,:,:),dum33(:,:,:))
-      dum2(:,:) = opt_matmat_332_xy_pcle(DtA_3(:,:,:,:),dum33(:,:,:))
-
-!      call opt_matvec_tr_pcle(Sx2,DtA_3(:,:,:,1),dum3)
-      call dot_product_2_pcle(dum2,Sz1,dum1)
-!      call opt_matvec_tr_pcle(Sxd,DtA_3(:,:,:,1),dum3)
-      Ep(:,3) = -dum1
-      call dot_product_3_pcle(dum3,DSz,dum1)
-      Ep(:,3) = Ep(:,3) - dum1
-
+c$$$      dum3(:,:) = opt_matmat_333_xy_pcle(phi_loc(:,:,:,:),dum33(:,:,:))
+c$$$      dum2(:,:) = opt_matmat_332_xy_pcle(DtA_3(:,:,:,:),dum33(:,:,:))
 c$$$
-c$$$
-c$$$
-c$$$c     Find E - OLD.                                                                                                                                                          
-c$$$
-c$$$      call opt_matvec_tr_pcle(DSx,phi_loc(:,:,:,1),dum3)
-c$$$      call opt_matvec_23_pcle(DtA_1(:,:,:,1),Sy2,dum2)
-c$$$      call dot_product_3_pcle(dum3,Sy2,dum1)
-c$$$      Ep(:,1) = -dum1
-c$$$      call dot_product_2_pcle(dum2,Sx1,dum1)
-c$$$      Ep(:,1) = Ep(:,1) - dum1
-c$$$
-c$$$      call opt_matvec_2_pcle(Sx2,DtA_2(:,:,:,1),dum2)
-c$$$      call opt_matvec_tr_pcle(Sx2,phi_loc(:,:,:,1),dum3)
-c$$$      call dot_product_2_pcle(dum2,Sy1,dum1)
-c$$$      Ep(:,2) = -dum1
-c$$$      call dot_product_3_pcle(dum3,DSy,dum1)
-c$$$      Ep(:,2) = Ep(:,2) - dum1
-c$$$
-c$$$      call opt_matvec_tr_pcle(Sx2,DtA_3(:,:,:,1),dum3)
-c$$$      call dot_product_3_pcle(dum3,Sy2,dum1)
-c$$$      call opt_matvec_tr_pcle(Sxd,DtA_3(:,:,:,1),dum3)
+c$$$      call dot_product_2_pcle(dum2,Sz1,dum1)
 c$$$      Ep(:,3) = -dum1
-c$$$      call dot_product_3_pcle(dum3,Syd,dum1)
+c$$$      call dot_product_3_pcle(dum3,DSz,dum1)
 c$$$      Ep(:,3) = Ep(:,3) - dum1
 
+      dum2 = opt_matmat_332_xy_pcle(E_3,dum33)
+      call dot_product_2_pcle(dum2,Sz1,Ep(:,3))
 
 c     Find B
-      
-      dum1 = 0.5d0*dtau
-
-      !VECTOR SIMD
-      do i=1,_Npg
-         Az_nuh(i,:,:,:) = Az_nu0(i,:,:,:) + DtA_3(i,:,:,:)*dum1(i)
-         Ay_nuh(i,:,:,:) = Ay_nu0(i,:,:,:) + DtA_2(i,:,:,:)*dum1(i)
-         Ax_nuh(i,:,:,:) = Ax_nu0(i,:,:,:) + DtA_1(i,:,:,:)*dum1(i)
-      enddo
 
       ! ADAM: TRY SIMPLER VERSION THAN NOW: S_2*S_2 rather than S_22.
       ! NB. THIS MAY MEAN THAT d_t B != -curl(E) AT PARTICLE POSITION.
@@ -1423,15 +1424,15 @@ c     Begin program
       Sy2 = (Sy2_n+Sy2_o)*0.5d0
       Sz2 = (Sz2_n+Sz2_o)*0.5d0
 
-      DSx = Dx_shape2_offset(xhp(:,1))
-      DSy = Dy_shape2_offset(xhp(:,2))
-      DSz = Dz_shape2_offset(xhp(:,3))
+      call Dx_shape2_offset(xhp(:,1),DSx)
+      call Dy_shape2_offset(xhp(:,2),DSy)
+      call Dz_shape2_offset(xhp(:,3),DSz)
 
 c     Find E
 !      Sxd = (Sx2_n-Sx2_o)*0.5d0
 !      Syd = (Sy2_n-Sy2_o)*0.5d0
 
-! ADAM: Compute S22(y,z)
+      ! ADAM: Compute S22(y,z)
       dumA(:,1:3,1)=Sy2_o(:,1:3)
       dumB(:,1,1:3)=Sz2_o(:,1:3)
       dum33(:,1:3,1:3)=opt_vecvec_3_pcle(dumA(:,1:3,1)
@@ -1450,15 +1451,14 @@ c     Find E
       dum33=dum33/6d0
 
       dum3(:,:) = opt_matmat_333_yz_pcle(phi_loc(:,:,:,:),dum33(:,:,:))
-      dum2(:,:) = opt_matmat_233_yz_pcle(DtA_1(:,:,:,:),dum33(:,:,:))
+      dum2(:,:) = opt_matmat_233_yz_pcle(DtA_1  (:,:,:,:),dum33(:,:,:))
 
       call dot_product_2_pcle(dum2,Sx1,dum1)
       Ep(:,1) = -dum1
       call dot_product_3_pcle(dum3,DSx,dum1)
       Ep(:,1) = Ep(:,1) - dum1
 
-
-! ADAM: Compute S22(z,x)
+      ! ADAM: Compute S22(z,x)
       dumA(:,1:3,1)=Sz2_o(:,1:3)
       dumB(:,1,1:3)=Sx2_o(:,1:3)
       dum33(:,1:3,1:3)=opt_vecvec_3_pcle(dumA(:,1:3,1)
@@ -1477,15 +1477,14 @@ c     Find E
       dum33=dum33/6d0
 
       dum3(:,:) = opt_matmat_333_zx_pcle(phi_loc(:,:,:,:),dum33(:,:,:))
-      dum2(:,:) = opt_matmat_323_zx_pcle(DtA_2(:,:,:,:),dum33(:,:,:))
+      dum2(:,:) = opt_matmat_323_zx_pcle(DtA_2  (:,:,:,:),dum33(:,:,:))
 
       call dot_product_2_pcle(dum2,Sy1,dum1)
       Ep(:,2) = -dum1
       call dot_product_3_pcle(dum3,DSy,dum1)
       Ep(:,2) = Ep(:,2) - dum1
 
-
-! ADAM: Compute S22(x,y)                                                                                             
+      ! ADAM: Compute S22(x,y)     
       dumA(:,1:3,1)=Sx2_o(:,1:3)
       dumB(:,1,1:3)=Sy2_o(:,1:3)
       dum33(:,1:3,1:3)=opt_vecvec_3_pcle(dumA(:,1:3,1)
@@ -1535,18 +1534,9 @@ c$$$      Ep(:,3) = Ep(:,3) - dum1
 
 c     Find B
 
-      dum1 = 0.5d0*dtau
-
-      !VECTOR SIMD
-      do i=1,_Npg
-         Az_nuh(i,:,:,:) = Az_nu0(i,:,:,:) + DtA_3(i,:,:,:)*dum1(i)
-         Ay_nuh(i,:,:,:) = Ay_nu0(i,:,:,:) + DtA_2(i,:,:,:)*dum1(i)
-         Ax_nuh(i,:,:,:) = Ax_nu0(i,:,:,:) + DtA_1(i,:,:,:)*dum1(i)
-      enddo
-
-      ! ADAM: TRY SIMPLER VERSION THAN NOW: S_2*S_2 rather than S_22.                                                
-      ! NB. THIS MAY MEAN THAT d_t B != -curl(E) AT PARTICLE POSITION.                                               
-
+      ! ADAM: TRY SIMPLER VERSION THAN NOW: S_2*S_2 rather than S_22.     
+      ! NB. THIS MAY MEAN THAT d_t B != -curl(E) AT PARTICLE POSITION.
+      
       dumB(:,1,1:3) = DSy(:,1:3)
       dum33(:,1:3,1:3) = opt_vecvec_3_pcle(Sx2,dumB)
       dum2(:,1:2)  = opt_matmat_332_xy_pcle(Az_nuh,dum33)
@@ -1558,8 +1548,7 @@ c     Find B
       dum2(:,1:2) = opt_matmat_323_zx_pcle(Ay_nuh,dum33)
       call dot_product_2_pcle(dum2,Sy1,dum1)
       Bp(:,1) = Bp(:,1)-dum1
-
-!                                                                                                                    
+                                                                                                               
       dumB(:,1,1:3) = DSz(:,1:3)
       dum33(:,1:3,1:3) = opt_vecvec_3_pcle(Sy2,dumB)
       dum2(:,1:2) = opt_matmat_233_yz_pcle(Ax_nuh,dum33)
@@ -1572,7 +1561,6 @@ c     Find B
       call dot_product_2_pcle(dum2,Sz1,dum1)
       Bp(:,2) = Bp(:,2) - dum1
 
-!                                                                                                                    
       dumB(:,1,1:3) = DSx(:,1:3)
       dum33(:,1:3,1:3) = opt_vecvec_3_pcle(Sz2,dumB)
       dum2(:,1:2) = opt_matmat_323_zx_pcle(Ay_nuh,dum33)
@@ -2334,7 +2322,7 @@ c     ------------------------------------------------------------------
 
 c     Call variables
 
-      real(8), intent(in) :: A(0:,0:,1:),DtA(0:,0:,1:)
+      real(8), intent(in) :: A(0:,0:,0:,1:),DtA(0:,0:,0:,1:)
 
       character(*) :: test
 
@@ -2343,12 +2331,14 @@ c     Call variables
 c     Local variables
 
       integer :: isp,ipc,Np,npc1,ierr !count the # of particle in the first cell
-      integer :: numspcs,nxg,nyg,nzg,nng
+      integer :: numspcs,nxg,nyg,nzg,nng,npl
       real(8) :: cm(3),ihx,ihy,ihz
       real(_prec) :: v2
-      real(_prec) :: xp(_Npg), yp(_Npg)
+      real(_prec) :: xp(_Npg), yp(_Npg), zp(_Npg)
       integer :: i0(_Npg), j0(_Npg), k0(_Npg)
       integer :: i, i_n(_Npg),j_n(_Npg),k_n(_Npg)
+
+      integer,pointer,dimension(:,:,:,:) :: Npcle_cell
 
 c     Begin program
 
@@ -2366,16 +2356,23 @@ c     Update particle info
 
       numspcs = size(spcs)
 
-      select case(test)
+     select case(test)
       case('slow_shock')
         npc1 = 0
 
-        do isp=1,numspcs
-           Np = size(spcs(isp)%pcles)
-!$OMP PARALLEL DEFAULT(SHARED) private(ipc,i,i_n,j_n)
+        if (particle_sort) then
+          allocate(Npcle_cell(nxg,nyg,nzg,numspcs))
+          call sort_particles(Npart_cell=Npcle_cell)
+          isp = 2 !Electrons
+          npc1 = Npcle_cell(1,1,1,isp)+Npcle_cell(2,1,1,isp) !Sum first two cells
+          deallocate(Npcle_cell)
+        else
+          do isp=1,numspcs
+            Np = size(spcs(isp)%pcles)
+!$OMP PARALLEL DEFAULT(SHARED) private(ipc,i,i_n,j_n,k_n)
 !$OMP DO 
 !$OMP.REDUCTION (+:npc1)
-           do ipc=nip+1,Np
+            do ipc=nip+1,Np
               !Save old positions and velocities
               spcs(isp)%pcles(ipc)%x_n = spcs(isp)%pcles(ipc)%x_np
               spcs(isp)%pcles(ipc)%v_n = spcs(isp)%pcles(ipc)%v_np
@@ -2385,27 +2382,29 @@ c     Update particle info
               call xform_pcle_idx(spcs(isp)%pcles(ipc)%ijk_n
      .                           ,nxg,nyg,i_n,j_n,k_n)
               do i=1, _Npg
-                 if((i_n(i).eq.1.or.i_n(i).eq.2)
-     .               .and.(isp.eq.2) ) then
-cc                 if((pcles(ipc)%i_n.eq.1).and.(isp.
-cc     $                eq.2) ) then
-                    npc1 = npc1 + 1
-                 end if
+                if((i_n(i).eq.1.or.i_n(i).eq.2).and.(isp.eq.2)) then
+                  npc1 = npc1 + 1
+                end if
               end do
-           end do
+            end do
 !$OMP END DO
 !$OMP END PARALLEL 
-        end do
+          end do
+        endif
 
         !Calculate inflow np filling
         if(nip>0) then
           !keep the first cell particle number constant
-          npl = (npc1-npc1_0)
+          npl = (npc1/_Npg-npc1_0(1))
            
           do while(npl<0) 
             nip = nip - 1
             npl = npl + 1
           end do
+
+          if (my_rank_pic == 0.and.(.not.tst_flg)) then
+            write (*,*) 'Particle buffer number',nip
+          endif
 
           cm = 0d0
           do isp=1,numspcs
@@ -2413,11 +2412,11 @@ cc     $                eq.2) ) then
 !$OMP PARALLEL DEFAULT(SHARED) private(ipc,xp,yp,i0,j0,i)
 !$OMP DO 
 !$OMP.REDUCTION (+:v2,cm)
-            do ipc = nip+1,nip+npa_int
+            do ipc = nip+1,nip+npa_int  !What is npa_int for????
               xp = spcs(isp)%pcles(ipc)%x_np(:,1)*ihx 
               yp = spcs(isp)%pcles(ipc)%x_np(:,2)*ihy
               call xform_pcle_idx(spcs(isp)%pcles(ipc)%ijk_np,nxg,nyg
-     .                                                      ,i0,j0,k0)
+     .                           ,i0,j0,k0)
               do i=1, _Npg
                  v2 = v2
      .              +( spcs(isp)%pcles(ipc)%v_np(i,1)
@@ -2428,8 +2427,10 @@ cc     $                eq.2) ) then
      .                *spcs(isp)%pcles(ipc)%v_np(i,3)
      .               )*spcs(isp)%pcles(ipc)%w_np(i)
 #ifdef PIC_CM_DIAG
-                 cm = cm + cmp(spcs(isp)%q,i0(i),j0(i),xp(i),yp(i),A)
-     .            + 0.5*dt*cmp(spcs(isp)%q,i0(i),j0(i),xp(i),yp(i),DtA)
+                 cm = cm
+     .            +cmp(spcs(isp)%q,i0(i),j0(i),xp(i),yp(i),A(:,:,1,:))
+     .            +0.5*dt
+     .            *cmp(spcs(isp)%q,i0(i),j0(i),xp(i),yp(i),DtA(:,:,1,:))
                  cm(1)= cm(1)+spcs(isp)%m*spcs(isp)%pcles(ipc)%v_np(i,1)
                  cm(2)= cm(2)+spcs(isp)%m*spcs(isp)%pcles(ipc)%v_np(i,2)
                  cm(3)= cm(3)+spcs(isp)%m*spcs(isp)%pcles(ipc)%v_np(i,3)
@@ -2452,7 +2453,7 @@ cc     $                eq.2) ) then
       case default
 
         if (particle_sort) then
-          call sort_particles(nxg,nng,n_sp)
+          call sort_particles
         else
           do isp=1,numspcs
             Np = size(spcs(isp)%pcles)
