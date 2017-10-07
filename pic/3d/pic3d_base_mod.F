@@ -399,20 +399,6 @@ c     ##################################################################
 
       end subroutine xform_pcle_idx_scl
 
-c     xform_pcle_idx_sort
-c     ##################################################################
-      subroutine xform_pcle_idx_sort(ijk,nx,i,j) ! Adam. Need to modify this too - single particle.
-
-      implicit none
-
-      integer :: ijk,nx,ny,i,j,k
-
-      j = (ijk-1)/nx + 1
-      i = ijk - nx*(j-1)
-cc      i  = mod(ijk, nx) + 1
-
-      end subroutine xform_pcle_idx_sort
-
 c     xform_pcle_idx
 c     ##################################################################
       subroutine xform_pcle_idx(ijk,nx,ny,i,j,k)
@@ -6031,7 +6017,7 @@ c     Begin program
           do iv=1,_Npg
             ip = locl_cell_index(ijk(iv))
 
-            call xform_pcle_idx_scl(ip,_Npg,ivl,ipl)
+            call xform_pcle_idx_sort(ip,_Npg,ivl,ipl)
             ipl = ipl + nip
 
             !Save old positions and velocities only
@@ -6064,6 +6050,20 @@ c     Begin program
       deallocate(part_cell_index,locl_cell_index)
 
       end subroutine sort_particles
+
+c     xform_pcle_idx_sort
+c     ##################################################################
+      subroutine xform_pcle_idx_sort(ijk,nx,i,j) ! Adam. Need to modify this too - single particle.
+
+      implicit none
+
+      integer :: ijk,nx,ny,i,j,k
+
+      j = (ijk-1)/nx + 1
+      i = ijk - nx*(j-1)
+cc      i  = mod(ijk, nx) + 1
+
+      end subroutine xform_pcle_idx_sort
 
       end module pic_sort
 

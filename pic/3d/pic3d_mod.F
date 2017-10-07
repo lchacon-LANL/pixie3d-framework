@@ -62,13 +62,13 @@ c     Local variables
       real(_prec) :: xp(_Npg),yp(_Npg),zp(_Npg),xfp(_Npg),yfp(_Npg)
      .              ,zfp(_Npg),v2(_Npg),w_pcle(_Npg),m_sp,q_sp
 
-      real(_prec),allocatable,dimension(:,:) :: garr_n  
-     $                                         ,garr_vx 
-     $                                         ,garr_vy 
-     $                                         ,garr_vz 
-     $                                         ,garr_vx2
-     $                                         ,garr_vy2
-     $                                         ,garr_vz2
+      real(_prec),allocatable,dimension(:,:,:) :: garr_n  
+     $                                           ,garr_vx 
+     $                                           ,garr_vy 
+     $                                           ,garr_vz 
+     $                                           ,garr_vx2
+     $                                           ,garr_vy2
+     $                                           ,garr_vz2
 
       real(_prec) :: Mx1(_Npg,2,1,1),My1(_Npg,1,2,1),Mz1(_Npg,1,1,2)
       real(_prec) :: Mx2(_Npg,3,1,1),My2(_Npg,1,3,1),Mz2(_Npg,1,1,3)
@@ -95,7 +95,7 @@ c     Begin program
      $        ,garr_vz (0:size(A,1)-1,0:size(A,2)-1,0:size(A,3)-1)
      $        ,garr_vx2(0:size(A,1)-1,0:size(A,2)-1,0:size(A,3)-1)
      $        ,garr_vy2(0:size(A,1)-1,0:size(A,2)-1,0:size(A,3)-1)
-     $        ,garr_vz2(0:size(A,1)-1,0:size(A,2)-1,0:size(A,3)-1)
+     $        ,garr_vz2(0:size(A,1)-1,0:size(A,2)-1,0:size(A,3)-1))
 
 c     Particle pusher timer - C. Mikida, 05/16
 
@@ -597,7 +597,7 @@ c     Local variables
       
       real(_prec) :: ac0(_Npg,3),v0curv(_Npg,3)
 
-      real(_prec) :: Omegac(_Npg),omb(_Npg),Bmax(_Npg)
+      real(_prec) :: Omegac(_Npg),omb(_Npg),Bmax(_Npg),dum1(_Npg)
       real(_prec) :: vh(_Npg,3)
 
       real(_prec) :: qm(_Npg) 
@@ -619,7 +619,7 @@ c     Local variables
      .              ,E_2   (_Npg,3,2,3)
      .              ,E_3   (_Npg,3,3,2)
       real(_prec) :: Ax_nuh(_Npg,2,3,3)
-     $              ,Ay_nuh(_Npg,3,2,3)
+     .              ,Ay_nuh(_Npg,3,2,3)
      .              ,Az_nuh(_Npg,3,3,2)
 
       real(_prec) :: phi_loc(_Npg,3,3,3)
@@ -714,9 +714,9 @@ c     Initialize Picard
 
         !VECTOR SIMD
         do i=1,_Npg
-           Ax_nuh(i,:,:,:) = A_1(i,:,:,:) + DtA_1(i,:,:,:)*dum1(i)
-           Ay_nuh(i,:,:,:) = A_2(i,:,:,:) + DtA_2(i,:,:,:)*dum1(i)
-           Az_nuh(i,:,:,:) = A_3(i,:,:,:) + DtA_3(i,:,:,:)*dum1(i)
+          Ax_nuh(i,:,:,:) = A_1(i,:,:,:) + DtA_1(i,:,:,:)*dum1(i)
+          Ay_nuh(i,:,:,:) = A_2(i,:,:,:) + DtA_2(i,:,:,:)*dum1(i)
+          Az_nuh(i,:,:,:) = A_3(i,:,:,:) + DtA_3(i,:,:,:)*dum1(i)
         enddo
 
         !Perform Boris push
@@ -1166,7 +1166,7 @@ c     Local variables
      .              ,x_nh(_Npg,3),cov(3,3),cnv(3,3),xlog(_Npg,3)
      .              ,dum1(_Npg),dum2(_Npg,2),dum3(_Npg,3)
      .              ,dum33(_Npg,3,3),dumA(_Npg,3,1),dumB(_Npg,1,3)
-     .              ,dumC(_Npg,1,3)
+     .              ,dumC(_Npg,1,3),dumD(_Npg,3,3)
       real(_prec) :: Sx2_n(_Npg,3),Sy2_n(_Npg,3),Sz2_n(_Npg,3)
       real(_prec) :: Sx1(_Npg,2),Sx2(_Npg,3),DSx(_Npg,3)
       real(_prec) :: Sy1(_Npg,2),Sy2(_Npg,3),DSy(_Npg,3)
@@ -1213,18 +1213,19 @@ c     Find Ep_1
       !ADAM: Compute S22(y,z)
       dumA(:,1:3,1)=Sy2_o(:,1:3)
       dumB(:,1,1:3)=Sz2_o(:,1:3)
-      dum33(:,1:3,1:3)=opt_vecvec_3_pcle(dumA(:,1:3,1)
-     $                   ,dumB(:,1,1:3))*2d0
+      call opt_vecvec_3_pcle(dumA(:,1:3,1),dumB(:,1,1:3),dumD)
+      dum33 = dumD*2d0
 
       dumC=dumB
       dumB(:,1,1:3)=Sz2_n(:,1:3)
-      dum33(:,1:3,1:3)=dum33(:,1:3,1:3)
-     $       +opt_vecvec_3_pcle(dumA(:,1:3,1),dumB(:,1,1:3))
+      call opt_vecvec_3_pcle(dumA(:,1:3,1),dumB(:,1,1:3),dumD)
+      dum33 = dum33 + dumD
 
       dumA(:,1:3,1)=Sy2_n(:,1:3)
-      dum33(:,1:3,1:3)=dum33(:,1:3,1:3)
-     $       +opt_vecvec_3_pcle(dumA(:,1:3,1),dumC(:,1,1:3))
-     $       +opt_vecvec_3_pcle(dumA(:,1:3,1),dumB(:,1,1:3))*2d0
+      call opt_vecvec_3_pcle(dumA(:,1:3,1),dumC(:,1,1:3),dumD)
+      dum33 = dum33 + dumD
+      call opt_vecvec_3_pcle(dumA(:,1:3,1),dumB(:,1,1:3),dumD)
+      dum33 = dum33 + 2d0*dumD
 
       dum33=dum33/6d0
 
@@ -1244,18 +1245,19 @@ c     Find Ep_2
       ! ADAM: Compute S22(z,x)
       dumA(:,1:3,1)=Sz2_o(:,1:3)
       dumB(:,1,1:3)=Sx2_o(:,1:3)
-      dum33(:,1:3,1:3)=opt_vecvec_3_pcle(dumA(:,1:3,1)
-     $                   ,dumB(:,1,1:3))*2d0
+      call opt_vecvec_3_pcle(dumA(:,1:3,1),dumB(:,1,1:3),dumD)
+      dum33 = dumD*2d0
 
       dumC=dumB
       dumB(:,1,1:3)=Sx2_n(:,1:3)
-      dum33(:,1:3,1:3)=dum33(:,1:3,1:3)
-     $       +opt_vecvec_3_pcle(dumA(:,1:3,1),dumB(:,1,1:3))
+      call opt_vecvec_3_pcle(dumA(:,1:3,1),dumB(:,1,1:3),dumD)
+      dum33 = dum33 + dumD
 
       dumA(:,1:3,1)=Sz2_n(:,1:3)
-      dum33(:,1:3,1:3)=dum33(:,1:3,1:3)
-     $       +opt_vecvec_3_pcle(dumA(:,1:3,1),dumC(:,1,1:3))
-     $       +opt_vecvec_3_pcle(dumA(:,1:3,1),dumB(:,1,1:3))*2d0
+      call opt_vecvec_3_pcle(dumA(:,1:3,1),dumC(:,1,1:3),dumD)
+      dum33 = dum33 + dumD
+      call opt_vecvec_3_pcle(dumA(:,1:3,1),dumB(:,1,1:3),dumD)
+      dum33 = dum33 + 2d0*dumD
 
       dum33=dum33/6d0
 
@@ -1275,18 +1277,19 @@ c     Find Ep_3
       ! ADAM: Compute S22(x,y)
       dumA(:,1:3,1)=Sx2_o(:,1:3)
       dumB(:,1,1:3)=Sy2_o(:,1:3)
-      dum33(:,1:3,1:3)=opt_vecvec_3_pcle(dumA(:,1:3,1)
-     $                   ,dumB(:,1,1:3))*2d0
+      call opt_vecvec_3_pcle(dumA(:,1:3,1),dumB(:,1,1:3),dumD)
+      dum33 = dumD*2d0
 
       dumC=dumB
       dumB(:,1,1:3)=Sy2_n(:,1:3)
-      dum33(:,1:3,1:3)=dum33(:,1:3,1:3)
-     $       +opt_vecvec_3_pcle(dumA(:,1:3,1),dumB(:,1,1:3))
+      call opt_vecvec_3_pcle(dumA(:,1:3,1),dumB(:,1,1:3),dumD)
+      dum33 = dum33 + dumD
 
       dumA(:,1:3,1)=Sx2_n(:,1:3)
-      dum33(:,1:3,1:3)=dum33(:,1:3,1:3)
-     $       +opt_vecvec_3_pcle(dumA(:,1:3,1),dumC(:,1,1:3))
-     $       +opt_vecvec_3_pcle(dumA(:,1:3,1),dumB(:,1,1:3))*2d0
+      call opt_vecvec_3_pcle(dumA(:,1:3,1),dumC(:,1,1:3),dumD)
+      dum33 = dum33 + dumD
+      call opt_vecvec_3_pcle(dumA(:,1:3,1),dumB(:,1,1:3),dumD)
+      dum33 = dum33 + 2d0*dumD
 
       dum33=dum33/6d0
 
@@ -1307,39 +1310,39 @@ c     Find B
       ! NB. THIS MAY MEAN THAT d_t B != -curl(E) AT PARTICLE POSITION.
 
       dumB(:,1,1:3) = DSy(:,1:3)
-      dum33(:,1:3,1:3) = opt_vecvec_3_pcle(Sx2,dumB)
+      call opt_vecvec_3_pcle(Sx2,dumB,dum33)
       dum2(:,1:2)  = opt_matmat_332_xy_pcle(Az_nuh,dum33)
       call dot_product_2_pcle(dum2,Sz1,dum1)
       Bp(:,1) = dum1
 
       dumB(:,1,1:3) = Sx2(:,1:3)
-      dum33(:,1:3,1:3) = opt_vecvec_3_pcle(DSz,dumB)
+      call opt_vecvec_3_pcle(DSz,dumB,dum33)
       dum2(:,1:2) = opt_matmat_323_zx_pcle(Ay_nuh,dum33)
       call dot_product_2_pcle(dum2,Sy1,dum1)
       Bp(:,1) = Bp(:,1)-dum1 + B0(1)
 
 !
       dumB(:,1,1:3) = DSz(:,1:3)
-      dum33(:,1:3,1:3) = opt_vecvec_3_pcle(Sy2,dumB)
+      call opt_vecvec_3_pcle(Sy2,dumB,dum33)
       dum2(:,1:2) = opt_matmat_233_yz_pcle(Ax_nuh,dum33)
       call dot_product_2_pcle(dum2,Sx1,dum1)
       Bp(:,2) = dum1
 
       dumB(:,1,1:3) = Sy2(:,1:3)
-      dum33(:,1:3,1:3) = opt_vecvec_3_pcle(DSx,dumB)
+      call opt_vecvec_3_pcle(DSx,dumB,dum33)
       dum2(:,1:2)  = opt_matmat_332_xy_pcle(Az_nuh,dum33)
       call dot_product_2_pcle(dum2,Sz1,dum1)
       Bp(:,2) = Bp(:,2) - dum1 + B0(2)
 
 !
       dumB(:,1,1:3) = DSx(:,1:3)
-      dum33(:,1:3,1:3) = opt_vecvec_3_pcle(Sz2,dumB)
+      call opt_vecvec_3_pcle(Sz2,dumB,dum33)
       dum2(:,1:2) = opt_matmat_323_zx_pcle(Ay_nuh,dum33)
       call dot_product_2_pcle(dum2,Sy1,dum1)
       Bp(:,3) = dum1
 
       dumB(:,1,1:3) = Sz2(:,1:3)
-      dum33(:,1:3,1:3) = opt_vecvec_3_pcle(DSy,dumB)
+      call opt_vecvec_3_pcle(DSy,dumB,dum33)
       dum2(:,1:2) = opt_matmat_233_yz_pcle(Ax_nuh,dum33)
       call dot_product_2_pcle(dum2,Sx1,dum1)
       Bp(:,3) = Bp(:,3) - dum1 + B0(3)
@@ -1385,7 +1388,7 @@ c     Local variables
      .              ,xlog(_Npg,3),x0p(_Npg,3)
      .              ,dum1(_Npg),dum2(_Npg,2),dum3(_Npg,3)
      .              ,dum33(_Npg,3,3),dumA(_Npg,3,1),dumB(_Npg,1,3)
-     .              ,dumC(_Npg,1,3)
+     .              ,dumC(_Npg,1,3),dumD(_Npg,3,3)
 
       real(_prec) :: Sx2_n(_Npg,3),Sy2_n(_Npg,3),Sz2_n(_Npg,3)
       real(_prec) :: Sx1(_Npg,2),Sx2(_Npg,3),DSx(_Npg,3)
@@ -1428,87 +1431,101 @@ c     Begin program
       call Dy_shape2_offset(xhp(:,2),DSy)
       call Dz_shape2_offset(xhp(:,3),DSz)
 
-c     Find E
-!      Sxd = (Sx2_n-Sx2_o)*0.5d0
-!      Syd = (Sy2_n-Sy2_o)*0.5d0
+c     Find Ep_1
 
-      ! ADAM: Compute S22(y,z)
+      !ADAM: Compute S22(y,z)
       dumA(:,1:3,1)=Sy2_o(:,1:3)
       dumB(:,1,1:3)=Sz2_o(:,1:3)
-      dum33(:,1:3,1:3)=opt_vecvec_3_pcle(dumA(:,1:3,1)
-     $                   ,dumB(:,1,1:3))*2d0
+      call opt_vecvec_3_pcle(dumA(:,1:3,1),dumB(:,1,1:3),dumD)
+      dum33 = dumD*2d0
 
       dumC=dumB
       dumB(:,1,1:3)=Sz2_n(:,1:3)
-      dum33(:,1:3,1:3)=dum33(:,1:3,1:3)
-     $       +opt_vecvec_3_pcle(dumA(:,1:3,1),dumB(:,1,1:3))
+      call opt_vecvec_3_pcle(dumA(:,1:3,1),dumB(:,1,1:3),dumD)
+      dum33 = dum33 + dumD
 
       dumA(:,1:3,1)=Sy2_n(:,1:3)
-      dum33(:,1:3,1:3)=dum33(:,1:3,1:3)
-     $       +opt_vecvec_3_pcle(dumA(:,1:3,1),dumC(:,1,1:3))
-     $       +opt_vecvec_3_pcle(dumA(:,1:3,1),dumB(:,1,1:3))*2d0
+      call opt_vecvec_3_pcle(dumA(:,1:3,1),dumC(:,1,1:3),dumD)
+      dum33 = dum33 + dumD
+      call opt_vecvec_3_pcle(dumA(:,1:3,1),dumB(:,1,1:3),dumD)
+      dum33 = dum33 + 2d0*dumD
 
       dum33=dum33/6d0
 
-      dum3(:,:) = opt_matmat_333_yz_pcle(phi_loc(:,:,:,:),dum33(:,:,:))
-      dum2(:,:) = opt_matmat_233_yz_pcle(DtA_1  (:,:,:,:),dum33(:,:,:))
+c$$$      dum3(:,:) = opt_matmat_333_yz_pcle(phi_loc(:,:,:,:),dum33(:,:,:))
+c$$$      dum2(:,:) = opt_matmat_233_yz_pcle(DtA_1  (:,:,:,:),dum33(:,:,:))
+c$$$
+c$$$      call dot_product_2_pcle(dum2,Sx1,dum1)
+c$$$      Ep(:,1) = -dum1
+c$$$      call dot_product_3_pcle(dum3,DSx,dum1)
+c$$$      Ep(:,1) = Ep(:,1) - dum1
 
-      call dot_product_2_pcle(dum2,Sx1,dum1)
-      Ep(:,1) = -dum1
-      call dot_product_3_pcle(dum3,DSx,dum1)
-      Ep(:,1) = Ep(:,1) - dum1
+      dum2 = opt_matmat_233_yz_pcle(E_1,dum33)
+      call dot_product_2_pcle(dum2,Sx1,Ep(:,1))
+
+c     Find Ep_2
 
       ! ADAM: Compute S22(z,x)
       dumA(:,1:3,1)=Sz2_o(:,1:3)
       dumB(:,1,1:3)=Sx2_o(:,1:3)
-      dum33(:,1:3,1:3)=opt_vecvec_3_pcle(dumA(:,1:3,1)
-     $                   ,dumB(:,1,1:3))*2d0
+      call opt_vecvec_3_pcle(dumA(:,1:3,1),dumB(:,1,1:3),dumD)
+      dum33 = dumD*2d0
 
       dumC=dumB
       dumB(:,1,1:3)=Sx2_n(:,1:3)
-      dum33(:,1:3,1:3)=dum33(:,1:3,1:3)
-     $       +opt_vecvec_3_pcle(dumA(:,1:3,1),dumB(:,1,1:3))
+      call opt_vecvec_3_pcle(dumA(:,1:3,1),dumB(:,1,1:3),dumD)
+      dum33 = dum33 + dumD
 
       dumA(:,1:3,1)=Sz2_n(:,1:3)
-      dum33(:,1:3,1:3)=dum33(:,1:3,1:3)
-     $       +opt_vecvec_3_pcle(dumA(:,1:3,1),dumC(:,1,1:3))
-     $       +opt_vecvec_3_pcle(dumA(:,1:3,1),dumB(:,1,1:3))*2d0
+      call opt_vecvec_3_pcle(dumA(:,1:3,1),dumC(:,1,1:3),dumD)
+      dum33 = dum33 + dumD
+      call opt_vecvec_3_pcle(dumA(:,1:3,1),dumB(:,1,1:3),dumD)
+      dum33 = dum33 + 2d0*dumD
 
       dum33=dum33/6d0
 
-      dum3(:,:) = opt_matmat_333_zx_pcle(phi_loc(:,:,:,:),dum33(:,:,:))
-      dum2(:,:) = opt_matmat_323_zx_pcle(DtA_2  (:,:,:,:),dum33(:,:,:))
+c$$$      dum3(:,:) = opt_matmat_333_zx_pcle(phi_loc(:,:,:,:),dum33(:,:,:))
+c$$$      dum2(:,:) = opt_matmat_323_zx_pcle(DtA_2(:,:,:,:),dum33(:,:,:))
+c$$$
+c$$$      call dot_product_2_pcle(dum2,Sy1,dum1)
+c$$$      Ep(:,2) = -dum1
+c$$$      call dot_product_3_pcle(dum3,DSy,dum1)
+c$$$      Ep(:,2) = Ep(:,2) - dum1
 
-      call dot_product_2_pcle(dum2,Sy1,dum1)
-      Ep(:,2) = -dum1
-      call dot_product_3_pcle(dum3,DSy,dum1)
-      Ep(:,2) = Ep(:,2) - dum1
+      dum2 = opt_matmat_323_zx_pcle(E_2,dum33)
+      call dot_product_2_pcle(dum2,Sy1,Ep(:,2))
 
-      ! ADAM: Compute S22(x,y)     
+c     Find Ep_3
+      
+      ! ADAM: Compute S22(x,y)
       dumA(:,1:3,1)=Sx2_o(:,1:3)
       dumB(:,1,1:3)=Sy2_o(:,1:3)
-      dum33(:,1:3,1:3)=opt_vecvec_3_pcle(dumA(:,1:3,1)
-     $                   ,dumB(:,1,1:3))*2d0
+      call opt_vecvec_3_pcle(dumA(:,1:3,1),dumB(:,1,1:3),dumD)
+      dum33 = dumD*2d0
 
       dumC=dumB
       dumB(:,1,1:3)=Sy2_n(:,1:3)
-      dum33(:,1:3,1:3)=dum33(:,1:3,1:3)
-     $       +opt_vecvec_3_pcle(dumA(:,1:3,1),dumB(:,1,1:3))
+      call opt_vecvec_3_pcle(dumA(:,1:3,1),dumB(:,1,1:3),dumD)
+      dum33 = dum33 + dumD
 
       dumA(:,1:3,1)=Sx2_n(:,1:3)
-      dum33(:,1:3,1:3)=dum33(:,1:3,1:3)
-     $       +opt_vecvec_3_pcle(dumA(:,1:3,1),dumC(:,1,1:3))
-     $       +opt_vecvec_3_pcle(dumA(:,1:3,1),dumB(:,1,1:3))*2d0
+      call opt_vecvec_3_pcle(dumA(:,1:3,1),dumC(:,1,1:3),dumD)
+      dum33 = dum33 + dumD
+      call opt_vecvec_3_pcle(dumA(:,1:3,1),dumB(:,1,1:3),dumD)
+      dum33 = dum33 + 2d0*dumD
 
       dum33=dum33/6d0
 
-      dum3(:,:) = opt_matmat_333_xy_pcle(phi_loc(:,:,:,:),dum33(:,:,:))
-      dum2(:,:) = opt_matmat_332_xy_pcle(DtA_3(:,:,:,:),dum33(:,:,:))
+c$$$      dum3(:,:) = opt_matmat_333_xy_pcle(phi_loc(:,:,:,:),dum33(:,:,:))
+c$$$      dum2(:,:) = opt_matmat_332_xy_pcle(DtA_3(:,:,:,:),dum33(:,:,:))
+c$$$
+c$$$      call dot_product_2_pcle(dum2,Sz1,dum1)
+c$$$      Ep(:,3) = -dum1
+c$$$      call dot_product_3_pcle(dum3,DSz,dum1)
+c$$$      Ep(:,3) = Ep(:,3) - dum1
 
-      call dot_product_2_pcle(dum2,Sz1,dum1)
-      Ep(:,3) = -dum1
-      call dot_product_3_pcle(dum3,DSz,dum1)
-      Ep(:,3) = Ep(:,3) - dum1
+      dum2 = opt_matmat_332_xy_pcle(E_3,dum33)
+      call dot_product_2_pcle(dum2,Sz1,Ep(:,3))
 
 c OLD (2D):
 c$$$      call opt_matvec_tr_pcle(DSx,phi_loc(:,:,:,1),dum3)
@@ -1538,37 +1555,37 @@ c     Find B
       ! NB. THIS MAY MEAN THAT d_t B != -curl(E) AT PARTICLE POSITION.
       
       dumB(:,1,1:3) = DSy(:,1:3)
-      dum33(:,1:3,1:3) = opt_vecvec_3_pcle(Sx2,dumB)
+      call opt_vecvec_3_pcle(Sx2,dumB,dum33)
       dum2(:,1:2)  = opt_matmat_332_xy_pcle(Az_nuh,dum33)
       call dot_product_2_pcle(dum2,Sz1,dum1)
       Bp(:,1) = dum1
 
       dumB(:,1,1:3) = Sx2(:,1:3)
-      dum33(:,1:3,1:3) = opt_vecvec_3_pcle(DSz,dumB)
+      call opt_vecvec_3_pcle(DSz,dumB,dum33)
       dum2(:,1:2) = opt_matmat_323_zx_pcle(Ay_nuh,dum33)
       call dot_product_2_pcle(dum2,Sy1,dum1)
       Bp(:,1) = Bp(:,1)-dum1
                                                                                                                
       dumB(:,1,1:3) = DSz(:,1:3)
-      dum33(:,1:3,1:3) = opt_vecvec_3_pcle(Sy2,dumB)
+      call opt_vecvec_3_pcle(Sy2,dumB,dum33)
       dum2(:,1:2) = opt_matmat_233_yz_pcle(Ax_nuh,dum33)
       call dot_product_2_pcle(dum2,Sx1,dum1)
       Bp(:,2) = dum1
 
       dumB(:,1,1:3) = Sy2(:,1:3)
-      dum33(:,1:3,1:3) = opt_vecvec_3_pcle(DSx,dumB)
+      call opt_vecvec_3_pcle(DSx,dumB,dum33)
       dum2(:,1:2)  = opt_matmat_332_xy_pcle(Az_nuh,dum33)
       call dot_product_2_pcle(dum2,Sz1,dum1)
       Bp(:,2) = Bp(:,2) - dum1
 
       dumB(:,1,1:3) = DSx(:,1:3)
-      dum33(:,1:3,1:3) = opt_vecvec_3_pcle(Sz2,dumB)
+      call opt_vecvec_3_pcle(Sz2,dumB,dum33)
       dum2(:,1:2) = opt_matmat_323_zx_pcle(Ay_nuh,dum33)
       call dot_product_2_pcle(dum2,Sy1,dum1)
       Bp(:,3) = dum1
 
       dumB(:,1,1:3) = Sz2(:,1:3)
-      dum33(:,1:3,1:3) = opt_vecvec_3_pcle(DSy,dumB)
+      call opt_vecvec_3_pcle(DSy,dumB,dum33)
       dum2(:,1:2) = opt_matmat_233_yz_pcle(Ax_nuh,dum33)
       call dot_product_2_pcle(dum2,Sx1,dum1)
       Bp(:,3) = Bp(:,3) - dum1
@@ -2356,7 +2373,7 @@ c     Update particle info
 
       numspcs = size(spcs)
 
-     select case(test)
+      select case(test)
       case('slow_shock')
         npc1 = 0
 
