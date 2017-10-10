@@ -597,7 +597,7 @@ c     Local variables
       
       real(_prec) :: ac0(_Npg,3),v0curv(_Npg,3)
 
-      real(_prec) :: Omegac(_Npg),omb(_Npg),Bmax(_Npg),dum1(_Npg)
+      real(_prec) :: Omegac(_Npg),omb(_Npg),Bmax(_Npg)
       real(_prec) :: vh(_Npg,3)
 
       real(_prec) :: qm(_Npg) 
@@ -618,9 +618,6 @@ c     Local variables
       real(_prec) :: E_1   (_Npg,2,3,3)
      .              ,E_2   (_Npg,3,2,3)
      .              ,E_3   (_Npg,3,3,2)
-      real(_prec) :: Ax_nuh(_Npg,2,3,3)
-     .              ,Ay_nuh(_Npg,3,2,3)
-     .              ,Az_nuh(_Npg,3,3,2)
 
       real(_prec) :: phi_loc(_Npg,3,3,3)
       real(_prec) :: xnp_loc(_Npg,3),vnp_loc(_Npg,3)
@@ -691,8 +688,6 @@ c     Estimate sub-time-step
 
       call estimate_dtp(dt_sub)
 
-!      write(*,*) dt_sub
-
 c     Initialize Picard
 
       call initialize_it(dx_err)
@@ -708,16 +703,6 @@ c     Initialize Picard
         dx_k = dx
 
         substeps = substeps + _Npg
-
-        !Prepare vector potential at nu+1/2
-        dum1 = 0.5d0*(-2d0*dtp+dt+dt_sub)
-
-        !VECTOR SIMD
-        do i=1,_Npg
-          Ax_nuh(i,:,:,:) = A_1(i,:,:,:) + DtA_1(i,:,:,:)*dum1(i)
-          Ay_nuh(i,:,:,:) = A_2(i,:,:,:) + DtA_2(i,:,:,:)*dum1(i)
-          Az_nuh(i,:,:,:) = A_3(i,:,:,:) + DtA_3(i,:,:,:)*dum1(i)
-        enddo
 
         !Perform Boris push
  
@@ -1173,7 +1158,11 @@ c     Local variables
       real(_prec) :: Sz1(_Npg,2),Sz2(_Npg,3),DSz(_Npg,3)
 !      real(_prec) :: Sxd(_Npg,3),Syd(_Npg,3),Szd(_Npg,3)
       real(_prec) :: Sx2_o(_Npg,3),Sy2_o(_Npg,3),Sz2_o(_Npg,3)
- 
+
+      real(_prec) :: Ax_nuh(_Npg,2,3,3)
+     .              ,Ay_nuh(_Npg,3,2,3)
+     .              ,Az_nuh(_Npg,3,3,2)
+
 c     Begin program
 
       x0p(:,1) = x0(:,1)*ihx
@@ -1306,6 +1295,16 @@ c$$$      Ep(:,3) = Ep(:,3) - dum1
 
 c     Find B
 
+      !Prepare vector potential at nu+1/2
+      dum1 = 0.5d0*(-2d0*dtp+dt+dtau)
+
+      !VECTOR SIMD
+      do i=1,_Npg
+        Ax_nuh(i,:,:,:) = A_1(i,:,:,:) + DtA_1(i,:,:,:)*dum1(i)
+        Ay_nuh(i,:,:,:) = A_2(i,:,:,:) + DtA_2(i,:,:,:)*dum1(i)
+        Az_nuh(i,:,:,:) = A_3(i,:,:,:) + DtA_3(i,:,:,:)*dum1(i)
+      enddo
+
       ! ADAM: TRY SIMPLER VERSION THAN NOW: S_2*S_2 rather than S_22.
       ! NB. THIS MAY MEAN THAT d_t B != -curl(E) AT PARTICLE POSITION.
 
@@ -1396,6 +1395,10 @@ c     Local variables
       real(_prec) :: Sz1(_Npg,2),Sz2(_Npg,3),DSz(_Npg,3)
 !      real(_prec) :: Sxd(_Npg,3),Syd(_Npg,3)
       real(_prec) :: Sx2_o(_Npg,3),Sy2_o(_Npg,3),Sz2_o(_Npg,3)
+
+      real(_prec) :: Ax_nuh(_Npg,2,3,3)
+     .              ,Ay_nuh(_Npg,3,2,3)
+     .              ,Az_nuh(_Npg,3,3,2)
 
 c     Begin program
 
@@ -1550,6 +1553,16 @@ c$$$      call dot_product_3_pcle(dum3,Syd,dum1)
 c$$$      Ep(:,3) = Ep(:,3) - dum1
 
 c     Find B
+
+      !Prepare vector potential at nu+1/2
+      dum1 = 0.5d0*(-2d0*dtp+dt+dtau)
+
+      !VECTOR SIMD
+      do i=1,_Npg
+        Ax_nuh(i,:,:,:) = A_1(i,:,:,:) + DtA_1(i,:,:,:)*dum1(i)
+        Ay_nuh(i,:,:,:) = A_2(i,:,:,:) + DtA_2(i,:,:,:)*dum1(i)
+        Az_nuh(i,:,:,:) = A_3(i,:,:,:) + DtA_3(i,:,:,:)*dum1(i)
+      enddo
 
       ! ADAM: TRY SIMPLER VERSION THAN NOW: S_2*S_2 rather than S_22.     
       ! NB. THIS MAY MEAN THAT d_t B != -curl(E) AT PARTICLE POSITION.
