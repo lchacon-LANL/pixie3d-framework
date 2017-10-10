@@ -484,7 +484,7 @@ c     Local variables
       real(_prec) :: ac0(_Npg,3),v0curv(_Npg,3),vh(_Npg,3),vhes(_Npg,3)
      $              ,vhcurv(_Npg,3)
 
-      real(_prec) :: Omegac(_Npg),omb(_Npg),qm(_Npg),dum1(_Npg)
+      real(_prec) :: Omegac(_Npg),omb(_Npg),qm(_Npg)
      $              ,Bmax(_Npg),vdotB(_Npg)
 
       real(_prec) :: Ep(_Npg,3),Bp(_Npg,3)
@@ -494,7 +494,6 @@ c     Local variables
       real(_prec) :: DtA_1 (_Npg,2,3),DtA_2 (_Npg,3,2),DtA_3 (_Npg,3,3)
       real(_prec) :: E_1   (_Npg,2,3),E_2   (_Npg,3,2),E_3   (_Npg,3,3)
       real(_prec) :: A_1   (_Npg,2,3),A_2   (_Npg,3,2),A_3   (_Npg,3,3)
-      real(_prec) :: Ax_nuh(_Npg,2,3),Ay_nuh(_Npg,3,2),Az_nuh(_Npg,3,3)
 
       real(_prec) :: phi_loc(_Npg,3,3),xnp_loc(_Npg,3),vnp_loc(_Npg,3)
       real(_prec) :: x0_loc(_Npg,3),v0_loc(_Npg,3)
@@ -566,23 +565,12 @@ c     Initialize Picard
 
         substeps = substeps + _Npg
 
-        !Prepare vector potential at nu+1/2
-        dum1 = 0.5d0*(-2d0*dtp+dt+dt_sub)
-
-        !VECTOR SIMD
-        do i=1,_Npg
-           Ax_nuh(i,:,:) = A_1(i,:,:) + DtA_1(i,:,:)*dum1(i)
-           Ay_nuh(i,:,:) = A_2(i,:,:) + DtA_2(i,:,:)*dum1(i)
-           Az_nuh(i,:,:) = A_3(i,:,:) + DtA_3(i,:,:)*dum1(i)
-        enddo
-
         !Perform Boris push
         call Boris_solve(it,x0_loc,v0_loc,dx,vh,dt_sub)
 
-        !Check convergence
+        !Check convergence (very expensive!!!)
         if (mod(it,2) /= 0) cycle  !Check everyother iteration
 
-        !very expensive!!!
 #if defined(L1_NORM)
         dx_err = 0d0
         do i=1,_Npg
@@ -973,7 +961,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: i,j
+      integer     :: i,j
       real(_prec) :: Exp,Eyp,Ezp,Bxp,Byp,Bzp
      .              ,xhp(_Npg,3),xnp(_Npg,3),x0p(_Npg,3)
      .              ,x_nh(_Npg,3),cov(3,3),cnv(3,3),xlog(_Npg,3)
@@ -983,7 +971,9 @@ c     Local variables
       real(_prec) :: Sy1(_Npg,2),Sy2(_Npg,3),DSy(_Npg,3)
       real(_prec) :: Sxd(_Npg,3),Syd(_Npg,3)
       real(_prec) :: Sx2_o(_Npg,3),Sy2_o(_Npg,3)
- 
+
+      real(_prec) :: Ax_nuh(_Npg,2,3),Ay_nuh(_Npg,3,2),Az_nuh(_Npg,3,3)
+
 c     Begin program
 
       x0p(:,1) = x0(:,1)*ihx
@@ -1032,7 +1022,17 @@ c     Find E
       Ep(:,3) = Ep(:,3) + dum1
 
 c     Find B
-      
+
+      !Prepare vector potential at nu+1/2
+      dum1 = 0.5d0*(-2d0*dtp+dt+dtau)
+
+      !VECTOR SIMD
+      do i=1,_Npg
+         Ax_nuh(i,:,:) = A_1(i,:,:) + DtA_1(i,:,:)*dum1(i)
+         Ay_nuh(i,:,:) = A_2(i,:,:) + DtA_2(i,:,:)*dum1(i)
+         Az_nuh(i,:,:) = A_3(i,:,:) + DtA_3(i,:,:)*dum1(i)
+      enddo
+
       call opt_matvec_tr_pcle(Sx2,Az_nuh,dum3)
       call dot_product_3_pcle(dum3,DSy,dum1)
       Bp(:,1) = dum1 + B0(1)
@@ -1066,7 +1066,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: i
+      integer     :: i
       real(_prec) :: xhp(_Npg,3),xnp(_Npg,3)
      .              ,x_nh(_Npg,3),cov(_Npg,3,3),cnv(_Npg,3,3)
      .              ,xlog(_Npg,3),x0p(_Npg,3)
@@ -1076,6 +1076,8 @@ c     Local variables
       real(_prec) :: Sy1(_Npg,2),Sy2(_Npg,3),DSy(_Npg,3)
       real(_prec) :: Sxd(_Npg,3),Syd(_Npg,3)
       real(_prec) :: Sx2_o(_Npg,3),Sy2_o(_Npg,3)
+
+      real(_prec) :: Ax_nuh(_Npg,2,3),Ay_nuh(_Npg,3,2),Az_nuh(_Npg,3,3)
 
 c     Begin program
 
@@ -1123,6 +1125,16 @@ c     Find E
       Ep(:,3) = Ep(:,3) + dum1
 
 c     Find B
+
+      !Prepare vector potential at nu+1/2
+      dum1 = 0.5d0*(-2d0*dtp+dt+dtau)
+
+      !VECTOR SIMD
+      do i=1,_Npg
+         Ax_nuh(i,:,:) = A_1(i,:,:) + DtA_1(i,:,:)*dum1(i)
+         Ay_nuh(i,:,:) = A_2(i,:,:) + DtA_2(i,:,:)*dum1(i)
+         Az_nuh(i,:,:) = A_3(i,:,:) + DtA_3(i,:,:)*dum1(i)
+      enddo
 
       call opt_matvec_tr_pcle(Sx2,Az_nuh,dum3)
       call dot_product_3_pcle(dum3,DSy,dum1)
