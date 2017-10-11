@@ -776,10 +776,10 @@ c     ######################################################################
 
       if (no_map) then
         call scatter_fields_nomap(x0_loc,scatter_zeroes,dx,A_1,A_2,A_3
-     $                              ,dtA_1,dtA_2,dtA_3,Ep,Bp)
+     $                           ,dtA_1,dtA_2,dtA_3,Ep,Bp)
       else
         call scatter_fields_curv (x0_loc,scatter_zeroes,dx,A_1,A_2,A_3
-     $                              ,dtA_1,dtA_2,dtA_3,Ep,Bp)
+     $                           ,dtA_1,dtA_2,dtA_3,Ep,Bp)
       endif
 
       am(:,1) = qm*(Ep(:,1) + vh(:,2)*Bp(:,3) - vh(:,3)*Bp(:,2))
