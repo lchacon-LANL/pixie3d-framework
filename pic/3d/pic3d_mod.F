@@ -609,15 +609,15 @@ c     Local variables
       real(_prec) :: vhcurv(_Npg,3)
       real(_prec) :: dxl(_Npg,3),dxr(_Npg,3)
 
-      real(_prec) :: DtA_1 (_Npg,2,3,3)
-     .              ,DtA_2 (_Npg,3,2,3)
-     .              ,DtA_3 (_Npg,3,3,2)
-      real(_prec) :: A_1   (_Npg,2,3,3)
-     .              ,A_2   (_Npg,3,2,3)
-     .              ,A_3   (_Npg,3,3,2)
-      real(_prec) :: E_1   (_Npg,2,3,3)
-     .              ,E_2   (_Npg,3,2,3)
-     .              ,E_3   (_Npg,3,3,2)
+      real(_prec) :: DtA_1(_Npg,2,3,3)
+     .              ,DtA_2(_Npg,3,2,3)
+     .              ,DtA_3(_Npg,3,3,2)
+      real(_prec) :: A_1  (_Npg,2,3,3)
+     .              ,A_2  (_Npg,3,2,3)
+     .              ,A_3  (_Npg,3,3,2)
+      real(_prec) :: E_1  (_Npg,2,3,3)
+     .              ,E_2  (_Npg,3,2,3)
+     .              ,E_3  (_Npg,3,3,2)
 
       real(_prec) :: phi_loc(_Npg,3,3,3)
       real(_prec) :: xnp_loc(_Npg,3),vnp_loc(_Npg,3)
@@ -791,9 +791,11 @@ c     ######################################################################
       dx = 0d0 !dt_sub*vh
 
       if (no_map) then
-        call scatter_fields_nomap(x0_loc,scatter_zeroes,dx,Ep,Bp)
+        call scatter_fields_nomap(x0_loc,scatter_zeroes,dx,A_1,A_2,A_3
+     $                              ,dtA_1,dtA_2,dtA_3,Ep,Bp)
       else
-        call scatter_fields_curv (x0_loc,scatter_zeroes,dx,Ep,Bp)
+        call scatter_fields_curv (x0_loc,scatter_zeroes,dx,A_1,A_2,A_3
+     $                              ,dtA_1,dtA_2,dtA_3,Ep,Bp)
       endif
 
       am(:,1) = qm*(Ep(:,1) + vh(:,2)*Bp(:,3) - vh(:,3)*Bp(:,2))
@@ -881,9 +883,11 @@ c     Initial acceleration
 
         dx = 0d0
         if (no_map) then
-          call scatter_fields_nomap(x0_loc,scatter_zeroes,dx,Ep,Bp)
+          call scatter_fields_nomap(x0_loc,scatter_zeroes,dx,A_1,A_2,A_3
+     $                             ,dtA_1,dtA_2,dtA_3,Ep,Bp)
         else
-          call scatter_fields_curv (x0_loc,scatter_zeroes,dx,Ep,Bp)
+          call scatter_fields_curv (x0_loc,scatter_zeroes,dx,A_1,A_2,A_3
+     $                             ,dtA_1,dtA_2,dtA_3,Ep,Bp)
         endif
         vh = v0_loc
 
@@ -922,9 +926,11 @@ c     test for dts (presumably no cell-crossing with a small timestep)
         dx(:,3) = dts*vhcurv(:,3) !+ 0.5d0*dts*dts*a0curv
 
         if (no_map) then
-          call scatter_fields_nomap(x0_loc,dts,dx,Ep,Bp) !mid-point
+          call scatter_fields_nomap(x0_loc,dts,dx,A_1,A_2,A_3
+     $                             ,dtA_1,dtA_2,dtA_3,Ep,Bp) !mid-point
         else
-          call scatter_fields_curv (x0_loc,dts,dx,Ep,Bp) !mid-point
+          call scatter_fields_curv (x0_loc,dts,dx,A_1,A_2,A_3
+     $                             ,dtA_1,dtA_2,dtA_3,Ep,Bp) !mid-point
         endif
         
         !Velocity update
@@ -1015,9 +1021,11 @@ c     Logical variables
 c     Begin program
 
         if (no_map) then
-          call scatter_fields_nomap(x0,dt_sub,dx,Ep,Bp)
+          call scatter_fields_nomap(x0,dt_sub,dx,A_1,A_2,A_3
+     $                             ,dtA_1,dtA_2,dtA_3,Ep,Bp)
         else
-          call scatter_fields_curv (x0,dt_sub,dx,Ep,Bp)
+          call scatter_fields_curv (x0,dt_sub,dx,A_1,A_2,A_3
+     $                             ,dtA_1,dtA_2,dtA_3,Ep,Bp)
         endif
 
         !Velocity update
@@ -1133,7 +1141,8 @@ c     End program
 
 c     scatter_fields_nomap
 c     ######################################################################
-      subroutine scatter_fields_nomap(x0,dtau,dx,Ep,Bp)
+      subroutine scatter_fields_nomap(x0,dtau,dx,A_1,A_2,A_3
+     $                               ,dtA_1,dtA_2,dtA_3,Ep,Bp)
 
       implicit none
 
@@ -1142,6 +1151,12 @@ c     Call variables
       real(_prec) :: x0(_Npg,3)
       real(_prec) :: dx(_Npg,3),Ep(_Npg,3),Bp(_Npg,3)
       real(_prec) :: dtau(_Npg)
+      real(_prec) :: DtA_1(_Npg,2,3,3)
+     .              ,DtA_2(_Npg,3,2,3)
+     .              ,DtA_3(_Npg,3,3,2)
+      real(_prec) :: A_1  (_Npg,2,3,3)
+     .              ,A_2  (_Npg,3,2,3)
+     .              ,A_3  (_Npg,3,3,2)
 
 c     Local variables
 
@@ -1156,7 +1171,6 @@ c     Local variables
       real(_prec) :: Sx1(_Npg,2),Sx2(_Npg,3),DSx(_Npg,3)
       real(_prec) :: Sy1(_Npg,2),Sy2(_Npg,3),DSy(_Npg,3)
       real(_prec) :: Sz1(_Npg,2),Sz2(_Npg,3),DSz(_Npg,3)
-!      real(_prec) :: Sxd(_Npg,3),Syd(_Npg,3),Szd(_Npg,3)
       real(_prec) :: Sx2_o(_Npg,3),Sy2_o(_Npg,3),Sz2_o(_Npg,3)
 
       real(_prec) :: Ax_nuh(_Npg,2,3,3)
@@ -1369,7 +1383,8 @@ c     End program
 
 c     scatter_fields_curv
 c     ######################################################################
-      subroutine scatter_fields_curv(x0,dtau,dx,Ep,Bp)
+      subroutine scatter_fields_curv(x0,dtau,dx,A_1,A_2,A_3
+     $                              ,dtA_1,dtA_2,dtA_3,Ep,Bp)
 
       implicit none
 
@@ -1378,6 +1393,12 @@ c     Call variables
       real(_prec) :: x0(_Npg,3)
       real(_prec) :: dx(_Npg,3),Ep(_Npg,3),Bp(_Npg,3)
       real(_prec) :: dtau(_Npg)
+      real(_prec) :: DtA_1(_Npg,2,3,3)
+     .              ,DtA_2(_Npg,3,2,3)
+     .              ,DtA_3(_Npg,3,3,2)
+      real(_prec) :: A_1  (_Npg,2,3,3)
+     .              ,A_2  (_Npg,3,2,3)
+     .              ,A_3  (_Npg,3,3,2)
 
 c     Local variables
 
@@ -1393,7 +1414,6 @@ c     Local variables
       real(_prec) :: Sx1(_Npg,2),Sx2(_Npg,3),DSx(_Npg,3)
       real(_prec) :: Sy1(_Npg,2),Sy2(_Npg,3),DSy(_Npg,3)
       real(_prec) :: Sz1(_Npg,2),Sz2(_Npg,3),DSz(_Npg,3)
-!      real(_prec) :: Sxd(_Npg,3),Syd(_Npg,3)
       real(_prec) :: Sx2_o(_Npg,3),Sy2_o(_Npg,3),Sz2_o(_Npg,3)
 
       real(_prec) :: Ax_nuh(_Npg,2,3,3)
@@ -1557,52 +1577,59 @@ c     Find B
       !Prepare vector potential at nu+1/2
       dum1 = 0.5d0*(-2d0*dtp+dt+dtau)
 
-      !VECTOR SIMD
-      do i=1,_Npg
-        Ax_nuh(i,:,:,:) = A_1(i,:,:,:) + DtA_1(i,:,:,:)*dum1(i)
-        Ay_nuh(i,:,:,:) = A_2(i,:,:,:) + DtA_2(i,:,:,:)*dum1(i)
-        Az_nuh(i,:,:,:) = A_3(i,:,:,:) + DtA_3(i,:,:,:)*dum1(i)
-      enddo
-
       ! ADAM: TRY SIMPLER VERSION THAN NOW: S_2*S_2 rather than S_22.     
       ! NB. THIS MAY MEAN THAT d_t B != -curl(E) AT PARTICLE POSITION.
       
+      !VECTOR SIMD
+      do i=1,_Npg
+        Az_nuh(i,:,:,:) = A_3(i,:,:,:) + DtA_3(i,:,:,:)*dum1(i)
+      enddo
+
       dumB(:,1,1:3) = DSy(:,1:3)
       call opt_vecvec_3_pcle(Sx2,dumB,dum33)
       dum2(:,1:2)  = opt_matmat_332_xy_pcle(Az_nuh,dum33)
       call dot_product_2_pcle(dum2,Sz1,dum1)
       Bp(:,1) = dum1
 
-      dumB(:,1,1:3) = Sx2(:,1:3)
-      call opt_vecvec_3_pcle(DSz,dumB,dum33)
-      dum2(:,1:2) = opt_matmat_323_zx_pcle(Ay_nuh,dum33)
-      call dot_product_2_pcle(dum2,Sy1,dum1)
-      Bp(:,1) = Bp(:,1)-dum1
-                                                                                                               
-      dumB(:,1,1:3) = DSz(:,1:3)
-      call opt_vecvec_3_pcle(Sy2,dumB,dum33)
-      dum2(:,1:2) = opt_matmat_233_yz_pcle(Ax_nuh,dum33)
-      call dot_product_2_pcle(dum2,Sx1,dum1)
-      Bp(:,2) = dum1
-
       dumB(:,1,1:3) = Sy2(:,1:3)
       call opt_vecvec_3_pcle(DSx,dumB,dum33)
       dum2(:,1:2)  = opt_matmat_332_xy_pcle(Az_nuh,dum33)
       call dot_product_2_pcle(dum2,Sz1,dum1)
-      Bp(:,2) = Bp(:,2) - dum1
+      Bp(:,2) = - dum1
 
+      !VECTOR SIMD
+      do i=1,_Npg
+        Ay_nuh(i,:,:,:) = A_2(i,:,:,:) + DtA_2(i,:,:,:)*dum1(i)
+      enddo
+
+      dumB(:,1,1:3) = Sx2(:,1:3)
+      call opt_vecvec_3_pcle(DSz,dumB,dum33)
+      dum2(:,1:2) = opt_matmat_323_zx_pcle(Ay_nuh,dum33)
+      call dot_product_2_pcle(dum2,Sy1,dum1)
+      Bp(:,1) = Bp(:,1) - dum1
+                             
       dumB(:,1,1:3) = DSx(:,1:3)
       call opt_vecvec_3_pcle(Sz2,dumB,dum33)
       dum2(:,1:2) = opt_matmat_323_zx_pcle(Ay_nuh,dum33)
       call dot_product_2_pcle(dum2,Sy1,dum1)
       Bp(:,3) = dum1
+                   
+      !VECTOR SIMD
+      do i=1,_Npg
+        Ax_nuh(i,:,:,:) = A_1(i,:,:,:) + DtA_1(i,:,:,:)*dum1(i)
+      enddo
+                                                               
+      dumB(:,1,1:3) = DSz(:,1:3)
+      call opt_vecvec_3_pcle(Sy2,dumB,dum33)
+      dum2(:,1:2) = opt_matmat_233_yz_pcle(Ax_nuh,dum33)
+      call dot_product_2_pcle(dum2,Sx1,dum1)
+      Bp(:,2) = Bp(:,2) + dum1
 
       dumB(:,1,1:3) = Sz2(:,1:3)
       call opt_vecvec_3_pcle(DSy,dumB,dum33)
       dum2(:,1:2) = opt_matmat_233_yz_pcle(Ax_nuh,dum33)
       call dot_product_2_pcle(dum2,Sx1,dum1)
       Bp(:,3) = Bp(:,3) - dum1
-
 
 c$$$      call opt_matvec_tr_pcle(Sx2,Az_nuh(:,:,:,1),dum3)
 c$$$      call dot_product_3_pcle(dum3,DSy,dum1)
@@ -1624,7 +1651,8 @@ c     Transform to Cartesian
       xlog(:,1) = x_nh(:,1)*ihx
       xlog(:,2) = x_nh(:,2)*ihy
       xlog(:,3) = x_nh(:,3)*ihz
-      call transf_vector_Bspl(i0,j0,k0,xlog,cov,cnv=cnv)
+      call transf_vector_Bspl(i0,j0,k0,xlog,cov,cnv)
+
       !VECTOR SIMD
       do i=1, _Npg
 #ifdef __GNU

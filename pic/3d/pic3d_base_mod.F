@@ -1780,7 +1780,7 @@ c     Call variables
 
 c     Local variables
 
-      real(_prec) :: xlog(_Npg,3),cov(_Npg,3,3)
+      real(_prec) :: xlog(_Npg,3),cov(_Npg,3,3),cnv(_Npg,3,3)
       integer :: ii
 
 c     Begin program
@@ -1789,7 +1789,7 @@ c     Begin program
       xlog(:,2) = xp(:,2)*ihy
       xlog(:,3) = xp(:,3)*ihz
 
-      call transf_vector_Bspl(i,j,k,xlog,cov,gamma=gamma)
+      call transf_vector_Bspl(i,j,k,xlog,cov,cnv)!gamma=gamma)
 
       !VECTOR SIMD
       do ii=1,_Npg  
@@ -1806,7 +1806,7 @@ c     End program
 
 c     transf_vector_Bspl
 c     #################################################################
-      subroutine transf_vector_Bspl(i0,j0,k0,xlog,cov,cnv,gamma)
+      subroutine transf_vector_Bspl(i0,j0,k0,xlog,cov,cnv)!,gamma)
 
 c     -----------------------------------------------------------------
 c     Transform Cartesian vectors to curvilinear using B-splines.
@@ -1819,8 +1819,8 @@ c     Input variables
      
       integer, intent(in) :: i0(_Npg),j0(_Npg),k0(_Npg) !particle cell-indices
       real(_prec) :: xlog(_Npg,3) !normalized particle offset position
-      real(_prec),INTENT(OUT) :: cov(_Npg,3,3)
-      real(_prec),optional :: cnv(_Npg,3,3),gamma(_Npg,3,3,3) !Christoffel symbol of 2nd kind
+      real(_prec),INTENT(OUT) :: cnv(_Npg,3,3),cov(_Npg,3,3)
+cc      real(_prec),optional :: gamma(_Npg,3,3,3) !Christoffel symbol of 2nd kind
 
 c     Local variables
 
@@ -1896,12 +1896,12 @@ c     Find the inverse Jacobian
 
 c     Divide tangential vectors by Jacobian (Luis's convention)
 
-      if(present(cnv)) then
+cc      if(present(cnv)) then
         !VECTOR SIMD
         do ii=1,_Npg
           cnv(ii,:,:) = vec(ii,:,:)*iJac(ii)
         enddo
-      end if
+cc      end if
 
 c     Normal vectors (J*grad(xi)=(dx/deta x dx/dzeta))
       call cross_product_vec(vec(:,2,:),vec(:,3,:),cov(:,1,:))
@@ -1909,7 +1909,7 @@ c     Normal vectors (J*grad(xi)=(dx/deta x dx/dzeta))
       call cross_product_vec(vec(:,1,:),vec(:,2,:),cov(:,3,:))
 
 c     Christoffel symbols
-      if(present(gamma)) call compute_gamma
+cc      if(present(gamma)) call compute_gamma
 
 c     Find normal vectors
 
@@ -1918,135 +1918,135 @@ c     Find normal vectors
         cov(ii,:,:) = cov(ii,:,:)*iJac(ii)
       enddo
 
-      contains
-
-c     compute_gamma
-c     #################################################################
-      subroutine compute_gamma ! ADAM: NOT UPDATED TO 3D. NOT CURRENTLY USED.
-
-      implicit none
-
-c     -----------------------------------------------------------------
-c     Compute Christoffel symbols
-c     -----------------------------------------------------------------
-
-      gamma = 0d0
-
+c$$$      contains
 c$$$
-c$$$      !Gamma(:,1,2)
-c$$$      DSxx = Dxx_shape2_offset(xlog(:,1))
-c$$$      DSyy = Dyy_shape2_offset(xlog(:,2))
-c$$$c$$$         DSxx(1,:)=Dxx_shape2_offset_scalar(xlog(1))
-c$$$c$$$         DSyy(1,:)=Dyy_shape2_offset_scalar(xlog(2))
+c$$$c     compute_gamma
+c$$$c     #################################################################
+c$$$      subroutine compute_gamma ! ADAM: NOT UPDATED TO 3D. NOT CURRENTLY USED.
+c$$$
+c$$$      implicit none
+c$$$
+c$$$c     -----------------------------------------------------------------
+c$$$c     Compute Christoffel symbols
+c$$$c     -----------------------------------------------------------------
+c$$$
+c$$$      gamma = 0d0
+c$$$
 c$$$c$$$
-c$$$c$$$cc         call evalX(xlog(1),xlog(2),xlog(3),x,y,z
-c$$$c$$$cc     .             ,ierr,xder=1,yder=1,zder=0)  
-c$$$
-c$$$      call opt_matvec_tr_pcle(DSx,map_g_1,dum3)
-c$$$      call dot_product_3_pcle(dum3,Dsy,vec(:,1,1))
-c$$$      call opt_matvec_tr_pcle(DSx,map_g_2,dum3)
-c$$$      call dot_product_3_pcle(dum3,Dsy,vec(:,1,2))
-c$$$      vec(:,1,3)=0d0
-c$$$
-c$$$      !VECTOR SIMD
-c$$$      do k=1,_Npg
-c$$$#ifdef __GNU
-c$$$        gamma(k,:,1,2) = opt_matvec(cov(k,:,:),vec(k,1,:))
-c$$$#else
-c$$$        gamma(k,:,1,2) = matmul    (cov(k,:,:),vec(k,1,:))
-c$$$#endif
-c$$$        gamma(k,:,2,1) = gamma(k,:,1,2)
-c$$$      enddo
-c$$$c$$$#ifdef __GNU
-c$$$c$$$         x = dot_product(opt_matvec_tr(DSx(1,:),
-c$$$c$$$     .                  map_g_1),DSy(1,:))
-c$$$c$$$         y = dot_product(opt_matvec_tr(DSx(1,:),
-c$$$c$$$     .                  map_g_2),DSy(1,:))
-c$$$c$$$#else
-c$$$c$$$         x = dot_product(MATMUL(DSx(1,:),map_g_1),DSy(1,:))
-c$$$c$$$         y = dot_product(MATMUL(DSx(1,:),map_g_2),DSy(1,:))
-c$$$c$$$#endif
-c$$$c$$$         z = 0d0
-c$$$c$$$         gamma(:,1,2) = x*cov(:,1) + y*cov(:,2) + z*cov(:,3)
-c$$$c$$$         gamma(:,2,1) = gamma(:,1,2)
-c$$$
-c$$$         !Gamma(:,1,3)
-c$$$c$$$c$$$         call evalX(xlog(1),xlog(2),xlog(3),x,y,z
-c$$$c$$$c$$$     .             ,ierr,xder=1,yder=0,zder=1)  
-c$$$c$$$         x = 0d0 !dot_product(MATMUL(DSx,map_g(i0-1:i0+1,j0-1:j0+1,1)),Sy2)
-c$$$c$$$         y = 0d0 !dot_product(MATMUL(DSx,map_g(i0-1:i0+1,j0-1:j0+1,2)),Sy2)
-c$$$c$$$         z = 0d0
-c$$$c$$$         
-c$$$c$$$         gamma(:,1,3) = x*cov(:,1) + y*cov(:,2) + z*cov(:,3)
-c$$$c$$$         gamma(:,3,1) = gamma(:,1,3)
+c$$$c$$$      !Gamma(:,1,2)
+c$$$c$$$      DSxx = Dxx_shape2_offset(xlog(:,1))
+c$$$c$$$      DSyy = Dyy_shape2_offset(xlog(:,2))
+c$$$c$$$c$$$         DSxx(1,:)=Dxx_shape2_offset_scalar(xlog(1))
+c$$$c$$$c$$$         DSyy(1,:)=Dyy_shape2_offset_scalar(xlog(2))
+c$$$c$$$c$$$
+c$$$c$$$c$$$cc         call evalX(xlog(1),xlog(2),xlog(3),x,y,z
+c$$$c$$$c$$$cc     .             ,ierr,xder=1,yder=1,zder=0)  
 c$$$c$$$
-c$$$         !Gamma(:,2,3)
-c$$$c$$$c$$$         call evalX(xlog(1),xlog(2),xlog(3),x,y,z
-c$$$c$$$c$$$     .             ,ierr,xder=0,yder=1,zder=1)  
-c$$$c$$$         x = 0d0 !dot_product(MATMUL(Sx2,map_g(i0-1:i0+1,j0-1:j0+1,1)),DSy)
-c$$$c$$$         y = 0d0 !dot_product(MATMUL(Sx2,map_g(i0-1:i0+1,j0-1:j0+1,2)),DSy)
-c$$$c$$$         z = 0d0
+c$$$c$$$      call opt_matvec_tr_pcle(DSx,map_g_1,dum3)
+c$$$c$$$      call dot_product_3_pcle(dum3,Dsy,vec(:,1,1))
+c$$$c$$$      call opt_matvec_tr_pcle(DSx,map_g_2,dum3)
+c$$$c$$$      call dot_product_3_pcle(dum3,Dsy,vec(:,1,2))
+c$$$c$$$      vec(:,1,3)=0d0
 c$$$c$$$
-c$$$c$$$         gamma(:,2,3) = x*cov(:,1) + y*cov(:,2) + z*cov(:,3)
-c$$$c$$$         gamma(:,3,2) = gamma(:,2,3)
-c$$$
-c$$$      !Gamma(:,1,1)
-c$$$      call opt_matvec_tr_pcle(DSxx,map_g_1,dum3)
-c$$$      call dot_product_3_pcle(dum3,Sy2,vec(:,1,1))
-c$$$      call opt_matvec_tr_pcle(DSxx,map_g_2,dum3)
-c$$$      call dot_product_3_pcle(dum3,Sy2,vec(:,1,2))
-c$$$      vec(:,1,3)=0d0
-c$$$      !VECTOR SIMD
-c$$$      do k=1,_Npg
-c$$$#ifdef __GNU
-c$$$        gamma(k,:,1,1) = opt_matvec(cov(k,:,:),vec(k,1,:))
-c$$$#else
-c$$$        gamma(k,:,1,1) = matmul    (cov(k,:,:),vec(k,1,:))
-c$$$#endif
-c$$$      enddo
+c$$$c$$$      !VECTOR SIMD
+c$$$c$$$      do k=1,_Npg
 c$$$c$$$#ifdef __GNU
-c$$$c$$$         x = dot_product(opt_matvec_tr(DSxx(1,:),
-c$$$c$$$     .                   map_g_1),Sy2(1,:))
-c$$$c$$$         y = dot_product(opt_matvec_tr(DSxx(1,:),
-c$$$c$$$     .                   map_g_2),Sy2(1,:))
+c$$$c$$$        gamma(k,:,1,2) = opt_matvec(cov(k,:,:),vec(k,1,:))
 c$$$c$$$#else
-c$$$c$$$         x = dot_product(MATMUL(DSxx(1,:),map_g_1),Sy2(1,:))
-c$$$c$$$         y = dot_product(MATMUL(DSxx(1,:),map_g_2),Sy2(1,:))
+c$$$c$$$        gamma(k,:,1,2) = matmul    (cov(k,:,:),vec(k,1,:))
 c$$$c$$$#endif
-c$$$c$$$         z = 0d0
-c$$$c$$$         gamma(:,1,1) = x*cov(:,1) + y*cov(:,2) + z*cov(:,3)
-c$$$
-c$$$      !Gamma(:,2,2)
-c$$$      if(nyg>1) then
-c$$$        call opt_matvec_tr_pcle(Sx2,map_g_1,dum3)
-c$$$        call dot_product_3_pcle(dum3,DSyy,vec(:,2,1))
-c$$$        call opt_matvec_tr_pcle(Sx2,map_g_2,dum3)
-c$$$        call dot_product_3_pcle(dum3,DSyy,vec(:,2,2))
-c$$$        vec(:,2,3)=0d0
-c$$$        !VECTOR SIMD
-c$$$        do k=1,_Npg
-c$$$#ifdef __GNU
-c$$$          gamma(k,:,2,2) = opt_matvec(cov(k,:,:),vec(k,2,:))
-c$$$#else
-c$$$          gamma(k,:,2,2) = matmul    (cov(k,:,:),vec(k,2,:))
-c$$$#endif
-c$$$        enddo
-c$$$c$$$c$$$            call evalX(xlog(1),xlog(2),xlog(3),x,y,z
-c$$$c$$$c$$$     .           ,ierr,xder=0,yder=2,zder=0)  
+c$$$c$$$        gamma(k,:,2,1) = gamma(k,:,1,2)
+c$$$c$$$      enddo
+c$$$c$$$c$$$#ifdef __GNU
+c$$$c$$$c$$$         x = dot_product(opt_matvec_tr(DSx(1,:),
+c$$$c$$$c$$$     .                  map_g_1),DSy(1,:))
+c$$$c$$$c$$$         y = dot_product(opt_matvec_tr(DSx(1,:),
+c$$$c$$$c$$$     .                  map_g_2),DSy(1,:))
+c$$$c$$$c$$$#else
+c$$$c$$$c$$$         x = dot_product(MATMUL(DSx(1,:),map_g_1),DSy(1,:))
+c$$$c$$$c$$$         y = dot_product(MATMUL(DSx(1,:),map_g_2),DSy(1,:))
+c$$$c$$$c$$$#endif
+c$$$c$$$c$$$         z = 0d0
+c$$$c$$$c$$$         gamma(:,1,2) = x*cov(:,1) + y*cov(:,2) + z*cov(:,3)
+c$$$c$$$c$$$         gamma(:,2,1) = gamma(:,1,2)
+c$$$c$$$
+c$$$c$$$         !Gamma(:,1,3)
+c$$$c$$$c$$$c$$$         call evalX(xlog(1),xlog(2),xlog(3),x,y,z
+c$$$c$$$c$$$c$$$     .             ,ierr,xder=1,yder=0,zder=1)  
+c$$$c$$$c$$$         x = 0d0 !dot_product(MATMUL(DSx,map_g(i0-1:i0+1,j0-1:j0+1,1)),Sy2)
+c$$$c$$$c$$$         y = 0d0 !dot_product(MATMUL(DSx,map_g(i0-1:i0+1,j0-1:j0+1,2)),Sy2)
+c$$$c$$$c$$$         z = 0d0
+c$$$c$$$c$$$         
+c$$$c$$$c$$$         gamma(:,1,3) = x*cov(:,1) + y*cov(:,2) + z*cov(:,3)
+c$$$c$$$c$$$         gamma(:,3,1) = gamma(:,1,3)
+c$$$c$$$c$$$
+c$$$c$$$         !Gamma(:,2,3)
+c$$$c$$$c$$$c$$$         call evalX(xlog(1),xlog(2),xlog(3),x,y,z
+c$$$c$$$c$$$c$$$     .             ,ierr,xder=0,yder=1,zder=1)  
+c$$$c$$$c$$$         x = 0d0 !dot_product(MATMUL(Sx2,map_g(i0-1:i0+1,j0-1:j0+1,1)),DSy)
+c$$$c$$$c$$$         y = 0d0 !dot_product(MATMUL(Sx2,map_g(i0-1:i0+1,j0-1:j0+1,2)),DSy)
+c$$$c$$$c$$$         z = 0d0
+c$$$c$$$c$$$
+c$$$c$$$c$$$         gamma(:,2,3) = x*cov(:,1) + y*cov(:,2) + z*cov(:,3)
+c$$$c$$$c$$$         gamma(:,3,2) = gamma(:,2,3)
+c$$$c$$$
+c$$$c$$$      !Gamma(:,1,1)
+c$$$c$$$      call opt_matvec_tr_pcle(DSxx,map_g_1,dum3)
+c$$$c$$$      call dot_product_3_pcle(dum3,Sy2,vec(:,1,1))
+c$$$c$$$      call opt_matvec_tr_pcle(DSxx,map_g_2,dum3)
+c$$$c$$$      call dot_product_3_pcle(dum3,Sy2,vec(:,1,2))
+c$$$c$$$      vec(:,1,3)=0d0
+c$$$c$$$      !VECTOR SIMD
+c$$$c$$$      do k=1,_Npg
 c$$$c$$$#ifdef __GNU
-c$$$c$$$          x = dot_product(opt_matvec_tr(Sx2(1,:),
-c$$$c$$$     .                    map_g_1),DSyy(1,:))
-c$$$c$$$          y = dot_product(opt_matvec_tr(Sx2(1,:),
-c$$$c$$$     .                    map_g_2),DSyy(1,:))
+c$$$c$$$        gamma(k,:,1,1) = opt_matvec(cov(k,:,:),vec(k,1,:))
 c$$$c$$$#else
-c$$$c$$$          x = dot_product(MATMUL(Sx2(1,:),map_g_1),DSyy(1,:))
-c$$$c$$$          y = dot_product(MATMUL(Sx2(1,:),map_g_2),DSyy(1,:))
+c$$$c$$$        gamma(k,:,1,1) = matmul    (cov(k,:,:),vec(k,1,:))
 c$$$c$$$#endif
-c$$$c$$$          z = 0d0            
-c$$$c$$$          gamma(:,2,2) = x*cov(:,1) + y*cov(:,2) + z*cov(:,3)
-c$$$      end if
-
-      end subroutine compute_gamma
+c$$$c$$$      enddo
+c$$$c$$$c$$$#ifdef __GNU
+c$$$c$$$c$$$         x = dot_product(opt_matvec_tr(DSxx(1,:),
+c$$$c$$$c$$$     .                   map_g_1),Sy2(1,:))
+c$$$c$$$c$$$         y = dot_product(opt_matvec_tr(DSxx(1,:),
+c$$$c$$$c$$$     .                   map_g_2),Sy2(1,:))
+c$$$c$$$c$$$#else
+c$$$c$$$c$$$         x = dot_product(MATMUL(DSxx(1,:),map_g_1),Sy2(1,:))
+c$$$c$$$c$$$         y = dot_product(MATMUL(DSxx(1,:),map_g_2),Sy2(1,:))
+c$$$c$$$c$$$#endif
+c$$$c$$$c$$$         z = 0d0
+c$$$c$$$c$$$         gamma(:,1,1) = x*cov(:,1) + y*cov(:,2) + z*cov(:,3)
+c$$$c$$$
+c$$$c$$$      !Gamma(:,2,2)
+c$$$c$$$      if(nyg>1) then
+c$$$c$$$        call opt_matvec_tr_pcle(Sx2,map_g_1,dum3)
+c$$$c$$$        call dot_product_3_pcle(dum3,DSyy,vec(:,2,1))
+c$$$c$$$        call opt_matvec_tr_pcle(Sx2,map_g_2,dum3)
+c$$$c$$$        call dot_product_3_pcle(dum3,DSyy,vec(:,2,2))
+c$$$c$$$        vec(:,2,3)=0d0
+c$$$c$$$        !VECTOR SIMD
+c$$$c$$$        do k=1,_Npg
+c$$$c$$$#ifdef __GNU
+c$$$c$$$          gamma(k,:,2,2) = opt_matvec(cov(k,:,:),vec(k,2,:))
+c$$$c$$$#else
+c$$$c$$$          gamma(k,:,2,2) = matmul    (cov(k,:,:),vec(k,2,:))
+c$$$c$$$#endif
+c$$$c$$$        enddo
+c$$$c$$$c$$$c$$$            call evalX(xlog(1),xlog(2),xlog(3),x,y,z
+c$$$c$$$c$$$c$$$     .           ,ierr,xder=0,yder=2,zder=0)  
+c$$$c$$$c$$$#ifdef __GNU
+c$$$c$$$c$$$          x = dot_product(opt_matvec_tr(Sx2(1,:),
+c$$$c$$$c$$$     .                    map_g_1),DSyy(1,:))
+c$$$c$$$c$$$          y = dot_product(opt_matvec_tr(Sx2(1,:),
+c$$$c$$$c$$$     .                    map_g_2),DSyy(1,:))
+c$$$c$$$c$$$#else
+c$$$c$$$c$$$          x = dot_product(MATMUL(Sx2(1,:),map_g_1),DSyy(1,:))
+c$$$c$$$c$$$          y = dot_product(MATMUL(Sx2(1,:),map_g_2),DSyy(1,:))
+c$$$c$$$c$$$#endif
+c$$$c$$$c$$$          z = 0d0            
+c$$$c$$$c$$$          gamma(:,2,2) = x*cov(:,1) + y*cov(:,2) + z*cov(:,3)
+c$$$c$$$      end if
+c$$$
+c$$$      end subroutine compute_gamma
 
       end subroutine transf_vector_Bspl
 
