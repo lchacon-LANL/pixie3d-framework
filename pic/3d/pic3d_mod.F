@@ -153,7 +153,7 @@ c     Move particles
 
 !     note that there is some issue with valgrind and libgomp.
 !$omp parallel DEFAULT(SHARED) private(ipc,it,v0,v2,dtp,dt_sub
-!$omp.              ,d_x,dx,xp,yp,zp,xfp,yfp,zfp,x_nh,dumA
+!$omp.              ,d_x,dx,xp,yp,zp,xfp,yfp,zfp,x_nh,dumA,dumD
 !$omp.              ,dumB,dumC,i,j,k,ii,i0,j0,k0,Mx1,Mx2,My1,My2,Mz1,Mz2
 !$omp.              ,Myz2,Mzx2,Mxy2,w_pcle,psts,M_w_prod,pits,pcle_nu)
 !$         call set_omp_thread_id()
@@ -341,28 +341,15 @@ c$$$             end do
              !Do NOT vectorize: memory race issues
              do ii=1, _Npg
 !#ifdef __GNU
-!                Mxy2(ii,1:3,1:3)= Mxy2(ii,1:3,1:3)
-!     $                          +opt_vecvec_3(Mx2(ii,:,:),My2(ii,:,:))
-!#else
-!                Mxy2(ii,1:3,1:3)= Mxy2(ii,1:3,1:3)
-!     $                          +matmul(Mx2(ii,:,:),My2(ii,:,:))
-!#endif
-
-!#ifdef __GNU
-                !accumulate vx (linear in x, 2nd in y, 2nd in z)
-                garr_vx(i(ii)-1:i(ii),j(ii)-1:j(ii)+1,k(ii)-1:k(ii)+1) = ! ADAM: MAY BE FASTER TO CALL A OMATVEC_233_PCLE 
-     .          garr_vx(i(ii)-1:i(ii),j(ii)-1:j(ii)+1,k(ii)-1:k(ii)+1) + 
+               !accumulate vx (linear in x, 2nd in y, 2nd in z)
+               garr_vx(i(ii)-1:i(ii),j(ii)-1:j(ii)+1,k(ii)-1:k(ii)+1) = ! ADAM: MAY BE FASTER TO CALL A OMATVEC_233_PCLE 
+     .         garr_vx(i(ii)-1:i(ii),j(ii)-1:j(ii)+1,k(ii)-1:k(ii)+1) + 
      .          dx(ii,1)*opt_omatvec_233(Myz2(ii,:,:),Mx1(ii,:,1,1))*
      .          w_pcle(ii)
 
-
-                
-!                write(*,*) garr_vx(:,:,0)+garr_vx(:,:,1)+garr_vx(:,:,2)
-!                stop
-
-                !accumulate vy (linear in y, 2nd in x, 2nd in z)
-                garr_vy(i(ii)-1:i(ii)+1,j(ii)-1:j(ii),k(ii)-1:k(ii)+1) = 
-     .          garr_vy(i(ii)-1:i(ii)+1,j(ii)-1:j(ii),k(ii)-1:k(ii)+1) + 
+               !accumulate vy (linear in y, 2nd in x, 2nd in z)
+               garr_vy(i(ii)-1:i(ii)+1,j(ii)-1:j(ii),k(ii)-1:k(ii)+1) = 
+     .         garr_vy(i(ii)-1:i(ii)+1,j(ii)-1:j(ii),k(ii)-1:k(ii)+1) + 
      .          dx(ii,2)*opt_omatvec_323(Mzx2(ii,:,:),My1(ii,1,:,1))*
      .          w_pcle(ii)
 !#else                
@@ -376,12 +363,11 @@ c$$$             end do
 !     .          garr_vy(i(ii)-1:i(ii)+1,j(ii)-1:j(ii),1) +
 !     .          dx(ii,2)*matmul(Mx2(ii,:,:),My1(ii,:,:))*w_pcle(ii)
 !#endif
-                !accumulate vz (2nd in x,y)
-                garr_vz(i(ii)-1:i(ii)+1,j(ii)-1:j(ii)+1,k(ii)-1:k(ii)) =
-     .          garr_vz(i(ii)-1:i(ii)+1,j(ii)-1:j(ii)+1,k(ii)-1:k(ii)) +
+               !accumulate vz (2nd in x,y)
+               garr_vz(i(ii)-1:i(ii)+1,j(ii)-1:j(ii)+1,k(ii)-1:k(ii)) =
+     .         garr_vz(i(ii)-1:i(ii)+1,j(ii)-1:j(ii)+1,k(ii)-1:k(ii)) +
      .          dx(ii,3)*opt_omatvec_332(Mxy2(ii,:,:),Mz1(ii,1,1,:))*
      .          w_pcle(ii)
-
              end do
                   
              !Prepare for next substep
@@ -456,7 +442,7 @@ c$$$             end do
 #if defined(PIC_CM_DIAG)
               !Gather canonical momenta ! Adam: I have not changed this for 3D.
               cml = cml + m_sp*v0(ii,:)
-     $        + cmp(spcs(isp)%q,i0(ii),j0(ii),xp(ii),yp(ii),A(:,:,1,:))
+     $       + cmp(spcs(isp)%q,i0(ii),j0(ii),xp(ii),yp(ii),A  (:,:,1,:))
      . +0.5*dt*cmp(spcs(isp)%q,i0(ii),j0(ii),xp(ii),yp(ii),DtA(:,:,1,:))
 
               !Canonical momenta exchange
@@ -471,7 +457,6 @@ c$$$             end do
 !$omp end do 
 !$omp end parallel 
 
-!         write(*,*) 'j'
          !orbit-averaged
          moms_g(:,:,:,isp,Ipx) = garr_vx(:,:,:)/dtx
          moms_g(:,:,:,isp,Ipy) = garr_vy(:,:,:)/dtx
@@ -495,7 +480,6 @@ c$$$             end do
 
 c     Particle pusher timing end - C. Mikida, 05/16
       
-c      call stop_collection()
       call system_clock(count=clock_stop)
 
 c     Append to particle pusher timer/counters
