@@ -394,17 +394,16 @@ c$$$             end do
            call shape2_offset(yp,My2(:,1,1:3,1))
            call shape2_offset(zp,Mz2(:,1,1,1:3))
 
+           call opt_vecvecvec_3_pcle(Mx2,My2,Mz2,M_w_prod)
            !VECTOR SIMD
            do ii=1,_Npg
-!#ifdef __GNU
-!              Mxy2(ii,1:3,1:3)= opt_vecvec_3(Mx2(ii,:,:),My2(ii,:,:))
-!#else
-!              Mxy2(ii,1:3,1:3)= matmul(Mx2(ii,:,:),My2(ii,:,:))
-!#endif
-              M_w_prod(ii,:,:,:) = opt_vecvecvec_3(Mx2(ii,:,:,:)
-     .                          ,My2(ii,:,:,:),Mz2(ii,:,:,:))*w_pcle(ii)
-!Mxy2(ii,:,:)*w_pcle(ii)
+              M_w_prod(ii,:,:,:) = M_w_prod(ii,:,:,:)*w_pcle(ii)
            enddo
+c$$$           !VECTOR SIMD
+c$$$           do ii=1,_Npg
+c$$$              M_w_prod(ii,:,:,:) = opt_vecvecvec_3(Mx2(ii,:,:,:)
+c$$$     .                          ,My2(ii,:,:,:),Mz2(ii,:,:,:))*w_pcle(ii)
+c$$$           enddo
 
            !Do NOT put SIMD statement, reduction!!!!
            v0 = pcle_nu%v_n
@@ -1048,7 +1047,7 @@ c     Begin program
         dx(:,2) = dt_sub*vhcurv(:,2)
         dx(:,3) = dt_sub*vhcurv(:,3)
 
-        !VECTOR SIMD
+cc        !VECTOR SIMD
         do i=1,_Npg
            !x-direction
            dtb(i,1) = dt_sub(i)
@@ -1298,13 +1297,8 @@ c     Find B
 
       !VECTOR SIMD
       do i=1,_Npg
-        Ax_nuh(i,:,:,:) = A_1(i,:,:,:) + DtA_1(i,:,:,:)*dum1(i)
-        Ay_nuh(i,:,:,:) = A_2(i,:,:,:) + DtA_2(i,:,:,:)*dum1(i)
         Az_nuh(i,:,:,:) = A_3(i,:,:,:) + DtA_3(i,:,:,:)*dum1(i)
       enddo
-
-      ! ADAM: TRY SIMPLER VERSION THAN NOW: S_2*S_2 rather than S_22.
-      ! NB. THIS MAY MEAN THAT d_t B != -curl(E) AT PARTICLE POSITION.
 
       dumB(:,1,1:3) = DSy(:,1:3)
       call opt_vecvec_3_pcle(Sx2,dumB,dum33)
@@ -1312,37 +1306,93 @@ c     Find B
       call dot_product_2_pcle(dum2,Sz1,dum1)
       Bp(:,1) = dum1
 
-      dumB(:,1,1:3) = Sx2(:,1:3)
-      call opt_vecvec_3_pcle(DSz,dumB,dum33)
-      dum2(:,1:2) = opt_matmat_323_zx_pcle(Ay_nuh,dum33)
-      call dot_product_2_pcle(dum2,Sy1,dum1)
-      Bp(:,1) = Bp(:,1)-dum1 + B0(1)
-
-!
-      dumB(:,1,1:3) = DSz(:,1:3)
-      call opt_vecvec_3_pcle(Sy2,dumB,dum33)
-      dum2(:,1:2) = opt_matmat_233_yz_pcle(Ax_nuh,dum33)
-      call dot_product_2_pcle(dum2,Sx1,dum1)
-      Bp(:,2) = dum1
-
       dumB(:,1,1:3) = Sy2(:,1:3)
       call opt_vecvec_3_pcle(DSx,dumB,dum33)
       dum2(:,1:2)  = opt_matmat_332_xy_pcle(Az_nuh,dum33)
       call dot_product_2_pcle(dum2,Sz1,dum1)
-      Bp(:,2) = Bp(:,2) - dum1 + B0(2)
+      Bp(:,2) = - dum1
 
-!
+      !VECTOR SIMD
+      do i=1,_Npg
+        Ay_nuh(i,:,:,:) = A_2(i,:,:,:) + DtA_2(i,:,:,:)*dum1(i)
+      enddo
+
+      dumB(:,1,1:3) = Sx2(:,1:3)
+      call opt_vecvec_3_pcle(DSz,dumB,dum33)
+      dum2(:,1:2) = opt_matmat_323_zx_pcle(Ay_nuh,dum33)
+      call dot_product_2_pcle(dum2,Sy1,dum1)
+      Bp(:,1) = Bp(:,1) - dum1
+                             
       dumB(:,1,1:3) = DSx(:,1:3)
       call opt_vecvec_3_pcle(Sz2,dumB,dum33)
       dum2(:,1:2) = opt_matmat_323_zx_pcle(Ay_nuh,dum33)
       call dot_product_2_pcle(dum2,Sy1,dum1)
       Bp(:,3) = dum1
+                   
+      !VECTOR SIMD
+      do i=1,_Npg
+        Ax_nuh(i,:,:,:) = A_1(i,:,:,:) + DtA_1(i,:,:,:)*dum1(i)
+      enddo
+                                                               
+      dumB(:,1,1:3) = DSz(:,1:3)
+      call opt_vecvec_3_pcle(Sy2,dumB,dum33)
+      dum2(:,1:2) = opt_matmat_233_yz_pcle(Ax_nuh,dum33)
+      call dot_product_2_pcle(dum2,Sx1,dum1)
+      Bp(:,2) = Bp(:,2) + dum1
 
       dumB(:,1,1:3) = Sz2(:,1:3)
       call opt_vecvec_3_pcle(DSy,dumB,dum33)
       dum2(:,1:2) = opt_matmat_233_yz_pcle(Ax_nuh,dum33)
       call dot_product_2_pcle(dum2,Sx1,dum1)
-      Bp(:,3) = Bp(:,3) - dum1 + B0(3)
+      Bp(:,3) = Bp(:,3) - dum1
+
+c$$$      !VECTOR SIMD
+c$$$      do i=1,_Npg
+c$$$        Ax_nuh(i,:,:,:) = A_1(i,:,:,:) + DtA_1(i,:,:,:)*dum1(i)
+c$$$        Ay_nuh(i,:,:,:) = A_2(i,:,:,:) + DtA_2(i,:,:,:)*dum1(i)
+c$$$        Az_nuh(i,:,:,:) = A_3(i,:,:,:) + DtA_3(i,:,:,:)*dum1(i)
+c$$$      enddo
+c$$$
+c$$$      ! ADAM: TRY SIMPLER VERSION THAN NOW: S_2*S_2 rather than S_22.
+c$$$      ! NB. THIS MAY MEAN THAT d_t B != -curl(E) AT PARTICLE POSITION.
+c$$$
+c$$$      dumB(:,1,1:3) = DSy(:,1:3)
+c$$$      call opt_vecvec_3_pcle(Sx2,dumB,dum33)
+c$$$      dum2(:,1:2)  = opt_matmat_332_xy_pcle(Az_nuh,dum33)
+c$$$      call dot_product_2_pcle(dum2,Sz1,dum1)
+c$$$      Bp(:,1) = dum1
+c$$$
+c$$$      dumB(:,1,1:3) = Sx2(:,1:3)
+c$$$      call opt_vecvec_3_pcle(DSz,dumB,dum33)
+c$$$      dum2(:,1:2) = opt_matmat_323_zx_pcle(Ay_nuh,dum33)
+c$$$      call dot_product_2_pcle(dum2,Sy1,dum1)
+c$$$      Bp(:,1) = Bp(:,1)-dum1 + B0(1)
+c$$$
+c$$$!
+c$$$      dumB(:,1,1:3) = DSz(:,1:3)
+c$$$      call opt_vecvec_3_pcle(Sy2,dumB,dum33)
+c$$$      dum2(:,1:2) = opt_matmat_233_yz_pcle(Ax_nuh,dum33)
+c$$$      call dot_product_2_pcle(dum2,Sx1,dum1)
+c$$$      Bp(:,2) = dum1
+c$$$
+c$$$      dumB(:,1,1:3) = Sy2(:,1:3)
+c$$$      call opt_vecvec_3_pcle(DSx,dumB,dum33)
+c$$$      dum2(:,1:2)  = opt_matmat_332_xy_pcle(Az_nuh,dum33)
+c$$$      call dot_product_2_pcle(dum2,Sz1,dum1)
+c$$$      Bp(:,2) = Bp(:,2) - dum1 + B0(2)
+c$$$
+c$$$!
+c$$$      dumB(:,1,1:3) = DSx(:,1:3)
+c$$$      call opt_vecvec_3_pcle(Sz2,dumB,dum33)
+c$$$      dum2(:,1:2) = opt_matmat_323_zx_pcle(Ay_nuh,dum33)
+c$$$      call dot_product_2_pcle(dum2,Sy1,dum1)
+c$$$      Bp(:,3) = dum1
+c$$$
+c$$$      dumB(:,1,1:3) = Sz2(:,1:3)
+c$$$      call opt_vecvec_3_pcle(DSy,dumB,dum33)
+c$$$      dum2(:,1:2) = opt_matmat_233_yz_pcle(Ax_nuh,dum33)
+c$$$      call dot_product_2_pcle(dum2,Sx1,dum1)
+c$$$      Bp(:,3) = Bp(:,3) - dum1 + B0(3)
 
 
 c$$$!     FIND B - OLD

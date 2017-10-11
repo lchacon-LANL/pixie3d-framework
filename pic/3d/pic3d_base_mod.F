@@ -939,7 +939,7 @@ c     Local variables
 
 c     Optimized vector-vector-vector outer product (3x3x3) (Adam)
 c     ##################################################################
-      function opt_vecvecvec_3_pcle(A,B,C) result(D)
+      subroutine opt_vecvecvec_3_pcle(A,B,C,D)
       implicit none
 
 c     Call variables                                                                       
@@ -960,7 +960,7 @@ c     Local variables
          end do
       end do
                
-      end function opt_vecvecvec_3_pcle
+      end subroutine opt_vecvecvec_3_pcle
 
 c     Optimized vector-vector multiplication (2x3) (C. Mikida)
 c     ##################################################################
@@ -1176,7 +1176,7 @@ c     Local variables
       do k=1, 3
          do j=1, 3
             do i=1, 3
-               !VECTOR SIMD                                                                                                                                                                     
+               !VECTOR SIMD
                do ii=1,_Npg
                   C(ii) = C(ii)+A(ii,i,j,k)*B(ii,i,j,k) 
                end do
@@ -1858,17 +1858,17 @@ c     Tangential vectors
       enddo
 
       ! Adam: vec(1:Npg,:,:) = (dx/dxi, dy/dxi, dz/dxi; dx/deta, dy/deta, dz/deta; dx/dzeta, dy/dzeta, dz/dzeta) 
-      dum333(:,:,:,:) = opt_vecvecvec_3_pcle(DSx,Sy2,Sz2)
+      call opt_vecvecvec_3_pcle(DSx,Sy2,Sz2,dum333)
       vec(:,1,1) = opt_matmat_333_xyz_pcle(dum333,map_g_1)
       vec(:,1,2) = opt_matmat_333_xyz_pcle(dum333,map_g_2)
       vec(:,1,3) = opt_matmat_333_xyz_pcle(dum333,map_g_3)
 
-      dum333(:,:,:,:) = opt_vecvecvec_3_pcle(Sx2,DSy,Sz2)
+      call opt_vecvecvec_3_pcle(Sx2,DSy,Sz2,dum333)
       vec(:,2,1) = opt_matmat_333_xyz_pcle(dum333,map_g_1)
       vec(:,2,2) = opt_matmat_333_xyz_pcle(dum333,map_g_2)
       vec(:,2,3) = opt_matmat_333_xyz_pcle(dum333,map_g_3)
 
-      dum333(:,:,:,:) = opt_vecvecvec_3_pcle(Sx2,Sy2,DSz)
+      call opt_vecvecvec_3_pcle(Sx2,Sy2,DSz,dum333)
       vec(:,3,1) = opt_matmat_333_xyz_pcle(dum333,map_g_1)
       vec(:,3,2) = opt_matmat_333_xyz_pcle(dum333,map_g_2)
       vec(:,3,3) = opt_matmat_333_xyz_pcle(dum333,map_g_3)
@@ -2178,19 +2178,18 @@ c     -----------------------------------------------------------------
 c     Local variables
 
         integer :: k
-        real(8) :: det
 
 c     Begin program
 
         !VECTOR SIMD
         do k=1,_Npg
-          det = tensor(k,1,1)*tensor(k,2,2)*tensor(k,3,3)
-     .        + tensor(k,3,2)*tensor(k,2,1)*tensor(k,1,3)
-     .        + tensor(k,1,2)*tensor(k,2,3)*tensor(k,3,1)
-     .        - tensor(k,1,3)*tensor(k,2,2)*tensor(k,3,1)
-     .        - tensor(k,1,1)*tensor(k,2,3)*tensor(k,3,2)
-     .        - tensor(k,3,3)*tensor(k,1,2)*tensor(k,2,1)
-          ideter(k) = 1d0/det
+          ideter(k) = tensor(k,1,1)*tensor(k,2,2)*tensor(k,3,3)
+     .              + tensor(k,3,2)*tensor(k,2,1)*tensor(k,1,3)
+     .              + tensor(k,1,2)*tensor(k,2,3)*tensor(k,3,1)
+     .              - tensor(k,1,3)*tensor(k,2,2)*tensor(k,3,1)
+     .              - tensor(k,1,1)*tensor(k,2,3)*tensor(k,3,2)
+     .              - tensor(k,3,3)*tensor(k,1,2)*tensor(k,2,1)
+          ideter(k) = 1d0/ideter(k)
         enddo
 
       end subroutine idet
@@ -4849,7 +4848,7 @@ c     Begin program
         call xform_pcle_idx(spcs(isp)%pcles(ip)%ijk_n,nxg,nyg
      .                     ,i_np,j_np,k_np)
 
-        !VECTOR SIMD
+cc        !VECTOR SIMD
         do j=1,_Npg
 
            xg = (/pxx(i_np(j)),pyy(j_np(j)),pzz(k_np(j))/)
