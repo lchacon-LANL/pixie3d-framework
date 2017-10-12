@@ -1752,19 +1752,18 @@ c     -----------------------------------------------------------------
 c     Local variables
 
         integer :: k
-        real(8) :: det
 
 c     Begin program
 
         !VECTOR SIMD
         do k=1,_Npg
-          det = tensor(k,1,1)*tensor(k,2,2)*tensor(k,3,3)
-     .        + tensor(k,3,2)*tensor(k,2,1)*tensor(k,1,3)
-     .        + tensor(k,1,2)*tensor(k,2,3)*tensor(k,3,1)
-     .        - tensor(k,1,3)*tensor(k,2,2)*tensor(k,3,1)
-     .        - tensor(k,1,1)*tensor(k,2,3)*tensor(k,3,2)
-     .        - tensor(k,3,3)*tensor(k,1,2)*tensor(k,2,1)
-          ideter(k) = 1d0/det
+          ideter(k) = tensor(k,1,1)*tensor(k,2,2)*tensor(k,3,3)
+     .              + tensor(k,3,2)*tensor(k,2,1)*tensor(k,1,3)
+     .              + tensor(k,1,2)*tensor(k,2,3)*tensor(k,3,1)
+     .              - tensor(k,1,3)*tensor(k,2,2)*tensor(k,3,1)
+     .              - tensor(k,1,1)*tensor(k,2,3)*tensor(k,3,2)
+     .              - tensor(k,3,3)*tensor(k,1,2)*tensor(k,2,1)
+          ideter(k) = 1d0/ideter(k)
         enddo
 
       end subroutine idet
