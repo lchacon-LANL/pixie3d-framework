@@ -292,7 +292,7 @@ ifeq ($(findstring quevedo,$(HOST)),quevedo)
     ifeq ($(BOPT),O)
       PETSC_ARCH = macosx_gcc6.3.0_openmpi1.10.3_O
     else
-      PETSC_ARCH = macosx_gcc6.3.0_openmpi1.10.3_O
+      PETSC_ARCH = macosx_gcc6.3.0_openmpi1.10.3_g
     endif
 
     HDF5 = t
