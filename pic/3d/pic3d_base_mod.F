@@ -1012,7 +1012,7 @@ c     Local variables
 
 c     Matrix-matrix (yz) contraction to 2-vector (2x3x3*3x3->2) (Adam)
 c     ################################################################
-      function opt_matmat_233_yz_pcle(A,B) result(C)
+      subroutine opt_matmat_233_yz_pcle(A,B,C)
       implicit none
 c     Call variables
       real(_prec) :: A(_Npg,2,3,3), B(_Npg,3,3)
@@ -1033,11 +1033,11 @@ c     Local variables
          end do
       end do
 
-      end function opt_matmat_233_yz_pcle
+      end subroutine opt_matmat_233_yz_pcle
 
 c     Matrix-matrix (zx) contraction to 2-vector (3x2x3*3x3->2) (Adam)
 c     ################################################################
-      function opt_matmat_323_zx_pcle(A,B) result(C)
+      subroutine opt_matmat_323_zx_pcle(A,B,C)
       implicit none
 c     Call variables
       real(_prec) :: A(_Npg,3,2,3), B(_Npg,3,3)
@@ -1058,11 +1058,11 @@ c     Local variables
          end do
       end do
 
-      end function opt_matmat_323_zx_pcle
+      end subroutine opt_matmat_323_zx_pcle
 
 c     Matrix-matrix (xy) contraction to 2-vector (3x3x2*3x3->2) (Adam)
 c     ################################################################
-      function opt_matmat_332_xy_pcle(A,B) result(C)
+      subroutine opt_matmat_332_xy_pcle(A,B,C)
       implicit none
 c     Call variables
       real(_prec) :: A(_Npg,3,3,2), B(_Npg,3,3)
@@ -1083,11 +1083,11 @@ c     Local variables
          end do
       end do
 
-      end function opt_matmat_332_xy_pcle
+      end subroutine opt_matmat_332_xy_pcle
 
 c     Matrix-matrix (yz) contraction to 3-vector (3x3x3*3x3->3x1x1) (Adam)
 c     ################################################################
-      function opt_matmat_333_yz_pcle(A,B) result(C)
+      subroutine opt_matmat_333_yz_pcle(A,B,C)
       implicit none
 c     Call variables
       real(_prec) :: A(_Npg,3,3,3), B(_Npg,3,3)
@@ -1108,11 +1108,11 @@ c     Local variables
          end do
       end do
 
-      end function opt_matmat_333_yz_pcle
+      end subroutine opt_matmat_333_yz_pcle
 
 c     Matrix-matrix (zx) contraction to 3-vector (3x3x3*3x3->3) (Adam)
 c     ################################################################
-      function opt_matmat_333_zx_pcle(A,B) result(C)
+      subroutine opt_matmat_333_zx_pcle(A,B,C)
       implicit none
 c     Call variables
       real(_prec) :: A(_Npg,3,3,3), B(_Npg,3,3)
@@ -1133,11 +1133,11 @@ c     Local variables
          end do
       end do
 
-      end function opt_matmat_333_zx_pcle
+      end subroutine opt_matmat_333_zx_pcle
 
 c     Matrix-matrix (xy) contraction to 3-vector (3x3x3*3x3->3) (Adam)
 c     ################################################################
-      function opt_matmat_333_xy_pcle(A,B) result(C)
+      subroutine opt_matmat_333_xy_pcle(A,B,C)
       implicit none
 c     Call variables
       real(_prec) :: A(_Npg,3,3,3), B(_Npg,3,3)
@@ -1158,11 +1158,11 @@ c     Local variables
          end do
       end do
 
-      end function opt_matmat_333_xy_pcle
+      end subroutine opt_matmat_333_xy_pcle
 
 c     Matrix-matrix contraction to scalar (3x3x3*3x3x3->1) (Adam)
 c     ################################################################
-      function opt_matmat_333_xyz_pcle(A,B) result(C)
+      subroutine opt_matmat_333_xyz_pcle(A,B,C)
       implicit none
 c     Call variables                                                                                                                                                                                     
       real(_prec) :: A(_Npg,3,3,3), B(_Npg,3,3,3)
@@ -1171,7 +1171,7 @@ c     Local variables
                                                                                                                                                         
       integer :: i, j, k, ii
 
-      C(:) = 0.0d0
+      C = 0.0d0
 
       do k=1, 3
          do j=1, 3
@@ -1184,11 +1184,11 @@ c     Local variables
          end do
       end do
 
-      end function opt_matmat_333_xyz_pcle
+      end subroutine opt_matmat_333_xyz_pcle
 
 c     Matrix-matrix contraction to scalar (3x3x3*3x3x3->1) (Adam)
 c     ################################################################
-      function opt_matmat_333_xyz(A,B) result(C)
+      subroutine opt_matmat_333_xyz(A,B,C)
       implicit none
 c     Call variables
       real(_prec) :: A(3,3,3), B(3,3,3)
@@ -1199,15 +1199,16 @@ c     Local variables
 
       C = 0.0d0
 
+      !VECTOR SIMD COLLAPSE(3) REDUCTION(+:C)
       do k=1, 3
          do j=1, 3
             do i=1, 3
-                  C = C+A(i,j,k)*B(i,j,k)
+               C = C + A(i,j,k)*B(i,j,k)
             end do
          end do
       end do
 
-      end function opt_matmat_333_xyz
+      end subroutine opt_matmat_333_xyz
 
 c     Optimized matrix-vector multiplication (2) (C. Mikida)
 c     ##################################################################
@@ -1224,8 +1225,8 @@ c     Local variables
 
       C = 0.0d0
 
+      !VECTOR SIMD COLLAPSE(2) REDUCTION(+:C)
       do i=1, 2
-         !VECTOR SIMD REDUCTION(+:C)
          do j=1, 3
             C(i) = C(i) + A(j)*B(j,i)
          end do
@@ -1248,8 +1249,8 @@ c     Local variables
 
       C = 0.0d0
 
+      !VECTOR SIMD COLLAPSE(2) REDUCTION(+:C)
       do i=1, 2
-         !VECTOR SIMD REDUCTION(+:C)
          do j=1, 3
             C(i) = C(i) + B(j)*A(i,j)
          end do
@@ -1272,8 +1273,8 @@ c     Local variables
 
       C = 0.0d0
 
+      !VECTOR SIMD COLLAPSE(2) REDUCTION(+:C)
       do i=1, 3
-         !VECTOR SIMD REDUCTION(+:C)
          do j=1, 2
             C(i) = C(i) + A(j)*B(j,i)
          end do
@@ -1296,10 +1297,10 @@ c     Local variables
 
       integer :: i, j
 
-      C(:) = 0.0d0
+      C = 0.0d0
 
+      !VECTOR SIMD COLLAPSE(2) REDUCTION(+:C)
       do i=1, 3
-         !VECTOR SIMD REDUCTION(+:C)
          do j=1, 3
             C(i) = C(i) + A(j)*B(j,i)
          end do
@@ -1322,8 +1323,8 @@ c     Local variables
 
       C(:) = 0.0d0
 
+      !VECTOR SIMD COLLAPSE(2) REDUCTION(+:C)
       do i=1, 3
-         !VECTOR SIMD REDUCTION(+:C)
          do j=1, 3
             C(i) = C(i) + A(i,j)*B(j)
          end do
@@ -1344,10 +1345,8 @@ c     Call variables
 c     Local variables
       integer :: i, j
 
-      C(:,:) = 0.0d0
-
+      !VECTOR SIMD COLLAPSE(2)
       do i=1, 3
-         !VECTOR SIMD
          do j=1, 3
             C(i,j) = A(i,1)*B(1,j)
          end do
@@ -1368,8 +1367,7 @@ c     Call variables
 c     Local variables 
       integer :: i, j, k
 
-      D(:,:,:) = 0.0d0
-
+      !VECTOR SIMD COLLAPSE(3)
       do i=1, 3
          do j=1, 3
             do k=1, 3
@@ -1393,10 +1391,8 @@ c     Call variables
 c     Local variables
       integer :: i, j
 
-      C(:,:) = 0.0d0
-
+      !VECTOR SIMD COLLAPSE(2)
       do i=1, 2
-         !VECTOR SIMD
          do j=1, 3
             C(i,j) = A(i,1)*B(1,j)
          end do
@@ -1416,12 +1412,10 @@ c     Call variables
 c     Local variables
       integer :: i, j, k
 
-      D(:,:,:) = 0.0d0
-
-      do i=1, 2
+      !VECTOR SIMD COLLAPSE(3)
+      do k=1, 3
          do j=1, 3
-         !VECTOR SIMD
-            do k=1, 3
+            do i=1, 2
                D(i,j,k) = A(i,1,1)*B(1,j,1)*C(1,1,k)
             end do
          end do
@@ -1442,8 +1436,6 @@ c     Call variables
 
 c     Local variables
       integer :: i, j
-
-      C(:,:) = 0.0d0
 
       do i=1, 3
          !VECTOR SIMD
@@ -1466,8 +1458,6 @@ c     Call variables
 c     Local variables
       integer :: i, j, k
 
-      D(:,:,:) = 0.0d0
-
       do i=1, 3
          do j=1, 2
          !VECTOR SIMD
@@ -1476,7 +1466,6 @@ c     Local variables
             end do
          end do
       end do
-
 
       end function opt_vecvecvec_323
 
@@ -1491,8 +1480,6 @@ c     Call variables
 
 c     Local variables
       integer :: i, j, k
-
-      D(:,:,:) = 0.0d0
 
       do i=1, 3
          do j=1, 3
@@ -1510,18 +1497,18 @@ c     ################################################################
       function opt_omatvec_233(A,B) result(C)
 
       implicit none
+
 c     Call variables                                                                                                                           
       real(_prec) :: A(3,3), B(2,1,1)
       real(_prec) :: C(2,3,3)
 
 c     Local variables
+
       integer :: i, j, k
 
-      C(:,:,:) = 0.0d0
-
+      !VECTOR SIMD COLLAPSE(3)
       do k=1, 3
          do j=1, 3
-         !VECTOR SIMD
             do i=1, 2
                C(i,j,k) = B(i,1,1)*A(j,k)
             end do
@@ -1542,11 +1529,9 @@ c     Call variables
 c     Local variables
       integer :: i, j, k
 
-      C(:,:,:) = 0.0d0
-
+      !VECTOR SIMD COLLAPSE(3)
       do k=1, 3
          do j=1, 2
-         !VECTOR SIMD
             do i=1, 3
                C(i,j,k) = B(1,j,1)*A(k,i) ! Need in xyz, from A_zx.
             end do
@@ -1567,11 +1552,9 @@ c     Call variables
 c     Local variables
       integer :: i, j, k
 
-      C(:,:,:) = 0.0d0
-
+      !VECTOR SIMD COLLAPSE(3)
       do k=1, 2
          do j=1, 3
-         !VECTOR SIMD
             do i=1, 3
                C(i,j,k) = B(1,1,k)*A(i,j) ! Need in xyz, from A_xy.
             end do
@@ -1579,6 +1562,86 @@ c     Local variables
       end do
 
       end function opt_omatvec_332
+
+c     Matrix-vector outer product (2x3x3) (Adam)
+c     ################################################################
+      subroutine opt_omatvec_233_pcle(A,B,C)
+
+      implicit none
+
+c     Call variables                                                                                                                           
+      real(_prec) :: A(_Npg,3,3), B(_Npg,2,1,1)
+      real(_prec) :: C(_Npg,2,3,3)
+
+c     Local variables
+
+      integer :: i, j, k, ii
+
+      do k=1, 3
+         do j=1, 3
+            do i=1, 2
+              !VECTOR SIMD
+               do ii=1,_Npg
+                  C(ii,i,j,k) = B(ii,i,1,1)*A(ii,j,k)
+               enddo
+            end do
+         end do
+      end do
+
+      end subroutine opt_omatvec_233_pcle
+
+c     Matrix-vector outer product (3x2x3) (Adam)
+c     ################################################################
+      subroutine opt_omatvec_323_pcle(A,B,C)
+
+      implicit none
+c     Call variables
+      real(_prec) :: A(_Npg,3,3), B(_Npg,1,2,1)
+      real(_prec) :: C(_Npg,3,2,3)
+
+c     Local variables
+      integer :: i, j, k, ii
+
+      do k=1, 3
+         do j=1, 2
+            do i=1, 3
+              !VECTOR SIMD
+               do ii=1,_Npg
+                  C(ii,i,j,k) = B(ii,1,j,1)*A(ii,k,i) ! Need in xyz, from A_zx.
+               enddo
+            end do
+         end do
+      end do
+
+      end subroutine opt_omatvec_323_pcle
+
+c     Matrix-vector outer product (3x3x2) (Adam)
+c     ################################################################
+      subroutine opt_omatvec_332_pcle(A,B,C)
+
+      implicit none
+
+c     Call variables
+
+      real(_prec) :: A(_Npg,3,3), B(_Npg,1,1,2)
+      real(_prec) :: C(_Npg,3,3,2)
+
+c     Local variables
+
+      integer :: i, j, k, ii
+
+      do k=1, 2
+         do j=1, 3
+            do i=1, 3
+              !VECTOR SIMD
+               do ii=1,_Npg
+                  C(ii,i,j,k) = B(ii,1,1,k)*A(ii,i,j) ! Need in xyz, from A_xy.
+               enddo
+            end do
+         end do
+      end do
+
+      end subroutine opt_omatvec_332_pcle
 
       end module pic_shape_f
 
@@ -1859,19 +1922,19 @@ c     Tangential vectors
 
       ! Adam: vec(1:Npg,:,:) = (dx/dxi, dy/dxi, dz/dxi; dx/deta, dy/deta, dz/deta; dx/dzeta, dy/dzeta, dz/dzeta) 
       call opt_vecvecvec_3_pcle(DSx,Sy2,Sz2,dum333)
-      vec(:,1,1) = opt_matmat_333_xyz_pcle(dum333,map_g_1)
-      vec(:,1,2) = opt_matmat_333_xyz_pcle(dum333,map_g_2)
-      vec(:,1,3) = opt_matmat_333_xyz_pcle(dum333,map_g_3)
+      call opt_matmat_333_xyz_pcle(dum333,map_g_1,vec(:,1,1))
+      call opt_matmat_333_xyz_pcle(dum333,map_g_2,vec(:,1,2))
+      call opt_matmat_333_xyz_pcle(dum333,map_g_3,vec(:,1,3))
 
       call opt_vecvecvec_3_pcle(Sx2,DSy,Sz2,dum333)
-      vec(:,2,1) = opt_matmat_333_xyz_pcle(dum333,map_g_1)
-      vec(:,2,2) = opt_matmat_333_xyz_pcle(dum333,map_g_2)
-      vec(:,2,3) = opt_matmat_333_xyz_pcle(dum333,map_g_3)
+      call opt_matmat_333_xyz_pcle(dum333,map_g_1,vec(:,2,1))
+      call opt_matmat_333_xyz_pcle(dum333,map_g_2,vec(:,2,2))
+      call opt_matmat_333_xyz_pcle(dum333,map_g_3,vec(:,2,3))
 
       call opt_vecvecvec_3_pcle(Sx2,Sy2,DSz,dum333)
-      vec(:,3,1) = opt_matmat_333_xyz_pcle(dum333,map_g_1)
-      vec(:,3,2) = opt_matmat_333_xyz_pcle(dum333,map_g_2)
-      vec(:,3,3) = opt_matmat_333_xyz_pcle(dum333,map_g_3)
+      call opt_matmat_333_xyz_pcle(dum333,map_g_1,vec(:,3,1))
+      call opt_matmat_333_xyz_pcle(dum333,map_g_2,vec(:,3,2))
+      call opt_matmat_333_xyz_pcle(dum333,map_g_3,vec(:,3,3))
 
 c     Find the inverse Jacobian
 
@@ -2078,19 +2141,19 @@ c     Tangential vectors (2D for now)
       map_g_3 = map_g(i0-1:i0+1,j0-1:j0+1,k0-1:k0+1,3)
 
       dum333(:,:,:) = opt_vecvecvec_3(DSx,Sy2,Sz2)
-      vec(1,1) = opt_matmat_333_xyz(dum333,map_g_1)
-      vec(1,2) = opt_matmat_333_xyz(dum333,map_g_2)
-      vec(1,3) = opt_matmat_333_xyz(dum333,map_g_3)      
+      call opt_matmat_333_xyz(dum333,map_g_1,vec(1,1))
+      call opt_matmat_333_xyz(dum333,map_g_2,vec(1,2))
+      call opt_matmat_333_xyz(dum333,map_g_3,vec(1,3))      
 
       dum333(:,:,:) = opt_vecvecvec_3(Sx2,DSy,Sz2)
-      vec(2,1) = opt_matmat_333_xyz(dum333,map_g_1)
-      vec(2,2) = opt_matmat_333_xyz(dum333,map_g_2)
-      vec(2,3) = opt_matmat_333_xyz(dum333,map_g_3)
+      call opt_matmat_333_xyz(dum333,map_g_1,vec(2,1))
+      call opt_matmat_333_xyz(dum333,map_g_2,vec(2,2))
+      call opt_matmat_333_xyz(dum333,map_g_3,vec(2,3))
 
       dum333(:,:,:) = opt_vecvecvec_3(Sx2,Sy2,DSz)
-      vec(3,1) = opt_matmat_333_xyz(dum333,map_g_1)
-      vec(3,2) = opt_matmat_333_xyz(dum333,map_g_2)
-      vec(3,3) = opt_matmat_333_xyz(dum333,map_g_3)
+      call opt_matmat_333_xyz(dum333,map_g_1,vec(3,1))
+      call opt_matmat_333_xyz(dum333,map_g_2,vec(3,2))
+      call opt_matmat_333_xyz(dum333,map_g_3,vec(3,3))
 
 !      dum3 = opt_matvec_tr(DSx,map_g_1)
 !      vec(1,1) = dot_product(dum3,Sy2)

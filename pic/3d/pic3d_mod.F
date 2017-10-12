@@ -75,19 +75,19 @@ c     Local variables
       real(_prec) :: Myz2(_Npg,3,3),Mzx2(_Npg,3,3),Mxy2(_Npg,3,3)
       real(_prec) :: M_w_prod(_Npg,3,3,3)
       real(_prec) :: dumA(_Npg,3,1), dumB(_Npg,1,3), dumC(_Npg,1,3)
-     .              ,dumD(_Npg,3,3)
+     .              ,dumD(_Npg,3,3),dumE(_Npg,3,3,3)
 
       real(_prec) :: rhon,rho,jip,ji,ecc,cml(3),pml(3),cmex(3)
      .              ,lacc(9),gacc(9)
 
       real(_prec) :: dtv,dtx
-      real(8) :: ihx,ihy,ihz
+      real(8) :: ihx,ihy,ihz,isix
 
       type(particle) :: pcle_nu
 
 c     Begin program
 
-!      write(*,*) size(A,3)
+      isix = 1d0/6d0
 
       allocate(garr_n  (0:size(A,1)-1,0:size(A,2)-1,0:size(A,3)-1)
      $        ,garr_vx (0:size(A,1)-1,0:size(A,2)-1,0:size(A,3)-1)
@@ -153,7 +153,7 @@ c     Move particles
 
 !     note that there is some issue with valgrind and libgomp.
 !$omp parallel DEFAULT(SHARED) private(ipc,it,v0,v2,dtp,dt_sub
-!$omp.              ,d_x,dx,xp,yp,zp,xfp,yfp,zfp,x_nh,dumA,dumD
+!$omp.              ,d_x,dx,xp,yp,zp,xfp,yfp,zfp,x_nh,dumA,dumD,dumE
 !$omp.              ,dumB,dumC,i,j,k,ii,i0,j0,k0,Mx1,Mx2,My1,My2,Mz1,Mz2
 !$omp.              ,Myz2,Mzx2,Mxy2,w_pcle,psts,M_w_prod,pits,pcle_nu)
 !$         call set_omp_thread_id()
@@ -231,22 +231,12 @@ c     Move particles
 
              call opt_vecvec_3_pcle(dumA,dumB,Myz2)
              Myz2 = 2d0*Myz2
-c$$$             !VECTOR SIMD
-c$$$             do ii=1,_Npg
-c$$$               Myz2(ii,1:3,1:3)=opt_vecvec_3(dumA(ii,:,1) ! ADAM: REPLACE LOOP OVER PARTICLES WITH opt_vecvec_3_pcle?
-c$$$     $                                      ,dumB(ii,1,:))*2d0
-c$$$             end do
 
              dumC=dumB
              call shape2_offset(zfp,dumB(:,1,1:3))
 
              call opt_vecvec_3_pcle(dumA,dumB,dumD)
              Myz2 = Myz2 + dumD
-c$$$             !VECTOR SIMD
-c$$$             do ii=1,_Npg
-c$$$               Myz2(ii,1:3,1:3) = Myz2(ii,1:3,1:3)
-c$$$     $               +opt_vecvec_3(dumA(ii,:,1),dumB(ii,1,:))
-c$$$             end do
 
              call shape2_offset(yfp,dumA(:,1:3,1))
 
@@ -254,12 +244,6 @@ c$$$             end do
              Myz2 = Myz2 + dumD
              call opt_vecvec_3_pcle(dumA,dumB,dumD)
              Myz2 = Myz2 + dumD*2d0
-c$$$             !VECTOR SIMD
-c$$$             do ii=1,_Npg
-c$$$               Myz2(ii,1:3,1:3) = Myz2(ii,1:3,1:3)
-c$$$     $               +opt_vecvec_3(dumA(ii,:,1),dumC(ii,1,:))
-c$$$     $               +opt_vecvec_3(dumA(ii,:,1),dumB(ii,1,:))*2d0
-c$$$             end do
 
              ! ADAM: COMPUTE S22(z,x)
              call shape2_offset(zp,dumA(:,1:3,1))
@@ -267,22 +251,12 @@ c$$$             end do
 
              call opt_vecvec_3_pcle(dumA,dumB,Mzx2)
              Mzx2 = 2d0*Mzx2
-c$$$             !VECTOR SIMD
-c$$$             do ii=1,_Npg
-c$$$              Mzx2(ii,1:3,1:3)=opt_vecvec_3(dumA(ii,:,1)
-c$$$     $               ,dumB(ii,1,:))*2d0
-c$$$             end do
 
              dumC=dumB
              call shape2_offset(xfp,dumB(:,1,1:3))
 
              call opt_vecvec_3_pcle(dumA,dumB,dumD)
              Mzx2 = Mzx2 + dumD
-c$$$             !VECTOR SIMD
-c$$$             do ii=1,_Npg
-c$$$               Mzx2(ii,1:3,1:3) = Mzx2(ii,1:3,1:3)
-c$$$     $               +opt_vecvec_3(dumA(ii,:,1),dumB(ii,1,:))
-c$$$             end do
 
              call shape2_offset(zfp,dumA(:,1:3,1))
 
@@ -290,12 +264,6 @@ c$$$             end do
              Mzx2 = Mzx2 + dumD
              call opt_vecvec_3_pcle(dumA,dumB,dumD)
              Mzx2 = Mzx2 + dumD*2d0
-c$$$             !VECTOR SIMD
-c$$$             do ii=1,_Npg
-c$$$               Mzx2(ii,1:3,1:3) = Mzx2(ii,1:3,1:3)
-c$$$     $               +opt_vecvec_3(dumA(ii,:,1),dumC(ii,1,:))
-c$$$     $               +opt_vecvec_3(dumA(ii,:,1),dumB(ii,1,:))*2d0
-c$$$             end do
 
              ! ADAM: COMPUTE S22(x,y)
              call shape2_offset(xp,dumA(:,1:3,1))
@@ -303,22 +271,12 @@ c$$$             end do
 
              call opt_vecvec_3_pcle(dumA,dumB,Mxy2)
              Mxy2 = 2d0*Mxy2
-c$$$             !VECTOR SIMD
-c$$$             do ii=1,_Npg
-c$$$               Mxy2(ii,1:3,1:3) = opt_vecvec_3(dumA(ii,:,1)
-c$$$     $                                        ,dumB(ii,1,:))*2d0
-c$$$             end do
 
              dumC=dumB
              call shape2_offset(yfp,dumB(:,1,1:3))
 
              call opt_vecvec_3_pcle(dumA,dumB,dumD)
              Mxy2 = Mxy2 + dumD
-c$$$             !VECTOR SIMD
-c$$$             do ii=1,_Npg
-c$$$               Mxy2(ii,1:3,1:3) = Mxy2(ii,1:3,1:3)
-c$$$     $               +opt_vecvec_3(dumA(ii,:,1),dumB(ii,1,:))
-c$$$             end do
 
              call shape2_offset(xfp,dumA(:,1:3,1))
 
@@ -326,49 +284,76 @@ c$$$             end do
              Mxy2 = Mxy2 + dumD
              call opt_vecvec_3_pcle(dumA,dumB,dumD)
              Mxy2 = Mxy2 + dumD*2d0
-c$$$             !VECTOR SIMD
-c$$$             do ii=1,_Npg
-c$$$               Mxy2(ii,1:3,1:3) = Mxy2(ii,1:3,1:3)
-c$$$     $               +opt_vecvec_3(dumA(ii,:,1),dumC(ii,1,:))
-c$$$     $               +opt_vecvec_3(dumA(ii,:,1),dumB(ii,1,:))*2d0
-c$$$             end do
 
              ! DIVIDE BY 6!!
-             Myz2=Myz2/6d0
-             Mzx2=Mzx2/6d0
-             Mxy2=Mxy2/6d0
+             Myz2=Myz2*isix
+             Mzx2=Mzx2*isix
+             Mxy2=Mxy2*isix
+
+             !Gather Vx
+             call opt_omatvec_233_pcle(Myz2,Mx1,dumE(:,1:2,:,:))
+             !VECTOR SIMD
+             do ii=1, _Npg
+                dumE(ii,1:2,:,:) = dx(ii,1)*dumE(ii,1:2,:,:)*w_pcle(ii)
+             enddo
 
              !Do NOT vectorize: memory race issues
              do ii=1, _Npg
-!#ifdef __GNU
-               !accumulate vx (linear in x, 2nd in y, 2nd in z)
+               !accumulate vx (linear in x, 2nd in y, z)
                garr_vx(i(ii)-1:i(ii),j(ii)-1:j(ii)+1,k(ii)-1:k(ii)+1) = ! ADAM: MAY BE FASTER TO CALL A OMATVEC_233_PCLE 
      .         garr_vx(i(ii)-1:i(ii),j(ii)-1:j(ii)+1,k(ii)-1:k(ii)+1) + 
-     .          dx(ii,1)*opt_omatvec_233(Myz2(ii,:,:),Mx1(ii,:,1,1))*
-     .          w_pcle(ii)
+     .          dumE(ii,1:2,:,:)
+             enddo
 
-               !accumulate vy (linear in y, 2nd in x, 2nd in z)
+             !Gather Vy
+             call opt_omatvec_323_pcle(Mzx2,My1,dumE(:,:,1:2,:))
+             !VECTOR SIMD
+             do ii=1, _Npg
+                dumE(ii,:,1:2,:) = dx(ii,2)*dumE(ii,:,1:2,:)*w_pcle(ii)
+             enddo
+
+             !Do NOT vectorize: memory race issues
+             do ii=1, _Npg
+              !accumulate vy (linear in y, 2nd in x, z)
                garr_vy(i(ii)-1:i(ii)+1,j(ii)-1:j(ii),k(ii)-1:k(ii)+1) = 
      .         garr_vy(i(ii)-1:i(ii)+1,j(ii)-1:j(ii),k(ii)-1:k(ii)+1) + 
-     .          dx(ii,2)*opt_omatvec_323(Mzx2(ii,:,:),My1(ii,1,:,1))*
-     .          w_pcle(ii)
-!#else                
-!                !accumulate vx (linear in x, 2nd in y)
-!                garr_vx(i(ii)-1:i(ii)  ,j(ii)-1:j(ii)+1,1) = 
-!     .          garr_vx(i(ii)-1:i(ii)  ,j(ii)-1:j(ii)+1,1) + 
-!     .          dx(ii,1)*matmul(Mx1(ii,:,:),My2(ii,:,:))*w_pcle(ii)
+     .          dumE(ii,:,1:2,:)
+             enddo
 
-!                !accumulate vy (linear in y, 2nd in x)
-!                garr_vy(i(ii)-1:i(ii)+1,j(ii)-1:j(ii),1) = 
-!     .          garr_vy(i(ii)-1:i(ii)+1,j(ii)-1:j(ii),1) +
-!     .          dx(ii,2)*matmul(Mx2(ii,:,:),My1(ii,:,:))*w_pcle(ii)
-!#endif
-               !accumulate vz (2nd in x,y)
+             !Gather Vz
+             call opt_omatvec_332_pcle(Mxy2,Mz1,dumE(:,:,:,1:2))
+             !VECTOR SIMD
+             do ii=1, _Npg
+                dumE(ii,:,:,1:2) = dx(ii,3)*dumE(ii,:,:,1:2)*w_pcle(ii)
+             enddo
+
+             !Do NOT vectorize: memory race issues
+             do ii=1, _Npg
+               !accumulate vz (linear in z, 2nd in x,y)
                garr_vz(i(ii)-1:i(ii)+1,j(ii)-1:j(ii)+1,k(ii)-1:k(ii)) =
      .         garr_vz(i(ii)-1:i(ii)+1,j(ii)-1:j(ii)+1,k(ii)-1:k(ii)) +
-     .          dx(ii,3)*opt_omatvec_332(Mxy2(ii,:,:),Mz1(ii,1,1,:))*
-     .          w_pcle(ii)
+     .          dumE(ii,:,:,1:2)
              end do
+
+c$$$             do ii=1, _Npg
+c$$$               !accumulate vx (linear in x, 2nd in y, z)
+c$$$               garr_vx(i(ii)-1:i(ii),j(ii)-1:j(ii)+1,k(ii)-1:k(ii)+1) =
+c$$$     .         garr_vx(i(ii)-1:i(ii),j(ii)-1:j(ii)+1,k(ii)-1:k(ii)+1) + 
+c$$$     .          dx(ii,1)*opt_omatvec_233(Myz2(ii,:,:),Mx1(ii,:,1,1))*
+c$$$     .          w_pcle(ii)
+c$$$
+c$$$               !accumulate vy (linear in y, 2nd in x, z)
+c$$$               garr_vy(i(ii)-1:i(ii)+1,j(ii)-1:j(ii),k(ii)-1:k(ii)+1) = 
+c$$$     .         garr_vy(i(ii)-1:i(ii)+1,j(ii)-1:j(ii),k(ii)-1:k(ii)+1) + 
+c$$$     .          dx(ii,2)*opt_omatvec_323(Mzx2(ii,:,:),My1(ii,1,:,1))*
+c$$$     .          w_pcle(ii)
+c$$$
+c$$$               !accumulate vz (linear in z, 2nd in x,y)
+c$$$               garr_vz(i(ii)-1:i(ii)+1,j(ii)-1:j(ii)+1,k(ii)-1:k(ii)) =
+c$$$     .         garr_vz(i(ii)-1:i(ii)+1,j(ii)-1:j(ii)+1,k(ii)-1:k(ii)) +
+c$$$     .          dx(ii,3)*opt_omatvec_332(Mxy2(ii,:,:),Mz1(ii,1,1,:))*
+c$$$     .          w_pcle(ii)
+c$$$             end do
                   
              !Prepare for next substep
              pcle_nu%ijk_n = spcs(isp)%pcles(ipc)%ijk_np
@@ -399,16 +384,11 @@ c$$$             end do
            do ii=1,_Npg
               M_w_prod(ii,:,:,:) = M_w_prod(ii,:,:,:)*w_pcle(ii)
            enddo
-c$$$           !VECTOR SIMD
-c$$$           do ii=1,_Npg
-c$$$              M_w_prod(ii,:,:,:) = opt_vecvecvec_3(Mx2(ii,:,:,:)
-c$$$     .                          ,My2(ii,:,:,:),Mz2(ii,:,:,:))*w_pcle(ii)
-c$$$           enddo
 
-           !Do NOT put SIMD statement, reduction!!!!
            v0 = pcle_nu%v_n
            call xform_pcle_idx(pcle_nu%ijk_n,nxg,nyg,i0,j0,k0)
 
+           !Do NOT put SIMD statement, reduction!!!!
            do ii=1,_Npg
               !accumulate n (quadratic in x,y)
           garr_n(i0(ii)-1:i0(ii)+1,j0(ii)-1:j0(ii)+1,k0(ii)-1:k0(ii)+1)= 
@@ -799,23 +779,14 @@ c     ######################################################################
       vhcurv_inv_2 = 1d0/(vhcurv(:,2) + 1d-44)
       vhcurv_inv_3 = 1d0/(vhcurv(:,3) + 1d-44)
 
-!      write(*,*) 'vhinv=',vhcurv_inv_1, vhcurv_inv_2, vhcurv_inv_3
-!      write(*,*) 'dt sub a', dt_sub
-
       dt_sub = min(dt_sub
      .            ,max((dxl(:,1)-eps2)*vhcurv_inv_1
      .                ,(dxr(:,1)+eps2)*vhcurv_inv_1)
      .            ,max((dxl(:,2)-eps2)*vhcurv_inv_2
-     .                ,(dxr(:,2)+eps2)*vhcurv_inv_2))
-
-!      write(*,*) 'dt sub b1', dt_sub
-
-      dt_sub = min(dt_sub
+     .                ,(dxr(:,2)+eps2)*vhcurv_inv_2)
      .            ,max((dxl(:,3)-eps2)*vhcurv_inv_3
-     .                ,(dxr(:,3)+eps2)*vhcurv_inv_3)) ! ADAM: COMBINE WITH ABOVE.
+     .                ,(dxr(:,3)+eps2)*vhcurv_inv_3))
 
-!      write(*,*) 'dt sub b2', dt_sub
-      
       dx(:,1) = vhcurv(:,1)*dt_sub
       dx(:,2) = vhcurv(:,2)*dt_sub
       dx(:,3) = vhcurv(:,3)*dt_sub
@@ -1144,7 +1115,7 @@ c     Call variables
 c     Local variables
 
       integer :: i,j
-      real(_prec) :: Exp,Eyp,Ezp,Bxp,Byp,Bzp
+      real(_prec) :: isix,Exp,Eyp,Ezp,Bxp,Byp,Bzp
      .              ,xhp(_Npg,3),xnp(_Npg,3),x0p(_Npg,3)
      .              ,x_nh(_Npg,3),cov(3,3),cnv(3,3),xlog(_Npg,3)
      .              ,dum1(_Npg),dum2(_Npg,2),dum3(_Npg,3)
@@ -1161,6 +1132,8 @@ c     Local variables
      .              ,Az_nuh(_Npg,3,3,2)
 
 c     Begin program
+
+      isix = 1d0/6d0
 
       x0p(:,1) = x0(:,1)*ihx
       x0p(:,2) = x0(:,2)*ihy
@@ -1213,17 +1186,9 @@ c     Find Ep_1
       call opt_vecvec_3_pcle(dumA(:,1:3,1),dumB(:,1,1:3),dumD)
       dum33 = dum33 + 2d0*dumD
 
-      dum33=dum33/6d0
+      dum33=dum33*isix
 
-c$$$      dum3(:,:) = opt_matmat_333_yz_pcle(phi_loc(:,:,:,:),dum33(:,:,:))
-c$$$      dum2(:,:) = opt_matmat_233_yz_pcle(DtA_1  (:,:,:,:),dum33(:,:,:))
-c$$$
-c$$$      call dot_product_2_pcle(dum2,Sx1,dum1)
-c$$$      Ep(:,1) = -dum1
-c$$$      call dot_product_3_pcle(dum3,DSx,dum1)
-c$$$      Ep(:,1) = Ep(:,1) - dum1
-
-      dum2 = opt_matmat_233_yz_pcle(E_1,dum33)
+      call opt_matmat_233_yz_pcle(E_1,dum33,dum2)
       call dot_product_2_pcle(dum2,Sx1,Ep(:,1))
 
 c     Find Ep_2
@@ -1245,17 +1210,9 @@ c     Find Ep_2
       call opt_vecvec_3_pcle(dumA(:,1:3,1),dumB(:,1,1:3),dumD)
       dum33 = dum33 + 2d0*dumD
 
-      dum33=dum33/6d0
+      dum33=dum33*isix
 
-c$$$      dum3(:,:) = opt_matmat_333_zx_pcle(phi_loc(:,:,:,:),dum33(:,:,:))
-c$$$      dum2(:,:) = opt_matmat_323_zx_pcle(DtA_2(:,:,:,:),dum33(:,:,:))
-c$$$
-c$$$      call dot_product_2_pcle(dum2,Sy1,dum1)
-c$$$      Ep(:,2) = -dum1
-c$$$      call dot_product_3_pcle(dum3,DSy,dum1)
-c$$$      Ep(:,2) = Ep(:,2) - dum1
-
-      dum2 = opt_matmat_323_zx_pcle(E_2,dum33)
+      call opt_matmat_323_zx_pcle(E_2,dum33,dum2)
       call dot_product_2_pcle(dum2,Sy1,Ep(:,2))
 
 c     Find Ep_3
@@ -1277,17 +1234,9 @@ c     Find Ep_3
       call opt_vecvec_3_pcle(dumA(:,1:3,1),dumB(:,1,1:3),dumD)
       dum33 = dum33 + 2d0*dumD
 
-      dum33=dum33/6d0
+      dum33=dum33*isix
 
-c$$$      dum3(:,:) = opt_matmat_333_xy_pcle(phi_loc(:,:,:,:),dum33(:,:,:))
-c$$$      dum2(:,:) = opt_matmat_332_xy_pcle(DtA_3(:,:,:,:),dum33(:,:,:))
-c$$$
-c$$$      call dot_product_2_pcle(dum2,Sz1,dum1)
-c$$$      Ep(:,3) = -dum1
-c$$$      call dot_product_3_pcle(dum3,DSz,dum1)
-c$$$      Ep(:,3) = Ep(:,3) - dum1
-
-      dum2 = opt_matmat_332_xy_pcle(E_3,dum33)
+      call opt_matmat_332_xy_pcle(E_3,dum33,dum2)
       call dot_product_2_pcle(dum2,Sz1,Ep(:,3))
 
 c     Find B
@@ -1302,13 +1251,13 @@ c     Find B
 
       dumB(:,1,1:3) = DSy(:,1:3)
       call opt_vecvec_3_pcle(Sx2,dumB,dum33)
-      dum2(:,1:2)  = opt_matmat_332_xy_pcle(Az_nuh,dum33)
+      call opt_matmat_332_xy_pcle(Az_nuh,dum33,dum2(:,1:2))
       call dot_product_2_pcle(dum2,Sz1,dum1)
       Bp(:,1) = dum1
 
       dumB(:,1,1:3) = Sy2(:,1:3)
       call opt_vecvec_3_pcle(DSx,dumB,dum33)
-      dum2(:,1:2)  = opt_matmat_332_xy_pcle(Az_nuh,dum33)
+      call opt_matmat_332_xy_pcle(Az_nuh,dum33,dum2(:,1:2))
       call dot_product_2_pcle(dum2,Sz1,dum1)
       Bp(:,2) = - dum1
 
@@ -1319,13 +1268,13 @@ c     Find B
 
       dumB(:,1,1:3) = Sx2(:,1:3)
       call opt_vecvec_3_pcle(DSz,dumB,dum33)
-      dum2(:,1:2) = opt_matmat_323_zx_pcle(Ay_nuh,dum33)
+      call opt_matmat_323_zx_pcle(Ay_nuh,dum33,dum2(:,1:2))
       call dot_product_2_pcle(dum2,Sy1,dum1)
       Bp(:,1) = Bp(:,1) - dum1
                              
       dumB(:,1,1:3) = DSx(:,1:3)
       call opt_vecvec_3_pcle(Sz2,dumB,dum33)
-      dum2(:,1:2) = opt_matmat_323_zx_pcle(Ay_nuh,dum33)
+      call opt_matmat_323_zx_pcle(Ay_nuh,dum33,dum2(:,1:2))
       call dot_product_2_pcle(dum2,Sy1,dum1)
       Bp(:,3) = dum1
                    
@@ -1336,80 +1285,15 @@ c     Find B
                                                                
       dumB(:,1,1:3) = DSz(:,1:3)
       call opt_vecvec_3_pcle(Sy2,dumB,dum33)
-      dum2(:,1:2) = opt_matmat_233_yz_pcle(Ax_nuh,dum33)
+      call opt_matmat_233_yz_pcle(Ax_nuh,dum33,dum2(:,1:2))
       call dot_product_2_pcle(dum2,Sx1,dum1)
       Bp(:,2) = Bp(:,2) + dum1
 
       dumB(:,1,1:3) = Sz2(:,1:3)
       call opt_vecvec_3_pcle(DSy,dumB,dum33)
-      dum2(:,1:2) = opt_matmat_233_yz_pcle(Ax_nuh,dum33)
+      call opt_matmat_233_yz_pcle(Ax_nuh,dum33,dum2(:,1:2))
       call dot_product_2_pcle(dum2,Sx1,dum1)
       Bp(:,3) = Bp(:,3) - dum1
-
-c$$$      !VECTOR SIMD
-c$$$      do i=1,_Npg
-c$$$        Ax_nuh(i,:,:,:) = A_1(i,:,:,:) + DtA_1(i,:,:,:)*dum1(i)
-c$$$        Ay_nuh(i,:,:,:) = A_2(i,:,:,:) + DtA_2(i,:,:,:)*dum1(i)
-c$$$        Az_nuh(i,:,:,:) = A_3(i,:,:,:) + DtA_3(i,:,:,:)*dum1(i)
-c$$$      enddo
-c$$$
-c$$$      ! ADAM: TRY SIMPLER VERSION THAN NOW: S_2*S_2 rather than S_22.
-c$$$      ! NB. THIS MAY MEAN THAT d_t B != -curl(E) AT PARTICLE POSITION.
-c$$$
-c$$$      dumB(:,1,1:3) = DSy(:,1:3)
-c$$$      call opt_vecvec_3_pcle(Sx2,dumB,dum33)
-c$$$      dum2(:,1:2)  = opt_matmat_332_xy_pcle(Az_nuh,dum33)
-c$$$      call dot_product_2_pcle(dum2,Sz1,dum1)
-c$$$      Bp(:,1) = dum1
-c$$$
-c$$$      dumB(:,1,1:3) = Sx2(:,1:3)
-c$$$      call opt_vecvec_3_pcle(DSz,dumB,dum33)
-c$$$      dum2(:,1:2) = opt_matmat_323_zx_pcle(Ay_nuh,dum33)
-c$$$      call dot_product_2_pcle(dum2,Sy1,dum1)
-c$$$      Bp(:,1) = Bp(:,1)-dum1 + B0(1)
-c$$$
-c$$$!
-c$$$      dumB(:,1,1:3) = DSz(:,1:3)
-c$$$      call opt_vecvec_3_pcle(Sy2,dumB,dum33)
-c$$$      dum2(:,1:2) = opt_matmat_233_yz_pcle(Ax_nuh,dum33)
-c$$$      call dot_product_2_pcle(dum2,Sx1,dum1)
-c$$$      Bp(:,2) = dum1
-c$$$
-c$$$      dumB(:,1,1:3) = Sy2(:,1:3)
-c$$$      call opt_vecvec_3_pcle(DSx,dumB,dum33)
-c$$$      dum2(:,1:2)  = opt_matmat_332_xy_pcle(Az_nuh,dum33)
-c$$$      call dot_product_2_pcle(dum2,Sz1,dum1)
-c$$$      Bp(:,2) = Bp(:,2) - dum1 + B0(2)
-c$$$
-c$$$!
-c$$$      dumB(:,1,1:3) = DSx(:,1:3)
-c$$$      call opt_vecvec_3_pcle(Sz2,dumB,dum33)
-c$$$      dum2(:,1:2) = opt_matmat_323_zx_pcle(Ay_nuh,dum33)
-c$$$      call dot_product_2_pcle(dum2,Sy1,dum1)
-c$$$      Bp(:,3) = dum1
-c$$$
-c$$$      dumB(:,1,1:3) = Sz2(:,1:3)
-c$$$      call opt_vecvec_3_pcle(DSy,dumB,dum33)
-c$$$      dum2(:,1:2) = opt_matmat_233_yz_pcle(Ax_nuh,dum33)
-c$$$      call dot_product_2_pcle(dum2,Sx1,dum1)
-c$$$      Bp(:,3) = Bp(:,3) - dum1 + B0(3)
-
-
-c$$$!     FIND B - OLD
-c$$$      call opt_matvec_tr_pcle(Sx2,Az_nuh(:,:,:,1),dum3)
-c$$$      call dot_product_3_pcle(dum3,DSy,dum1)
-c$$$      Bp(:,1) = dum1 + B0(1)
-c$$$
-c$$$      call opt_matvec_tr_pcle(DSx,Az_nuh(:,:,:,1),dum3)
-c$$$      call dot_product_3_pcle(dum3,Sy2,dum1)
-c$$$      Bp(:,2) =-dum1 + B0(2)
-c$$$
-c$$$      call opt_matvec_2_pcle (DSx,Ay_nuh(:,:,:,1),dum2)
-c$$$      call opt_matvec_22_pcle(Sx1,Ax_nuh(:,:,:,1),dum3)
-c$$$      call dot_product_2_pcle(dum2,Sy1,dum1)
-c$$$      Bp(:,3) = dum1
-c$$$      call dot_product_3_pcle(dum3,DSy,dum1)
-c$$$      Bp(:,3) = Bp(:,3) - dum1 + B0(3)
 
 c     End program
 
@@ -1437,7 +1321,7 @@ c     Call variables
 c     Local variables
 
       integer :: i
-      real(_prec) :: xhp(_Npg,3),xnp(_Npg,3)
+      real(_prec) :: isix,xhp(_Npg,3),xnp(_Npg,3)
      .              ,x_nh(_Npg,3),cov(_Npg,3,3),cnv(_Npg,3,3)
      .              ,xlog(_Npg,3),x0p(_Npg,3)
      .              ,dum1(_Npg),dum2(_Npg,2),dum3(_Npg,3)
@@ -1455,6 +1339,8 @@ c     Local variables
      .              ,Az_nuh(_Npg,3,3,2)
 
 c     Begin program
+
+      isix = 1d0/6d0
 
       x0p(:,1) = x0(:,1)*ihx
       x0p(:,2) = x0(:,2)*ihy
@@ -1507,7 +1393,7 @@ c     Find Ep_1
       call opt_vecvec_3_pcle(dumA(:,1:3,1),dumB(:,1,1:3),dumD)
       dum33 = dum33 + 2d0*dumD
 
-      dum33=dum33/6d0
+      dum33=dum33*isix
 
 c$$$      dum3(:,:) = opt_matmat_333_yz_pcle(phi_loc(:,:,:,:),dum33(:,:,:))
 c$$$      dum2(:,:) = opt_matmat_233_yz_pcle(DtA_1  (:,:,:,:),dum33(:,:,:))
@@ -1517,7 +1403,7 @@ c$$$      Ep(:,1) = -dum1
 c$$$      call dot_product_3_pcle(dum3,DSx,dum1)
 c$$$      Ep(:,1) = Ep(:,1) - dum1
 
-      dum2 = opt_matmat_233_yz_pcle(E_1,dum33)
+      call opt_matmat_233_yz_pcle(E_1,dum33,dum2)
       call dot_product_2_pcle(dum2,Sx1,Ep(:,1))
 
 c     Find Ep_2
@@ -1539,7 +1425,7 @@ c     Find Ep_2
       call opt_vecvec_3_pcle(dumA(:,1:3,1),dumB(:,1,1:3),dumD)
       dum33 = dum33 + 2d0*dumD
 
-      dum33=dum33/6d0
+      dum33=dum33*isix
 
 c$$$      dum3(:,:) = opt_matmat_333_zx_pcle(phi_loc(:,:,:,:),dum33(:,:,:))
 c$$$      dum2(:,:) = opt_matmat_323_zx_pcle(DtA_2(:,:,:,:),dum33(:,:,:))
@@ -1549,7 +1435,7 @@ c$$$      Ep(:,2) = -dum1
 c$$$      call dot_product_3_pcle(dum3,DSy,dum1)
 c$$$      Ep(:,2) = Ep(:,2) - dum1
 
-      dum2 = opt_matmat_323_zx_pcle(E_2,dum33)
+      call opt_matmat_323_zx_pcle(E_2,dum33,dum2)
       call dot_product_2_pcle(dum2,Sy1,Ep(:,2))
 
 c     Find Ep_3
@@ -1571,7 +1457,7 @@ c     Find Ep_3
       call opt_vecvec_3_pcle(dumA(:,1:3,1),dumB(:,1,1:3),dumD)
       dum33 = dum33 + 2d0*dumD
 
-      dum33=dum33/6d0
+      dum33=dum33*isix
 
 c$$$      dum3(:,:) = opt_matmat_333_xy_pcle(phi_loc(:,:,:,:),dum33(:,:,:))
 c$$$      dum2(:,:) = opt_matmat_332_xy_pcle(DtA_3(:,:,:,:),dum33(:,:,:))
@@ -1581,7 +1467,7 @@ c$$$      Ep(:,3) = -dum1
 c$$$      call dot_product_3_pcle(dum3,DSz,dum1)
 c$$$      Ep(:,3) = Ep(:,3) - dum1
 
-      dum2 = opt_matmat_332_xy_pcle(E_3,dum33)
+      call opt_matmat_332_xy_pcle(E_3,dum33,dum2)
       call dot_product_2_pcle(dum2,Sz1,Ep(:,3))
 
 c OLD (2D):
@@ -1621,13 +1507,13 @@ c     Find B
 
       dumB(:,1,1:3) = DSy(:,1:3)
       call opt_vecvec_3_pcle(Sx2,dumB,dum33)
-      dum2(:,1:2)  = opt_matmat_332_xy_pcle(Az_nuh,dum33)
+      call opt_matmat_332_xy_pcle(Az_nuh,dum33,dum2(:,1:2))
       call dot_product_2_pcle(dum2,Sz1,dum1)
       Bp(:,1) = dum1
 
       dumB(:,1,1:3) = Sy2(:,1:3)
       call opt_vecvec_3_pcle(DSx,dumB,dum33)
-      dum2(:,1:2)  = opt_matmat_332_xy_pcle(Az_nuh,dum33)
+      call opt_matmat_332_xy_pcle(Az_nuh,dum33,dum2(:,1:2))
       call dot_product_2_pcle(dum2,Sz1,dum1)
       Bp(:,2) = - dum1
 
@@ -1638,13 +1524,13 @@ c     Find B
 
       dumB(:,1,1:3) = Sx2(:,1:3)
       call opt_vecvec_3_pcle(DSz,dumB,dum33)
-      dum2(:,1:2) = opt_matmat_323_zx_pcle(Ay_nuh,dum33)
+      call opt_matmat_323_zx_pcle(Ay_nuh,dum33,dum2(:,1:2))
       call dot_product_2_pcle(dum2,Sy1,dum1)
       Bp(:,1) = Bp(:,1) - dum1
                              
       dumB(:,1,1:3) = DSx(:,1:3)
       call opt_vecvec_3_pcle(Sz2,dumB,dum33)
-      dum2(:,1:2) = opt_matmat_323_zx_pcle(Ay_nuh,dum33)
+      call opt_matmat_323_zx_pcle(Ay_nuh,dum33,dum2(:,1:2))
       call dot_product_2_pcle(dum2,Sy1,dum1)
       Bp(:,3) = dum1
                    
@@ -1655,13 +1541,13 @@ c     Find B
                                                                
       dumB(:,1,1:3) = DSz(:,1:3)
       call opt_vecvec_3_pcle(Sy2,dumB,dum33)
-      dum2(:,1:2) = opt_matmat_233_yz_pcle(Ax_nuh,dum33)
+      call opt_matmat_233_yz_pcle(Ax_nuh,dum33,dum2(:,1:2))
       call dot_product_2_pcle(dum2,Sx1,dum1)
       Bp(:,2) = Bp(:,2) + dum1
 
       dumB(:,1,1:3) = Sz2(:,1:3)
       call opt_vecvec_3_pcle(DSy,dumB,dum33)
-      dum2(:,1:2) = opt_matmat_233_yz_pcle(Ax_nuh,dum33)
+      call opt_matmat_233_yz_pcle(Ax_nuh,dum33,dum2(:,1:2))
       call dot_product_2_pcle(dum2,Sx1,dum1)
       Bp(:,3) = Bp(:,3) - dum1
 
