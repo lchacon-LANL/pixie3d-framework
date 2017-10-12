@@ -926,8 +926,8 @@ c     Call variables
 c     Local variables
       integer :: i, j, k
 
-      do i=1, 3
-         do j=1, 3
+      do j=1, 3
+         do i=1, 3
             !VECTOR SIMD
             do k=1,_Npg
                C(k,i,j) = A(k,i,1)*B(k,1,j)
