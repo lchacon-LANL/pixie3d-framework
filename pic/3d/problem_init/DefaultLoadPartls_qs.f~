@@ -21,8 +21,8 @@ c$$$!$OMP DO
 c$$$!$OMP.REDUCTION(+:v_tot,vx2,vt2)
              do ipc = 1, npc_int(ii,is)
 
-!               print '(6F16.8)',r4(1,ipc),r4(2,ipc),r4(3,ipc),r4(4,ipc),
-!     .               r4(5,ipc),r4(6,ipc)
+               print '(6F16.8)',r4(1,ipc),r4(2,ipc),r4(3,ipc),r4(4,ipc),
+     .               r4(5,ipc),r4(6,ipc)
 
                rx = r4(1,ipc) 
                where (rx==0d0) rx = rx + 1d-16 !end with 1

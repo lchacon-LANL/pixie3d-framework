@@ -5062,7 +5062,7 @@ c     Local variables
 
 c     Namelists
 
-      namelist /picdef/ npcles,v0_x,v0_y,v0_z,v_thx,v_thy,v_thz,theta
+      namelist /picdef/ npcles,v0_x,v0_y,v0_z,v_thx,v_thy,v_thz,theta,
      .     ,n_sp,omega_p,q_m,min_pcles,npcles_cell
      .     ,quiet_start,nsubstep,eps_prop,eps_omg,eps_pic,eps_v
      .     ,n_b,i_b,r_b,nip,vinject,C_bkgrnd
