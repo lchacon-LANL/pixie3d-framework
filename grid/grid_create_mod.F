@@ -1457,8 +1457,8 @@ c     Output
         write(*  ,*)
       endif
 
-      dump_diff = anal_map.and.numerical_grid.and.(.not.map_grid_pack)
-cc      dump_diff = .false.
+cc      dump_diff = anal_map.and.numerical_grid.and.(.not.map_grid_pack)
+      dump_diff = .false.
 
       if (dump_diff) then
         if (my_rank == 0)
@@ -1717,8 +1717,8 @@ c     Output
         write(*  ,*)
       endif
 
-      dump_diff = anal_map.and.numerical_grid.and.(.not.map_grid_pack)
-cc      dump_diff = .false.
+cc      dump_diff = anal_map.and.numerical_grid.and.(.not.map_grid_pack)
+      dump_diff = .false.
 
       if (dump_diff) then
         if (my_rank == 0)

@@ -751,6 +751,50 @@ c #####################################################################
 
       contains
 
+c     set_stg_vector
+c     ##############################################################
+      subroutine set_stg_vector(stg)
+
+      implicit none
+
+c     --------------------------------------------------------------
+c     Whether to skip corners in BC treatment
+c     --------------------------------------------------------------
+
+c     Call variables
+
+      logical :: stg
+
+c     Begin program
+
+      stg_vector = stg
+
+c     End program
+
+      end subroutine set_stg_vector
+
+c     get_stg_vector
+c     ##############################################################
+      function get_stg_vector() result(stg)
+
+      implicit none
+
+c     --------------------------------------------------------------
+c     Whether to skip corners in BC treatment
+c     --------------------------------------------------------------
+
+c     Call variables
+
+      logical :: stg
+
+c     Begin program
+
+      stg = stg_vector
+
+c     End program
+
+      end function get_stg_vector
+
 c     set_skip_corners
 c     ##############################################################
       subroutine set_skip_corners(sc)
@@ -1984,7 +2028,7 @@ c     Local variables
 c     Begin program
 
       !Indicate staggered vector treatment
-      stg_vector = .true.
+      call set_stg_vector(.true.)
 
       !By default, we assume input is in cnv representation
       if (PRESENT(is_cnv)) then
@@ -2137,7 +2181,7 @@ c     Periodic boundary synchronizing
 
 c     End program
 
-      stg_vector = .false.
+      call set_stg_vector(.false.)
       if (flg_sc) skip_corners=.false. !Reset skip_corners
 
       contains
@@ -2570,7 +2614,7 @@ c     Local variables
 c     Begin program
 
       !Indicate staggered vector treatment
-      stg_vector = .true.
+      call set_stg_vector(.true.)
 
       !Skip BC corner treatment
       flg_sc = .false.
@@ -2652,7 +2696,7 @@ c     Fill PETSc ghost cells and PER BCs
 
       !Exit if all periodic domains 
       if (bcPER(1).and.bcPER(2).and.bcPER(3)) then
-        stg_vector = .false.
+        call set_stg_vector(.false.)
         if (flg_sc) skip_corners=.false. !Reset skip_corners
         return
       endif
@@ -2677,18 +2721,18 @@ c     Impose physical BCs
 
 c     Fill edges 
 
-      xtrap_o = max(2,order)
-
-      do ivar=1,ncomp
-        call fillEdges(gbc_def,vec(:,:,:,ivar),vec_0(:,:,:,ivar)
-     .                ,bcnd(:,ivar),xtrap_o)
-      enddo
-
-c     Fill corners 
-
-      do ivar=1,ncomp
-        call fillCorners(gbc_def,vec(:,:,:,ivar),bcnd(:,ivar),xtrap_o)
-      enddo
+c$$$      xtrap_o = max(2,order)
+c$$$
+c$$$      do ivar=1,ncomp
+c$$$        call fillEdges(gbc_def,vec(:,:,:,ivar),vec_0(:,:,:,ivar)
+c$$$     .                ,bcnd(:,ivar),xtrap_o)
+c$$$      enddo
+c$$$
+c$$$c     Fill corners 
+c$$$
+c$$$      do ivar=1,ncomp
+c$$$        call fillCorners(gbc_def,vec(:,:,:,ivar),bcnd(:,ivar),xtrap_o)
+c$$$      enddo
 
 c     Periodic boundary synchronizing
 
@@ -2704,7 +2748,7 @@ c     Periodic boundary synchronizing
 
 c     End program
 
-      stg_vector = .false.
+      call set_stg_vector(.false.)
       if (flg_sc) skip_corners=.false. !Reset skip_corners
 
       contains
@@ -2991,7 +3035,7 @@ c     Find BC update
         case(EXT)
           call fillFaces(gbc_def,array(:,:,:,ivar),dim,loc,order)
         case(SP)
-          if (stg_vector) then
+          if (get_stg_vector()) then
            call vectorSingularBC_stg(gbc_def,ivar,array(:,:,:,ivar),cov)
           else
            call vectorSingularBC    (gbc_def,ivar,array(:,:,:,ivar),cov)
