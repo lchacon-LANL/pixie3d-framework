@@ -499,13 +499,13 @@ c     Local variables
       real(_prec) :: x0_loc(_Npg,3),v0_loc(_Npg,3)
       real(_prec) :: x0p(_Npg),y0p(_Npg)
       real(_prec) :: Sx2_o(_Npg,3),Sy2_o(_Npg,3)
-      real(_prec) :: scatter_zeroes(_Npg)
+      real(_prec) :: dteq0(_Npg)
 
 c     Begin program
 
       qm = q_m
 
-      scatter_zeroes = 0d0
+      dteq0 = 0d0
 
       pcle%x_np = pcle_nu%x_n
       pcle%v_np = pcle_nu%v_n
@@ -519,6 +519,7 @@ c     Begin program
 c     Initialize local registers
 
       call xform_pcle_idx(pcle_nu%ijk_n,nxg,i0,j0)
+
       x0_loc = pcle_nu%x_n
       v0_loc = pcle_nu%v_n
 
@@ -551,8 +552,8 @@ c     Estimate sub-time-step
 
 c     Initialize Picard
 
-      call initialize_it(dx_err)
-         
+      call initialize_it(dt_sub,dx,vh)
+
       it=0
 
       substeps = 0
@@ -619,74 +620,100 @@ c     End program
 
 c     initialize_it
 c     ######################################################################
-      subroutine initialize_it(dx_pn)
+      subroutine initialize_it(dts,dx,vh)
 
       implicit none
-      
-      real(_prec) :: dx_pn
 
-      real(_prec) :: dv_pn(_Npg),vha(_Npg),ama(_Npg)
-      real(_prec) :: vhcurv_inv_1(_Npg), vhcurv_inv_2(_Npg)
-      integer :: i
- 
-!     Picard iterations                                                        
-!     start with dt_sub                                                        
-!     converge                                                                 
+c     Call variables
+
+      real(_prec) :: dts(_Npg),dx(_Npg,3),vh(_Npg,3)
+
+c     Local variables
+
+      real(_prec) :: dx_pn,dv_pn(_Npg),vha(_Npg),ama(_Npg),am(_Npg,_Dim)
+      real(_prec) :: vhcurv_inv(_Npg,3)
+cc      real(_prec) :: Chrtof2(_Npg,3,3,3),ainert(_Npg,3)
+
+c     Begin program
+
+c     Find vh
+
+      vh = (v0_loc+pcle%v_np)*0.5d0 
+
+c     Find dx
+
+      if (no_map) then
+        vhcurv = vh
+      else
+        vhcurv = find_vcurv(i0,j0,x0_loc,vh)
+
+c WARNING: CHRISTOFFEL SYMBOL NOT IMPLEMENTED IN 3D.
+
+c$$$           vhcurv = find_vcurv(i0,j0,x0_loc,vh,gamma=Chrtof2)
+c$$$           ainert(:,:) = 0d0
+c$$$
+c$$$           do i=1,3
+c$$$              do j=1,3
+c$$$                !VECTOR SIMD
+c$$$                 do ii=1,3
+c$$$                    ainert(ii,:)=ainert(ii,:)
+c$$$     .                      +vhcurv(:,j)*Chrtof2(ii,i,j,:)*vhcurv(i,:)
+c$$$                 end do
+c$$$              end do
+c$$$           end do
+      endif
+
+      vhcurv_inv = 1d0/(vhcurv + 1d-44)
+
       dxl(:,1) =   -x0_loc(:,1)
       dxr(:,1) = hx-x0_loc(:,1)
             
       dxl(:,2) =   -x0_loc(:,2)
       dxr(:,2) = hy-x0_loc(:,2)
 
-      vnp_loc = pcle%v_np
-      vh = (v0_loc+vnp_loc)*0.5d0 
-      dx = 0d0 !dt_sub*vh
+      dts = min(dts
+     .            ,max((dxl(:,1)-eps2)*vhcurv_inv(:,1)
+     .                ,(dxr(:,1)+eps2)*vhcurv_inv(:,1))
+     .            ,max((dxl(:,2)-eps2)*vhcurv_inv(:,2)
+     .                ,(dxr(:,2)+eps2)*vhcurv_inv(:,2)))
 
-      if (no_map) then
-        call scatter_fields_nomap(x0_loc,scatter_zeroes,dx,A_1,A_2,A_3
-     $                           ,dtA_1,dtA_2,dtA_3,Ep,Bp)
-      else
-        call scatter_fields_curv (x0_loc,scatter_zeroes,dx,A_1,A_2,A_3
-     $                           ,dtA_1,dtA_2,dtA_3,Ep,Bp)
-      endif
+      dx(:,1) = vhcurv(:,1)*dts
+      dx(:,2) = vhcurv(:,2)*dts
+      dx(:,3) = vhcurv(:,3)*dts
 
-      am(:,1) = qm*(Ep(:,1) + vh(:,2)*Bp(:,3) - vh(:,3)*Bp(:,2))
-      am(:,2) = qm*(Ep(:,2) + vh(:,3)*Bp(:,1) - vh(:,1)*Bp(:,3))
-      am(:,3) = qm*(Ep(:,3) + vh(:,1)*Bp(:,2) - vh(:,2)*Bp(:,1))
+c     Guess for dx error
 
-!     Initialize nonlinear iteration                                              
-      !VECTOR SIMD
-      do i=1, _Npg
-#if defined(L1_NORM)
-        ama(i) = sum(abs(am(i,:))) !L1 norm
-#else
-        ama(i) = sqrt(dot_product(am(i,:),am(i,:))) !L2 norm
-#endif
-      end do
-
-      vhcurv_inv_1 = 1d0/(vhcurv(:,1) + 1d-44)
-      vhcurv_inv_2 = 1d0/(vhcurv(:,2) + 1d-44)
-
-      dt_sub = min(dt_sub
-     .            ,max((dxl(:,1)-eps2)*vhcurv_inv_1
-     .                ,(dxr(:,1)+eps2)*vhcurv_inv_1)
-     .            ,max((dxl(:,2)-eps2)*vhcurv_inv_2
-     .                ,(dxr(:,2)+eps2)*vhcurv_inv_2))
-
-      dx(:,1) = vhcurv(:,1)*dt_sub
-      dx(:,2) = vhcurv(:,2)*dt_sub
-      dx(:,3) = vhcurv(:,3)*dt_sub
-
-      dv_pn = dt_sub*ama
-
-#if defined(L1_NORM)
-      vha = sum(abs(vh),2) !L1 norm
-#else
-      vha = sqrt(vh(:,1)*vh(:,1) + vh(:,2)*vh(:,2) + vh(:,3)*vh(:,3)) !L2 norm
-#endif
-
-      dv_pn = max(dt_sub*vha + 0.5*dt_sub**2*ama,dv_pn)
-      dx_pn = maxval(dv_pn)
+c$$$      if (no_map) then
+c$$$        call scatter_fields_nomap(x0_loc,dteq0,dx,A_1,A_2,A_3
+c$$$     $                           ,dtA_1,dtA_2,dtA_3,Ep,Bp)
+c$$$      else
+c$$$        call scatter_fields_curv (x0_loc,dteq0,dx,A_1,A_2,A_3
+c$$$     $                           ,dtA_1,dtA_2,dtA_3,Ep,Bp)
+c$$$      endif
+c$$$
+c$$$      am(:,1) = qm*(Ep(:,1) + vh(:,2)*Bp(:,3) - vh(:,3)*Bp(:,2))
+c$$$      am(:,2) = qm*(Ep(:,2) + vh(:,3)*Bp(:,1) - vh(:,1)*Bp(:,3))
+c$$$      am(:,3) = qm*(Ep(:,3) + vh(:,1)*Bp(:,2) - vh(:,2)*Bp(:,1))
+c$$$
+c$$$      !VECTOR SIMD
+c$$$      do i=1, _Npg
+c$$$#if defined(L1_NORM)
+c$$$        ama(i) = sum(abs(am(i,:))) !L1 norm
+c$$$#else
+c$$$        ama(i) = sqrt(dot_product(am(i,:),am(i,:))) !L2 norm
+c$$$#endif
+c$$$      end do
+c$$$
+c$$$      dv_pn = dts*ama
+c$$$
+c$$$#if defined(L1_NORM)
+c$$$      vha = sum(abs(vh),2) !L1 norm
+c$$$#else
+c$$$      vha = sqrt(vh(:,1)*vh(:,1) + vh(:,2)*vh(:,2) + vh(:,3)*vh(:,3)) !L2 norm
+c$$$#endif
+c$$$
+c$$$      dv_pn = max(dts*vha + 0.5*dts**2*ama,dv_pn)
+c$$$      dx_pn = maxval(dv_pn)
 
       end subroutine initialize_it
 
@@ -705,43 +732,30 @@ c     Logical variables
         integer :: i,j,k
         real(_prec) :: dts(_Npg)    !Test timestep to estimate qtys
      .                ,xtoll=1d-3   !Tolerance for timestep estimator
-        real(_prec) :: iDenom(_Npg),at(_Npg,3),accl(_Npg,3)
-        real(_prec) :: anup(_Npg)
-        real(_prec) :: xp(_Npg),yp(_Npg)
-        real(_prec) :: xp_vhcurv(_Npg,3),Chrtof2(_Npg,3,3,3)!,ainert(_Npg,3)
+        real(_prec) :: iDenom(_Npg),at(_Npg,3),accl(_Npg,3),anup(_Npg)
         real(_prec) :: qmdth(_Npg)
 
 c     Begin program
 
-        dts= 1d-8     !Test timestep to estimate qtys
+        dts = 1d-8     !Test timestep to estimate qtys
 
-        xp = x0_loc(:,1)*ihx
-        yp = x0_loc(:,2)*ihy
-
-c     Initial acceleration
+c     Scatter fields
 
         dx = 0d0
-        if (no_map) then
-          call scatter_fields_nomap(x0_loc,scatter_zeroes,dx,A_1,A_2,A_3
-     $                           ,dtA_1,dtA_2,dtA_3,Ep,Bp)
-        else
-          call scatter_fields_curv (x0_loc,scatter_zeroes,dx,A_1,A_2,A_3
-     $                           ,dtA_1,dtA_2,dtA_3,Ep,Bp)
-        endif
-        vh = v0_loc
 
-        !VECTOR SIMD
-        do i=1,_Npg
-           ac0(i,1)= qm(i)*(Ep(i,1) + vh(i,2)*Bp(i,3) - vh(i,3)*Bp(i,2))
-           ac0(i,2)= qm(i)*(Ep(i,2) + vh(i,3)*Bp(i,1) - vh(i,1)*Bp(i,3))
-           ac0(i,3)= qm(i)*(Ep(i,3) + vh(i,1)*Bp(i,2) - vh(i,2)*Bp(i,1))
-        enddo
+        if (no_map) then
+          call scatter_fields_nomap(x0_loc,dteq0,dx,A_1,A_2,A_3
+     $                             ,dtA_1,dtA_2,dtA_3,Ep,Bp)
+        else
+          call scatter_fields_curv (x0_loc,dteq0,dx,A_1,A_2,A_3
+     $                             ,dtA_1,dtA_2,dtA_3,Ep,Bp)
+        endif
 
 c     Cyclotron freq.
 
 #if _Dim>1
 #if defined(L1_NORM)
-        Bmax = sum(abs(Bp),2) !L1 norm
+        Bmax = sum(abs(Bp),2)     !L1 norm
 #else
         Bmax = sqrt(sum(Bp**2,2)) !L2 norm
 #endif
@@ -751,7 +765,18 @@ c     Cyclotron freq.
         dt_sub = min(dt_sub,dt_coeff*omb)
 #endif
 
-c     test for dts (presumably no cell-crossing with a small timestep)
+c     Initial acceleration
+
+        vh = v0_loc
+
+        !VECTOR SIMD
+        do i=1,_Npg
+           ac0(i,1)= qm(i)*(Ep(i,1) + vh(i,2)*Bp(i,3) - vh(i,3)*Bp(i,2))
+           ac0(i,2)= qm(i)*(Ep(i,2) + vh(i,3)*Bp(i,1) - vh(i,1)*Bp(i,3))
+           ac0(i,3)= qm(i)*(Ep(i,3) + vh(i,1)*Bp(i,2) - vh(i,2)*Bp(i,1))
+        enddo
+
+c     Test for dts (presumably no cell-crossing with a small timestep)
 
         if (no_map) then
            vhcurv = vh
@@ -760,16 +785,16 @@ c     test for dts (presumably no cell-crossing with a small timestep)
         endif
         v0curv = vhcurv
 
-        dx(:,1) = dts*vhcurv(:,1) !+ 0.5d0*dts*dts*a0curv
-        dx(:,2) = dts*vhcurv(:,2) !+ 0.5d0*dts*dts*a0curv
-        dx(:,3) = dts*vhcurv(:,3) !+ 0.5d0*dts*dts*a0curv
+        dx(:,1) = dts*vhcurv(:,1)
+        dx(:,2) = dts*vhcurv(:,2)
+        dx(:,3) = dts*vhcurv(:,3)
 
         if (no_map) then
           call scatter_fields_nomap(x0_loc,dts,dx,A_1,A_2,A_3
-     $                           ,dtA_1,dtA_2,dtA_3,Ep,Bp) !mid-point
+     $                             ,dtA_1,dtA_2,dtA_3,Ep,Bp) !mid-point
         else
           call scatter_fields_curv (x0_loc,dts,dx,A_1,A_2,A_3
-     $                           ,dtA_1,dtA_2,dtA_3,Ep,Bp) !mid-point
+     $                             ,dtA_1,dtA_2,dtA_3,Ep,Bp) !mid-point
         endif
         
         !Velocity update
@@ -800,31 +825,11 @@ c     test for dts (presumably no cell-crossing with a small timestep)
         at(:,2) = qm*(Ep(:,2) + vh(:,3)*Bp(:,1) - vh(:,1)*Bp(:,3))
         at(:,3) = qm*(Ep(:,3) + vh(:,1)*Bp(:,2) - vh(:,2)*Bp(:,1))
 
-        if (no_map) then
-          vhcurv = vh
-        else
-          xp_vhcurv = x0_loc + 0.5*dx
-          vhcurv = find_vcurv(i0,j0,xp_vhcurv,vh)
-
-c$$$           vhcurv = find_vcurv(i0,j0,x0+0.5*dx,vh,gamma=Chrtof2)
-c$$$           ainert(:,:) = 0d0
-c$$$
-c$$$           do i=1,3
-c$$$              do j=1,3
-c$$$                !VECTOR SIMD
-c$$$                 do k=1,3
-c$$$                    ainert(k,:)=ainert(k,:)
-c$$$     .                      +vhcurv(:,j)*Chrtof2(k,i,j,:)*vhcurv(i,:)
-c$$$                 end do
-c$$$              end do
-c$$$           end do
-        endif
-
         !VECTOR SIMD
         do i=1,_Npg 
           accl(i,:) = (at(i,:) - ac0(i,:))*2d0 !/dts added below in dt_sub
 #if defined(L1_NORM)
-          anup(i) = sum(abs(accl(i,:))) !L1 norm
+          anup(i) = sum(abs(accl(i,:)))                    !L1 norm
 #else
           anup(i) = sqrt(dot_product(accl(i,:),accl(i,:))) !L2 norm
 #endif
