@@ -3102,12 +3102,50 @@ c     Begin program
       ibc = (1+loc)+2*(dim-1)
 
 #if !defined(petsc)
-
-cc      if (bcPER(dim)) call per_BC(ibc,array)
+      !Synchronize PER corners
+      select case(dim)
+      case(1)
+        if (bcPER(2)) then
+          array(0   ,0     ,:) = array(0   ,nybc,:)
+          array(0   ,nybc+1,:) = array(0   ,1   ,:)
+          array(nxbc,0     ,:) = array(nxbc,nybc,:)
+          array(nxbc,nybc+1,:) = array(nxbc,1   ,:)
+        endif
+        if (bcPER(3)) then
+          array(0   ,:,0     ) = array(0   ,:,nzbc)
+          array(0   ,:,nzbc+1) = array(0   ,:,1   )
+          array(nxbc,:,0     ) = array(nxbc,:,nzbc)
+          array(nxbc,:,nzbc+1) = array(nxbc,:,1   )
+        endif
+      case(2)
+        if (bcPER(1)) then
+          array(0     ,0   ,:) = array(nxbc,0   ,:)
+          array(nxbc+1,0   ,:) = array(1   ,0   ,:)
+          array(0     ,nybc,:) = array(nxbc,nybc,:)
+          array(nxbc+1,nybc,:) = array(1   ,nybc,:)
+        endif
+        if (bcPER(3)) then
+          array(:,0   ,0     ) = array(:,0   ,nzbc)
+          array(:,0   ,nzbc+1) = array(:,0   ,1   )
+          array(:,nybc,0     ) = array(:,nybc,nzbc)
+          array(:,nybc,nzbc+1) = array(:,nybc,1   )
+        endif
+      case(3)
+        if (bcPER(1)) then
+          array(0     ,:,0   ) = array(nxbc,:,0   )
+          array(nxbc+1,:,0   ) = array(1   ,:,0   )
+          array(0     ,:,nzbc) = array(nxbc,:,nzbc)
+          array(nxbc+1,:,nzbc) = array(1   ,:,nzbc)
+        endif
+        if (bcPER(2)) then
+          array(:,0     ,0   ) = array(:,nybc,0   )
+          array(:,nybc+1,0   ) = array(:,1   ,0   )
+          array(:,0     ,nzbc) = array(:,nybc,nzbc)
+          array(:,nybc+1,nzbc) = array(:,1   ,nzbc)
+        endif
+      end select
 
 #else
-
-cc      if (bcPER(dim)) return
 
       dumxin1 = 0d0 ; dumxout1 = 0d0
       dumyin1 = 0d0 ; dumyout1 = 0d0
