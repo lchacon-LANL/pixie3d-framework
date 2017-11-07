@@ -34,7 +34,8 @@ c     Input variables
 c     Begin program
 
         select case(coords)
-        case('car','cyl','hel','hl2','tor','sin','lpk','s3d','hsn')
+        case('car','cyl','hel','hl2','tor','sin','lpk','s3d','hsn'
+     .      ,'sha')
 
           anal_map = .true.
 
@@ -108,8 +109,10 @@ c     Local variables
         real(8) :: xx,yy,zz,jac_mat(3,3),rhs(3),dx(3),rr,rr0,dd
      .            ,aa,bb,major_r,mm,kk,eps,phi,gp(ngparams)
      .            ,xlog(3),period1,period2
-
         real(8) :: xmax,ymax,zmax,xmin,ymin,zmin
+! Daniele, 11/07/2017. Local variables needed for shaped toroidal coordinates
+        integer :: i
+        real(8) :: ai(10),bi(10)
 
 c     Begin program
 
@@ -165,6 +168,31 @@ c     Begin program
           car(1) = (major_r + aa*xlog(1)*cos(xlog(2)))*cos(-xlog(3))
           car(2) = (major_r + aa*xlog(1)*cos(xlog(2)))*sin(-xlog(3))
           car(3) = bb*xlog(1)*sin(xlog(2))
+        case ('sha')
+! Daniele, 11/07/2017
+! Shaped toroidal coordinates system
+! x = (R0 + r*sum_i(ai*cos(i*theta))*cos(-phi)
+! y = (R0 + r*sum_i(ai*cos(i*theta))*sin(-phi)
+! z = r*sum_i(bi*sin(i*theta)
+
+          major_r = gp(1)  !Major radius
+
+          ai(1) = gp(2)  !Horizontal minor radius
+          bi(1) = gp(3)  !Vertical   minor radius
+
+          do i=2,10
+             ai(i) = gp(7+i) ! Higher order cosine coefficients are stored in gp(9) to gp(17)
+             bi(i) = gp(16+i) ! Higher order sine coefficients are stored in gp(18) to gp(26)
+          enddo
+
+          do i=1,10
+             aa = aa + ai(i)*cos(i*xlog(2))
+             bb = bb + bi(i)*sin(i*xlog(2))
+          enddo
+
+          car(1) = (major_r + aa*xlog(1))*cos(-xlog(3))
+          car(2) = (major_r + aa*xlog(1))*sin(-xlog(3))
+          car(3) = bb*xlog(1)
         case ('sin')
           eps = gp(1)
 
