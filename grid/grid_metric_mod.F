@@ -912,21 +912,20 @@ c     Evaluate grid quantities (at vertices)
 
               if (jac <= 0d0
      .           .and. (.not.isSP2(g_def,i+1,igrid,ibc=1))) then
+                if (.not.(check_grid.or.return_error)) then
+                  write (*,*) 'Negative Jacobian in half mesh'
+                  write (*,*) 'Grid level',igrid
+                  write (*,*) 'Processor rank=',my_rank
+                  write (*,*) 'Grid position=',i,j,k
+                  write (*,*) 'dr/dxi_1=',r(:,1)
+                  write (*,*) 'dr/dxi_2=',r(:,2)
+                  write (*,*) 'dr/dxi_3=',r(:,3)
+                  write (*,*) 'Jacobian=',jac
 
-                write (*,*) 'Negative Jacobian in half mesh'
-                write (*,*) 'Grid level',igrid
-                write (*,*) 'Processor rank=',my_rank
-                write (*,*) 'Grid position=',i,j,k
-                write (*,*) 'dr/dxi_1=',r(:,1)
-                write (*,*) 'dr/dxi_2=',r(:,2)
-                write (*,*) 'dr/dxi_3=',r(:,3)
-                write (*,*) 'Jacobian=',jac
-
-                if (.not.(check_grid.or.return_error))
-     .             call sstop(0,'findVertexMetrics','Inverted Jacobian')
-
-                lerr = 1
-                exit
+                  call sstop(0,'findVertexMetrics','Inverted Jacobian')
+                elseif (return_error) then
+                  lerr = 1 ;  exit
+                endif
               elseif (isSP2(g_def,i+1,igrid,ibc=1)) then
                 ijac = 0d0
               else
