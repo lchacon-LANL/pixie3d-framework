@@ -1450,17 +1450,17 @@ c     Begin program
 c     Output
 
       write(funit,*)
-      write(funit,*) 'Dumping grid debugging graphics...'
+      write(funit,*) 'Dumping CELL-CENTERED grid debugging graphics...'
       write(funit,*)
 
       if (my_rank == 0) then
         write(*  ,*)
-        write(*  ,*) 'Dumping grid debugging graphics...'
+        write(*  ,*) 'Dumping CELL-CENTERED grid debugging graphics...'
         write(*  ,*)
       endif
 
-cc      dump_diff = anal_map.and.numerical_grid.and.(.not.map_grid_pack)
-      dump_diff = .false.
+      dump_diff = anal_map.and.numerical_grid.and.(.not.map_grid_pack)
+cc      dump_diff = .false.
 
       if (dump_diff) then
         if (my_rank == 0)
@@ -1710,17 +1710,17 @@ c     Begin program
 c     Output
 
       write(funit,*)
-      write(funit,*) 'Dumping grid debugging graphics...'
+      write(funit,*) 'Dumping VERTEX grid debugging graphics...'
       write(funit,*)
 
       if (my_rank == 0) then
         write(*  ,*)
-        write(*  ,*) 'Dumping grid debugging graphics...'
+        write(*  ,*) 'Dumping VERTEX grid debugging graphics...'
         write(*  ,*)
       endif
 
-cc      dump_diff = anal_map.and.numerical_grid.and.(.not.map_grid_pack)
-      dump_diff = .false.
+      dump_diff = anal_map.and.numerical_grid.and.(.not.map_grid_pack)
+cc      dump_diff = .false.
 
       if (dump_diff) then
         if (my_rank == 0)
