@@ -35,7 +35,7 @@ c     Begin program
 
         select case(coords)
         case('car','cyl','hel','hl2','tor','sin','lpk','s3d','hsn'
-     .      ,'sha')
+     .      ,'sha','sh2')
 
           anal_map = .true.
 
