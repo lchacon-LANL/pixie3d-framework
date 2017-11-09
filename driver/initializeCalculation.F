@@ -489,14 +489,16 @@ c Set data dumping intervals
       dfreq = 8d0
 
       if (tmax.gt.0d0) then
-        if (dstep.eq.0d0) dstep = dt*max(int((tmax-time)/dfreq/dt),1)
+        if (dstep==0d0.and.ndstep==0)
+     .      dstep = dt*max(int((tmax-time)/dfreq/dt),1)
         rstep = min(dt*max(int((tmax-time)/dfreq/dt),1),dstep)
-        ndstep = -1
+        if (ndstep == 0) ndstep = -1
         numtime = -1
       else
-        if (ndstep.eq.0) ndstep = max(numtime/int(dfreq),1)
+        if (dstep==0d0.and.ndstep == 0)
+     .      ndstep = max(numtime/int(dfreq),1)
         nrstep = min(max(numtime/int(dfreq),1),ndstep)
-        dstep = 1e30
+        if (dstep==0d0) dstep = 1e30
         tmax  = 0d0
       endif
 
