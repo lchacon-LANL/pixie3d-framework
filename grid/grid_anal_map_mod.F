@@ -195,6 +195,41 @@ c     Begin program
           car(2) = (major_r + aa*xlog(1))*sin(-xlog(3))
           car(3) = bb*xlog(1)
 
+        case ('sh2')
+! Daniele, 11/07/2017
+! Shaped toroidal coordinates system
+! x = (R0 + r*a1*cos(theta)+r^2*sum_i(ai*cos(i*theta))*cos(-phi)
+! y = (R0 + r*a1*cos(theta)+r^2*sum_i(ai*cos(i*theta))*sin(-phi)
+! x = (R0 + r*sum_i(r^(i-1)*ai*cos(i*theta))*cos(-phi)
+! y = (R0 + r*sum_i(r^(i-1)*ai*cos(i*theta))*sin(-phi)
+! z = r*sum_i(bi*sin(i*theta)
+
+          major_r = gp(1)  !Major radius
+
+          ai(1) = gp(2)  !Horizontal minor radius
+          bi(1) = gp(3)  !Vertical   minor radius
+
+          do i=2,10
+             ai(i) = gp(7+i) ! Higher order cosine coefficients are stored in gp(9) to gp(17)
+             bi(i) = gp(16+i) ! Higher order sine coefficients are stored in gp(18) to gp(26)
+          enddo
+
+          aa = ai(1)*cos(1*xlog(2))
+          bb = bi(1)*sin(1*xlog(2))
+          do i=2,10
+             aa = aa + xlog(1)*ai(i)*cos(i*xlog(2))
+             bb = bb + xlog(1)*bi(i)*sin(i*xlog(2))
+          enddo
+c$$$          aa = 0d0 ; bb = 0d0
+c$$$          do i=1,10
+c$$$             aa = aa + xlog(1)**(i-1)*ai(i)*cos(i*xlog(2))
+c$$$             bb = bb + xlog(1)**(i-1)*bi(i)*sin(i*xlog(2))
+c$$$          enddo
+
+          car(1) = (major_r + aa*xlog(1))*cos(-xlog(3))
+          car(2) = (major_r + aa*xlog(1))*sin(-xlog(3))
+          car(3) = bb*xlog(1)
+
         case ('sin')
           eps = gp(1)
 
