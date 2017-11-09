@@ -479,10 +479,10 @@ c     Begin program
       else
         if (dstep==0d0.and.ndstep == 0) then
           ndstep = max(numtime/int(dfreq),1)
+        elseif (ndstep == 0 ) then
+          ndstep = -1
         elseif (dstep  ==0d0) then
           dstep = 1e30
-        elseif (ndstep == 0 ) 
-          ndstep = -1
         endif
         nrstep = min(max(numtime/int(dfreq),1),ndstep)
         tmax  = 0d0
