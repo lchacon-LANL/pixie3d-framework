@@ -194,6 +194,7 @@ c     Begin program
           car(1) = (major_r + aa*xlog(1))*cos(-xlog(3))
           car(2) = (major_r + aa*xlog(1))*sin(-xlog(3))
           car(3) = bb*xlog(1)
+
         case ('sin')
           eps = gp(1)
 
@@ -260,6 +261,10 @@ c     Local variables
         logical :: vrtx
 
         real(8) :: xmax,ymax,zmax,xmin,ymin,zmin
+! Daniele, 11/08/2017. Local variables needed for shaped toroidal coordinates
+        integer :: ii
+        real(8) :: ai(10),bi(10)
+        real(8) :: ap,bp
 
 c     Begin program
 
@@ -306,6 +311,36 @@ c     Begin program
           bb      = gp(3)
 
           jac = aa*bb*x1*(major_r + aa*x1*cos(x2))
+        case ('sha')
+! Daniele, 11/08/2017
+! Shaped toroidal coordinates system
+! x = (R0 + r*sum_i(ai*cos(i*theta))*cos(-phi)
+! y = (R0 + r*sum_i(ai*cos(i*theta))*sin(-phi)
+! z = r*sum_i(bi*sin(i*theta)
+
+          major_r = gp(1)  !Major radius
+
+          ai(1) = gp(2)  !Horizontal minor radius
+          bi(1) = gp(3)  !Vertical   minor radius
+
+          do ii=2,10
+             ai(ii) = gp(7+ii) ! Higher order cosine coefficients are stored in gp(9) to gp(17)
+             bi(ii) = gp(16+ii) ! Higher order sine coefficients are stored in gp(18) to gp(26)
+          enddo
+
+          aa = 0d0
+          bb = 0d0
+          ap = 0d0
+          bp = 0d0
+          do ii=1,10
+             aa = aa + ai(ii)*cos(ii*x2) ! A(theta)=sum_i(ai*cos(i*theta))
+             bb = bb + bi(ii)*sin(ii*x2) ! B(theta)=sum_i(bi*sin(i*theta))
+             bp = bp + bi(ii)*ii*cos(ii*x2) ! B'(theta)
+             ap = ap - ai(ii)*ii*sin(ii*x2) ! A'(theta)
+          enddo
+
+          jac = (aa*bp-bb*ap)*x1*(major_r + aa*x1)
+
         case ('sin')
           eps = gp(1)
           jac = (xmax*ymax + eps*Pi*(xmax - ymax)*
@@ -348,6 +383,10 @@ c     Local variables
         logical :: vrtx
 
         real(8) :: xmax,ymax,zmax,xmin,ymin,zmin
+! Daniele, 11/08/2017. Local variables needed for shaped toroidal coordinates
+        integer :: ii
+        real(8) :: ai(10),bi(10)
+        real(8) :: ap,bp
 
 c     Begin program
 
@@ -467,6 +506,55 @@ c     Begin program
               vec = (/ -sin(curv(3)),-cos(curv(3)),0d0 /)
      .              /(major_r + aa*curv(1)*cos(curv(2)))
           end select
+        case ('sha')
+! Daniele, 11/08/2017
+! Shaped toroidal coordinates system
+! x = (R0 + r*sum_i(ai*cos(i*theta))*cos(-phi)
+! y = (R0 + r*sum_i(ai*cos(i*theta))*sin(-phi)
+! z = r*sum_i(bi*sin(i*theta)
+
+          if (x1 == 0d0) then
+            vec = 0d0
+            return
+          endif
+
+          major_r = gp(1)  !Major radius
+
+          ai(1) = gp(2)  !Horizontal minor radius
+          bi(1) = gp(3)  !Vertical   minor radius
+
+          do ii=2,10
+             ai(ii) = gp(7+ii) ! Higher order cosine coefficients are stored in gp(9) to gp(17)
+             bi(ii) = gp(16+ii) ! Higher order sine coefficients are stored in gp(18) to gp(26)
+          enddo
+
+          curv = (/ x1,x2,x3 /)
+
+          aa = 0d0
+          bb = 0d0
+          ap = 0d0
+          bp = 0d0
+          do ii=1,10
+             aa = aa + ai(ii)*cos(ii*curv(2)) ! A(theta)=sum_i(ai*cos(i*theta))
+             bb = bb + bi(ii)*sin(ii*curv(2)) ! B(theta)=sum_i(bi*sin(i*theta))
+             bp = bp + bi(ii)*ii*cos(ii*curv(2)) ! B'(theta)
+             ap = ap - ai(ii)*ii*sin(ii*curv(2)) ! A'(theta)
+          enddo
+
+          select case (comp)
+            case (1)
+              vec = (/  bp*cos(curv(3))
+     .                ,-bp*sin(curv(3))
+     .                ,-ap             /)/(aa*bp-bb*ap)
+            case (2)
+              vec = (/ -bb*cos(curv(3))
+     .                , bb*sin(curv(3))
+     .                , aa             /)/curv(1)/(aa*bp-bb*ap)
+            case (3)
+              vec = (/ -sin(curv(3)),-cos(curv(3)),0d0 /)
+     .              /(major_r + aa*curv(1))
+          end select
+
         case ('sin')
 
           eps = gp(1)
@@ -535,6 +623,10 @@ c     Local variables
         real(8) :: gp(ngparams)
 
         real(8) :: xmax,ymax,zmax,xmin,ymin,zmin
+! Daniele, 11/08/2017. Local variables needed for shaped toroidal coordinates
+        integer :: ii
+        real(8) :: ai(10),bi(10)
+        real(8) :: ap,bp
 
 c     Begin program
 
@@ -606,6 +698,48 @@ cc          vec(3,:) = (/ 0d0,0d0,1d0 /)
      .                 ,cos(curv(2))/bb             /)/curv(1)
           vec(3,:) = (/ -sin(curv(3)),-cos(curv(3)),0d0 /)
      .                /(major_r + aa*curv(1)*cos(curv(2)))
+        case ('sha')
+! Daniele, 11/08/2017
+! Shaped toroidal coordinates system
+! x = (R0 + r*sum_i(ai*cos(i*theta))*cos(-phi)
+! y = (R0 + r*sum_i(ai*cos(i*theta))*sin(-phi)
+! z = r*sum_i(bi*sin(i*theta)
+
+          if (curv(1) == 0d0) then
+            vec = 0d0
+            return
+          endif
+
+          major_r = gp(1)  !Major radius
+
+          ai(1) = gp(2)  !Horizontal minor radius
+          bi(1) = gp(3)  !Vertical   minor radius
+
+          do ii=2,10
+             ai(ii) = gp(7+ii) ! Higher order cosine coefficients are stored in gp(9) to gp(17)
+             bi(ii) = gp(16+ii) ! Higher order sine coefficients are stored in gp(18) to gp(26)
+          enddo
+
+          aa = 0d0
+          bb = 0d0
+          ap = 0d0
+          bp = 0d0
+          do ii=1,10
+             aa = aa + ai(ii)*cos(ii*curv(2)) ! A(theta)=sum_i(ai*cos(i*theta))
+             bb = bb + bi(ii)*sin(ii*curv(2)) ! B(theta)=sum_i(bi*sin(i*theta))
+             bp = bp + bi(ii)*ii*cos(ii*curv(2)) ! B'(theta)
+             ap = ap - ai(ii)*ii*sin(ii*curv(2)) ! A'(theta)
+          enddo
+
+          vec(1,:) = (/  bp*cos(curv(3))
+     .                 ,-bp*sin(curv(3))
+     .                 ,-ap             /)/(aa*bp-bb*ap)
+          vec(2,:) = (/ -bb*cos(curv(3))
+     .                 , bb*sin(curv(3))
+     .                 , aa             /)/curv(1)/(aa*bp-bb*ap)
+          vec(3,:) = (/ -sin(curv(3)),-cos(curv(3)),0d0 /)
+     .                /(major_r + aa*curv(1))
+
         case ('sin')
 
           eps = gp(1)
@@ -677,6 +811,10 @@ c     Local variables
         logical :: vrtx
 
         real(8) :: xmax,ymax,zmax,xmin,ymin,zmin
+! Daniele, 11/08/2017. Local variables needed for shaped toroidal coordinates
+        integer :: ii
+        real(8) :: ai(10),bi(10)
+        real(8) :: ap,bp
 
 c     Begin program
 
@@ -786,15 +924,67 @@ c     Begin program
               vec = (/  cos(curv(2))*cos(curv(3))/bb
      .                ,-cos(curv(2))*sin(curv(3))/bb
      .                , sin(curv(2))/aa             /)
-     .              /curv(1)/(major_r + curv(1)*cos(curv(2)))
+     .              /curv(1)/(major_r + aa*curv(1)*cos(curv(2)))
             case (2)
               vec = (/-sin(curv(2))*cos(curv(3))/bb
      .                ,sin(curv(2))*sin(curv(3))/bb
      .                ,cos(curv(2))/aa              /)
-     .              /(major_r + curv(1)*cos(curv(2)))
+     .              /(major_r + aa*curv(1)*cos(curv(2)))
             case (3)
               vec = (/ -sin(curv(3)),-cos(curv(3)),0d0 /)/curv(1)/aa/bb
           end select
+
+        case ('sha')
+! Daniele, 11/08/2017
+! Shaped toroidal coordinates system
+! x = (R0 + r*sum_i(ai*cos(i*theta))*cos(-phi)
+! y = (R0 + r*sum_i(ai*cos(i*theta))*sin(-phi)
+! z = r*sum_i(bi*sin(i*theta)
+
+          if (x1 == 0d0) then
+            vec = 0d0
+            return
+          endif
+
+          major_r = gp(1)  !Major radius
+
+          ai(1) = gp(2)  !Horizontal minor radius
+          bi(1) = gp(3)  !Vertical   minor radius
+
+          do ii=2,10
+             ai(ii) = gp(7+ii) ! Higher order cosine coefficients are stored in gp(9) to gp(17)
+             bi(ii) = gp(16+ii) ! Higher order sine coefficients are stored in gp(18) to gp(26)
+          enddo
+
+          curv = (/ x1,x2,x3 /)
+
+          aa = 0d0
+          bb = 0d0
+          ap = 0d0
+          bp = 0d0
+          do ii=1,10
+             aa = aa + ai(ii)*cos(ii*curv(2)) ! A(theta)=sum_i(ai*cos(i*theta))
+             bb = bb + bi(ii)*sin(ii*curv(2)) ! B(theta)=sum_i(bi*sin(i*theta))
+             bp = bp + bi(ii)*ii*cos(ii*curv(2)) ! B'(theta)
+             ap = ap - ai(ii)*ii*sin(ii*curv(2)) ! A'(theta)
+          enddo
+
+          select case (comp)
+            case (1)
+              vec = (/  aa*cos(curv(3))
+     .                ,-aa*sin(curv(3))
+     .                , bb             /)
+     .              /curv(1)/(major_r + aa*curv(1))/(aa*bp-bb*ap)
+            case (2)
+              vec = (/  ap*cos(curv(3))
+     .                ,-ap*sin(curv(3))
+     .                , bp             /)
+     .              /(major_r + aa*curv(1))/(aa*bp-bb*ap)
+            case (3)
+              vec = (/ -sin(curv(3)),-cos(curv(3)),0d0 /)
+     .              /curv(1)/(aa*bp-bb*ap)
+          end select
+
         case ('sin')
 
           eps = gp(1)
@@ -869,6 +1059,10 @@ c     Local variables
         real(8) :: gp(ngparams)
 
         real(8) :: xmax,ymax,zmax,xmin,ymin,zmin
+! Daniele, 11/08/2017. Local variables needed for shaped toroidal coordinates
+        integer :: ii
+        real(8) :: ai(10),bi(10)
+        real(8) :: ap,bp
 
 c     Begin program
 
@@ -935,12 +1129,57 @@ cc          vec(3,:) = (/ aa*sin(phi)*curv(1),-aa*cos(phi)*curv(1),1d0 /)
           vec(1,:) = (/  cos(curv(2))*cos(curv(3))/bb
      .                ,-cos(curv(2))*sin(curv(3))/bb
      .                , sin(curv(2))/aa             /)
-     .              /curv(1)/(major_r + curv(1)*cos(curv(2)))
+     .              /curv(1)/(major_r + aa*curv(1)*cos(curv(2)))
           vec(2,:) = (/-sin(curv(2))*cos(curv(3))/bb
      .                ,sin(curv(2))*sin(curv(3))/bb
      .                ,cos(curv(2))/aa              /)
-     .              /(major_r + curv(1)*cos(curv(2)))
+     .              /(major_r + aa*curv(1)*cos(curv(2)))
           vec(3,:) = (/ -sin(curv(3)),-cos(curv(3)),0d0 /)/curv(1)/aa/bb
+
+        case ('sha')
+! Daniele, 11/08/2017
+! Shaped toroidal coordinates system
+! x = (R0 + r*sum_i(ai*cos(i*theta))*cos(-phi)
+! y = (R0 + r*sum_i(ai*cos(i*theta))*sin(-phi)
+! z = r*sum_i(bi*sin(i*theta)
+
+          if (curv(1) == 0d0) then
+            vec = 0d0
+            return
+          endif
+
+          major_r = gp(1)  !Major radius
+
+          ai(1) = gp(2)  !Horizontal minor radius
+          bi(1) = gp(3)  !Vertical   minor radius
+
+          do ii=2,10
+             ai(ii) = gp(7+ii) ! Higher order cosine coefficients are stored in gp(9) to gp(17)
+             bi(ii) = gp(16+ii) ! Higher order sine coefficients are stored in gp(18) to gp(26)
+          enddo
+
+          aa = 0d0
+          bb = 0d0
+          ap = 0d0
+          bp = 0d0
+          do ii=1,10
+             aa = aa + ai(ii)*cos(ii*curv(2)) ! A(theta)=sum_i(ai*cos(i*theta))
+             bb = bb + bi(ii)*sin(ii*curv(2)) ! B(theta)=sum_i(bi*sin(i*theta))
+             bp = bp + bi(ii)*ii*cos(ii*curv(2)) ! B'(theta)
+             ap = ap - ai(ii)*ii*sin(ii*curv(2)) ! A'(theta)
+          enddo
+
+          vec(1,:) = (/ aa*cos(curv(3))
+     .                ,-aa*sin(curv(3))
+     .                , bb             /)
+     .              /curv(1)/(major_r + aa*curv(1))/(aa*bp-bb*ap)
+          vec(2,:) = (/ ap*cos(curv(3))
+     .                ,-ap*sin(curv(3))
+     .                , bp             /)
+     .              /(major_r + aa*curv(1))/(aa*bp-bb*ap)
+          vec(3,:) = (/ -sin(curv(3)),-cos(curv(3)),0d0 /)
+     .              /curv(1)/(aa*bp-bb*ap)
+
         case ('sin')
 
           eps = gp(1)
@@ -997,7 +1236,7 @@ c     #################################################################
 c     -----------------------------------------------------------------
 c     Calculates hessian elements of curvilinear coordinate system in
 c     the covariant basis, i.e., 
-c            hessian[l](n,m) = J^2 <cnv(n)|grad(cov[l])|cnv(m)>
+c            hessian[l](i,j) = J^2 <cnv(i)|grad(cov[l])|cnv(j)>
 c     -----------------------------------------------------------------
 
         implicit none
@@ -1016,6 +1255,11 @@ c     Local variables
      .               ,gp(ngparams)
 
         real(8) :: xmax,ymax,zmax,xmin,ymin,zmin
+! Daniele, 11/08/2017. Local variables needed for shaped toroidal coordinates
+        integer :: ii
+        real(8) :: ai(10),bi(10)
+        real(8) :: ap,bp
+        real(8) :: as,bs
 
 c     Begin program
 
@@ -1198,6 +1442,69 @@ c     Begin program
               vec(5) = 0d0
               vec(6) = -aa*curv(1)*sin(curv(2))
      .                 /(major_r + aa*curv(1)*cos(curv(2)))
+              vec(7) = vec(3)
+              vec(8) = vec(6)
+              vec(9) = 0d0
+          end select
+
+        case ('sha')
+          call getCurvilinearCoordinates(gl_def,i,j,k,igx,igy,igz
+     .                                  ,ig,jg,kg,x1,x2,x3)
+          curv = (/ x1,x2,x3 /)
+
+          major_r = gp(1)  !Major radius
+
+          ai(1) = gp(2)  !Horizontal minor radius
+          bi(1) = gp(3)  !Vertical   minor radius
+
+          do ii=2,10
+             ai(ii) = gp(7+ii) ! Higher order cosine coefficients are stored in gp(9) to gp(17)
+             bi(ii) = gp(16+ii) ! Higher order sine coefficients are stored in gp(18) to gp(26)
+          enddo
+
+          aa = 0d0
+          bb = 0d0
+          ap = 0d0
+          bp = 0d0
+          as = 0d0
+          bs = 0d0
+          do ii=1,10
+             aa = aa + ai(ii)*cos(ii*curv(2)) ! A(theta)=sum_i(ai*cos(i*theta))
+             bb = bb + bi(ii)*sin(ii*curv(2)) ! B(theta)=sum_i(bi*sin(i*theta))
+             bp = bp + bi(ii)*ii*cos(ii*curv(2)) ! B'(theta)
+             ap = ap - ai(ii)*ii*sin(ii*curv(2)) ! A'(theta)
+             as = as - ai(ii)*ii*ii*cos(ii*curv(2)) ! A''(theta)
+             bs = bs - bi(ii)*ii*ii*sin(ii*curv(2)) ! B''(theta)
+          enddo
+
+          select case (l)
+            case (1)
+              vec(1) = 0d0
+              vec(2) = 0d0
+              vec(3) = 0d0
+              vec(4) = vec(2)
+              vec(5) = curv(1)*(bp*as-ap*bs)/(aa*bp-bb*ap)
+              vec(6) = 0d0
+              vec(7) = vec(3)
+              vec(8) = vec(6)
+              vec(9) = -bp*(major_r+aa*curv(1))/(aa*bp-bb*ap)
+            case (2)
+              vec(1) = 0d0
+              vec(2) = 1./curv(1)
+              vec(3) = 0d0
+              vec(4) = vec(2)
+              vec(5) = (aa*bs-bb*as)/(aa*bp-bb*ap)
+              vec(6) = 0d0
+              vec(7) = vec(3)
+              vec(8) = vec(6)
+              vec(9) = bb*(major_r+aa*curv(1))/curv(1)/(aa*bp-bb*ap)
+            case (3)
+              vec(1) = 0d0
+              vec(2) = 0d0
+              vec(3) = aa/(major_r+aa*curv(1))
+              vec(4) = vec(2)
+              vec(5) = 0d0
+              vec(6) = ap*curv(1)/(major_r + aa*curv(1))
               vec(7) = vec(3)
               vec(8) = vec(6)
               vec(9) = 0d0
@@ -1759,6 +2066,10 @@ c     Local variables
         logical :: vrtx
 
         real(8) :: xmax,ymax,zmax,xmin,ymin,zmin
+! Daniele, 11/08/2017. Local variables needed for shaped toroidal coordinates
+        integer :: ii
+        real(8) :: ai(10),bi(10)
+        real(8) :: ap,bp
 
 c     Begin program
 
@@ -1850,6 +2161,56 @@ c     Begin program
             vec(8) = vec(6)
             vec(9) = (major_r + aa*x1*Cos(x2))/(aa*bb*x1)
           endif
+        case ('sha')
+! Daniele, 11/08/2017
+! Shaped toroidal coordinates system
+! x = (R0 + r*sum_i(ai*cos(i*theta))*cos(-phi)
+! y = (R0 + r*sum_i(ai*cos(i*theta))*sin(-phi)
+! z = r*sum_i(bi*sin(i*theta)
+          if (x1 == 0d0) then
+            vec = 0d0
+          else
+          major_r = gp(1)  !Major radius
+
+          ai(1) = gp(2)  !Horizontal minor radius
+          bi(1) = gp(3)  !Vertical   minor radius
+
+          do ii=2,10
+             ai(ii) = gp(7+ii) ! Higher order cosine coefficients are stored in gp(9) to gp(17)
+             bi(ii) = gp(16+ii) ! Higher order sine coefficients are stored in gp(18) to gp(26)
+          enddo
+
+          aa = 0d0
+          bb = 0d0
+          ap = 0d0
+          bp = 0d0
+          do ii=1,10
+             aa = aa + ai(ii)*cos(ii*x2) ! A(theta)=sum_i(ai*cos(i*theta))
+             bb = bb + bi(ii)*sin(ii*x2) ! B(theta)=sum_i(bi*sin(i*theta))
+             bp = bp + bi(ii)*ii*cos(ii*x2) ! B'(theta)
+             ap = ap - ai(ii)*ii*sin(ii*x2) ! A'(theta)
+          enddo
+
+            vec(1) = (aa**2 + bb**2)/
+     .               (x1*(major_r + aa*x1)*(aa*bp-bb*ap))
+
+            vec(2) = (aa*ap + bb*bp)/
+     .               ((major_r + aa*x1)*(aa*bp-bb*ap))
+
+            vec(3) = 0d0
+
+            vec(4) = vec(2)
+
+            vec(5) = x1*(ap**2 + bp**2)/
+     .               ((major_r + aa*x1)*(aa*bp-bb*ap))
+
+            vec(6) = 0d0
+
+            vec(7) = vec(3)
+            vec(8) = vec(6)
+            vec(9) = (major_r + aa*x1)/x1/(aa*bp-bb*ap)
+
+          endif
         case ('sin')
 
           eps = gp(1)
@@ -1939,6 +2300,10 @@ c     Local variables
         logical :: vrtx
 
         real(8) :: xmax,ymax,zmax,xmin,ymin,zmin
+! Daniele, 11/08/2017. Local variables needed for shaped toroidal coordinates
+        integer :: ii
+        real(8) :: ai(10),bi(10)
+        real(8) :: ap,bp
 
 c     Begin program
 
@@ -2037,6 +2402,56 @@ c     Begin program
             vec(7) = vec(3)
             vec(8) = vec(6)
             vec(9) = (aa*bb*x1)/(major_r + aa*x1*Cos(x2))
+          endif
+        case ('sha')
+! Daniele, 11/08/2017
+! Shaped toroidal coordinates system
+! x = (R0 + r*sum_i(ai*cos(i*theta))*cos(-phi)
+! y = (R0 + r*sum_i(ai*cos(i*theta))*sin(-phi)
+! z = r*sum_i(bi*sin(i*theta)
+          if (x1 == 0d0) then
+            vec = 0d0
+          else
+          major_r = gp(1)  !Major radius
+
+          ai(1) = gp(2)  !Horizontal minor radius
+          bi(1) = gp(3)  !Vertical   minor radius
+
+          do ii=2,10
+             ai(ii) = gp(7+ii) ! Higher order cosine coefficients are stored in gp(9) to gp(17)
+             bi(ii) = gp(16+ii) ! Higher order sine coefficients are stored in gp(18) to gp(26)
+          enddo
+
+          aa = 0d0
+          bb = 0d0
+          ap = 0d0
+          bp = 0d0
+          do ii=1,10
+             aa = aa + ai(ii)*cos(ii*x2) ! A(theta)=sum_i(ai*cos(i*theta))
+             bb = bb + bi(ii)*sin(ii*x2) ! B(theta)=sum_i(bi*sin(i*theta))
+             bp = bp + bi(ii)*ii*cos(ii*x2) ! B'(theta)
+             ap = ap - ai(ii)*ii*sin(ii*x2) ! A'(theta)
+          enddo
+
+            vec(1) = x1*(major_r + aa*x1)*(ap**2 + bp**2)/
+     .               (aa*bp-bb*ap)
+
+            vec(2) = (major_r + aa*x1)*(-aa*ap - bb*bp)/
+     .               (aa*bp-bb*ap)
+
+            vec(3) = 0d0
+
+            vec(4) = vec(2)
+
+            vec(5) = (major_r + aa*x1)*(aa**2 + bb**2)/
+     .               (x1*(aa*bp-bb*ap))
+
+            vec(6) = 0d0
+
+            vec(7) = vec(3)
+            vec(8) = vec(6)
+            vec(9) = x1*(aa*bp-bb*ap)/(major_r + aa*x1)
+
           endif
         case ('sin')
 
