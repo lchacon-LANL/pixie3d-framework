@@ -49,9 +49,10 @@ c ######################################################################
         real(8),pointer,dimension(:) :: fold,fsrc,x_old,x0
 #endif
 
-        integer :: ntimemax,itime=0,inewtime
+        integer :: ntimemax,itime=0,inewtime,nrstep
 
         real(8) :: dt_nm,dt_n,dtold,time,dtbase,tn,tnm,tnm2,alpha,gammat
+     .            ,rstep
 
         real(8) :: cnp=1d0,cn=-1d0,cnm=0d0
 
@@ -268,6 +269,8 @@ c     Initialization
 
       call TS_solver_consistency_chk
 
+      call TS_init_dump
+
 c     Begin profiling postprocessing stage
 
 #if defined(petsc)
@@ -442,5 +445,51 @@ c$$$        gammat = 1d0/minval(abs(mag))
         gammat = maxval(abs(mag))
 
       end function TS_growth_rate
+
+c     TS_init_dump
+c     #################################################################
+      subroutine TS_init_dump
+
+c     -----------------------------------------------------------------
+c     Setup dumping intervals
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+c     Local variables
+
+      real(8) :: dfreq
+
+c     Begin program
+
+      dfreq = 8d0
+
+      if (tmax > 0d0) then
+        if (dstep==0d0.and.ndstep==0) then
+          dstep = dt*max(int((tmax-time)/dfreq/dt),1)
+        elseif (ndstep == 0 ) then
+          ndstep = -1
+        elseif (dstep  ==0d0) then
+          dstep = 1e30
+        endif
+        rstep = min(dt*max(int((tmax-time)/dfreq/dt),1),dstep)
+        numtime = -1
+      else
+        if (dstep==0d0.and.ndstep == 0) then
+          ndstep = max(numtime/int(dfreq),1)
+        elseif (ndstep == 0 ) then
+          ndstep = -1
+        elseif (dstep  ==0d0) then
+          dstep = 1e30
+        endif
+        nrstep = min(max(numtime/int(dfreq),1),ndstep)
+        tmax  = 0d0
+      endif
+
+c     End program
+
+      end subroutine TS_init_dump
 
       end module ts_setup

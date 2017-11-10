@@ -924,7 +924,6 @@ c     Coordinate-specific checks
         if (map_grid_pack) numerical_grid = .true.
 
         select case (coords)
-!        case ('s3d','hsn','sha')
         case ('s3d','hsn')
           numerical_grid = .true.
         case ('car')
@@ -936,12 +935,14 @@ c     Coordinate-specific checks
             write (*,*) 'Aborting...'
             stop
           endif
-        case ('tor','sha')
+        case ('tor','sha','sh2')
           if (xmin /= 0d0 .and. bcSP()) then
             write (*,*) 'Error in setup: xmin =/0 is not singular point'
             write (*,*) 'Aborting...'
             stop
           endif
+
+          if (coords=='sh2') numerical_grid = .true.
 
           major_r = gdef%params(1)
 

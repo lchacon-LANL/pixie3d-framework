@@ -14,12 +14,8 @@ c ######################################################################
 
         integer :: EXIT_STATUS=FATAL !Hardwire to fatal termination
 
-
         integer :: itnewt
      .            ,itgmres
-     .            ,nrstep
-
-        real(8) :: rstep,dfreq
 
         integer :: nrst             = 0
      .            ,gmres_tot        = 0
