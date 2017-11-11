@@ -935,14 +935,14 @@ c     Coordinate-specific checks
             write (*,*) 'Aborting...'
             stop
           endif
-        case ('tor','sha','sh2')
+        case ('tor','sha','sh2','stl')
           if (xmin /= 0d0 .and. bcSP()) then
             write (*,*) 'Error in setup: xmin =/0 is not singular point'
             write (*,*) 'Aborting...'
             stop
           endif
 
-          if (coords=='sh2') numerical_grid = .true.
+          if (coords=='sh2'.or.coords=='stl') numerical_grid = .true.
 
           major_r = gdef%params(1)
 

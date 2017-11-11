@@ -835,7 +835,7 @@ c              obey the bc dependencies within a group and re-search
                   end if
                end do
             end if
-            if ( k==-1) then
+            if ( k==-1.or.k==nn+1) then
 c              Unable to find a variable that does not depend on the others, a circular dependence is present
                write (*,*) 'Problem ordering groups, ', 
      &            'circular dependence detected between: '

@@ -35,7 +35,7 @@ c     Begin program
 
         select case(coords)
         case('car','cyl','hel','hl2','tor','sin','lpk','s3d','hsn'
-     .      ,'sha','sh2')
+     .      ,'sha','sh2','stl')
 
           anal_map = .true.
 
@@ -113,6 +113,9 @@ c     Local variables
 ! Daniele, 11/07/2017. Local variables needed for shaped toroidal coordinates
         integer :: i
         real(8) :: ai(10),bi(10)
+! Daniele, 11/08/2017. Local variables needed for stellarator (helias) coordinates
+        integer :: nn
+        real(8) :: uu,vv,d10,d0,d20,d1m1,d2m1,d2m2,rc,zc
 
 c     Begin program
 
@@ -200,8 +203,8 @@ c     Begin program
 ! Shaped toroidal coordinates system
 ! x = (R0 + r*a1*cos(theta)+r^2*sum_i(ai*cos(i*theta))*cos(-phi)
 ! y = (R0 + r*a1*cos(theta)+r^2*sum_i(ai*cos(i*theta))*sin(-phi)
-! x = (R0 + r*sum_i(r^(i-1)*ai*cos(i*theta))*cos(-phi)
-! y = (R0 + r*sum_i(r^(i-1)*ai*cos(i*theta))*sin(-phi)
+!! x = (R0 + r*sum_i(r^(i-1)*ai*cos(i*theta))*cos(-phi)
+!! y = (R0 + r*sum_i(r^(i-1)*ai*cos(i*theta))*sin(-phi)
 ! z = r*sum_i(bi*sin(i*theta)
 
           major_r = gp(1)  !Major radius
@@ -262,6 +265,53 @@ c$$$          enddo
           car(3) = xlog(3) + eps*sin(2*pi*xlog(1)/xmax)
      .                          *sin(2*pi*xlog(2)/ymax)
      .                          *sin(2*pi*xlog(3)/zmax)
+
+        case ('stl')
+! Daniele, 11/08/2017
+! Helias stellarator coordinate system
+! see Nuhrenberg-Zille1986PL
+
+          major_r = gp(1)  !Major radius
+
+          aa = gp(2)       !Horizontal minor radius
+          bb = gp(3)       !Vertical   minor radius
+
+          nn   = gp(9)
+          d10  = gp(10)
+          d0   = gp(11)
+          d20  = gp(12)
+          d1m1 = gp(13)
+          d2m1 = gp(14)
+          d2m2 = gp(15)
+
+          rc = gp(16)
+          zc = gp(17)
+
+          vv = -nn*xlog(3)
+          uu = xlog(2)
+
+          rr=major_r
+     .       +aa*(1d0+rc*(1d0-xlog(1)))*cos(vv)
+     .       +xlog(1)
+     .        *((1d0-d10-d0*cos(vv))*cos(uu)
+     .          +sqrt(abs(xlog(1)))
+     .           *(d20*cos(2*uu)
+     .            -d1m1*cos(uu-vv)
+     .            +d2m1*cos(2*uu-vv)
+     .            +d2m2*cos(2*uu-2*vv)))
+          zz=bb*(1d0+zc*(1d0-xlog(1)))*sin(vv)
+     .       +xlog(1)
+     .        *((1d0+d10-d0*cos(vv))*sin(uu)
+     .          +sqrt(abs(xlog(1)))
+     .           *(d20*sin(2*uu)
+     .            +d1m1*sin(uu-vv)
+     .            +d2m1*sin(2*uu-vv)
+     .            -d2m2*sin(2*uu-2*vv)))
+
+          car(1) = rr*cos(-xlog(3))
+          car(2) = rr*sin(-xlog(3))
+          car(3) = zz
+
         case default
           write (*,*) 'Grid not implemented in x_xi'
           write (*,*) 'Aborting...'
