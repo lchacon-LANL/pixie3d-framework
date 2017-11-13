@@ -6940,9 +6940,12 @@ c$$$      enddo
       bcnd(:,3) = (/DEF,DEF,DEF,DEF,bcs(5),bcs(6)/)
 
       !Check for special boundaries
-      where (bcond == SP) bcnd(:,1) = SP
-      where (bcond == SP) bcnd(:,2) = SP
-      where (bcond == SP) bcnd(:,3) = SP
+      where (bcond == SP ) bcnd(:,1) = SP
+      where (bcond == SP ) bcnd(:,2) = SP
+      where (bcond == SP ) bcnd(:,3) = SP
+      where (bcond == PER) bcnd(:,1) = PER
+      where (bcond == PER) bcnd(:,2) = PER
+      where (bcond == PER) bcnd(:,3) = PER
 cc      where (bcnd /= DEF .and. bcnd /= PER .and. bcnd /= SP) bcnd = EXT
       where (bcnd /= PER .and. bcnd /= SP) bcnd = EXT
 

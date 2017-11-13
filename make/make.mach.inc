@@ -1129,7 +1129,7 @@ ifeq ($(findstring gr,$(HOST)),gr)
 #      HDF5_MOD  = $(HDF5_HOME)/include
 #      HDF5_INC  = $(HDF5_MOD)
 
-      ADIOS = t
+      ADIOS = f
 
       ADIOS_BUFFER_MB = 1000
       ADIOS_METHOD = MPI_LUSTRE
