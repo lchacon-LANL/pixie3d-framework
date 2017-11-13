@@ -114,8 +114,7 @@ c     Local variables
         integer :: i
         real(8) :: ai(10),bi(10)
 ! Daniele, 11/08/2017. Local variables needed for stellarator (helias) coordinates
-        integer :: nn
-        real(8) :: uu,vv,d10,d0,d20,d1m1,d2m1,d2m2,rc,zc
+        real(8) :: nn,uu,vv,d10,d0,d20,d1m1,d2m1,d2m2,rc,zc
 
 c     Begin program
 
@@ -287,22 +286,20 @@ c$$$          enddo
           rc = gp(16)
           zc = gp(17)
 
-          vv = -nn*xlog(3)
+          vv = nn*xlog(3)
           uu = xlog(2)
 
           rr=major_r
      .       +aa*(1d0+rc*(1d0-xlog(1)))*cos(vv)
-     .       +xlog(1)
-     .        *((1d0-d10-d0*cos(vv))*cos(uu)
-     .          +sqrt(abs(xlog(1)))
+     .       +xlog(1)*((1d0-d10-d0*cos(vv))*cos(uu)
+     .       +sqrt(abs(xlog(1)))
      .           *(d20*cos(2*uu)
      .            -d1m1*cos(uu-vv)
      .            +d2m1*cos(2*uu-vv)
      .            +d2m2*cos(2*uu-2*vv)))
           zz=bb*(1d0+zc*(1d0-xlog(1)))*sin(vv)
-     .       +xlog(1)
-     .        *((1d0+d10-d0*cos(vv))*sin(uu)
-     .          +sqrt(abs(xlog(1)))
+     .       +xlog(1)*((1d0+d10-d0*cos(vv))*sin(uu)
+     .       +sqrt(abs(xlog(1)))
      .           *(d20*sin(2*uu)
      .            +d1m1*sin(uu-vv)
      .            +d2m1*sin(2*uu-vv)
