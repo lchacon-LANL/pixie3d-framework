@@ -3220,8 +3220,8 @@ c     Begin program
       
       !Down
       dest = pn(0,-1,0)
-      if (dest /= currp) then
-        down = (dest /= nullp)
+      down = (dest /= nullp)
+      if (dest /= currp.and.down) then
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumzout1,(nzbc+2)
@@ -3240,8 +3240,8 @@ c     Begin program
 
       !Up
       dest = pn(0,1,0)
-      if (dest /= currp) then
-        up = (dest /= nullp)
+      up = (dest /= nullp)
+      if (dest /= currp.and.up) then
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumzout2,(nzbc+2)
@@ -3260,8 +3260,8 @@ c     Begin program
 
       !Bottom
       dest = pn(0,0,-1)
-      if (dest /= currp) then
-        bottom = (dest /= nullp)
+      bottom = (dest /= nullp)
+      if (dest /= currp.and.bottom) then
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumyout1,(nybc+2)
@@ -3280,8 +3280,8 @@ c     Begin program
 
       !Top
       dest = pn(0,0,1)
-      if (dest /= currp) then
-        top = (dest /= nullp)
+      top = (dest /= nullp)
+      if (dest /= currp.and.top) then
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumyout2,(nybc+2)
@@ -3366,8 +3366,8 @@ c     Begin program
 
       !Left
       dest = pn(-1,0,0)
-      if (dest /= currp) then
-        left = (dest /= nullp)
+      left = (dest /= nullp)
+      if (dest /= currp.and.left) then
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumzout1,(nzbc+2)
@@ -3386,8 +3386,8 @@ c     Begin program
 
       !Right
       dest = pn(1,0,0)
-      if (dest /= currp) then
-        right = (dest /= nullp)
+      right = (dest /= nullp)
+      if (dest /= currp.and.right) then
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumzout2,(nzbc+2)
@@ -3406,8 +3406,8 @@ c     Begin program
 
       !Bottom
       dest = pn(0,0,-1)
-      if (dest /= currp) then
-        bottom = (dest /= nullp)
+      bottom = (dest /= nullp)
+      if (dest /= currp.and.bottom) then
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumxout1,(nxbc+2)
@@ -3426,8 +3426,8 @@ c     Begin program
 
       !Top
       dest = pn(0,0,1)
-      if (dest /= currp) then
-        top = (dest /= nullp)
+      top = (dest /= nullp)
+      if (dest /= currp.and.top) then
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumxout2,(nxbc+2)
@@ -3511,8 +3511,8 @@ c     Begin program
 
       !Left
       dest = pn(-1,0,0)
-      if (dest /= currp) then
-        left = (dest /= nullp)
+      left = (dest /= nullp)
+      if (dest /= currp.and.left) then
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumyout1,(nybc+2)
@@ -3531,8 +3531,8 @@ c     Begin program
 
       !Right
       dest = pn(1,0,0)
-      if (dest /= currp) then
-        right = (dest /= nullp)
+      right = (dest /= nullp)
+      if (dest /= currp.and.right) then
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumyout2,(nybc+2)
@@ -3551,8 +3551,8 @@ c     Begin program
 
       !Down
       dest = pn(0,-1,0)
-      if (dest /= currp) then
-        down = (dest /= nullp)
+      down = (dest /= nullp)
+      if (dest /= currp.and.down) then
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumxout1,(nxbc+2)
@@ -3571,8 +3571,8 @@ c     Begin program
 
       !Up
       dest = pn(0,1,0)
-      if (dest /= currp) then
-        up = (dest /= nullp)
+      up = (dest /= nullp)
+      if (dest /= currp.and.up) then
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumxout2,(nxbc+2)
