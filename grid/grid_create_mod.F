@@ -298,20 +298,26 @@ c     Global mesh
 c     Init coarse mesh structure
 
       call init_gdef(nxg,nyg,nzg
-     .               ,g_def%gxmin,g_def%gxmax
-     .               ,g_def%gymin,g_def%gymax
-     .               ,g_def%gzmin,g_def%gzmax
-     .               ,g_def%g_pack,g_def%params
-     .               ,g_crse_def
-     .               ,np_x=npx,np_y=npy,np_z=npz
-     .               ,mpi_comm=mpi_comm_splt
-     .               )
+     .              ,g_def%gxmin,g_def%gxmax
+     .              ,g_def%gymin,g_def%gymax
+     .              ,g_def%gzmin,g_def%gzmax
+     .              ,g_def%g_pack,g_def%params
+     .              ,g_crse_def
+     .              ,np_x=npx,np_y=npy,np_z=npz
+     .              ,mpi_comm=mpi_comm_splt
+     .              )
 
       g_crse_def%mpi_comm_crse = mpi_comm_crse
 
 c     Gather map and define grid metrics
 
-      if (checkAnalMapDatabase()) call defineGridMetric(g_crse_def)
+      if (checkAnalMapDatabase()) then
+        call defineGridMetric(g_crse_def)
+        if (g_crse_def%ngrid < 1) then !Could not evaluate metrics at top level
+          exit_loop = .true.
+          call destroyGrid(g_crse_def)
+        endif
+      endif
 
 c     Diagnostics
 

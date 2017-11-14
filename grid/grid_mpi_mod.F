@@ -2355,6 +2355,8 @@ c     Local variables
 
       integer :: nx,ny,nz,sum_exp,nd,navg,exp(3),npt(3),nprocs
 
+      logical :: proc_debug=.false.
+
 c     Begin program
 
       nx = nx1
@@ -2364,6 +2366,8 @@ c     Begin program
       exp = 0
 
       call initMPI(mpi_comm,nprocs,my_rank)
+
+      proc_debug = proc_debug.and.(my_rank == 0)
 
 c     Eliminate specified directions
 
@@ -2431,17 +2435,23 @@ c     Find dimensionality
       endif
 
       !Find exponents
-      navg = int((1d0*(nx*ny*nz)/nprocs)**(1./nd))
+      navg = int((1d0*(nx*ny*nz)/nprocs)**(1d0/nd)) !Average number of points per proc per dim
+      navg = 2**(floor(log(1d0*navg))/log(2d0))     !Find nearest power of 2 from below
 
       npt = (/nx,ny,nz/)
-      exp = log(max(1d0*npt/navg,1d0))/log(2d0) + 0.3
 
-cc      write (*,*) 'DIAG -- procAlloc, my_rank=',my_rank,' exp=',exp
-cc     .           ,' sum_exp 0=',sum(exp)
+      if (proc_debug) 
+     .   write (*,*) 'DIAG -- procAlloc, npt=',npt
+     .            ,' nprocs=',nprocs,' navg=',navg
+
+      exp = log(max(1d0*npt/navg,1d0))/log(2d0)     !Find exponents of power of 2 per dim
+      exp = exp - (sum(exp)-sum_exp)/nd             !Subtract excess procs
+
+      if (proc_debug) write (*,*) 'DIAG -- procAlloc, exp_0=',exp
 
       !Consistency check (1st layer)
       if (sum(exp) /= sum_exp) then
-        if (exp(1) /= maxval(exp).and. nx > 1) then
+        if     (exp(1) /= maxval(exp).and. nx > 1) then
           exp(1) = max(sum_exp - exp(2) - exp(3),0)
         elseif (exp(2) /= maxval(exp).and. ny > 1) then
           exp(2) = max(sum_exp - exp(1) - exp(3),0)
@@ -2450,12 +2460,11 @@ cc     .           ,' sum_exp 0=',sum(exp)
         endif
       endif
 
-cc      write (*,*) 'DIAG -- procAlloc, my_rank=',my_rank,' exp=',exp
-cc     .           ,' sum_exp 1=',sum(exp)
+      if (proc_debug) write (*,*) 'DIAG -- procAlloc, exp_1=',exp
 
       !Consistency check (2nd layer)
       if (sum(exp) /= sum_exp) then
-        if (nx >= ny .and. nx >= nz) then
+        if     (nx >= ny .and. nx >= nz) then
           exp(1) = max(sum_exp - exp(2) - exp(3),0)
         elseif (ny >= nx .and. ny >= nz) then
           exp(2) = max(sum_exp - exp(1) - exp(3),0)
@@ -2470,13 +2479,11 @@ c     Find processor distribution
       if (npy == 0) npy = 2**exp(2)
       if (npz == 0) npz = 2**exp(3)
 
-cc      write (*,*) 'DIAG -- procAlloc, my_rank=',my_rank,' exp=',exp
-cc     .           ,' sum_exp=',sum_exp
-cc      write (*,*) 'DIAG -- procAlloc, my_rank=',my_rank,' npt=',npt
-cc     .            ,' nprocs=',nprocs,' navg=',navg
-cc      write (*,*) 'DIAG -- procAlloc, my_rank=',my_rank
-cc     .           ,'Procs alloc=',npx,npy,npz
-cc      stop
+      if (proc_debug) then
+        write (*,*) 'DIAG -- procAlloc, exp_2=',exp
+        write (*,*) 'DIAG -- procAlloc, Procs=',npx,npy,npz
+        stop
+      endif
 
 c     End program
 

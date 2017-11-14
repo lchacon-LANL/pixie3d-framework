@@ -1792,10 +1792,10 @@ c$$$     $                            'findGridMetrics error',lerr
         !Reset grid level to last usable
         if (lerr /= 0 .and. (.not.PRESENT(igr))) g_def%ngrid = igrid - 1
 
-        if (g_def%ngrid < 1) then
-          call pstop("defineGridMetric"
-     .              ,"Cannot evaluate metrics on top mesh")
-        endif
+c$$$        if (g_def%ngrid < 1) then
+c$$$          call pstop("defineGridMetric"
+c$$$     .              ,"Cannot evaluate metrics on top mesh")
+c$$$        endif
 
 c     Gather error flags
 
