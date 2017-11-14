@@ -273,7 +273,7 @@ c     Call variables
 c     Local variables
 
       integer :: mpi_comm_splt,mpi_comm_crse,mgcf
-      integer :: igr,nxg,nyg,nzg,npx,npy,npz
+      integer :: igr,nxg,nyg,nzg,npx,npy,npz,ierr
 
 c     Begin program
 
@@ -312,8 +312,8 @@ c     Init coarse mesh structure
 c     Gather map and define grid metrics
 
       if (checkAnalMapDatabase()) then
-        call defineGridMetric(g_crse_def)
-        if (g_crse_def%ngrid < 1) then !Could not evaluate metrics at top level
+        call defineGridMetric(g_crse_def,ierr=ierr)
+        if (g_crse_def%ngrid < 1.and.ierr /= 0) then !Could not evaluate metrics at top level
           exit_loop = .true.
           call destroyGrid(g_crse_def)
         endif
