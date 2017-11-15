@@ -537,6 +537,50 @@ cc        integer :: n_lag_ints=0        !Number of lagrangian integrals
 
       contains
 
+c     find_polar_coords
+c     ########################################################################
+      subroutine find_polar_coords(g_def,igrid,i,j,k,rr,th,zz,coords)
+
+      implicit none
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
+
+      integer,INTENT(IN)  :: i,j,k,igrid
+      real(8),INTENT(OUT) :: rr,th,zz
+
+      character(3) :: coords
+
+c     Local variables
+
+      integer :: ig,jg,kg
+      real(8) :: x1,x2,x3,x,y,z
+
+c     Begin program
+
+      call getCurvilinearCoordinates(g_def,i,j,k
+     .                              ,igrid,igrid,igrid
+     .                              ,ig,jg,kg,x1,x2,x3)
+      call getCartesianCoordinates(g_def,i,j,k
+     .                            ,igrid,igrid,igrid
+     .                            ,ig,jg,kg,x,y,z)
+
+      select case (coords)
+      case('cyl')
+        !Transform to cylindrical radius (may be mapped)
+        rr = sign(1d0,x1)*sqrt(x**2+y**2)
+        th = atan2(y,x)
+        if (rr < 0d0) th = th + pi
+        zz = z
+      case default
+        call pstop('find_polar_coords',"Coordinates not implemented")
+      end select
+      
+c     End program
+
+      end subroutine find_polar_coords
+
 c     set_orbit_tols
 c     ########################################################################
       subroutine set_orbit_tols(atol,rtol)
@@ -2268,7 +2312,7 @@ c     --------------------------------------------------------------
 
         implicit none
 
-        integer :: nfiles,ig,jg,kg,i,j,k,bcnd(6,3)
+        integer :: nfiles,i,j,k,bcnd(6,3)
         real(8) :: x1,x2,x3
 
         real(8),pointer,dimension(:,:,:,:) :: car,car0,bcov,bcar
@@ -2300,12 +2344,18 @@ c     Interpolate global fields
           do k=0,nz+1
             do j=0,ny+1
               do i=0,nx+1
-                call getCurvilinearCoordinates(g_def,i,j,k
-     .                                        ,igrid,igrid,igrid
-     .                                        ,ig,jg,kg,x1,x2,x3)
-                x1 = min(max(x1,xmin),xmax)
-                x2 = min(max(x2,ymin),ymax)
-                x3 = min(max(x3,zmin),zmax)
+                call find_polar_coords(g_def,igrid,i,j,k,x1,x2,x3
+     .                                ,coords)
+
+                call chk_pos(x1,x2,x3,warning=.false.,ierr=ierr)
+                if(ierr/=0.and.(.not.bcPER(1)))x1=min(max(x1,xmin),xmax)
+                if(ierr/=0.and.(.not.bcPER(2)))x2=min(max(x2,ymin),ymax)
+                if(ierr/=0.and.(.not.bcPER(3)))x3=min(max(x3,zmin),zmax)
+c$$$                x1 = min(max(x1,xmin),xmax)
+c$$$                x2 = min(max(x2,ymin),ymax)
+c$$$                x3 = min(max(x3,zmin),zmax)
+
+                !Interpolate map
                 call evalX(x1,x2,x3
      .                    ,car(i,j,k,1)
      .                    ,car(i,j,k,2)
@@ -2328,33 +2378,40 @@ c     Assign LOCAL B by interpolating POINCARE data
         do k=0,nz+1
           do j=0,ny+1
             do i=0,nx+1
-              call getCurvilinearCoordinates(g_def,i,j,k
-     .                                      ,igrid,igrid,igrid
-     .                                      ,ig,jg,kg,x1,x2,x3)
+              call find_polar_coords(g_def,igrid,i,j,k,x1,x2,x3,coords)
               
               call chk_pos(x1,x2,x3,warning=.false.,ierr=ierr)
-              if (ierr/=0) x1=min(max(x1,xmin),xmax)
-              if (ierr/=0) x2=min(max(x2,ymin),ymax)
-              if (ierr/=0) x3=min(max(x3,zmin),zmax)
+              if (ierr/=0.and.(.not.bcPER(1))) x1=min(max(x1,xmin),xmax)
+              if (ierr/=0.and.(.not.bcPER(2))) x2=min(max(x2,ymin),ymax)
+              if (ierr/=0.and.(.not.bcPER(3))) x3=min(max(x3,zmin),zmax)
 
-              call evalB(x1,x2,x3
-     .                  ,bb(i,j,k,1)
-     .                  ,bb(i,j,k,2)
-     .                  ,bb(i,j,k,3),ierr)
+c$$$              call evalB(x1,x2,x3
+c$$$     .                  ,bb(i,j,k,1)
+c$$$     .                  ,bb(i,j,k,2)
+c$$$     .                  ,bb(i,j,k,3),ierr)
+              call evalBcar(x1,x2,x3
+     .                  ,bcar(i,j,k,1)
+     .                  ,bcar(i,j,k,2)
+     .                  ,bcar(i,j,k,3),ierr)
+
             enddo
           enddo
         enddo
 
+        !Contravariant components
+        bb = XformToCurv(g_def,igrid,bcar,.true.)
+
         !BCs
-        car0 = bb               !Assign EQU boundary values
         bcnd(:,1) = bcond
         bcnd(:,2) = bcond
         bcnd(:,3) = bcond
-        where (bcnd == DEF) bcnd = EQU
+c$$$        car0 = bb               !Assign EQU boundary values
+c$$$        where (bcnd == DEF) bcnd = EQU
+        where (bcnd == DEF) bcnd = EXT
         call setBC(g_def,0,3,nx,ny,nz,bb,bcov,car0,bcnd
-     .            ,igrid,igrid,igrid,iorder=1)
+     .            ,igrid,igrid,igrid,iorder=2)
 
-        !Cartesian components
+        !Recompute Cartesian components
         bcar = XformToCar(g_def,igrid,bb,.false.)
         
 c     Assign GLOBAL arrays
