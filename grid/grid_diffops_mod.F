@@ -6669,7 +6669,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: ip,igp,ig,jg,kg
+      integer :: ip,igp,ig,jg,kg,meth
 
       real(8) :: qip
 
@@ -6684,29 +6684,27 @@ c     Update grid indices
       ip  = i+1
       igp = ig + (ip-i)
 
-c     Find X centered flux
+c     Figure out advective method
 
-      flxip = vxp*0.5*(arr(i,j,k)+arr(ip,j,k))
-
-c     Other advective methods
-
-c$$$  at_bdry = isBdry(i,igr,2) .or. isBdry(i+1,igr,1)
       at_bdry = (isBdry(g_def,i  ,igr,2).and.bcond(2)/=PER)
      .      .or.(isBdry(g_def,i+1,igr,1).and.bcond(1)/=PER)
 
-      if (method /= 2.and.(.not.(at_bdry))) then
-
-        !Find advected quantity at faces
-        qip=in2face_scl_new(g_def%xx(ig ),arr(i ,j,k)
-     .                     ,g_def%xx(igp),arr(ip,j,k)
-     .                     ,2*g_def%dxh(ig ),darr(i ,j,k)
-     .                     ,2*g_def%dxh(igp),darr(ip,j,k)
-     .                     ,vxp,method)
-
-        !Setup fluxes (ZIP at boundaries by default for conservation)
-        flxip=vxp*qip
-
+      if (at_bdry.and.method > ZIP) then
+         meth = UPWD  !Revert to upwinding
+      else
+         meth = method
       endif
+
+c     Find advected quantity at faces
+
+      qip=in2face_scl_new(g_def%xx(ig ),arr(i ,j,k)
+     .                   ,g_def%xx(igp),arr(ip,j,k)
+     .                   ,2*g_def%dxh(ig ),darr(i ,j,k)
+     .                   ,2*g_def%dxh(igp),darr(ip,j,k)
+     .                   ,vxp,meth)
+
+      !Setup fluxes
+      flxip=vxp*qip
 
 c     End program
 
@@ -6736,7 +6734,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: jp,jgp,ig,jg,kg
+      integer :: jp,jgp,ig,jg,kg,meth
 
       real(8) :: qjp
 
@@ -6751,29 +6749,27 @@ c     Update grid indices
       jp  = j+1
       jgp = jg + (jp-j)
 
-c     Find Y centered flux
+c     Figure out advective method
 
-      flxjp = vyp*0.5*(arr(i,j,k) + arr(i,jp,k))
-
-c     Other advective methods
-
-c$$$  at_bdry = isBdry(j,igr,4) .or. isBdry(j+1,igr,3)
       at_bdry = (isBdry(g_def,j  ,igr,4).and.bcond(4)/=PER)
      .      .or.(isBdry(g_def,j+1,igr,3).and.bcond(3)/=PER)
 
-      if (method /= 2.and.(.not.(at_bdry))) then
-
-        !Find advected quantity at faces
-        qjp=in2face_scl_new(g_def%yy(jg ),arr(i,j ,k)
-     .                     ,g_def%yy(jgp),arr(i,jp,k)
-     .                     ,2*g_def%dyh(jg ),darr(i,j ,k)
-     .                     ,2*g_def%dyh(jgp),darr(i,jp,k)
-     .                     ,vyp,method)
-
-        !Setup fluxes (ZIP at boundaries by default for conservation)
-        flxjp=vyp*qjp
-
+      if (at_bdry.and.method > ZIP) then
+         meth = UPWD  !Revert to upwinding
+      else
+         meth = method
       endif
+
+c     Find advected quantity at faces
+
+      qjp=in2face_scl_new(g_def%yy(jg ),arr(i,j ,k)
+     .                   ,g_def%yy(jgp),arr(i,jp,k)
+     .                   ,2*g_def%dyh(jg ),darr(i,j ,k)
+     .                   ,2*g_def%dyh(jgp),darr(i,jp,k)
+     .                   ,vyp,method)
+
+      !Setup fluxes
+      flxjp=vyp*qjp
 
 c     End program
 
@@ -6803,7 +6799,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: kp,kgp,ig,jg,kg
+      integer :: kp,kgp,ig,jg,kg,meth
 
       real(8) :: qkp
 
@@ -6818,29 +6814,27 @@ c     Update grid indices
       kp  = k+1
       kgp = kg + (kp-k)
 
-c     Find Z centered flux
+c     Figure out advective method
 
-      flxkp = vzp*0.5*(arr(i,j,k) + arr(i,j,kp))
-
-c     Other advective methods
-
-c$$$      at_bdry = isBdry(k,igr,6) .or. isBdry(k+1,igr,5)
       at_bdry = (isBdry(g_def,k  ,igr,6).and.bcond(6)/=PER)
      .      .or.(isBdry(g_def,k+1,igr,5).and.bcond(5)/=PER)
 
-      if (method /= 2.and.(.not.(at_bdry))) then
-
-        !Find advected quantity at faces
-        qkp=in2face_scl_new(g_def%zz(kg ),arr(i,j,k )
-     .                     ,g_def%zz(kgp),arr(i,j,kp)
-     .                     ,2*g_def%dzh(kg ),darr(i,j,k )
-     .                     ,2*g_def%dzh(kgp),darr(i,j,kp)
-     .                     ,vzp,method)
-
-        !Setup fluxes (ZIP at boundaries by default for conservation)
-        flxkp=vzp*qkp
-
+      if (at_bdry.and.method > ZIP) then
+         meth = UPWD  !Revert to upwinding
+      else
+         meth = method
       endif
+
+c     Find advected quantity at faces
+
+      qkp=in2face_scl_new(g_def%zz(kg ),arr(i,j,k )
+     .                   ,g_def%zz(kgp),arr(i,j,kp)
+     .                   ,2*g_def%dzh(kg ),darr(i,j,k )
+     .                   ,2*g_def%dzh(kgp),darr(i,j,kp)
+     .                   ,vzp,method)
+
+      !Setup fluxes
+      flxkp=vzp*qkp
 
 c     End program
 
@@ -7227,11 +7221,6 @@ c     Local variables
       integer :: i,j,k,nx,ny,nz
       real(8) :: jac,tensor(3,3)
 
-c diag ***
-c$$$      integer :: ig,jg,kg
-c$$$      real(8) :: dxx,dyy,dzz
-c diag ***
-      
 c     Begin program
 
       nx = size(v1,1)-2
@@ -7262,29 +7251,7 @@ c     Begin program
           do j=1,ny
             do i=1,nx
               jac = g_def%gmetric%grid(igr)%jac(i,j,k)
-c diag ***
-cc              vec(i,j,k,:)=tensor_nc_advc(i,j,k,nx,ny,nz,igr,igr,igr
-cc     .                                   ,v0,v1,meth)
-cc              cycle
-c diag ***
-cc              tensor = fnabla_v(i,j,k,nx,ny,nz,igr,igr,igr
-cc     .                        ,v1(:,:,:,1)
-cc     .                        ,v1(:,:,:,2)
-cc     .                        ,v1(:,:,:,3),0)
-cc              vec(i,j,k,:) = matmul(v0(i,j,k,:),tensor)/jac
-cc              cycle
-c diag ***
-cc              call getMGmap(i,j,k,igr,igr,igr,ig,jg,kg)
-cc
-cc              dxx = 2*g_def%dxh(ig)
-cc              dyy = 2*g_def%dyh(jg)
-cc              dzz = 2*g_def%dzh(kg)
-cc
-cc              vec(i,j,k,:)=v0(i,j,k,1)*(v1(i+1,j,k,:)-v1(i-1,j,k,:))/dxx
-cc     .                    +v0(i,j,k,2)*(v1(i,j+1,k,:)-v1(i,j-1,k,:))/dyy
-cc     .                    +v0(i,j,k,3)*(v1(i,j,k+1,:)-v1(i,j,k-1,:))/dzz
-cc              vec(i,j,k,:)=vec(i,j,k,:)/jac
-c diag ***
+
               tensor = nabla_v_src(i,j,k,v1(i,j,k,:))
               vec(i,j,k,:)=vec(i,j,k,:)+matmul(v0(i,j,k,:),tensor)/jac
             enddo

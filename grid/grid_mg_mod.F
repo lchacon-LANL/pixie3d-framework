@@ -26,7 +26,7 @@ c######################################################################
         integer,private :: mg_coarse_size = 2     !Minimum coarse grid size (mg_ratio^mg_coarse_size)
 
 #if defined(coarse_MG)
-        integer,private :: mg_proc_coarsen_factor=4  !Coarsening ratio in # procs/dim
+        integer,private :: mg_proc_coarsen_factor=2  !Coarsening ratio in # procs/dim
                                                      !in parallel MG solve
         integer,private :: MPI_COMM_SAV
 
