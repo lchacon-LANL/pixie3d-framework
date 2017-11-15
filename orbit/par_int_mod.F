@@ -537,6 +537,50 @@ cc        integer :: n_lag_ints=0        !Number of lagrangian integrals
 
       contains
 
+c     find_polar_coords
+c     ########################################################################
+      subroutine find_polar_coords(g_def,igrid,i,j,k,rr,th,zz,coords)
+
+      implicit none
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
+
+      integer,INTENT(IN)  :: i,j,k,igrid
+      real(8),INTENT(OUT) :: rr,th,zz
+
+      character(3) :: coords
+
+c     Local variables
+
+      integer :: ig,jg,kg
+      real(8) :: x1,x2,x3,x,y,z
+
+c     Begin program
+
+      call getCurvilinearCoordinates(g_def,i,j,k
+     .                              ,igrid,igrid,igrid
+     .                              ,ig,jg,kg,x1,x2,x3)
+      call getCartesianCoordinates(g_def,i,j,k
+     .                            ,igrid,igrid,igrid
+     .                            ,ig,jg,kg,x,y,z)
+
+      select case (coords)
+      case('cyl')
+        !Transform to cylindrical radius (may be mapped)
+        rr = sign(1d0,x1)*sqrt(x**2+y**2)
+        th = atan2(y,x)
+        if (rr < 0d0) th = th + pi
+        zz = z
+      case default
+        call pstop('find_polar_coords',"Coordinates not implemented")
+      end select
+      
+c     End program
+
+      end subroutine find_polar_coords
+
 c     set_orbit_tols
 c     ########################################################################
       subroutine set_orbit_tols(atol,rtol)
@@ -2268,8 +2312,8 @@ c     --------------------------------------------------------------
 
         implicit none
 
-        integer :: nfiles,ig,jg,kg,i,j,k,bcnd(6,3)
-        real(8) :: x1,x2,x3,x,y,z
+        integer :: nfiles,i,j,k,bcnd(6,3)
+        real(8) :: x1,x2,x3
 
         real(8),pointer,dimension(:,:,:,:) :: car,car0,bcov,bcar
 
@@ -2300,15 +2344,8 @@ c     Interpolate global fields
           do k=0,nz+1
             do j=0,ny+1
               do i=0,nx+1
-                call getCurvilinearCoordinates(g_def,i,j,k
-     .                                        ,igrid,igrid,igrid
-     .                                        ,ig,jg,kg,x1,x2,x3)
-                call getCartesianCoordinates(g_def,i,j,k
-     .                                      ,igrid,igrid,igrid
-     .                                      ,ig,jg,kg,x,y,z)
-
-                !Transform to cylindrical radius (may be mapped)
-                x1 = sign(1d0,x1)*sqrt(x**2+y**2)
+                call find_polar_coords(g_def,igrid,i,j,k,x1,x2,x3
+     .                                ,coords)
 
                 call chk_pos(x1,x2,x3,warning=.false.,ierr=ierr)
                 if(ierr/=0.and.(.not.bcPER(1)))x1=min(max(x1,xmin),xmax)
@@ -2341,19 +2378,7 @@ c     Assign LOCAL B by interpolating POINCARE data
         do k=0,nz+1
           do j=0,ny+1
             do i=0,nx+1
-              call getCurvilinearCoordinates(g_def,i,j,k
-     .                                      ,igrid,igrid,igrid
-     .                                      ,ig,jg,kg,x1,x2,x3)
-              call getCartesianCoordinates(g_def,i,j,k
-     .                                    ,igrid,igrid,igrid
-     .                                    ,ig,jg,kg,x,y,z)
-
-              !Transform to cylindrical radius (may be mapped)
-              x1 = sign(1d0,x1)*sqrt(x**2+y**2)
-c$$$              x2 = atan(y/x)
-c$$$              if (x < 0d0) x2 = x2 + pi
-c$$$              if (x > 0d0.and.y < 0d0) x2 = x2 + 2*pi
-c$$$              x3 = z
+              call find_polar_coords(g_def,igrid,i,j,k,x1,x2,x3,coords)
               
               call chk_pos(x1,x2,x3,warning=.false.,ierr=ierr)
               if (ierr/=0.and.(.not.bcPER(1))) x1=min(max(x1,xmin),xmax)
