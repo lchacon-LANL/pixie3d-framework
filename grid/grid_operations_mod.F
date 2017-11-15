@@ -1178,7 +1178,7 @@ c     #################################################################
       function XformToCnv_mesh(g_def,igrid,cov) result(cnv)
 
 c     -----------------------------------------------------------------
-c     Transforms a contravariant vector to a covariant representation
+c     Transforms a covariant vector to a contravariant representation
 c     everywhere on the mesh.
 c     -----------------------------------------------------------------
 

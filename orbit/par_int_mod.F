@@ -2269,7 +2269,7 @@ c     --------------------------------------------------------------
         implicit none
 
         integer :: nfiles,ig,jg,kg,i,j,k,bcnd(6,3)
-        real(8) :: x1,x2,x3
+        real(8) :: x1,x2,x3,x,y,z
 
         real(8),pointer,dimension(:,:,:,:) :: car,car0,bcov,bcar
 
@@ -2303,9 +2303,22 @@ c     Interpolate global fields
                 call getCurvilinearCoordinates(g_def,i,j,k
      .                                        ,igrid,igrid,igrid
      .                                        ,ig,jg,kg,x1,x2,x3)
-                x1 = min(max(x1,xmin),xmax)
-                x2 = min(max(x2,ymin),ymax)
-                x3 = min(max(x3,zmin),zmax)
+                call getCartesianCoordinates(g_def,i,j,k
+     .                                      ,igrid,igrid,igrid
+     .                                      ,ig,jg,kg,x,y,z)
+
+                !Transform to cylindrical radius (may be mapped)
+                x1 = sign(1d0,x1)*sqrt(x**2+y**2)
+
+                call chk_pos(x1,x2,x3,warning=.false.,ierr=ierr)
+                if(ierr/=0.and.(.not.bcPER(1)))x1=min(max(x1,xmin),xmax)
+                if(ierr/=0.and.(.not.bcPER(2)))x2=min(max(x2,ymin),ymax)
+                if(ierr/=0.and.(.not.bcPER(3)))x3=min(max(x3,zmin),zmax)
+c$$$                x1 = min(max(x1,xmin),xmax)
+c$$$                x2 = min(max(x2,ymin),ymax)
+c$$$                x3 = min(max(x3,zmin),zmax)
+
+                !Interpolate map
                 call evalX(x1,x2,x3
      .                    ,car(i,j,k,1)
      .                    ,car(i,j,k,2)
@@ -2331,30 +2344,49 @@ c     Assign LOCAL B by interpolating POINCARE data
               call getCurvilinearCoordinates(g_def,i,j,k
      .                                      ,igrid,igrid,igrid
      .                                      ,ig,jg,kg,x1,x2,x3)
+              call getCartesianCoordinates(g_def,i,j,k
+     .                                    ,igrid,igrid,igrid
+     .                                    ,ig,jg,kg,x,y,z)
+
+              !Transform to cylindrical radius (may be mapped)
+              x1 = sign(1d0,x1)*sqrt(x**2+y**2)
+c$$$              x2 = atan(y/x)
+c$$$              if (x < 0d0) x2 = x2 + pi
+c$$$              if (x > 0d0.and.y < 0d0) x2 = x2 + 2*pi
+c$$$              x3 = z
               
               call chk_pos(x1,x2,x3,warning=.false.,ierr=ierr)
-              if (ierr/=0) x1=min(max(x1,xmin),xmax)
-              if (ierr/=0) x2=min(max(x2,ymin),ymax)
-              if (ierr/=0) x3=min(max(x3,zmin),zmax)
+              if (ierr/=0.and.(.not.bcPER(1))) x1=min(max(x1,xmin),xmax)
+              if (ierr/=0.and.(.not.bcPER(2))) x2=min(max(x2,ymin),ymax)
+              if (ierr/=0.and.(.not.bcPER(3))) x3=min(max(x3,zmin),zmax)
 
-              call evalB(x1,x2,x3
-     .                  ,bb(i,j,k,1)
-     .                  ,bb(i,j,k,2)
-     .                  ,bb(i,j,k,3),ierr)
+c$$$              call evalB(x1,x2,x3
+c$$$     .                  ,bb(i,j,k,1)
+c$$$     .                  ,bb(i,j,k,2)
+c$$$     .                  ,bb(i,j,k,3),ierr)
+              call evalBcar(x1,x2,x3
+     .                  ,bcar(i,j,k,1)
+     .                  ,bcar(i,j,k,2)
+     .                  ,bcar(i,j,k,3),ierr)
+
             enddo
           enddo
         enddo
 
+        !Contravariant components
+        bb = XformToCurv(g_def,igrid,bcar,.true.)
+
         !BCs
-        car0 = bb               !Assign EQU boundary values
         bcnd(:,1) = bcond
         bcnd(:,2) = bcond
         bcnd(:,3) = bcond
-        where (bcnd == DEF) bcnd = EQU
+c$$$        car0 = bb               !Assign EQU boundary values
+c$$$        where (bcnd == DEF) bcnd = EQU
+        where (bcnd == DEF) bcnd = EXT
         call setBC(g_def,0,3,nx,ny,nz,bb,bcov,car0,bcnd
-     .            ,igrid,igrid,igrid,iorder=1)
+     .            ,igrid,igrid,igrid,iorder=2)
 
-        !Cartesian components
+        !Recompute Cartesian components
         bcar = XformToCar(g_def,igrid,bb,.false.)
         
 c     Assign GLOBAL arrays
