@@ -331,6 +331,8 @@ c     ---------------------------------------------------------------
         integer :: rank
         character(*)  :: routine, message
 
+        integer :: ierr
+
 c     Begin program
 
         if (rank == 0) then
@@ -338,6 +340,10 @@ c     Begin program
           write (*,*) trim(message)
           write (*,*) 'Program stopped at routine ',trim(routine)
         endif
+
+#if defined(petsc)
+        call MPI_Finalize(ierr)
+#endif
 
         call exit(FATAL)  !Fatal termination
 

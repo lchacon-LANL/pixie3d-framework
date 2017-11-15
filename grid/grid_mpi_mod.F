@@ -1238,8 +1238,6 @@ c     Call variables
 
 c     Local variables
 
-        integer :: ierr
-
 c     Begin program
 
 #if defined(samrai)
@@ -1255,9 +1253,6 @@ c     Call SAMRAI's error handler
 #else
 c     Call local error handler
         
-#if defined(petsc)
-        call PetscFinalize(ierr)
-#endif
         call sstop(my_rank,routine,message)
 #endif
 
