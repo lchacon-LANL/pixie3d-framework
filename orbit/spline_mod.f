@@ -1434,7 +1434,7 @@ c     Call variables
 c     Local variables
 
       integer,parameter :: maxit=100,size=3,icol=1
-      real(8),parameter :: tol=1d-12
+      real(8),parameter :: tol=1d-11
 
       integer :: iter
       real(8) :: JJ(size,size),res(size,icol)

@@ -14,7 +14,7 @@
         real(8),private :: pxmin,pxmax,pymin,pymax,pzmin,pzmax
         integer,private :: nxg,nyg,nzg
         integer,private :: bcnd(6)
-        logical,private :: tor
+        logical,private :: tor,specyl_read=.false.
 
         !Global arrays
         real(8),pointer,private,dimension(:)       :: xx,yy,zz
@@ -325,9 +325,6 @@ c     Read poincare position arrays
         read (upixie) yy
         read (upixie) zz
 
-cc        call sp_domain_limits(xx,bcnd(1),xmin,xmax)
-cc        call sp_domain_limits(yy,bcnd(3),ymin,ymax)
-cc        call sp_domain_limits(zz,bcnd(5),zmin,zmax)
         call poinc_domain_limits(xx,bcnd(1),pxmin,pxmax)
         call poinc_domain_limits(yy,bcnd(3),pymin,pymax)
         call poinc_domain_limits(zz,bcnd(5),pzmin,pzmax)
@@ -370,6 +367,7 @@ c     Fill local arrays
         read (upixie,iostat=ierr) bcar(:,:,:,1)
 
         if (ierr /= 0) then  !bxcar not available: assume cylindrical coords
+          specyl_read = .true.
           do k=0,nz+1
             do j=0,ny+1
               do i=0,nx+1
@@ -390,6 +388,7 @@ c     Fill local arrays
             enddo
           enddo
         else
+          specyl_read = .false.
           read (upixie,iostat=ierr) bcar(:,:,:,2)
           if (ierr /= 0) goto 100
           read (upixie,iostat=ierr) bcar(:,:,:,3)
@@ -565,6 +564,7 @@ c     Read global arrays
      .         bcarg(ilmg:ihpg,jlmg:jhpg,klmg:khpg,1)
 
           if (ierr /= 0) then  !bxcar not available: assume cylindrical coords
+            specyl_read = .true.
             do k=klmg,khpg
               do j=jlmg,jhpg
                 do i=ilmg,ihpg
@@ -585,6 +585,7 @@ c     Read global arrays
               enddo
             enddo
           else
+            specyl_read = .false.
             read (mupixie(ifl),iostat=ierr)
      .           bcarg(ilmg:ihpg,jlmg:jhpg,klmg:khpg,2)
             if (ierr /= 0) goto 100
@@ -605,9 +606,6 @@ c     Read global arrays
 
 c     Set domain limits
 
-cc        call sp_domain_limits(xx,bcnd(1),xmin,xmax)
-cc        call sp_domain_limits(yy,bcnd(3),ymin,ymax)
-cc        call sp_domain_limits(zz,bcnd(5),zmin,zmax)
         call poinc_domain_limits(xx,bcnd(1),pxmin,pxmax)
         call poinc_domain_limits(yy,bcnd(3),pymin,pymax)
         call poinc_domain_limits(zz,bcnd(5),pzmin,pzmax)
@@ -655,12 +653,38 @@ c     Begin program
 
         nn = size(x)
 
-        if (bc == PER) then  !Ghost cell is at x(1)
-          x = x - 0.5*(x(1)+x(2))          !Set angle = 0 at face
+!CONSISTENT W T3D
+        if (bc == PER) then   !Ghost cell is at x(1)
+cc          x = x - x(2)  !Set angle = 0 at x(2)
+cc          if (x(2) /= 0d0) then !PIXIE3D data, not SPECYL
+cc            x = x - 0.5*(x(1)+x(2)) !Set angle = 0 at face
+cc          endif
+          xmin = 0d0 ; xmax = x(nn)-x(2)
+cc          xmin = -0.5*(x(2)-x(1)) ; xmax = x(nn)-xmin
+        else
+          xmin = 5d-1*(x(1   )+x(2 ))
+          xmax = 5d-1*(x(nn-1)+x(nn))
         endif
 
-        xmin = 5d-1*(x(1)+x(2))
-        xmax = 5d-1*(x(nn-1)+x(nn))
+!OLD
+c$$$          if (bc == PER) then   !Ghost cell is at x(1)
+c$$$            x = x - 0.5*(x(1)+x(2)) !Set angle = 0 at face
+c$$$          endif
+c$$$
+c$$$          xmin = 5d-1*(x(1)+x(2))
+c$$$          xmax = 5d-1*(x(nn-1)+x(nn))
+
+!EXPERIMENTAL
+c$$$        if (.not.specyl_read) then
+c$$$          if (bc == PER) then   !Ghost cell is at x(1)
+c$$$            x = x - 0.5*(x(1)+x(2)) !Set angle = 0 at face
+c$$$          endif
+c$$$
+c$$$          xmin = 5d-1*(x(1)+x(2))
+c$$$          xmax = 5d-1*(x(nn-1)+x(nn))
+c$$$        else
+c$$$          call set_sp_domain_limits(x,bc,xmin,xmax)
+c$$$        endif
 
 c     End program
 
