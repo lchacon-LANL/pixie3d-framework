@@ -2407,16 +2407,6 @@ c     Check for unallocated procs
         call pstop('processorAlloc',messg)
       endif
 
-c     Exclude directions based on topological constraints (PER, SP)
-
-      !Priority: SP, PER
-cc      if (bcond(1) == SP  .or.  bcond(3) == PER ) ny = 1
-cc      if (bcond(1) == PER .and. ny /= 1         ) nx = 1
-cc      if (bcond(5) == PER .and.(nx/=1.and.ny/=1)) nz = 1
-
-      !Priority: SP
-cc      if (bcond(1) == SP) ny = 1
-
 c     Find dimensionality
 
       nd = 3
@@ -2440,7 +2430,7 @@ c     Find dimensionality
      .            ,' nprocs=',nprocs,' navg=',navg
 
       exp = log(max(1d0*npt/navg,1d0))/log(2d0)     !Find exponents of power of 2 per dim
-      exp = exp - (sum(exp)-sum_exp)/nd             !Subtract excess procs
+      exp = max(exp - (sum(exp)-sum_exp)/nd,0)      !Subtract excess procs
 
       if (proc_debug) write (*,*) 'DIAG -- procAlloc, exp_0=',exp
 
@@ -2477,7 +2467,7 @@ c     Find processor distribution
       if (proc_debug) then
         write (*,*) 'DIAG -- procAlloc, exp_2=',exp
         write (*,*) 'DIAG -- procAlloc, Procs=',npx,npy,npz
-        stop
+cc        stop
       endif
 
 c     End program

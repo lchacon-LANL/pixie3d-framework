@@ -8,11 +8,11 @@
 
         use orbit
 
-        integer :: upixie=12345,ierr
+        integer :: upixie=12345
 
         !Grid configuration
         real(8),private :: pxmin,pxmax,pymin,pymax,pzmin,pzmax
-        integer,private :: nxg,nyg,nzg
+        integer,private :: nxg,nyg,nzg,ierr
         integer,private :: bcnd(6)
         logical,private :: tor
         
@@ -61,8 +61,6 @@ c     Call variables
 c     Local variables
 
         integer :: nx,ny,nz,i,j,k
-
-        integer :: upixie=12345,ierr
 
         real(8),allocatable,dimension(:)       :: xx,yy,zz
         real(8),allocatable,dimension(:,:,:)   :: bx,by,bz,jac
@@ -644,8 +642,8 @@ c     ##################################################################
       subroutine poinc_domain_limits(x,bc,xmin,xmax)
 
 c     ------------------------------------------------------------------
-c     Set domain limits according to dimension vector x and boundary
-c     condition bc.
+c     Set computational domain limits (at faces) according to dimension
+c     vector x and boundary condition bc.
 c     ------------------------------------------------------------------
 
         implicit none
@@ -719,5 +717,93 @@ c     Begin program
 c     End program
 
       end subroutine get_poinc_domain_ptys
+
+c     poincare_plot_dump
+c     ################################################################
+      subroutine poincare_plot_dump(g_def,time,bcnv,bx,by,bz,tor)
+
+c     ---------------------------------------------------------------
+c     Dump Poincare data for NEMATO processing
+c     ---------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
+
+      real(8) :: bcnv(0:,0:,0:,:),bx(0:,0:,0:),by(0:,0:,0:),bz(0:,0:,0:)
+     .          ,time
+
+      logical :: tor
+
+c     Local variables
+
+      character(30) :: ft_file,ft_file_old=''
+      integer :: uft=2345,bcnd(6)
+     .          ,ilomg,ihipg,jlomg,jhipg,klomg,khipg
+
+      save :: ft_file_old
+
+c     Begin program
+
+c     Open file
+
+      write (ft_file,'(f9.3)') time
+
+      if (trim(ft_file) == trim(ft_file_old)) then
+        return
+      else
+        ft_file_old = ft_file
+      endif
+
+      ft_file = 'poinc_t='//trim(adjustl(ft_file))//'.bin'
+
+      if (np > 1) then
+        ft_file = trim(ft_file)//'_proc'//trim(int2char(my_rank))
+      endif
+
+      open(unit=uft,file=trim(ft_file)
+     .    ,status='unknown',form='unformatted')
+
+c     Dump arrays
+
+      write (*,*) 'Dumping Poincare file ',ft_file
+
+      call get_topol_bcs(bcnd)
+
+cc      write (uft) nxd,nyd,nzd,bcond,tor
+      write (uft) g_def%nglx,g_def%ngly,g_def%nglz,bcnd,tor
+      write (uft) g_def%xg  !Dump global position array
+      write (uft) g_def%yg  !"
+      write (uft) g_def%zg  !"
+
+      if (np > 1) then
+        ihipg = g_def%ihig + g_def%gcw
+        ilomg = g_def%ilog - g_def%gcw
+        jhipg = g_def%jhig + g_def%gcw
+        jlomg = g_def%jlog - g_def%gcw
+        khipg = g_def%khig + g_def%gcw
+        klomg = g_def%klog - g_def%gcw
+
+        write (uft) ilomg,ihipg,jlomg,jhipg,klomg,khipg
+      endif
+
+      write (uft) bcnv(:,:,:,1)
+      write (uft) bcnv(:,:,:,2)
+      write (uft) bcnv(:,:,:,3)
+      write (uft) bx
+      write (uft) by
+      write (uft) bz
+      write (uft) g_def%gmetric%grid(1)%jac
+      write (uft) g_def%gmetric%grid(1)%car
+
+c     Close file
+
+      close(uft)
+
+c     End program
+
+      end subroutine poincare_plot_dump
 
       end module poincare_io

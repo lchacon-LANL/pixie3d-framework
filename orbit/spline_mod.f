@@ -53,7 +53,8 @@ c     ##################################################################
       subroutine set_sp_domain_limits(x,bc,xmin,xmax)
 
 c     ------------------------------------------------------------------
-c     Set domain limits according to dimension vector x and boundary
+c     Set splining domain limits (including ghost cells, except for
+c     periodic BCs), according to dimension vector x and boundary
 c     condition bc.
 c     ------------------------------------------------------------------
 

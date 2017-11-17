@@ -2,9 +2,15 @@ c module parameters
 c #####################################################################
       module parameters
 
-      use grid
+        integer :: neqd,ntotd,ntotdp,nxdp,nydp,nzdp
+     .            ,nxl,nyl,nzl,nxlp,nylp,nzlp
 
-      integer :: neqd,ntotd,ntotdp
+        integer :: ilo ,ihi ,jlo ,jhi ,klo ,khi
+     .            ,ilom,ihip,jlom,jhip,klom,khip
+     .            ,ilog ,ihig ,jlog ,jhig ,klog ,khig
+     .            ,ilomg,ihipg,jlomg,jhipg,klomg,khipg
+
+        integer :: gcw=1  !Ghost cell width
 
       end module parameters
 

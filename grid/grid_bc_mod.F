@@ -713,6 +713,141 @@ c     End program
 
       end subroutine vectorSingularBC_stg
 
+c     averageSingularBC
+c     ################################################################
+      subroutine averageSingularBC(gl_def,igr,vec,order,iscnv,iscar)
+
+      implicit none
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: gl_def
+
+      real(8) :: vec(0:,0:,0:,:)
+
+      integer :: igr,order
+
+      logical :: iscnv,iscar
+
+c     Local variables
+      
+      integer :: nx,ny,nz,neq,i,j,k,ig,jg,kg,ieq,one,two,thr
+     .          ,order_int,icomp,ivar
+
+      real(8) :: curv(3),car(3)
+
+      real(8),allocatable :: sp_sum(:,:),dv_sum(:,:),l_sum(:,:)
+
+      real(8),pointer,dimension(:) :: xx
+
+c     Begin program
+
+      neq = size(vec,4)
+
+      nx = gl_def%nxv(igr)
+      ny = gl_def%nyv(igr)
+      nz = gl_def%nzv(igr)
+
+      allocate(sp_sum(0:nz+1,3),dv_sum(0:nz+1,3))
+
+      do ivar=1,neq/3
+
+        !Transform to Cartesian
+        if (.not.iscar) then
+          icomp = 3*(ivar-1)
+
+          do k = 0,nz+1
+            do j = 0,ny+1
+              do i = 1,order+1
+                curv = vec(i,j,k,icomp+1:icomp+3)
+                vec(i,j,k,icomp+1:icomp+3)
+     .             = XformToCar_ijk(gl_def,i,j,k,igr,curv,.not.iscnv)
+              enddo
+            enddo
+          enddo
+        endif
+
+        !Compute average
+        do ieq=1,3
+
+          icomp = ieq+3*(ivar-1)
+
+          do k=0,nz+1
+            sp_sum(k,ieq)= sum(vec(1,1:ny,k,icomp)
+     .                *gl_def%gmetric%grid(igr)%dvol(1,1:ny,k))
+            dv_sum(k,ieq)=
+     .             sum(gl_def%gmetric%grid(igr)%dvol(1,1:ny,k))
+          enddo
+        enddo
+
+#if defined(petsc)
+        allocate(l_sum(0:nz+1,3))
+        l_sum = sp_sum
+        call MPI_Allreduce(l_sum,sp_sum,3*(nz+2)
+     .                    ,MPI_DOUBLE_PRECISION
+     .                    ,MPI_SUM,gl_def%MPI_COMM_SP,mpierr)
+
+        l_sum = dv_sum
+        call MPI_Allreduce(l_sum,dv_sum,3*(nz+2)
+     .                    ,MPI_DOUBLE_PRECISION
+     .                    ,MPI_SUM,gl_def%MPI_COMM_SP,mpierr)
+
+        deallocate(l_sum)
+#endif
+
+        !Assign back to innermost cell center
+        xx => gl_def%xx
+
+        order_int = min(order,nx)
+
+        one = 1 ; two = 2; thr = 3
+
+        if (order_int <= 1) then
+          two = one
+          thr = one
+        elseif (order_int == 2) then
+          thr = two
+        endif
+
+        call getMGmap(gl_def,1,1,1,igr,igr,igr,ig,jg,kg)
+
+        do ieq=1,3
+          icomp = ieq+3*(ivar-1)
+
+          do k=0,nz+1
+            vec(0,:,k,icomp) = sp_sum(k,ieq)/dv_sum(k,ieq)
+          enddo
+
+          vec(1,:,:,icomp) =
+     .        quad_int(0d0,xx(ig+one),xx(ig+two),xx(ig+thr)
+     .                ,vec(0    ,:,:,icomp),vec(1+one,:,:,icomp)
+     .                ,vec(1+two,:,:,icomp),vec(1+thr,:,:,icomp)
+     .                ,xx(ig),order_int)
+        enddo
+
+        !Transform to Curvilinear
+        if (.not.iscar) then
+          icomp = 3*(ivar-1)
+
+          do k = 0,nz+1
+            do j = 0,ny+1
+              do i = 1,order+1
+                car = vec(i,j,k,icomp+1:icomp+3)
+                vec(i,j,k,icomp+1:icomp+3)
+     .             = XformToCurv_ijk(gl_def,i,j,k,igr,car,iscnv)
+              enddo
+            enddo
+          enddo
+        endif
+
+      enddo
+
+      deallocate(sp_sum,dv_sum)
+        
+c     End program
+
+      end subroutine averageSingularBC
+
       end module singularBCinterface
 
 c module imposeBCinterface
@@ -1504,15 +1639,14 @@ c     Fill PETSc ghost cells and PER BCs
 
       if (bcPER(1).and.bcPER(2).and.bcPER(3)) return
 
-c$$$c     Find complete curvilinear representation at boundaries
-c$$$
-c$$$      if (is__vec) then
-c$$$        if (to_cnv) then
-c$$$          call XformVector_BC(gbc_def,igxbc,v_cov,v_cnv,to_cnv)
-c$$$        else
-c$$$          call XformVector_BC(gbc_def,igxbc,v_cnv,v_cov,to_cnv)
-c$$$        endif
+c     Prepare SP BCs
+
+#if defined(vec_pot)
+c$$$      if (isSP2(gbc_def,1,igxbc)) then
+c$$$        call averageSingularBC(gbc_def,igxbc,v_cnv,2,.true. ,.false.)
+c$$$        call averageSingularBC(gbc_def,igxbc,v_cov,2,.false.,.false.)
 c$$$      endif
+#endif
 
 c     Impose physical BCs
 

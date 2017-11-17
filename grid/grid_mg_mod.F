@@ -23,7 +23,7 @@ c######################################################################
 
         type(grid_mg_def),pointer,private :: g_mg_def
 
-        integer,private :: mg_coarse_size = 2     !Minimum coarse grid size (mg_ratio^mg_coarse_size)
+        integer,private :: mg_coarse_size = 4     !Minimum coarse grid size (mg_ratio^mg_coarse_size)
 
 #if defined(coarse_MG)
         integer,private :: mg_proc_coarsen_factor=2  !Coarsening ratio in # procs/dim

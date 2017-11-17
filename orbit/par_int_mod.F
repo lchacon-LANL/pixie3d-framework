@@ -2312,7 +2312,7 @@ c     --------------------------------------------------------------
 
         implicit none
 
-        integer :: nfiles,i,j,k,bcnd(6,3)
+        integer :: nfiles,i,j,k,bcnd(6,3),ierr
         real(8) :: x1,x2,x3
 
         real(8),pointer,dimension(:,:,:,:) :: car,car0,bcov,bcar

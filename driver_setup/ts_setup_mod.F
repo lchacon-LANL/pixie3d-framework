@@ -8,6 +8,8 @@ c ######################################################################
 
         use OMP
 
+        use profile_petsc
+
         !Default TS variables
         real(8) :: cnfactor=0.5        ! Crank-Nicolson factor (implicit if <= 0.5)
      .            ,dstep=0d0           ! Time interval between plots (if zero,

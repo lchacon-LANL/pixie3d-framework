@@ -4,7 +4,7 @@ c ######################################################################
 
         use parameters
 
-        use grid, ONLY: np,my_rank,pstop
+        use grid, ONLY: np,my_rank,pstop,nxd,nyd,nzd
 
         !NKS setup
         integer :: maxitnwt = 20          !Maximum number of Newton its. (if zero, maxitnwt

@@ -2689,74 +2689,8 @@ c     Impose boundary conditions
 c     Perform average along azimuthal direction @ SP
 
       if (isSP2(mgctx%g_def,1,igc) .and. cartesian) then
-
-        allocate(sp_sum(0:nzc+1,3),dv_sum(0:nzc+1,3))
-
-        do ivar=1,neq/3
-
-          !Compute average
-          do ieq=1,3
-
-            icomp = ieq+3*(ivar-1)
-
-            do k=0,nzc+1
-              sp_sum(k,ieq)= sum(arrayc(1,1:nyc,k,icomp)
-     .                  *mgctx%g_def%gmetric%grid(igc)%dlvol(1,1:nyc,k))
-              dv_sum(k,ieq)=
-     .               sum(mgctx%g_def%gmetric%grid(igc)%dlvol(1,1:nyc,k))
-            enddo
-          enddo
-
-#if defined(petsc)
-          allocate(l_sum(0:nzc+1,3))
-          l_sum = sp_sum
-          call MPI_Allreduce(l_sum,sp_sum,3*(nzc+2)
-     .                      ,MPI_DOUBLE_PRECISION
-     .                      ,MPI_SUM,mgctx%g_def%MPI_COMM_SP,mpierr)
-
-          l_sum = dv_sum
-          call MPI_Allreduce(l_sum,dv_sum,3*(nzc+2)
-     .                      ,MPI_DOUBLE_PRECISION
-     .                      ,MPI_SUM,mgctx%g_def%MPI_COMM_SP,mpierr)
-
-          deallocate(l_sum)
-#endif
-
-          !Assign back to innermost cell center
-          xx => mgctx%g_def%xx
-
-          order_int = min(order,nxc)
-
-          one = 1 ; two = 2; thr = 3
-
-          if (order_int <= 1) then
-            two = one
-            thr = one
-          elseif (order_int == 2) then
-            thr = two
-          endif
-
-          call getMGmap(mgctx%g_def,1,1,1,igc,igc,igc,ig,jg,kg)
-
-          do ieq=1,3
-
-            icomp = ieq+3*(ivar-1)
-
-            do k=0,nzc+1
-              arrayc(1,:,k,icomp) = sp_sum(k,ieq)/dv_sum(k,ieq)
-            enddo
-
-            arrayc(1,:,:,icomp) =
-     .          quad_int(0d0,xx(ig+one),xx(ig+two),xx(ig+thr)
-     .                  ,arrayc(1    ,:,:,icomp),arrayc(1+one,:,:,icomp)
-     .                  ,arrayc(1+two,:,:,icomp),arrayc(1+thr,:,:,icomp)
-     .                  ,xx(ig),order_int)
-          enddo
-
-        enddo
-
-        deallocate(sp_sum,dv_sum)
-
+        call averageSingularBC(mgctx%g_def,igc,arrayc,order,iscnv
+     .                        ,.true.)
       endif
 
 c     Impose SP boundary conditions
