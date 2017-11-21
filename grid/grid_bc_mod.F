@@ -748,6 +748,25 @@ c     Begin program
       ny = gl_def%nyv(igr)
       nz = gl_def%nzv(igr)
 
+c     Prepare interpolations
+
+      order_int = min(order,nx)
+
+      one = 1 ; two = 2; thr = 3
+
+      if (order_int <= 1) then
+        two = one
+        thr = one
+      elseif (order_int == 2) then
+        thr = two
+      endif
+
+      call getMGmap(gl_def,1,1,1,igr,igr,igr,ig,jg,kg)
+
+      xx => gl_def%xx
+
+c     Regularize innermost cell layer (closest to SP)
+
       allocate(sp_sum(0:nz+1,3),dv_sum(0:nz+1,3))
 
       do ivar=1,neq/3
@@ -758,7 +777,7 @@ c     Begin program
 
           do k = 0,nz+1
             do j = 0,ny+1
-              do i = 1,order+1
+              do i = 1,order_int+1
                 curv = vec(i,j,k,icomp+1:icomp+3)
                 vec(i,j,k,icomp+1:icomp+3)
      .             = XformToCar_ijk(gl_def,i,j,k,igr,curv,.not.iscnv)
@@ -767,13 +786,20 @@ c     Begin program
           enddo
         endif
 
-        !Compute average
+        !Compute weighed average
         do ieq=1,3
 
           icomp = ieq+3*(ivar-1)
 
+cc          vec(0,:,:,icomp) = vec(1,:,:,icomp)
+          vec(0,:,:,icomp) =
+     .        quad_int(xx(ig),xx(ig+one),xx(ig+two),xx(ig+thr)
+     .                ,vec(1    ,:,:,icomp),vec(1+one,:,:,icomp)
+     .                ,vec(1+two,:,:,icomp),vec(1+thr,:,:,icomp)
+     .                ,0d0,order_int)
+
           do k=0,nz+1
-            sp_sum(k,ieq)= sum(vec(1,1:ny,k,icomp)
+            sp_sum(k,ieq)= sum(vec(0,1:ny,k,icomp)
      .                *gl_def%gmetric%grid(igr)%dvol(1,1:ny,k))
             dv_sum(k,ieq)=
      .             sum(gl_def%gmetric%grid(igr)%dvol(1,1:ny,k))
@@ -796,21 +822,6 @@ c     Begin program
 #endif
 
         !Assign back to innermost cell center
-        xx => gl_def%xx
-
-        order_int = min(order,nx)
-
-        one = 1 ; two = 2; thr = 3
-
-        if (order_int <= 1) then
-          two = one
-          thr = one
-        elseif (order_int == 2) then
-          thr = two
-        endif
-
-        call getMGmap(gl_def,1,1,1,igr,igr,igr,ig,jg,kg)
-
         do ieq=1,3
           icomp = ieq+3*(ivar-1)
 
@@ -825,13 +836,13 @@ c     Begin program
      .                ,xx(ig),order_int)
         enddo
 
-        !Transform to Curvilinear
+        !Transform back to Curvilinear
         if (.not.iscar) then
           icomp = 3*(ivar-1)
 
           do k = 0,nz+1
             do j = 0,ny+1
-              do i = 1,order+1
+              do i = 1,order_int+1
                 car = vec(i,j,k,icomp+1:icomp+3)
                 vec(i,j,k,icomp+1:icomp+3)
      .             = XformToCurv_ijk(gl_def,i,j,k,igr,car,iscnv)
@@ -1514,7 +1525,7 @@ c     #################################################################
       subroutine imposeBConVector(gbc_def,fcomp,ncomp,nx,ny,nz
      .                           ,v_cnv,v_cov,var0
      .                           ,bcnd,iigx,iigy,iigz,i1,i2,j1,j2,k1,k2
-     .                           ,iorder,is_cnv,is_vec)
+     .                           ,iorder,is_cnv,is_vec,sp_reg)
 c     -----------------------------------------------------------------
 c     Imposes BC on vector field
 c     -----------------------------------------------------------------
@@ -1530,7 +1541,7 @@ c     Call variables
      .             ,var0 (0:,0:,0:,:)
      .             ,v_cov(0:,0:,0:,:)
       integer   ,optional,intent(IN) :: i1,i2,j1,j2,k1,k2,iorder
-      logical   ,optional,intent(IN) :: is_cnv,is_vec
+      logical   ,optional,intent(IN) :: is_cnv,is_vec,sp_reg
 
 c     Local variables
 
@@ -1538,6 +1549,7 @@ c     Local variables
       integer    :: ivar,ieq,ibc,loc,dim,bctype,xtrap_o
      .             ,ilmin,jlmin,klmin,ilmax,jlmax,klmax
       logical    :: cov_to_cnv(6,3),to_cnv,is__vec,petsc__bc
+     .             ,regularize_sp
 
 #if defined(petsc)
       type(petsc_da_ctx),pointer :: da_ctx
@@ -1562,6 +1574,13 @@ c     Begin program
         to_cnv = .not.is_cnv
       else
         to_cnv = .false.
+      endif
+
+      !By default, we assume input is in cnv representation
+      if (PRESENT(sp_reg)) then
+        regularize_sp = sp_reg
+      else
+        regularize_sp = .false.
       endif
 
 c     Initialize interpolation order (else use last set)
@@ -1642,10 +1661,10 @@ c     Fill PETSc ghost cells and PER BCs
 c     Prepare SP BCs
 
 #if defined(vec_pot)
-c$$$      if (isSP2(gbc_def,1,igxbc)) then
-c$$$        call averageSingularBC(gbc_def,igxbc,v_cnv,2,.true. ,.false.)
-c$$$        call averageSingularBC(gbc_def,igxbc,v_cov,2,.false.,.false.)
-c$$$      endif
+      if (isSP2(gbc_def,1,igxbc).and.regularize_sp) then
+        call averageSingularBC(gbc_def,igxbc,v_cnv,3,.true. ,.false.)
+        call averageSingularBC(gbc_def,igxbc,v_cov,3,.false.,.false.)
+      endif
 #endif
 
 c     Impose physical BCs
