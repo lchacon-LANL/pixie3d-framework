@@ -177,7 +177,6 @@ c     End program
 
       end subroutine TS_rollback_counters
 
-
 c     TS_update_preCounters
 c     ###############################################################
       subroutine TS_update_preCounters(time,exclude_itime)

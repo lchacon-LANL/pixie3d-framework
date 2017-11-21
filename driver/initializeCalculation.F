@@ -92,9 +92,17 @@ c Read PETSc runtime options
      .                       ,petsc_flg,ierr)
       if (petsc_flg) tmax = 0d0
 
+      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-ndstep',ndstep
+     .                       ,petsc_flg,ierr)
+      if (petsc_flg) dstep = 0d0
+
       call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-tmax',tmax
      .                        ,petsc_flg,ierr)
-      if (petsc_flg) numtime = -1
+      if (petsc_flg) numtime = 0
+
+      call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-dstep',dstep
+     .                        ,petsc_flg,ierr)
+      if (petsc_flg) ndstep = 0
 
       call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-trestart',trstrt
      .                        ,petsc_flg,ierr)
