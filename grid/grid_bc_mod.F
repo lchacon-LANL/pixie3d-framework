@@ -715,7 +715,8 @@ c     End program
 
 c     averageSingularBC
 c     ################################################################
-      subroutine averageSingularBC(gl_def,igr,vec,order,iscnv,iscar)
+      subroutine averageSingularBC(gl_def,igr,vec,order_avg,order_ext
+     .                            ,iscnv,iscar)
 
       implicit none
 
@@ -725,14 +726,14 @@ c     Call variables
 
       real(8) :: vec(0:,0:,0:,:)
 
-      integer :: igr,order
+      integer :: igr,order_avg,order_ext
 
       logical :: iscnv,iscar
 
 c     Local variables
       
       integer :: nx,ny,nz,neq,i,j,k,ig,jg,kg,ieq,one,two,thr
-     .          ,order_int,icomp,ivar
+     .          ,oavg,oext,icomp,ivar,nr
 
       real(8) :: curv(3),car(3)
 
@@ -750,14 +751,16 @@ c     Begin program
 
 c     Prepare interpolations
 
-      order_int = min(order,nx)
+      oext = min(order_ext,nx)
+      oavg = min(order_avg,nx)
+      nr = max(oext,oavg)
 
       one = 1 ; two = 2; thr = 3
 
-      if (order_int <= 1) then
+      if (oext <= 1) then
         two = one
         thr = one
-      elseif (order_int == 2) then
+      elseif (oext == 2) then
         thr = two
       endif
 
@@ -777,7 +780,7 @@ c     Regularize innermost cell layer (closest to SP)
 
           do k = 0,nz+1
             do j = 0,ny+1
-              do i = 1,order_int+1
+              do i = 1,nr+1
                 curv = vec(i,j,k,icomp+1:icomp+3)
                 vec(i,j,k,icomp+1:icomp+3)
      .             = XformToCar_ijk(gl_def,i,j,k,igr,curv,.not.iscnv)
@@ -796,7 +799,7 @@ cc          vec(0,:,:,icomp) = vec(1,:,:,icomp)
      .        quad_int(xx(ig),xx(ig+one),xx(ig+two),xx(ig+thr)
      .                ,vec(1    ,:,:,icomp),vec(1+one,:,:,icomp)
      .                ,vec(1+two,:,:,icomp),vec(1+thr,:,:,icomp)
-     .                ,0d0,order_int)
+     .                ,0d0,oavg)
 
           do k=0,nz+1
             sp_sum(k,ieq)= sum(vec(0,1:ny,k,icomp)
@@ -833,7 +836,7 @@ cc          vec(0,:,:,icomp) = vec(1,:,:,icomp)
      .        quad_int(0d0,xx(ig+one),xx(ig+two),xx(ig+thr)
      .                ,vec(0    ,:,:,icomp),vec(1+one,:,:,icomp)
      .                ,vec(1+two,:,:,icomp),vec(1+thr,:,:,icomp)
-     .                ,xx(ig),order_int)
+     .                ,xx(ig),oext)
         enddo
 
         !Transform back to Curvilinear
@@ -842,7 +845,7 @@ cc          vec(0,:,:,icomp) = vec(1,:,:,icomp)
 
           do k = 0,nz+1
             do j = 0,ny+1
-              do i = 1,order_int+1
+              do i = 1,nr+1
                 car = vec(i,j,k,icomp+1:icomp+3)
                 vec(i,j,k,icomp+1:icomp+3)
      .             = XformToCurv_ijk(gl_def,i,j,k,igr,car,iscnv)
@@ -1662,8 +1665,8 @@ c     Prepare SP BCs
 
 #if defined(vec_pot)
       if (isSP2(gbc_def,1,igxbc).and.regularize_sp) then
-        call averageSingularBC(gbc_def,igxbc,v_cnv,3,.true. ,.false.)
-        call averageSingularBC(gbc_def,igxbc,v_cov,3,.false.,.false.)
+        call averageSingularBC(gbc_def,igxbc,v_cnv,2,2,.true. ,.false.)
+        call averageSingularBC(gbc_def,igxbc,v_cov,2,2,.false.,.false.)
       endif
 #endif
 

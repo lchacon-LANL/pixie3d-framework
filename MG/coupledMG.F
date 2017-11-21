@@ -2689,7 +2689,7 @@ c     Impose boundary conditions
 c     Perform average along azimuthal direction @ SP
 
       if (isSP2(mgctx%g_def,1,igc) .and. cartesian) then
-        call averageSingularBC(mgctx%g_def,igc,arrayc,order,iscnv
+        call averageSingularBC(mgctx%g_def,igc,arrayc,0,order,iscnv
      .                        ,.true.)
       endif
 
