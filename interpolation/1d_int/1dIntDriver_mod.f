@@ -9,7 +9,7 @@ c ######################################################################
 cc      private :: l_int,q_int
 
         INTERFACE quad_int
-          module procedure quad_int_0,quad_int_1,quad_int_2
+          module procedure quad_int_0,quad_int_1,quad_int_2,quad_int_3
         end INTERFACE
 
       contains
@@ -19,10 +19,11 @@ c     ##################################################################
       subroutine IntDriver1d (nx,x,vec,nv,x1,vec1,order,deriv)
       implicit none       !For safe Fortran
 c     ******************************************************************
-c     Interpolates vector vec along coordinate x to vector vec1 along x1,
-c     with interpolation order "order". Currently, we consider zeroth
-c     order (order=0), first order (order=1), second order (2) and cubic
-c     splines (3). The derivative of order "deriv" is returned.
+c     Interpolates vector vec along coordinate x to vector vec1 along
+c     x1, with interpolation order "order". Currently, we consider
+c     zeroth order (order=0), first order (order=1), second order (2)
+c     and arbitrary order splines (>=3). The derivative of order "deriv"
+c     is returned.
 c
 c     This routine requires linking with cubic spline routines dpchsp
 c     (spline preparation) and dpchfe (interpolant evaluation), and
@@ -506,6 +507,60 @@ c     Begin program
 c     End program
 
       end function quad_int_2
+
+c     quad_int_3
+c     #################################################################
+      function quad_int_3(x0,x1,x2,x3,x4,y0,y1,y2,y3,y4,x,order)
+     .         result(y)
+c     -----------------------------------------------------------------
+c     Interpolation (extrapolation) routine, up to quadratic order.
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: order
+      real(8) :: x0,x1,x2,x3,x4,x
+     .          ,y0(:,:),y1(:,:),y2(:,:),y3(:,:),y4(:,:)
+     .          ,y(size(y0,1),size(y0,2))
+
+c     Local variables
+
+      character(80) :: messg
+
+c     Begin program
+
+      select case (order)
+      case (4)
+        y =
+     .  y0*(x-x1)*(x-x2)*(x-x3)*(x-x4)/((x0-x1)*(x0-x2)*(x0-x3)*(x0-x4))
+     . +y1*(x-x0)*(x-x2)*(x-x3)*(x-x4)/((x1-x0)*(x1-x2)*(x1-x3)*(x1-x4))
+     . +y2*(x-x0)*(x-x1)*(x-x3)*(x-x4)/((x2-x0)*(x2-x1)*(x2-x3)*(x2-x4))
+     . +y3*(x-x0)*(x-x1)*(x-x2)*(x-x4)/((x3-x0)*(x3-x1)*(x3-x2)*(x3-x4))
+     . +y4*(x-x0)*(x-x1)*(x-x2)*(x-x3)/((x4-x0)*(x4-x1)*(x4-x2)*(x4-x3))
+      case (3)
+        y = y0*(x-x1)*(x-x2)*(x-x3)/((x0-x1)*(x0-x2)*(x0-x3))
+     .     +y1*(x-x0)*(x-x2)*(x-x3)/((x1-x0)*(x1-x2)*(x1-x3))
+     .     +y2*(x-x0)*(x-x1)*(x-x3)/((x2-x0)*(x2-x1)*(x2-x3))
+     .     +y3*(x-x0)*(x-x1)*(x-x2)/((x3-x0)*(x3-x1)*(x3-x2))
+      case (2)
+        y = y0*(x-x1)*(x-x2)/((x0-x1)*(x0-x2))
+     .     +y1*(x-x0)*(x-x2)/((x1-x0)*(x1-x2))
+     .     +y2*(x-x0)*(x-x1)/((x2-x0)*(x2-x1))
+      case (1)
+        y = y0*(x-x1)/(x0-x1)
+     .     +y1*(x-x0)/(x1-x0)
+      case (0)
+        y = y0
+      case default
+        messg = 'Order of interpolation not implemented'
+        call sstop(0,'quad_int_3',messg)
+      end select
+
+c     End program
+
+      end function quad_int_3
 
       end module oned_int
 

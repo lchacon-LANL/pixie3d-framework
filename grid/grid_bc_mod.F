@@ -757,10 +757,10 @@ c     Prepare interpolations
 
       one = 1 ; two = 2; thr = 3
 
-      if (oext <= 1) then
+      if (nr <= 1) then
         two = one
         thr = one
-      elseif (oext == 2) then
+      elseif (nr == 2) then
         thr = two
       endif
 
@@ -1640,6 +1640,13 @@ c     Initialize GLOBAL limits
       kkmxp =  min(kkmax + 1,gbc_def%nzgl(iigz)+1)
 #endif
 
+c     Prepare SP BCs
+
+      if (isSP2(gbc_def,1,igxbc).and.regularize_sp) then
+        call averageSingularBC(gbc_def,igxbc,v_cnv,0,2,.true. ,.false.)
+        call averageSingularBC(gbc_def,igxbc,v_cov,0,2,.false.,.false.)
+      endif
+
 c     Fill PETSc ghost cells and PER BCs
 
 #if defined(petsc) && !defined(samrai)
@@ -1660,15 +1667,6 @@ c     Fill PETSc ghost cells and PER BCs
 #endif
 
       if (bcPER(1).and.bcPER(2).and.bcPER(3)) return
-
-c     Prepare SP BCs
-
-#if defined(vec_pot)
-      if (isSP2(gbc_def,1,igxbc).and.regularize_sp) then
-        call averageSingularBC(gbc_def,igxbc,v_cnv,2,2,.true. ,.false.)
-        call averageSingularBC(gbc_def,igxbc,v_cov,2,2,.false.,.false.)
-      endif
-#endif
 
 c     Impose physical BCs
 
@@ -5838,10 +5836,12 @@ c     setMGBC
 c     ###############################################################
       subroutine setMGBC(gbc_def,gpos,neq,nnx,nny,nnz,iig,array,bcnd
      .                  ,arr_cov,arr0,icomp,is_cnv,is_vec,is_curv
-     .                  ,result_is_curv,out_iscnv,out_iscurv,iorder)
+     .                  ,result_is_curv,out_iscnv,out_iscurv,iorder
+     .                  ,regularize_sp)
 c     ---------------------------------------------------------------
 c     Interfaces BC routines with MG code, for preconditioning.
 c     On input:
+c       *gbc_def: grid definitions for MG
 c       *gpos: node number (whole grid if gpos=0)
 c       *neq,nnx,nny,nnz: number of degrees of freedom.
 c       *iig: grid level
@@ -5878,7 +5878,7 @@ c                                vector (needed when is_cnv is inherited
 c                                from a previous call).
 c       *iorder: order of inter/extrapolation in BC routines (quadratic
 c                by default).
-c       *g_def: grid definitions for MG
+c       *regularize_sp: whether to regularize around SP
 c
 c     On output, array is returned either in the same curvilinear
 c     representation or in Cartesian, if specified by "result_is_vec".
@@ -5900,6 +5900,7 @@ c     Call variables
       integer,optional,intent(IN) :: icomp(max(neq,3)/3),iorder
 
       logical,optional,intent(IN) ::is_cnv,is_vec,is_curv,result_is_curv
+     .                             ,regularize_sp
       logical,optional,intent(OUT)::out_iscnv,out_iscurv
 
       type(grid_mg_def),pointer :: gbc_def
@@ -6067,7 +6068,8 @@ c     Select operation
      .            ,bcnd (:    ,1+3*(ieq-1):3*ieq)
      .            ,iig,iig,iig
      .            ,i1=imng,i2=imxg,j1=jmng,j2=jmxg,k1=kmng,k2=kmxg
-     .            ,is_cnv=iscnv,is_vec=.true.,iorder=order)
+     .            ,is_cnv=iscnv,is_vec=.true.,iorder=order
+     .            ,sp_reg=regularize_sp)
         enddo
 
         if (.not.PRESENT(arr0)) deallocate(vv0)
