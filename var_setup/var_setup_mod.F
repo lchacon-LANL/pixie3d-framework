@@ -2,6 +2,8 @@ c module parameters
 c #####################################################################
       module parameters
 
+        use grid
+
         integer :: neqd,ntotd,ntotdp,nxdp,nydp,nzdp
      .            ,nxl,nyl,nzl,nxlp,nylp,nzlp
 
@@ -19,8 +21,6 @@ c #####################################################################
       module var_setup
 
         use parameters
-
-        use grid
 
         implicit none
         
