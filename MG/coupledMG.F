@@ -2682,6 +2682,7 @@ c     Impose boundary conditions
           call setMGBC(mgctx%g_def,0,neq,nxc,nyc,nzc,igc,arrayc,bcnd
      .              ,result_is_curv=(.not.cartesian)
      .              ,out_iscurv=isvec,out_iscnv=iscnv  !<= These define whether quantities are 
+c$$$     .              ,regularize_sp=.true.)             !   vectors or scalars. 
      .              )                                  !   vectors or scalars. 
         endif
       endif
