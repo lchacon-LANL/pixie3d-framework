@@ -49,7 +49,7 @@ c     Begin program
 
 c     map
 c     #################################################################
-      function map(g_def,i,j,k,igx,igy,igz,ig,jg,kg) result(car)
+      function map(g_def,i,j,k,igx,igy,igz,ig,jg,kg,vertex) result(car)
 
 c     -----------------------------------------------------------------
 c     Give Cartesian coordinates corresponding to node (i,j,k) at grid
@@ -60,24 +60,26 @@ c     -----------------------------------------------------------------
 
 c     Input variables
 
-        integer    :: i,j,k,igx,igy,igz
-        real(8)    :: car(3)
-        integer   ,optional,intent(OUT) :: ig,jg,kg
-
         type(grid_mg_def),pointer :: g_def
+
+        integer :: i,j,k,igx,igy,igz
+        real(8) :: car(3)
+        integer,optional,intent(OUT) :: ig,jg,kg
+        logical,optional :: vertex
 
 c     Local variables
 
-        integer    :: ig1,jg1,kg1
+        integer :: ig1,jg1,kg1
 
-        real(8)    :: x1,y1,z1
+        real(8) :: x1,y1,z1
 
 c     External routines
 
 c     Begin program
-        
+
         call getCurvilinearCoordinates(g_def,i,j,k,igx,igy,igz
-     .                                ,ig1,jg1,kg1,x1,y1,z1)
+     .                                ,ig1,jg1,kg1,x1,y1,z1
+     .                                ,vertex=vertex)
 
         car = x_xi(g_def,x1,y1,z1)
 

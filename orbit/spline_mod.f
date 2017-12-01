@@ -5,7 +5,11 @@ c #####################################################################
         use xdraw_io
 
 !#! Marco
-        use lyapn
+cc        use lyapn
+
+        use OMP
+
+        use math, ONLY:fmed
 
         use grid, ONLY:pstop,my_rank,grid_mg_def
 
@@ -305,7 +309,7 @@ c     Prepare 3d spline interpolation
         allocate(tz(nz+kz),stat=alloc_stat)
 
 !$omp parallel
-        call set_omp_thread_id()
+        call set_omp_thread_id
 !$omp end parallel
 
 	dime = ky*kz + 3*max(kx,ky,kz) + kz

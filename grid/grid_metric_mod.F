@@ -55,7 +55,6 @@ c     #################################################################
 
       end function alt__eom
 
-
 c     checkMapDatabase
 c     #################################################################
       function checkMapDatabase() result(is_map)
@@ -78,7 +77,7 @@ c     Begin program
 
 c     find_dr_1st
 c     #####################################################################
-      function find_dr_1st(i,j,k,igrid,hex,hey,hez,g_def,x) result(dr)
+      function find_dr_1st(g_def,i,j,k,igrid,hex,hey,hez,x) result(dr)
 
 c     ---------------------------------------------------------------------
 c     This routine finds dx/d_xi tensor at the point (i,j,k)
@@ -93,10 +92,10 @@ c     ---------------------------------------------------------------------
 
 c     Call variables
 
+        type(grid_mg_def),pointer :: g_def
+
         integer    :: i,j,k,igrid,hex,hey,hez
         real(8)    :: dr(3,3),x(0:,0:,0:,:)
-
-        type(grid_mg_def),pointer :: g_def
 
 c     Local variables
 
@@ -232,7 +231,7 @@ cc        endif
 
 c     find_dr_2nd
 c     #####################################################################
-      function find_dr_2nd(i,j,k,igrid,g_def,x) result(dr)
+      function find_dr_2nd(g_def,i,j,k,igrid,x) result(dr)
 
 c     ---------------------------------------------------------------------
 c     This routine finds dx/d_xi tensor at the point (i,j,k)
@@ -247,10 +246,10 @@ c     ---------------------------------------------------------------------
 
 c     Call variables
 
+        type(grid_mg_def),pointer :: g_def
+
         integer :: i,j,k,igrid
         real(8) :: dr(3,3),x(0:,0:,0:,:)
-
-        type(grid_mg_def),pointer :: g_def
 
 c     Local variables
 
@@ -789,6 +788,10 @@ c     Begin program
 
         endif
 
+c$$$        write (*,*)
+c$$$        write (*,*) "cell-centered map",xc(:,1,1,1)
+c$$$        write (*,*)
+
 c     End program
 
       end subroutine findCellMap
@@ -811,22 +814,60 @@ c     Local variables
 
         real(8),pointer,dimension(:,:,:,:) :: xc,xv
 
+        integer :: ig1,jg1,kg1
+
+        real(8) :: x1,y1,z1
+
 c     Begin program
 
         xv => g_def%gmetric%grid(igrid)%car_v
 
         if ((.not.vmap_present).or.(igrid > 1)) then
 
-          xc => g_def%gmetric%grid(igrid)%car !Cell center map
+          if (checkAnalMapDatabase()) then
 
-          xv(0:nx,0:ny,0:nz,:) = 0.125*(xc(0:nx  ,0:ny  ,0:nz  ,:)
-     .                                 +xc(0:nx  ,1:ny+1,0:nz  ,:)
-     .                                 +xc(0:nx  ,0:ny  ,1:nz+1,:)
-     .                                 +xc(0:nx  ,1:ny+1,1:nz+1,:)
-     .                                 +xc(1:nx+1,0:ny  ,0:nz  ,:)
-     .                                 +xc(1:nx+1,1:ny+1,0:nz  ,:)
-     .                                 +xc(1:nx+1,0:ny  ,1:nz+1,:)
-     .                                 +xc(1:nx+1,1:ny+1,1:nz+1,:))
+            do k = 0,nz
+              do j = 0,ny
+                do i = 0,nx
+                  xv(i,j,k,:) = map(g_def,i,j,k,igx,igy,igz
+     .                             ,vertex=.true.)
+                enddo
+              enddo
+            enddo
+
+          else
+
+            xc => g_def%gmetric%grid(igrid)%car !Cell center map
+
+c$$$            call setupSplines(g_def,igrid,2,bcond)
+c$$$
+c$$$            call splineX(xc)
+c$$$
+c$$$            do k = 0,nz
+c$$$              do j = 0,ny
+c$$$                do i = 0,nx
+c$$$                  call getCurvilinearCoordinates(g_def,i,j,k,igx,igy,igz
+c$$$     .                                          ,ig1,jg1,kg1,x1,y1,z1
+c$$$     .                                          ,vertex=.true.)
+c$$$
+c$$$                  call evalX(x1,y1,z1,xv(i,j,k,1)
+c$$$     .                               ,xv(i,j,k,2)
+c$$$     .                               ,xv(i,j,k,3))
+c$$$                enddo
+c$$$              enddo
+c$$$            enddo
+c$$$
+c$$$            call killSplines
+
+            xv(0:nx,0:ny,0:nz,:) = 0.125*(xc(0:nx  ,0:ny  ,0:nz  ,:)
+     .                                   +xc(0:nx  ,1:ny+1,0:nz  ,:)
+     .                                   +xc(0:nx  ,0:ny  ,1:nz+1,:)
+     .                                   +xc(0:nx  ,1:ny+1,1:nz+1,:)
+     .                                   +xc(1:nx+1,0:ny  ,0:nz  ,:)
+     .                                   +xc(1:nx+1,1:ny+1,0:nz  ,:)
+     .                                   +xc(1:nx+1,0:ny  ,1:nz+1,:)
+     .                                   +xc(1:nx+1,1:ny+1,1:nz+1,:))
+          endif
 
         endif
 
@@ -892,12 +933,22 @@ c     Evaluate dr=dx/dxi vectors at vertices
           do j = jlom,jhi
             do i = ilom,ihi
               dr(i,j,k,:,:)
-     .             = find_dr(i,j,k,igrid,he,he,he,g_def,xc)
+     .             = find_dr(g_def,i,j,k,igrid,he,he,he,xc)
             enddo
           enddo
         enddo
 
         call dr_bc_vrtx(g_def,igrid,dr)
+
+c$$$        write (*,*) "dr_v",dr(0:1,1,1,1,1)
+c$$$        write (*,*) "dr_v",dr(0:1,1,1,1,2)
+c$$$        write (*,*) "dr_v",dr(0:1,1,1,1,3)
+c$$$        write (*,*) "dr_v",dr(0:1,1,1,2,1)
+c$$$        write (*,*) "dr_v",dr(0:1,1,1,2,2)
+c$$$        write (*,*) "dr_v",dr(0:1,1,1,2,3)
+c$$$        write (*,*) "dr_v",dr(0:1,1,1,3,1)
+c$$$        write (*,*) "dr_v",dr(0:1,1,1,3,2)
+c$$$        write (*,*) "dr_v",dr(0:1,1,1,3,3)
 
 c     Evaluate grid quantities (at vertices)
 
@@ -964,6 +1015,10 @@ c     Evaluate grid quantities (at vertices)
           enddo
         enddo
 
+c$$$        write (*,*)
+c$$$        write (*,*) "jac_v",g_def%gmetric%grid(igrid)%jac_v(:,1,1)
+c$$$cc        stop
+
         if (lerr == 1) then
            deallocate(dr)
            nullify(xc)
@@ -992,7 +1047,7 @@ cc            do i = imin+1,imax
               do l=1,3
                 do m=1,3
                   do n=1,3
-                    d2r=find_dr(i-1,j-1,k-1,igrid,1,1,1,g_def
+                    d2r=find_dr(g_def,i-1,j-1,k-1,igrid,1,1,1
      .                         ,dr(:,:,:,:,m))
                     gamma(l,m,n) = dot_product(d2r(:,n),cov(l,:))
                   enddo
@@ -1015,7 +1070,7 @@ c     End program
 
 c     findCellMetrics
 c     #################################################################
-      subroutine findCellMetrics(g_def)  !OLD version
+      subroutine findCellMetrics(g_def)
 
 c     -----------------------------------------------------------------
 c     Finds metrics at cell centers.
@@ -1067,7 +1122,7 @@ c     Evaluate dr=dx/dxi vectors
           do k = kmin,kmax
             do j = jmin,jmax
               do i = imin,imax
-                dr(i,j,k,:,:) = find_dr(i,j,k,igrid,g_def,xc)
+                dr(i,j,k,:,:) = find_dr(g_def,i,j,k,igrid,xc)
               enddo
             enddo
           enddo
@@ -1075,7 +1130,7 @@ c     Evaluate dr=dx/dxi vectors
           do k = kmin,kmax
             do j = jmin,jmax
               do i = imin,imax
-                dr(i,j,k,:,:) = find_dr(i,j,k,igrid,0,0,0,g_def,xc)
+                dr(i,j,k,:,:) = find_dr(g_def,i,j,k,igrid,0,0,0,xc)
               enddo
             enddo
           enddo
@@ -1186,7 +1241,7 @@ c     Evaluate grid quantities
               do l=1,3
                 do m=1,3
                   do n=1,3
-                    d2r = find_dr(i,j,k,igrid,g_def,dr(:,:,:,:,m))
+                    d2r = find_dr(g_def,i,j,k,igrid,dr(:,:,:,:,m))
                     gamma(l,m,n) = dot_product(d2r(:,n),cov(:,l))
                   enddo
                 enddo
@@ -1696,12 +1751,23 @@ c     Local variables
 
 c     Begin program
 
-        !Save topological BC config
+c     Save topological BC config
+
         bcond_sv = bcond
+
+c     Start with topological BCs
 
         bcs(:,1) = bcond
         bcs(:,2) = bcond
         bcs(:,3) = bcond
+
+c     Set up i=0, j=0, k=0 boundaries (do NOTHING: dr is trustworthy there)
+
+        where (bcs(1,:) /= PER) bcs(1,:) = DEF
+        where (bcs(3,:) /= PER) bcs(1,:) = DEF
+        where (bcs(5,:) /= PER) bcs(1,:) = DEF
+
+c     Set up i=imax, j=jmax, k=kmax boundaries
 
         where (bcs(2,:) == DEF) bcs(2,:) = EXT
         where (bcs(4,:) == DEF) bcs(4,:) = EXT 
@@ -1716,12 +1782,15 @@ c     Begin program
         where (bcs(4,:) == FSYM .or. bcs(4,:) == SYM) bcs(4,:) = NEU
         where (bcs(6,:) == FSYM .or. bcs(6,:) == SYM) bcs(6,:) = NEU
 
+c     Impose BCs
+
         do i=1,3
           call imposeBConVector_stg_ez(g_def,igrid,dr(:,:,:,i,:)
      .                                ,.false.,bcs,2)
         enddo
 
-        !Recover topological BC config
+c     Recover topological BC config
+
         bcond = bcond_sv
 
 c     End program

@@ -91,7 +91,7 @@ c     Begin program
 c     getCurvilinearCoordinates
 c     #################################################################
       subroutine getCurvilinearCoordinates(g_def,i,j,k,igx,igy,igz
-     .                                    ,ig,jg,kg,x1,y1,z1)
+     .                                    ,ig,jg,kg,x1,y1,z1,vertex)
 
 c     -----------------------------------------------------------------
 c     Finds curvilinear coordinates for position (i,j,k)
@@ -101,20 +101,35 @@ c     -----------------------------------------------------------------
 
 c     Input variables
 
-        integer :: i,j,k,igx,igy,igz,ig,jg,kg
-        real(8) :: x1,y1,z1
-
         type(grid_mg_def),pointer :: g_def
 
+        integer :: i,j,k,igx,igy,igz,ig,jg,kg
+        real(8) :: x1,y1,z1
+        logical,optional :: vertex
+
 c     Local variables
+
+        logical :: vrtx
 
 c     Begin program
 
         call getMGmap(g_def,i,j,k,igx,igy,igz,ig,jg,kg)
 
-        x1 = g_def%xx(ig)
-        y1 = g_def%yy(jg)
-        z1 = g_def%zz(kg)
+        if (PRESENT(vertex)) then
+          vrtx = vertex
+        else
+          vrtx = .false.
+        endif
+
+        if (vrtx) then
+          x1 = 0.5*(g_def%xx(ig)+g_def%xx(ig+1))
+          y1 = 0.5*(g_def%yy(jg)+g_def%yy(jg+1))
+          z1 = 0.5*(g_def%zz(kg)+g_def%zz(kg+1))
+        else
+          x1 = g_def%xx(ig)
+          y1 = g_def%yy(jg)
+          z1 = g_def%zz(kg)
+        endif
 
       end subroutine getCurvilinearCoordinates
 

@@ -4105,29 +4105,34 @@ c     Begin program
 
         igrid = igx
 
-        ip = i+1
-        if (flag == 0) ip = i
+        if (flag == 0) then
+          ip = i
+          jac = g_def%gmetric%grid(igrid)%jac(i,j,k)
 
-        jac    = 0.5*(g_def%gmetric%grid(igrid)%jac (ip,j,k)
-     .               +g_def%gmetric%grid(igrid)%jac (i ,j,k))
-
-cc        if (isSP(i+1,j,k,igx,igy,igz)) jac = SP_flsv
-        if (isSP2(g_def,i+1,igx).and. flag /= 0) then
-          ijac = 0d0
-        else
-          ijac = 1d0/jac
-        endif
-
-        if (flag /= 0) then
-          nabla_v_cnv = fnabla_v(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                          ,vec(:,:,:,1)
-     .                          ,vec(:,:,:,2)
-     .                          ,vec(:,:,:,3),1,cnv=.true.)
-        else
           nabla_v_cnv = fnabla_v(g_def,i,j,k,nx,ny,nz,igx,igy,igz
      .                          ,vec(:,:,:,1)
      .                          ,vec(:,:,:,2)
      .                          ,vec(:,:,:,3),0,cnv=.true.)
+        else
+          ip = i+1
+          jac = 0.25*(g_def%gmetric%grid(igrid)%jac_v(i,j  ,k  )
+     .               +g_def%gmetric%grid(igrid)%jac_v(i,j-1,k  )
+     .               +g_def%gmetric%grid(igrid)%jac_v(i,j  ,k-1)
+     .               +g_def%gmetric%grid(igrid)%jac_v(i,j-1,k-1))
+
+          nabla_v_cnv = fnabla_v(g_def,i,j,k,nx,ny,nz,igx,igy,igz
+     .                          ,vec(:,:,:,1)
+     .                          ,vec(:,:,:,2)
+     .                          ,vec(:,:,:,3),1,cnv=.true.)
+        endif
+
+c$$$        jac    = 0.5*(g_def%gmetric%grid(igrid)%jac (ip,j,k)
+c$$$     .               +g_def%gmetric%grid(igrid)%jac (i ,j,k))
+
+        if (isSP2(g_def,i+1,igx).and. flag /= 0) then
+          ijac = 0d0
+        else
+          ijac = 1d0/jac
         endif
 
         if (associated(coef)) then
@@ -4172,33 +4177,37 @@ c     Local variables
 
         integer    :: ig,jg,kg,jp,igrid
         real(8)    :: x,y,z,jac,ijac
-        real(8)    :: nabla_v_cnv(3,3),gsuper(3,3),dd
+        real(8)    :: nabla_v_cnv(3,3),dd
 
 c     Begin program
 
         igrid = igx
 
-        jp = j+1
-        if (flag == 0) jp = j
+        if (flag == 0) then
+          jp = j
+          jac= g_def%gmetric%grid(igrid)%jac(i,j,k)
 
-        jac    = 0.5*(g_def%gmetric%grid(igrid)%jac (i,jp,k)
-     .               +g_def%gmetric%grid(igrid)%jac (i,j ,k))
-        gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,jp,k,:,:)
-     .               +g_def%gmetric%grid(igrid)%gsup(i,j ,k,:,:))
-
-        ijac = 1d0/jac
-
-        if (flag /= 0) then
-          nabla_v_cnv = fnabla_v(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                          ,vec(:,:,:,1)
-     .                          ,vec(:,:,:,2)
-     .                          ,vec(:,:,:,3),2,cnv=.true.)
-        else
           nabla_v_cnv = fnabla_v(g_def,i,j,k,nx,ny,nz,igx,igy,igz
      .                          ,vec(:,:,:,1)
      .                          ,vec(:,:,:,2)
      .                          ,vec(:,:,:,3),0,cnv=.true.)
+        else
+          jp = j+1
+          jac= 0.25*(g_def%gmetric%grid(igrid)%jac_v(i  ,j,k  )
+     .              +g_def%gmetric%grid(igrid)%jac_v(i-1,j,k  )
+     .              +g_def%gmetric%grid(igrid)%jac_v(i  ,j,k-1)
+     .              +g_def%gmetric%grid(igrid)%jac_v(i-1,j,k-1))
+
+          nabla_v_cnv = fnabla_v(g_def,i,j,k,nx,ny,nz,igx,igy,igz
+     .                          ,vec(:,:,:,1)
+     .                          ,vec(:,:,:,2)
+     .                          ,vec(:,:,:,3),2,cnv=.true.)
         endif
+
+c$$$        jac    = 0.5*(g_def%gmetric%grid(igrid)%jac (i,jp,k)
+c$$$     .               +g_def%gmetric%grid(igrid)%jac (i,j ,k))
+
+        ijac = 1d0/jac
 
         if (associated(coef)) then
           dd = 2./(1./coef(i,jp,k) + 1./coef(i,j ,k))
@@ -4242,33 +4251,37 @@ c     Local variables
 
         integer    :: ig,jg,kg,kp,igrid
         real(8)    :: x,y,z,jac,ijac
-        real(8)    :: nabla_v_cnv(3,3),gsuper(3,3),dd
+        real(8)    :: nabla_v_cnv(3,3),dd
 
 c     Begin program
 
         igrid = igx
 
-        kp=k+1
-        if (flag == 0) kp = k
+        if (flag == 0) then
+          kp = k
+          jac= g_def%gmetric%grid(igrid)%jac(i,j,k)
 
-        jac    = 0.5*(g_def%gmetric%grid(igrid)%jac (i,j,kp)
-     .               +g_def%gmetric%grid(igrid)%jac (i,j,k ))
-        gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,j,kp,:,:)
-     .               +g_def%gmetric%grid(igrid)%gsup(i,j,k ,:,:))
-
-        ijac = 1d0/jac
-
-        if (flag /= 0) then
-          nabla_v_cnv = fnabla_v(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                          ,vec(:,:,:,1)
-     .                          ,vec(:,:,:,2)
-     .                          ,vec(:,:,:,3),3,cnv=.true.)
-        else
           nabla_v_cnv = fnabla_v(g_def,i,j,k,nx,ny,nz,igx,igy,igz
      .                          ,vec(:,:,:,1)
      .                          ,vec(:,:,:,2)
      .                          ,vec(:,:,:,3),0,cnv=.true.)
+        else
+          kp = k+1
+          jac= 0.25*(g_def%gmetric%grid(igrid)%jac_v(i  ,j  ,k)
+     .              +g_def%gmetric%grid(igrid)%jac_v(i-1,j  ,k)
+     .              +g_def%gmetric%grid(igrid)%jac_v(i  ,j-1,k)
+     .              +g_def%gmetric%grid(igrid)%jac_v(i-1,j-1,k))
+
+          nabla_v_cnv = fnabla_v(g_def,i,j,k,nx,ny,nz,igx,igy,igz
+     .                          ,vec(:,:,:,1)
+     .                          ,vec(:,:,:,2)
+     .                          ,vec(:,:,:,3),3,cnv=.true.)
         endif
+
+c$$$        jac    = 0.5*(g_def%gmetric%grid(igrid)%jac (i,j,kp)
+c$$$     .               +g_def%gmetric%grid(igrid)%jac (i,j,k ))
+
+        ijac = 1d0/jac
 
         if (associated(coef)) then
           dd = 2./(1./coef(i,j,kp) + 1./coef(i,j,k ))
@@ -4447,29 +4460,35 @@ c     Local variables
 
         integer    :: ig,jg,kg,ip,igrid
         real(8)    :: x,y,z
-        real(8)    :: nabla_v(3,3),gsuper(3,3),dd
+        real(8)    :: nabla_v(3,3),dd,gsuper(3,3)
 
 c     Begin program
 
         igrid = igx
 
-        ip = i+1
-        if (flag == 0) ip = i
+        if (flag == 0) then
+          ip = i
+          gsuper = g_def%gmetric%grid(igrid)%gsup  (i,j  ,k  ,:,:)
 
-        gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(ip,j,k,:,:)
-     .               +g_def%gmetric%grid(igrid)%gsup(i ,j,k,:,:))
-
-        if (flag /= 0) then
-          nabla_v = fnabla_v_cov(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                          ,vec(:,:,:,1)
-     .                          ,vec(:,:,:,2)
-     .                          ,vec(:,:,:,3),1)
-        else
           nabla_v = fnabla_v_cov(g_def,i,j,k,nx,ny,nz,igx,igy,igz
      .                          ,vec(:,:,:,1)
      .                          ,vec(:,:,:,2)
      .                          ,vec(:,:,:,3),0)
+        else
+          ip = i+1
+          gsuper =0.25*(g_def%gmetric%grid(igrid)%gsup_v(i,j  ,k  ,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup_v(i,j-1,k  ,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup_v(i,j  ,k-1,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup_v(i,j-1,k-1,:,:))
+
+          nabla_v = fnabla_v_cov(g_def,i,j,k,nx,ny,nz,igx,igy,igz
+     .                          ,vec(:,:,:,1)
+     .                          ,vec(:,:,:,2)
+     .                          ,vec(:,:,:,3),1)
         endif
+
+c$$$        gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(ip,j,k,:,:)
+c$$$     .               +g_def%gmetric%grid(igrid)%gsup(i ,j,k,:,:))
 
         if (associated(coef)) then
           dd = 2./(1./coef(ip,j,k) + 1./coef(i,j,k))
@@ -4514,32 +4533,36 @@ c     Call variables
 c     Local variables
 
         integer    :: ig,jg,kg,jp,igrid
-        real(8)    :: x,y,z,jac
+        real(8)    :: x,y,z
         real(8)    :: nabla_v(3,3),gsuper(3,3),dd
 
 c     Begin program
 
         igrid = igx
 
-        jp = j+1
-        if (flag == 0) jp = j
+        if (flag == 0) then
+          jp = j
+          gsuper = g_def%gmetric%grid(igrid)%gsup  (i,j  ,k  ,:,:)
 
-        jac    = 0.5*(g_def%gmetric%grid(igrid)%jac (i,jp,k)
-     .               +g_def%gmetric%grid(igrid)%jac (i,j ,k))
-        gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,jp,k,:,:)
-     .               +g_def%gmetric%grid(igrid)%gsup(i,j ,k,:,:))
-
-        if (flag /= 0) then
-          nabla_v = fnabla_v_cov(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                          ,vec(:,:,:,1)
-     .                          ,vec(:,:,:,2)
-     .                          ,vec(:,:,:,3),2)
-        else
           nabla_v = fnabla_v_cov(g_def,i,j,k,nx,ny,nz,igx,igy,igz
      .                          ,vec(:,:,:,1)
      .                          ,vec(:,:,:,2)
      .                          ,vec(:,:,:,3),0)
+        else
+          jp = j+1
+          gsuper =0.25*(g_def%gmetric%grid(igrid)%gsup_v(i  ,j,k  ,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j,k  ,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup_v(i  ,j,k-1,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j,k-1,:,:))
+
+          nabla_v = fnabla_v_cov(g_def,i,j,k,nx,ny,nz,igx,igy,igz
+     .                          ,vec(:,:,:,1)
+     .                          ,vec(:,:,:,2)
+     .                          ,vec(:,:,:,3),2)
         endif
+
+c$$$        gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,jp,k,:,:)
+c$$$     .               +g_def%gmetric%grid(igrid)%gsup(i,j ,k,:,:))
 
         if (associated(coef)) then
           dd = 2./(1./coef(i,jp,k) + 1./coef(i,j,k))
@@ -4584,32 +4607,36 @@ c     Call variables
 c     Local variables
 
         integer    :: ig,jg,kg,kp,igrid
-        real(8)    :: x,y,z,jac
+        real(8)    :: x,y,z
         real(8)    :: nabla_v(3,3),gsuper(3,3),dd
 
 c     Begin program
 
         igrid = igx
 
-        kp=k+1
-        if (flag == 0) kp = k
+        if (flag == 0) then
+          kp = k
+          gsuper = g_def%gmetric%grid(igrid)%gsup  (i,j  ,k  ,:,:)
 
-        jac    = 0.5*(g_def%gmetric%grid(igrid)%jac (i,j,kp)
-     .               +g_def%gmetric%grid(igrid)%jac (i,j,k ))
-        gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,j,kp,:,:)
-     .               +g_def%gmetric%grid(igrid)%gsup(i,j,k ,:,:))
-
-        if (flag /= 0) then
-          nabla_v = fnabla_v_cov(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                          ,vec(:,:,:,1)
-     .                          ,vec(:,:,:,2)
-     .                          ,vec(:,:,:,3),3)
-        else
           nabla_v = fnabla_v_cov(g_def,i,j,k,nx,ny,nz,igx,igy,igz
      .                          ,vec(:,:,:,1)
      .                          ,vec(:,:,:,2)
      .                          ,vec(:,:,:,3),0)
+        else
+          kp = k+1
+          gsuper =0.25*(g_def%gmetric%grid(igrid)%gsup_v(i  ,j  ,k,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j  ,k,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup_v(i  ,j-1,k,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j-1,k,:,:))
+
+          nabla_v = fnabla_v_cov(g_def,i,j,k,nx,ny,nz,igx,igy,igz
+     .                          ,vec(:,:,:,1)
+     .                          ,vec(:,:,:,2)
+     .                          ,vec(:,:,:,3),3)
         endif
+
+c$$$        gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,j,kp,:,:)
+c$$$     .               +g_def%gmetric%grid(igrid)%gsup(i,j,k ,:,:))
 
         if (associated(coef)) then
           dd = 2./(1./coef(i,j,kp) + 1./coef(i,j,k))
