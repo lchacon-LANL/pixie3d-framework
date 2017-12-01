@@ -2364,10 +2364,6 @@ c ######################################################################
 
         use grid_nabla2_ops
 
-c$$$        INTERFACE veclaplacian
-c$$$          module procedure veclap!,veclap_diff,veclap_ndiff
-c$$$        end INTERFACE
-
         INTERFACE veclap
           module procedure veclap_mesh,veclap_ijk
         end INTERFACE

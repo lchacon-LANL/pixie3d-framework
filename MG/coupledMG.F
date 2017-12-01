@@ -3426,7 +3426,7 @@ c     End program
 
 c     fillVec1
 c     ###################################################################
-      subroutine fillVec1(g_def,igrid,neq,arr,x)
+      subroutine fillVec1(g_def,igrid,arr,x)
 
 c     -------------------------------------------------------------------
 c     Fills vector x from VECTOR array arr
@@ -3436,7 +3436,7 @@ c     -------------------------------------------------------------------
 
 c     Call variables
 
-        integer :: igrid,neq
+        integer :: igrid
         real(8),dimension(:) :: x
         real(8),dimension(:,:,:,:) :: arr
 
@@ -3444,11 +3444,14 @@ c     Call variables
 
 c     Local variables
 
+        integer :: neq
         logical :: fpointers
 
         type(mg_ctx),pointer :: mg_ctx_l => null()
 
 c     Begin program
+
+        neq = size(arr,4)
 
         call allocMGPointers(neq,g_def,mg_ctx_l,fpointers)
 
@@ -3462,7 +3465,7 @@ c     End program
 
 c     fillVec2
 c     ###################################################################
-      subroutine fillVec2(g_def,igrid,neq,arr,x)
+      subroutine fillVec2(g_def,igrid,arr,x)
 
 c     -------------------------------------------------------------------
 c     Fills vector x from VECTOR array arr
@@ -3472,7 +3475,7 @@ c     -------------------------------------------------------------------
 
 c     Call variables
 
-        integer :: igrid,neq
+        integer :: igrid
         real(8),dimension(:,:) :: x
         real(8),dimension(:,:,:,:) :: arr
 
@@ -3480,12 +3483,14 @@ c     Call variables
 
 c     Local variables
 
-        integer :: ieq
+        integer :: ieq,neq
         logical :: fpointers
 
         type(mg_ctx),pointer :: mg_ctx_l => null()
 
 c     Begin program
+
+        neq = size(arr,4)
 
         call allocMGPointers(1,g_def,mg_ctx_l,fpointers)
 
