@@ -2465,10 +2465,13 @@ c     Begin program
         case (1)
           dhx = g_def%dx(ig)
 
-          if (cntv) then
-            gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i ,j,k,:,:)
-     .                   +g_def%gmetric%grid(igrid)%gsup(ip,j,k,:,:))
-          endif
+          if (cntv) 
+c$$$            gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i ,j,k,:,:)
+c$$$     .                   +g_def%gmetric%grid(igrid)%gsup(ip,j,k,:,:))
+     .      gsuper=.25*(g_def%gmetric%grid(igrid)%gsup_v(i,j  ,k  ,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup_v(i,j-1,k  ,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup_v(i,j  ,k-1,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup_v(i,j-1,k-1,:,:))
 
           vxip = ax(ip,j,k)
           vxim = ax(i ,j,k)
@@ -2497,8 +2500,12 @@ c     Begin program
           dhy = g_def%dy(jg)
 
           if (cntv)
-     .         gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,j ,k,:,:)
-     .                      +g_def%gmetric%grid(igrid)%gsup(i,jp,k,:,:))
+c$$$     .         gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,j ,k,:,:)
+c$$$     .                      +g_def%gmetric%grid(igrid)%gsup(i,jp,k,:,:))
+     .      gsuper=.25*(g_def%gmetric%grid(igrid)%gsup_v(i  ,j,k  ,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j,k  ,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup_v(i  ,j,k-1,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j,k-1,:,:))
 
           vxip = 0.5*(ax(ip,j,k)+ax(ip,jp,k))
           vxim = 0.5*(ax(im,j,k)+ax(im,jp,k))
@@ -2527,8 +2534,12 @@ c     Begin program
           dhz = g_def%dz(kg)
 
           if (cntv)
-     .         gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,j,k ,:,:)
-     .                      +g_def%gmetric%grid(igrid)%gsup(i,j,kp,:,:))
+c$$$     .         gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,j,k ,:,:)
+c$$$     .                      +g_def%gmetric%grid(igrid)%gsup(i,j,kp,:,:))
+     .      gsuper=.25*(g_def%gmetric%grid(igrid)%gsup_v(i  ,j  ,k,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j  ,k,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup_v(i  ,j-1,k,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j-1,k,:,:))
 
           vxip = 0.5*(ax(ip,j,k)+ax(ip,j,kp))
           vxim = 0.5*(ax(im,j,k)+ax(im,j,kp))
@@ -4004,8 +4015,8 @@ c     Begin program
         do j=1,ny
           do i=1,nx
             cnv_out(i,j,k,:)=veclap_ijk(g_def,i,j,k,nx,ny,nz
-     .                             ,igrid,igrid,igrid,cnv
-     .                             ,diff=diff,alteom=alt__eom())
+     .                                 ,igrid,igrid,igrid,cnv
+     .                                 ,diff=diff,alteom=alt__eom())
           enddo
         enddo
       enddo
@@ -5010,8 +5021,9 @@ c     Local variables
 
 c     Begin program
 
-c$$$      cnv=-veclap (i,j,k,nx,ny,nz,igx,igy,igz,acnv,vol=vol)
-c$$$     .    +gradDiv(i,j,k,nx,ny,nz,igx,igy,igz,acnv,vol=vol,cnv=.true.)
+c$$$      cnv=-veclap (g_def,i,j,k,nx,ny,nz,igx,igy,igz,acnv,vol=vol)
+c$$$     .    +gradDiv(g_def,i,j,k,nx,ny,nz,igx,igy,igz,acnv,vol=vol
+c$$$     .            ,cnv=.true.)
 
       vec1 => acnv
       if (PRESENT(diff)) then
