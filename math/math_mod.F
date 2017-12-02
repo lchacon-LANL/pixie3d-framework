@@ -1402,38 +1402,54 @@ c     ##################################################################
 
 c     init_random_seed
 c     #########################################################################
-      SUBROUTINE init_random_seed(nproc,streamnum,output)
+      SUBROUTINE init_random_seed(nproc,streamnum,output,seed)
 
+c     -------------------------------------------------------------------------
+c     Initializes random seed for stream number "streamnum" of "nproc" #
+c     of processors
+c     -------------------------------------------------------------------------
+      
         implicit none
         integer,INTENT(IN) :: streamnum,nproc
         logical,INTENT(IN) :: output
+        integer,INTENT(IN),optional :: seed
 
 #ifdef _SPRNG
-        integer :: nstreams, junk,seed
+        integer :: nstreams, junk,sd
         integer :: gtype
         real(8) :: rn
 
         gtype = 1       !lcg
-        seed = 985456376      
+        if (PRESENT(seed)) then
+          sd = 985456376 + 37*seed
+        else
+          sd = 985456376
+        endif
         nstreams = nproc
         
-        stream = init_sprng(gtype,streamnum,nstreams,seed,SPRNG_DEFAULT)   
+        stream = init_sprng(gtype,streamnum,nstreams,sd,SPRNG_DEFAULT)   
 
         if (output) junk = print_sprng(stream)
 #else
-        INTEGER :: i, n, clock
-        INTEGER, DIMENSION(:), ALLOCATABLE :: seed
+        INTEGER :: i, n, clock, sd
+        INTEGER, DIMENSION(:), ALLOCATABLE :: sd2
 
         CALL RANDOM_SEED(size = n)
-        ALLOCATE(seed(n))
+        ALLOCATE(sd2(n))
+
+        if (PRESENT(seed)) then
+          sd = seed
+        else
+          sd = streamnum
+        endif
           
 c$$$        CALL SYSTEM_CLOCK(COUNT=clock)
 c$$$          
 c$$$        seed = clock + 37 * (/ (i - 1, i = 1, n) /)
-        seed = streamnum + 37 * (/ (i - 1, i = 1, n) /)
-        CALL RANDOM_SEED(PUT = seed)
+        sd2 = sd + 37 * (/ (i - 1, i = 1, n) /)
+        CALL RANDOM_SEED(PUT = sd2)
           
-        DEALLOCATE(seed)
+        DEALLOCATE(sd2)
 #endif
         end subroutine init_random_seed
   
