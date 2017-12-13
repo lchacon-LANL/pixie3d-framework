@@ -102,7 +102,7 @@ ifeq ($(HOST),jetta)
 
       #Determined via modules
       HDF5_LIBS =-L$(PHDF5_LIB) -lhdf5hl_fortran -lhdf5_fortran -lhdf5_hl -lhdf5 -lz -lm 
-      HDF5_MOD  = $(PHDF5_LIB)
+      HDF5_MOD  = $(PHDF5_INC)
       HDF5_INC  = $(PHDF5_INC)
 
       ifeq ($(PIT),t)
@@ -115,7 +115,7 @@ ifeq ($(HOST),jetta)
       ADIOS_METHOD = MPI
 
       ADIOS_HOME = /nh/u/lchacon/lib/adios-1.10.0
-      ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -lmxml
+      ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1
       ADIOS_VER  = 1.10.0
 
       SPRNG = t
@@ -128,8 +128,8 @@ ifeq ($(HOST),jetta)
       HDF5 = t
 
       #Determined via modules
-      HDF5_LIBS =-L$(SHDF5_LIB) -lhdf5hl_fortran -lhdf5_fortran -lhdf5_f90cstub -lhdf5_hl -lhdf5 -lz -lszip -lm -ldl
-      HDF5_MOD  = $(SHDF5_LIB)
+      HDF5_LIBS =-L$(SHDF5_LIB) -lhdf5hl_fortran -lhdf5_fortran -lhdf5_hl -lhdf5 -lz -lm -ldl
+      HDF5_MOD  = $(SHDF5_INC)
       HDF5_INC  = $(SHDF5_INC)
 
       ADIOS = f
