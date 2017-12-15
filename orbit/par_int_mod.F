@@ -1693,7 +1693,7 @@ c     Setup periodic integrator
           bg(:,:,:,1:2) = 0d0
           bg(:,:,:,3  ) = -psig
 
-          call orbit_setup(g_def,igrid
+          call orbit_setup(g_def
      .                    ,bg(:,:,:,1)
      .                    ,bg(:,:,:,2)
      .                    ,bg(:,:,:,3)
@@ -1715,7 +1715,7 @@ c     Setup periodic integrator
 
         else
 
-          call orbit_setup(g_def,igrid
+          call orbit_setup(g_def
      .                    ,bg(:,:,:,1)
      .                    ,bg(:,:,:,2)
      .                    ,bg(:,:,:,3)
@@ -1760,7 +1760,7 @@ c     Setup orbit integrator
 
         else
 
-          call orbit_setup(g_def,igrid
+          call orbit_setup(g_def
      .                    ,bg(:,:,:,1)
      .                    ,bg(:,:,:,2)
      .                    ,bg(:,:,:,3)
@@ -1853,7 +1853,7 @@ c     Begin program
 
 c     Setup orbits
 
-        call orbit_setup(g_def,igrid
+        call orbit_setup(g_def
      .                  ,bg(:,:,:,1)
      .                  ,bg(:,:,:,2)
      .                  ,bg(:,:,:,3)
@@ -2073,7 +2073,7 @@ c diag ****
 
 c     Orbit initialization on global array
 
-        call orbit_setup(g_def,igrid
+        call orbit_setup(g_def
      .                  ,bg(:,:,:,1)
      .                  ,bg(:,:,:,2)
      .                  ,bg(:,:,:,3)
@@ -2478,7 +2478,7 @@ c     Begin program
 c     Setup orbits
 
           !Orbit initialization
-          call orbit_setup(g_def,igrid
+          call orbit_setup(g_def
      .                    ,bg(:,:,:,1)
      .                    ,bg(:,:,:,2)
      .                    ,bg(:,:,:,3)

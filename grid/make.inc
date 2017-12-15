@@ -10,7 +10,10 @@ LIBNAME = libgrid.a
 
 COMMONDIR = ..
 
-SUBDIRS = $(COMMONDIR)/math $(COMMONDIR)/io $(COMMONDIR)/interpolation/1d_int
+SUBDIRS = $(COMMONDIR)/math \
+          $(COMMONDIR)/io \
+          $(COMMONDIR)/OMP \
+	  $(COMMONDIR)/interpolation/1d_int
 
 #Define dependencies
 
@@ -28,7 +31,9 @@ grid_mg_mod.o: grid_mpi_mod.o grid_operations_mod.o
 
 grid_bc_mod.o: grid_mg_mod.o grid_operations_mod.o
 
-grid_metric_mod.o: grid_bc_mod.o grid_anal_map_mod.o grid_debug_mod.o
+grid_spline_mod.o: grid_bc_mod.o
+
+grid_metric_mod.o: grid_spline_mod.o grid_anal_map_mod.o grid_debug_mod.o
 
 grid_create_mod.o: grid_metric_mod.o
 

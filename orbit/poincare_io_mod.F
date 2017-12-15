@@ -157,7 +157,7 @@ c     Begin program
         call createGrid(nxg,nyg,nzg,pxmin,pxmax,pymin,pymax,pzmin,pzmax
      .                 ,g_poinc)
 
-        call orbit_setup(g_poinc,1
+        call orbit_setup(g_poinc
      .                  ,bx,by,bz,bxcar,bycar,bzcar
      .                  ,jac,xmap,bcnd
      .                  ,tmax=tmax
@@ -247,7 +247,7 @@ c     Orbit initialization on global array
         call createGrid(nxg,nyg,nzg,pxmin,pxmax,pymin,pymax,pzmin,pzmax
      .                 ,g_poinc)
 
-        call orbit_setup(g_poinc,1
+        call orbit_setup(g_poinc
      .                  ,bg(:,:,:,1)
      .                  ,bg(:,:,:,2)
      .                  ,bg(:,:,:,3)

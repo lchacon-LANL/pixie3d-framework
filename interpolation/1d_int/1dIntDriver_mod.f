@@ -322,6 +322,72 @@ c     End
 
       end function q_int
 
+c     q_int_vec
+c     ##################################################################
+      function q_int_vec(vec,x,x1,derv) result(q_int)
+      implicit      none                          ! for safe FORTRAN
+c     ------------------------------------------------------------------
+c     Quadratically interpolate vec(x) or its derivatives at x1 using
+c     the nodes (j-1),j,(j+1).
+c     ------------------------------------------------------------------
+
+c     Variables in call
+
+      integer    :: derv
+      real(8)    :: x1,x(:),vec(:,:),q_int(size(x))
+ 
+c     Local variables
+
+      integer    :: jm,jp,jj,j,nx
+      real(8)    :: den1,den2,den3
+
+c     Begin program
+
+      nx = size(x)
+      
+      call locatep (x,nx,x1,j)
+
+      j = max(2,min(j,nx-1))  !Extrapolation on both sides
+
+      jm = j-1
+      jj = j
+      jp = j+1
+
+      den1 = 1./((x(jj)-x(jm))*(x(jj)-x(jp)))
+      den2 = 1./((x(jp)-x(jm))*(x(jp)-x(jj)))
+      den3 = 1./((x(jm)-x(jj))*(x(jm)-x(jp)))
+
+      select case(derv)
+      case(-1)                  !Integral
+        q_int =   vec(j ,:)*den1*(x1**3/3
+     .                          -(x(jm)+x(jp))*x1**2/2
+     .                           +x(jm)*x(jp) *x1)
+     .          + vec(jp,:)*den2*(x1**3/3
+     .                          -(x(jm)+x(jj))*x1**2/2
+     .                           +x(jm)*x(jj) *x1)
+     .          + vec(jm,:)*den3*(x1**3/3
+     .                          -(x(jp)+x(jj))*x1**2/2
+     .                           +x(jp)*x(jj) *x1)
+      case(0)
+        q_int =   vec(j ,:)*den1*(x1 -x(jm))*(x1 - x(jp))
+     .          + vec(jp,:)*den2*(x1 -x(jm))*(x1 - x(jj))
+     .          + vec(jm,:)*den3*(x1 -x(jj))*(x1 - x(jp))
+      case(1)
+        q_int =   vec(j ,:)*den1*((x1 -x(jm)) + (x1 -x(jp)))
+     .          + vec(jp,:)*den2*((x1 -x(jm)) + (x1 -x(jj)))
+     .          + vec(jm,:)*den3*((x1 -x(jj)) + (x1 -x(jp)))
+      case(2)
+        q_int = 2*( vec(j ,:)*den1
+     .            + vec(jp,:)*den2
+     .            + vec(jm,:)*den3)
+      case default
+        q_int = 0d0
+      end select
+
+c     End
+
+      end function q_int_vec
+
 c     lin_int
 c     ##################################################################
       function lin_int (nx,vec,x,x1,derv)

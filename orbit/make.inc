@@ -12,15 +12,14 @@ COMMONDIR = ..
 
 SUBDIRS = $(COMMONDIR)/math\
           $(COMMONDIR)/io\
-          $(COMMONDIR)/grid\
+	  $(COMMONDIR)/OMP\
           $(COMMONDIR)/interpolation/1d_int\
+          $(COMMONDIR)/grid\
 	  $(COMMONDIR)/newtonGMRES\
 	  $(COMMONDIR)/var_setup\
-	  $(COMMONDIR)/driver_setup\
-	  $(COMMONDIR)/OMP
+	  $(COMMONDIR)/driver_setup
 
 #Define dependencies
 
-spline_mod.o: lyapn_mod.o
-orbit_mod.o: spline_mod.o
+orbit_mod.o: lyapn_mod.o
 par_int_mod.o: orbit_mod.o poincare_io_mod.o

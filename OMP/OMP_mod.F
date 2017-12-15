@@ -6,8 +6,6 @@ c ######################################################################
       use omp_lib
 #endif
 
-      use grid, ONLY: pstop
-
       integer :: thr_tot=-1,thr_num=-1,ilup=0
 !$OMP THREADPRIVATE(thr_tot,thr_num,ilup)
       integer :: itot
@@ -113,8 +111,9 @@ c$$$!$      read(ev,'(i2)') thr_tot
 #endif
 
         if (thr_tot == 0) then
-          call pstop("check_omp_numthreads"
-     .         ,"Define OMP_NUM_THREADS environment variable")
+          write (*,*) "Define OMP_NUM_THREADS environment variable"
+          write (*,*) "Aborting in routine check_omp_numthreads"
+          stop
         else
           if (io) then
             write (*,*)          '******************'
