@@ -2223,7 +2223,7 @@ c     Begin program
       if (PRESENT(no_bc)) then
         nobc = no_bc
       else
-        nobc = .true.
+        nobc = .false.
       endif
 
       xmin = g_def%gxmin
