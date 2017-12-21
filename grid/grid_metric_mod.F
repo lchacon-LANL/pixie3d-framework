@@ -721,7 +721,7 @@ c     Call variables
 
 c     Local variables
 
-        integer :: bcnd(6),iibc,order
+        integer :: bcnd(6),order
         real(8) :: x0_j(0:nxl+1,0:nyl+1,0:nzl+1)
 
 c     Begin program
@@ -1284,7 +1284,7 @@ c     Evaluate dr=dx/dxi vectors
 c     Apply BCs on dr (including SP)
 
         call dr_bc(g_def,igrid,dr)
-        
+
 c     Evaluate rest of grid quantities
 
         do k = kmin,kmax
@@ -1992,7 +1992,7 @@ c     Modify BC setup
         bcs(:,2) = bcond
         bcs(:,3) = bcond
 
-        where (bcs == SP) bcs = DEF
+c$$$        where (bcs == SP) bcs = DEF
 
 c$$$        if (g_def%nglx == 1 .and. bcPER(1)) bcs(1:2,:) = DEF
 c$$$        if (g_def%ngly == 1 .and. bcPER(2)) bcs(3:4,:) = DEF
@@ -2003,31 +2003,16 @@ c$$$                                            !to preserve helical info
 
 c     Impose BCs
 
-c$$$cc        call set_force_corners(.false.)
-c$$$
-c$$$        do i=1,3
-c$$$          call imposeBConVector_ez(g_def,igrid,dr(:,:,:,i,:)
-c$$$     .                            ,.false.,bcs,2)
-c$$$        enddo
-c$$$
-c$$$cc        call set_force_corners(.false.)
-
         do i=1,3
-          do j=1,3
-            call topol_bc(g_def,igrid,nx,ny,nz,dr(:,:,:,i,j),bcs(:,1))
-c$$$            if (bcSP()) then
-c$$$              igxbc = igrid
-c$$$              igybc = igrid
-c$$$              igzbc = igrid
-c$$$
-c$$$              nxbc = nx
-c$$$              nybc = ny
-c$$$              nzbc = nz
-c$$$              !dr behaves like a covariant vector
-c$$$              call vectorSingularBC(g_def,j,dr(:,:,:,i,j),.true.)
-c$$$            endif
-          enddo
+          call imposeBConVector_ez(g_def,igrid,dr(:,:,:,i,:)
+     .                            ,.false.,bcs,2)
         enddo
+
+c$$$        do i=1,3
+c$$$          do j=1,3
+c$$$            call topol_bc(g_def,igrid,nx,ny,nz,dr(:,:,:,i,j),bcs(:,1))
+c$$$          enddo
+c$$$        enddo
 
 c     End program
 
