@@ -1,5 +1,7 @@
       module math
 
+      use io
+
       INTERFACE  solve_quadratic
         module procedure solve_quadratic_real,solve_quadratic_cmplx
       END INTERFACE
@@ -29,8 +31,6 @@
       INTERFACE chkRoundOff
         module procedure chkRoundOff_dp,chkRoundOff_sp
       END INTERFACE
-
-
 
 #ifdef _SPRNG
 #include "sprng_f.h"
@@ -914,40 +914,6 @@ c     End program
       end function poly
 
       end function solve_cubic_cmplx
-
-c     int2char
-c     ################################################################
-      function int2char(n) result (chr)
-
-      implicit none
-
-      integer      :: n
-      character(10):: chr
-
-      integer      :: i,exp,k,j
-      character(3) :: c
-
-      if (abs(n) > 0) then
-         exp = int(log(float(n))/log(1d1))
-      else
-         exp = 0
-      endif
-
-      if (n >= 0) then
-        chr=''
-      else
-        chr='-'
-      endif
-
-      k = abs(n)
-      do i=exp,0,-1
-         j = k/10**i
-         c = achar(48+j)
-         chr = trim(chr)//trim(c)
-         if (i > 0 .and. j /= 0) k = mod(k,j*10**i)
-      enddo
-
-      end function int2char
 
 c     fmed_scl
 c     ###############################################################
@@ -1841,5 +1807,140 @@ CS    ERFCX = RESULT
 C---------- Last card of DERFCX ----------
       END
 
+c     blockSolve
+c     #################################################################
+      subroutine blockSolve(size,mat,icol,rhs,x)
+
+c     -----------------------------------------------------------------
+c     Solves block systems using a direct solve approach. Requires
+c     linking with LAPACK.
+c
+c     In the call sequence, we have:
+c       * size (integer): block size
+c       * mat  (real array): block matrix
+c       * icol (integer) : number of columns of rhs
+c       * rhs  (real array): rhs of equation
+c       * x    ( "     "   ): solution (output)
+c       * smoother (character): identifies calling subroutine (JB, GS)
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer    :: size,icol
+
+        real(8)    :: mat(size,size),rhs(size,icol),x(size,icol)
+
+c     Local variables
+
+        integer    :: ipiv(size),info
+
+        real(8)    :: mat2(size,size)
+
+        external dgesv
+
+c     Begin program
+
+        mat2 = mat !Avoid overwritting mat
+        x = rhs
+
+        call dgesv(size,icol,mat2,size,ipiv,x,size,info) !LAPACK routine
+
+        call LAPACK_error(info)
+
+      end subroutine blockSolve
+
+c     blockInv
+c     #################################################################
+      subroutine blockInv(size,mat)
+
+c     -----------------------------------------------------------------
+c     Inverts block systems using a direct solve approach. Requires
+c     linking with LAPACK.
+c
+c     In the call sequence, we have:
+c       * size (integer): block size
+c       * mat  (real array): block matrix on input, inverse on output
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer    :: size
+
+        real(8)    :: mat(size,size)
+
+c     Local variables
+
+        integer    :: ipiv(size),info,lwork
+
+        real(8),allocatable,dimension(:) :: work
+
+        external   dgetri,dgetrf
+
+c     Begin program
+
+c     Find LU decomposition
+
+        call dgetrf(size,size,mat,size,ipiv,info) !LAPACK routine
+
+        call LAPACK_error(info)
+
+c     Invert matrix
+
+        !Workspace query
+        lwork=-1
+cc        lwork=size
+        allocate(work(1))
+        call dgetri(size,mat,size,ipiv,work,lwork,info) !LAPACK routine
+        lwork=floor(work(1))
+        deallocate(work)
+
+        !Matrix inversion
+        allocate(work(lwork))
+        call dgetri(size,mat,size,ipiv,work,lwork,info) !LAPACK routine
+        deallocate(work)
+
+        call LAPACK_error(info)
+
+      end subroutine blockInv
+
+c     LAPACK_error
+c     #################################################################
+      subroutine LAPACK_error(info)
+
+c     -----------------------------------------------------------------
+c     Error routine for LAPACK calls
+c     -----------------------------------------------------------------
+
+        use io
+      
+        implicit none
+
+c     Call variables
+
+        integer    :: info
+
+c     Local variables
+
+        character(50) :: messg
+
+c     Begin program
+
+        if (info /= 0) then
+          if (info < 0) then
+            messg = 'Problem in factorization in argument '
+     .             //int2char(-info)
+            call sstop(0,'blockSolve',messg)
+          else
+            call sstop(0,'blockSolve','Matrix is singular')
+          endif
+        endif
+
+c     End program
+
+      end subroutine LAPACK_error
 
       end module math
