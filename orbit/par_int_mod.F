@@ -4,7 +4,7 @@ c #############################################################################
 
         use orbit
 
-        use math, ONLY: factorial,pi
+        use math, ONLY: factorial,pi,calerf
 
         integer,private :: kmax=100      !Maximum number of Fourier modes in Fourier Green's f. form
         real(8),private :: t_tol,T_cutoff2,S_cutoff2,alpha=0d0
