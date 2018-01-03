@@ -555,7 +555,7 @@ c     Call variables
 c     Local variables
 
       integer :: ig,jg,kg
-      real(8) :: x1,x2,x3,x,y,z
+      real(8) :: x1,x2,x3,x,y,z,gp(ngparams),mm,kk,aa
 
 c     Begin program
 
@@ -567,12 +567,24 @@ c     Begin program
      .                            ,ig,jg,kg,x,y,z)
 
       select case (coords)
-      case('cyl')
+      case('cyl','hel')
         !Transform to cylindrical radius (may be mapped)
         rr = sign(1d0,x1)*sqrt(x**2+y**2)
         th = atan2(y,x)
         if (rr < 0d0) th = th + pi
         zz = z
+c$$$      case('hel')
+c$$$        gp = g_def%params
+c$$$
+c$$$        mm = gp(1)
+c$$$        kk = gp(2)
+c$$$        aa = kk/mm
+c$$$
+c$$$        !Transform to cylindrical radius (may be mapped)
+c$$$        rr = sign(1d0,x1)*sqrt(x**2+y**2)
+c$$$        th = atan2(y,x) + aa*z
+c$$$        if (rr < 0d0) th = th + pi
+c$$$        zz = z
       case default
         call pstop('find_polar_coords',"Coordinates not implemented")
       end select
