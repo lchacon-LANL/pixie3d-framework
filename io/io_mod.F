@@ -351,6 +351,40 @@ c     End program
 
       end subroutine sstop
 
+c     int2char
+c     ################################################################
+      function int2char(n) result (chr)
+
+      implicit none
+
+      integer      :: n
+      character(10):: chr
+
+      integer      :: i,exp,k,j
+      character(3) :: c
+
+      if (abs(n) > 0) then
+         exp = int(log(float(n))/log(1d1))
+      else
+         exp = 0
+      endif
+
+      if (n >= 0) then
+        chr=''
+      else
+        chr='-'
+      endif
+
+      k = abs(n)
+      do i=exp,0,-1
+         j = k/10**i
+         c = achar(48+j)
+         chr = trim(chr)//trim(c)
+         if (i > 0 .and. j /= 0) k = mod(k,j*10**i)
+      enddo
+
+      end function int2char
+
       end module io
 
 c module file_io
@@ -359,7 +393,7 @@ c ########################################################################
 
       use io
 
-      use math
+cc      use math
 
       contains
 

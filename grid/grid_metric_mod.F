@@ -55,7 +55,6 @@ c     #################################################################
 
       end function alt__eom
 
-
 c     checkMapDatabase
 c     #################################################################
       function checkMapDatabase() result(is_map)
@@ -78,7 +77,7 @@ c     Begin program
 
 c     find_dr_1st
 c     #####################################################################
-      function find_dr_1st(i,j,k,igrid,hex,hey,hez,g_def,x) result(dr)
+      function find_dr_1st(g_def,i,j,k,igrid,hex,hey,hez,x) result(dr)
 
 c     ---------------------------------------------------------------------
 c     This routine finds dx/d_xi tensor at the point (i,j,k)
@@ -93,10 +92,10 @@ c     ---------------------------------------------------------------------
 
 c     Call variables
 
+        type(grid_mg_def),pointer :: g_def
+
         integer    :: i,j,k,igrid,hex,hey,hez
         real(8)    :: dr(3,3),x(0:,0:,0:,:)
-
-        type(grid_mg_def),pointer :: g_def
 
 c     Local variables
 
@@ -232,25 +231,21 @@ cc        endif
 
 c     find_dr_2nd
 c     #####################################################################
-      function find_dr_2nd(i,j,k,igrid,g_def,x) result(dr)
+      function find_dr_2nd(g_def,i,j,k,igrid,x) result(dr)
 
 c     ---------------------------------------------------------------------
 c     This routine finds dx/d_xi tensor at the point (i,j,k)
-c     from the position vector x. It can do this for:
-c        * Cell centers: (hex,hey,hez)=(0,0,0)
-c        * Faces, e.g. (hex,hey,hez)=(1,0,0) for i+1/2 face.
-c        * Corners, e.g. (hex,hey,hez)=(1,1,1) for i+1/2,j+1/2,k+1/2 corner.
-c     on an arbitrary grid level.
+c     from the position vector x. 
 c     ---------------------------------------------------------------------
 
         implicit none
 
 c     Call variables
 
+        type(grid_mg_def),pointer :: g_def
+
         integer :: i,j,k,igrid
         real(8) :: dr(3,3),x(0:,0:,0:,:)
-
-        type(grid_mg_def),pointer :: g_def
 
 c     Local variables
 
@@ -363,6 +358,223 @@ c     Begin program
       end function dr_dxi
 
       end function find_dr_2nd
+
+c     find_d2r
+c     #####################################################################
+      function find_d2r(g_def,igrid,x) result(d2r)
+
+c     ---------------------------------------------------------------------
+c     This routine finds d2x/d_xi/d_xj tensor everywhere on the mesh (w BCs)
+c     ---------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        type(grid_mg_def),pointer :: g_def
+
+        integer :: igrid
+        real(8) :: x(0:,0:,0:,:),d2r(0:size(x,1)-1
+     .                              ,0:size(x,2)-1
+     .                              ,0:size(x,3)-1,3,3,3)
+
+c     Local variables
+
+        integer :: i,j,k,nx,ny,nz,bcs(6,3),m
+        real(8) :: dr(0:size(x,1)-1
+     .               ,0:size(x,2)-1
+     .               ,0:size(x,3)-1,3,3)
+        
+c     Begin program
+
+        nx = g_def%nxv(igrid)
+        ny = g_def%nyv(igrid)
+        nz = g_def%nzv(igrid)
+
+c     Evaluate dr=dx/dxi vectors at vertices
+
+        do k = klom,khi
+          do j = jlom,jhi
+            do i = ilom,ihi
+              dr(i,j,k,:,:) = find_dr(g_def,i,j,k,igrid,1,1,1,x)
+            enddo
+          enddo
+        enddo
+
+c     Evaluate d2r=d2x/dxi/dxj hessian at cell centers
+
+        do k = klo,khi
+          do j = jlo,jhi
+            do i = ilo,ihi
+              do m= 1,3
+                d2r(i,j,k,:,:,m)=find_dr(g_def,i-1,j-1,k-1,igrid,1,1,1
+     .                                  ,dr(:,:,:,:,m))
+              enddo
+            enddo
+          enddo
+        enddo
+
+c     Apply BCs
+        
+        bcs(:,1) = bcond
+        bcs(:,2) = bcond
+        bcs(:,3) = bcond
+        where (bcs == DEF.or.bcs == SP) bcs = EXT
+        do k=1,3
+          do j=1,3
+            do i=1,3
+              call setMGBC(g_def,0,1,nx,ny,nz,igrid
+     .                    ,d2r(:,:,:,i:i,j,k),bcs(:,1:1),iorder=2)
+c$$$              call topol_bc(g_def,igrid,nx,ny,nz
+c$$$     .             ,g_def%gmetric%grid(igrid)%Gamma(:,:,:,i,j,k),bcond)
+            enddo
+          enddo
+        enddo
+
+c$$$        i0 = min(max(i,1),nx)
+c$$$        j0 = min(max(j,1),ny)
+c$$$        k0 = min(max(k,1),nz)
+c$$$
+c$$$        call getMGmap(g_def,i0,j0,k0,igx,igy,igz,ig,jg,kg)
+c$$$
+c$$$c     First derivatives
+c$$$
+c$$$        dr = find_dr(g_def,i,j,k,igrid,x)
+c$$$
+c$$$c     Second derivatives
+c$$$
+c$$$        do m=1,3
+c$$$          d2r(:,:,m) = find_dr(g_def,i,j,k,igrid,dr(:,m))
+c$$$        enddo
+c$$$
+c$$$c     
+c$$$        !X
+c$$$        ip = i0+1
+c$$$        im = i0-1
+c$$$c$$$        ip = min(i0+1 + max(i0-i,0),nx+1)  !Augment on the right at left bdry
+c$$$c$$$        im = max(i0-1 + min(i0-i,0),0   )  !Augment on the left at right bdry
+c$$$
+c$$$        igp = ig+(ip-i0)
+c$$$        igm = ig+(im-i0)
+c$$$
+c$$$cc        write (*,*) "i",i,i0,ip,im,2+2*max(i-i0,0)+min(i-i0,0)
+c$$$        pos = 2 + (i-i0)
+c$$$cc        if (ip-im == 3) pos = 2+2*max(i-i0,0)+min(i-i0,0)
+c$$$        d2r(:,1,1) = d2r_dxi(1,g_def%xx(igm:igp),x(im:ip,j0,k0,:),pos)
+c$$$
+c$$$        !Y
+c$$$        jp = j0+1
+c$$$        jm = j0-1
+c$$$c$$$        jp = min(j0+1 + max(j0-j,0),ny+1)  !Augment on the right at left bdry
+c$$$c$$$        jm = max(j0-1 + min(j0-j,0),0   )  !Augment on the left at right bdry
+c$$$
+c$$$        jgp = jg+(jp-j0)
+c$$$        jgm = jg+(jm-j0)
+c$$$
+c$$$cc        write (*,*) "j",j,j0,jp,jm,2+2*max(j-j0,0)+min(j-j0,0)
+c$$$        pos = 2
+c$$$        if (jp-jm == 3) pos = 2+2*max(j-j0,0)+min(j-j0,0)
+c$$$        d2r(:,2,2) = d2r_dxi(2,g_def%yy(jgm:jgp),x(i0,jm:jp,k0,:),pos)
+c$$$
+c$$$        !Z
+c$$$        kp = k0+1
+c$$$        km = k0-1
+c$$$c$$$        kp = min(k0+1 + max(k0-k,0),nz+1)  !Augment on the right at left bdry
+c$$$c$$$        km = max(k0-1 + min(k0-k,0),0   )  !Augment on the left at right bdry
+c$$$
+c$$$        kgp = kg+(kp-k0)
+c$$$        kgm = kg+(km-k0)
+c$$$
+c$$$cc        write (*,*) "k",k,k0,km,kp,2+2*max(k-k0,0)+min(k-k0,0)
+c$$$        pos = 2
+c$$$        if (kp-km == 3) pos = 2+2*max(k-k0,0)+min(k-k0,0)
+c$$$        d2r(:,3,3) = d2r_dxi(3,g_def%zz(kgm:kgp),x(i0,j0,km:kp,:),pos)
+c$$$
+c$$$c diag ****
+c$$$        if ((i==0.or.i==1).and.j==1.and.k==1.and.igrid==1) then
+c$$$c$$$          pos = 2
+c$$$c$$$          if (ip-im == 3) pos = 2+2*max(i-i0,0)+min(i-i0,0)
+c$$$c$$$          write (*,*) "i",i,i0,im,ip,pos
+c$$$c$$$          write (*,*) "x ",g_def%xx(igm:igp)
+c$$$c$$$          write (*,*) "x0",g_def%xx(pos)
+c$$$c$$$          write (*,*) "car1",x(im:ip,j,k,1)
+c$$$c$$$          write (*,*) "car2",x(im:ip,j,k,2)
+c$$$c$$$          write (*,*) "car3",x(im:ip,j,k,3)
+c$$$c$$$          write (*,*) d2r(:,1)
+c$$$
+c$$$          pos = 2
+c$$$          if (jp-jm == 3) pos = 2+2*max(j-j0,0)+min(j-j0,0)
+c$$$          write (*,*) "j",j,j0,jm,jp,pos
+c$$$          write (*,*) "y ",g_def%yy(jgm:jgp)
+c$$$          write (*,*) "y0",g_def%yy(pos)
+c$$$          write (*,*) "car1",x(i0,jm:jp,k0,1)
+c$$$          write (*,*) "car2",x(i0,jm:jp,k0,2)
+c$$$          write (*,*) "car3",x(i0,jm:jp,k0,3)
+c$$$          write (*,*) d2r(:,2)
+c$$$
+c$$$c$$$          pos = 2
+c$$$c$$$          if (kp-km == 3) pos = 2+2*max(k-k0,0)+min(k-k0,0)
+c$$$c$$$          write (*,*) "k",k,k0,km,kp,pos
+c$$$c$$$          write (*,*) "z ",g_def%zz(kgm:kgp)
+c$$$c$$$          write (*,*) "z0",g_def%zz(pos)
+c$$$c$$$          write (*,*) "car1",x(i,j,km:kp,1)
+c$$$c$$$          write (*,*) "car2",x(i,j,km:kp,2)
+c$$$c$$$          write (*,*) "car3",x(i,j,km:kp,3)
+c$$$c$$$          write (*,*) d2r(:,3)
+c$$$        endif
+c$$$c diag ****
+c$$$      contains
+c$$$
+c$$$c     d2r_dxi
+c$$$c     #################################################################
+c$$$      function d2r_dxi(dim,x,r,pos) result(d2r)
+c$$$
+c$$$        implicit none
+c$$$
+c$$$        integer :: pos,dim
+c$$$        real(8) :: x(:),r(:,:),d2r(1)
+c$$$
+c$$$        integer :: n
+c$$$        
+c$$$c     Begin program
+c$$$
+c$$$        n = size(x)
+c$$$
+c$$$        if (n < 3) then
+c$$$          call pstop("d2r_dxi","Cannot compute second derivative")
+c$$$        endif
+c$$$
+c$$$        call IntDriver1d(n,x,r(:,dim),1,x(pos:pos),d2r,n-1,deriv=2)
+c$$$
+c$$$      end function d2r_dxi
+c$$$
+c$$$c     dr_dxi
+c$$$c     #################################################################
+c$$$      function dr_dxi(x,r,pos) result(dr)
+c$$$
+c$$$        implicit none
+c$$$
+c$$$        integer :: pos
+c$$$        real(8) :: x(:),r(:,:),dr(size(r,2))
+c$$$
+c$$$        integer :: n
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$        
+c$$$        n = size(x)
+c$$$
+c$$$        if (n < 3) then
+c$$$          call pstop("d2r_dxi","Cannot compute second derivative")
+c$$$        endif
+c$$$
+c$$$        call IntDriver1d(n,x,r(:,1),1,x(pos:pos),dr(1:1),n-1,deriv=1)
+c$$$        call IntDriver1d(n,x,r(:,2),1,x(pos:pos),dr(2:2),n-1,deriv=1)
+c$$$        call IntDriver1d(n,x,r(:,3),1,x(pos:pos),dr(3:3),n-1,deriv=1)
+c$$$
+c$$$      end function dr_dxi
+
+      end function find_d2r
 
 c     coarsen_map
 c     #################################################################
@@ -509,7 +721,7 @@ c     Call variables
 
 c     Local variables
 
-        integer :: bcnd(6),iibc,order
+        integer :: bcnd(6),order
         real(8) :: x0_j(0:nxl+1,0:nyl+1,0:nzl+1)
 
 c     Begin program
@@ -705,8 +917,8 @@ c       ANALYTICAL QUANTITIES **********************************
             enddo
           enddo
 
-          !Zero force condition on Christoffel symbols (only on finest grid)
-          if (igrid == 1) call hessianZeroForceCorr(igrid)
+c$$$          !Zero force condition on Christoffel symbols (only on finest grid)
+c$$$          if (igrid == 1) call hessianZeroForceCorr(g_def)
 
 c       NUMERICAL QUANTITIES ***********************************
 
@@ -718,9 +930,11 @@ c       NUMERICAL QUANTITIES ***********************************
 
           call findVertexMap(g_def)
 
+          call findCellMetrics(g_def)
+
           call findVertexMetrics(g_def)
 
-          call findCellMetrics(g_def)
+          call Christoffel(g_def)
 
         endif
 
@@ -811,22 +1025,60 @@ c     Local variables
 
         real(8),pointer,dimension(:,:,:,:) :: xc,xv
 
+        integer :: ig1,jg1,kg1
+
+        real(8) :: x1,y1,z1
+
 c     Begin program
 
         xv => g_def%gmetric%grid(igrid)%car_v
 
         if ((.not.vmap_present).or.(igrid > 1)) then
 
-          xc => g_def%gmetric%grid(igrid)%car !Cell center map
+          if (checkAnalMapDatabase()) then
 
-          xv(0:nx,0:ny,0:nz,:) = 0.125*(xc(0:nx  ,0:ny  ,0:nz  ,:)
-     .                                 +xc(0:nx  ,1:ny+1,0:nz  ,:)
-     .                                 +xc(0:nx  ,0:ny  ,1:nz+1,:)
-     .                                 +xc(0:nx  ,1:ny+1,1:nz+1,:)
-     .                                 +xc(1:nx+1,0:ny  ,0:nz  ,:)
-     .                                 +xc(1:nx+1,1:ny+1,0:nz  ,:)
-     .                                 +xc(1:nx+1,0:ny  ,1:nz+1,:)
-     .                                 +xc(1:nx+1,1:ny+1,1:nz+1,:))
+            do k = 0,nz
+              do j = 0,ny
+                do i = 0,nx
+                  xv(i,j,k,:) = map(g_def,i,j,k,igx,igy,igz
+     .                             ,vertex=.true.)
+                enddo
+              enddo
+            enddo
+
+          else
+
+            xc => g_def%gmetric%grid(igrid)%car !Cell center map
+
+c$$$            call setupSplines(g_def,igrid,2,bcond)
+c$$$
+c$$$            call splineX(xc)
+c$$$
+c$$$            do k = 0,nz
+c$$$              do j = 0,ny
+c$$$                do i = 0,nx
+c$$$                  call getCurvilinearCoordinates(g_def,i,j,k,igx,igy,igz
+c$$$     .                                          ,ig1,jg1,kg1,x1,y1,z1
+c$$$     .                                          ,vertex=.true.)
+c$$$
+c$$$                  call evalX(x1,y1,z1,xv(i,j,k,1)
+c$$$     .                               ,xv(i,j,k,2)
+c$$$     .                               ,xv(i,j,k,3))
+c$$$                enddo
+c$$$              enddo
+c$$$            enddo
+c$$$
+c$$$            call killSplines
+
+            xv(0:nx,0:ny,0:nz,:) = 0.125*(xc(0:nx  ,0:ny  ,0:nz  ,:)
+     .                                   +xc(0:nx  ,1:ny+1,0:nz  ,:)
+     .                                   +xc(0:nx  ,0:ny  ,1:nz+1,:)
+     .                                   +xc(0:nx  ,1:ny+1,1:nz+1,:)
+     .                                   +xc(1:nx+1,0:ny  ,0:nz  ,:)
+     .                                   +xc(1:nx+1,1:ny+1,0:nz  ,:)
+     .                                   +xc(1:nx+1,0:ny  ,1:nz+1,:)
+     .                                   +xc(1:nx+1,1:ny+1,1:nz+1,:))
+          endif
 
         endif
 
@@ -852,25 +1104,14 @@ c     Call variables
 
 c     Local variables
 
-        integer :: he,nx,ny,nz,bcond_sv(6),bcs(6)
-cc     .            ,imin,imax,jmin,jmax,kmin,kmax
+        integer :: he,nx,ny,nz
 
         real(8) :: r(3,3),cnv(3,3),cov(3,3),gsub(3,3),gsup(3,3),jac,ijac
-     .            ,gamma(3,3,3),d2r(3,3)
 
         real(8),pointer,dimension(:,:,:,:,:) :: dr
         real(8),pointer,dimension(:,:,:,:)   :: xc
 
 c     Begin program
-
-cc        imin = ilom
-cc        imax = ihip
-cc
-cc        jmin = jlom
-cc        jmax = jhip
-cc
-cc        kmin = klom
-cc        kmax = khip
 
         he = 1
 
@@ -891,11 +1132,12 @@ c     Evaluate dr=dx/dxi vectors at vertices
         do k = klom,khi
           do j = jlom,jhi
             do i = ilom,ihi
-              dr(i,j,k,:,:)
-     .             = find_dr(i,j,k,igrid,he,he,he,g_def,xc)
+              dr(i,j,k,:,:) = find_dr(g_def,i,j,k,igrid,he,he,he,xc)
             enddo
           enddo
         enddo
+
+c     Impose BCs on dr
 
         call dr_bc_vrtx(g_def,igrid,dr)
 
@@ -964,48 +1206,6 @@ c     Evaluate grid quantities (at vertices)
           enddo
         enddo
 
-        if (lerr == 1) then
-           deallocate(dr)
-           nullify(xc)
-           return
-        endif
-
-c     Christoffel symbols (at cell centers; BCs enforced in findCellMetrics)
-
-cc        do k = kmin+1,kmax
-cc          do j = jmin+1,jmax
-cc            do i = imin+1,imax
-        do k = klo,khi
-          do j = jlo,jhi
-            do i = ilo,ihi
-
-              cov = 0.125*(
-     .             g_def%gmetric%grid(igrid)%cov_v(i-1,j-1,k-1,:,:)
-     .            +g_def%gmetric%grid(igrid)%cov_v(i  ,j-1,k-1,:,:)
-     .            +g_def%gmetric%grid(igrid)%cov_v(i-1,j  ,k-1,:,:)
-     .            +g_def%gmetric%grid(igrid)%cov_v(i  ,j  ,k-1,:,:)
-     .            +g_def%gmetric%grid(igrid)%cov_v(i-1,j-1,k  ,:,:)
-     .            +g_def%gmetric%grid(igrid)%cov_v(i  ,j-1,k  ,:,:)
-     .            +g_def%gmetric%grid(igrid)%cov_v(i-1,j  ,k  ,:,:)
-     .            +g_def%gmetric%grid(igrid)%cov_v(i-1,j-1,k  ,:,:))
-
-              do l=1,3
-                do m=1,3
-                  do n=1,3
-                    d2r=find_dr(i-1,j-1,k-1,igrid,1,1,1,g_def
-     .                         ,dr(:,:,:,:,m))
-                    gamma(l,m,n) = dot_product(d2r(:,n),cov(l,:))
-                  enddo
-                enddo
-                gamma(l,:,:) =0.5*(gamma(l,:,:)+transpose(gamma(l,:,:))) !Symmetrize
-              enddo
-
-              g_def%gmetric%grid(igrid)%Gamma(i,j,k,:,:,:) = gamma
-
-            enddo
-          enddo
-        enddo
-
 c     End program
 
         deallocate(dr)
@@ -1015,7 +1215,7 @@ c     End program
 
 c     findCellMetrics
 c     #################################################################
-      subroutine findCellMetrics(g_def)  !OLD version
+      subroutine findCellMetrics(g_def)
 
 c     -----------------------------------------------------------------
 c     Finds metrics at cell centers.
@@ -1029,7 +1229,7 @@ c     Call variables
 
 c     Local variables
 
-        integer :: he,imin,imax,jmin,jmax,kmin,kmax,nx,ny,nz
+        integer :: he,imin,imax,jmin,jmax,kmin,kmax,nx,ny,nz,bcs(6)
 
         real(8) :: r(3,3),car0(3),carp(3),carm(3),jac,ijac
      .            ,cnv(3,3),cov(3,3),gsub(3,3),gsup(3,3),vec(3)
@@ -1067,7 +1267,7 @@ c     Evaluate dr=dx/dxi vectors
           do k = kmin,kmax
             do j = jmin,jmax
               do i = imin,imax
-                dr(i,j,k,:,:) = find_dr(i,j,k,igrid,g_def,xc)
+                dr(i,j,k,:,:) = find_dr(g_def,i,j,k,igrid,xc)
               enddo
             enddo
           enddo
@@ -1075,7 +1275,7 @@ c     Evaluate dr=dx/dxi vectors
           do k = kmin,kmax
             do j = jmin,jmax
               do i = imin,imax
-                dr(i,j,k,:,:) = find_dr(i,j,k,igrid,0,0,0,g_def,xc)
+                dr(i,j,k,:,:) = find_dr(g_def,i,j,k,igrid,0,0,0,xc)
               enddo
             enddo
           enddo
@@ -1084,25 +1284,8 @@ c     Evaluate dr=dx/dxi vectors
 c     Apply BCs on dr (including SP)
 
         call dr_bc(g_def,igrid,dr)
-        
-c$$$        do i=1,3
-c$$$          do j=1,3
-c$$$            call topol_bc(g_def,igrid,nx,ny,nz,dr(:,:,:,i,j))
-c$$$            if (bcSP()) then
-c$$$              igxbc = igrid
-c$$$              igybc = igrid
-c$$$              igzbc = igrid
-c$$$
-c$$$              nxbc = nx
-c$$$              nybc = ny
-c$$$              nzbc = nz
-c$$$              !dr behaves like a covariant vector
-c$$$              call vectorSingularBC(g_def,j,dr(:,:,:,i,j),.true.)
-c$$$            endif
-c$$$          enddo
-c$$$        enddo
 
-c     Evaluate grid quantities
+c     Evaluate rest of grid quantities
 
         do k = kmin,kmax
           do j = jmin,jmax
@@ -1182,12 +1365,102 @@ c     Evaluate grid quantities
      .                         g_def%gmetric%grid(igrid)%jac(i,j,k)
      .                        *g_def%gmetric%grid(igrid)%dlvol(i,j,k)
 
-              !Christoffel symbols <<<<<<<<<<<<<<<<<<
+            enddo
+          enddo
+        enddo
+
+c     End program
+
+        deallocate(dr)
+        nullify(xc)
+
+      end subroutine findCellMetrics
+
+c     Christoffel
+c     #################################################################
+      subroutine Christoffel(g_def)
+
+c     -----------------------------------------------------------------
+c     Compute Christoffel symbols of the second kind
+c     -----------------------------------------------------------------
+
+        implicit  none
+
+c     Call variables
+
+        type(grid_mg_def),pointer :: g_def
+
+c     Local variables
+
+        integer :: i,j,k,l,m,n,he,bcs(6,3)
+        real(8) :: r(3,3),cov(3,3),d2_r(3,3,3),gamma(3,3,3)
+
+        real(8),pointer,dimension(:,:,:,:,:,:) :: d2r
+        real(8),pointer,dimension(:,:,:,:,:)   :: dr
+        real(8),pointer,dimension(:,:,:,:)     :: xc
+
+c     Begin program
+
+        xc => g_def%gmetric%grid(igrid)%car
+
+c     Christoffel symbols (at cell centers)
+
+c$$$        allocate(d2r(ilom:ihip,jlom:jhip,klom:khip,3,3,3))
+c$$$
+c$$$        d2r = find_d2r(g_def,igrid,xc)
+c$$$
+c$$$        do k = klom,khip
+c$$$          do j = jlom,jhip
+c$$$            do i = ilom,ihip
+c$$$
+c$$$              cov = g_def%gmetric%grid(igrid)%cov(i,j,k,:,:)
+c$$$              
+c$$$              d2_r=d2r(i,j,k,:,:,:)
+c$$$
+c$$$              do l=1,3
+c$$$                do n=1,3
+c$$$                  do m=1,3
+c$$$                    gamma(l,m,n) = dot_product(d2_r(:,m,n),cov(l,:))
+c$$$                  enddo
+c$$$                enddo
+c$$$                gamma(l,:,:) =0.5*(gamma(l,:,:)+transpose(gamma(l,:,:))) !Symmetrize
+c$$$              enddo
+c$$$
+c$$$              g_def%gmetric%grid(igrid)%Gamma(i,j,k,:,:,:) = gamma
+c$$$
+c$$$            enddo
+c$$$          enddo
+c$$$        enddo
+c$$$
+c$$$        deallocate(d2r)
+c$$$        nullify(xc)
+
+        allocate(dr(ilom:ihip,jlom:jhip,klom:khip,3,3))
+
+        dr = 0d0
+
+        he = 1
+
+        do k = klom,khi
+          do j = jlom,jhi
+            do i = ilom,ihi
+              dr(i,j,k,:,:) = find_dr(g_def,i,j,k,igrid,he,he,he,xc)
+            enddo
+          enddo
+        enddo
+
+        do k = klo,khi
+          do j = jlo,jhi
+            do i = ilo,ihi
+
+              cov = g_def%gmetric%grid(igrid)%cov(i,j,k,:,:)
+              
               do l=1,3
                 do m=1,3
+                  d2_r(:,:,m)=find_dr(g_def,i-1,j-1,k-1,igrid,he,he,he
+     .                               ,dr(:,:,:,:,m))
                   do n=1,3
-                    d2r = find_dr(i,j,k,igrid,g_def,dr(:,:,:,:,m))
-                    gamma(l,m,n) = dot_product(d2r(:,n),cov(:,l))
+                    gamma(l,n,m) = dot_product(d2_r(:,n,m),cov(l,:))
                   enddo
                 enddo
                 gamma(l,:,:) =0.5*(gamma(l,:,:)+transpose(gamma(l,:,:))) !Symmetrize
@@ -1199,35 +1472,98 @@ c     Evaluate grid quantities
           enddo
         enddo
 
-        if (lerr == 2) then
-           deallocate(dr)
-           nullify(xc)
-           return
-        endif
+c     Enforce zero-force condition on Christoffle symbols
+        
+        if (igrid == 1) call hessianZeroForceCorr(g_def)
 
-        !Zero-force condition on Christoffle symbols 
-        if (igrid == 1) call hessianZeroForceCorr(igrid)
+c     Apply BCs to Christoffel symbols
 
-        !Enforce topological constraints on Christoffel symbols
-        do i=1,3
+        !Regularize
+        do k = klo,khi
+          do j = jlo,jhi
+            do i = ilo,ihi
+               g_def%gmetric%grid(igrid)%Gamma(i,j,k,:,:,:) =
+     .              g_def%gmetric%grid(igrid)%Gamma(i,j,k,:,:,:)
+     .             *g_def%gmetric%grid(igrid)%jac  (i,j,k)
+             enddo
+          enddo
+        enddo
+
+        !Apply BCs
+        bcs(:,1) = bcond
+        bcs(:,2) = bcond
+        bcs(:,3) = bcond
+        where (bcs == DEF.or.bcs == SP) bcs = EXT
+        do k=1,3
           do j=1,3
-            do k=1,3
-              call topol_bc(g_def,igrid,nx,ny,nz
-     .           ,g_def%gmetric%grid(igrid)%Gamma(:,:,:,i,j,k))
+            do i=1,3
+c$$$              call topol_bc(g_def,igrid,nx,ny,nz
+c$$$     .             ,g_def%gmetric%grid(igrid)%Gamma(:,:,:,i,j,k),bcond)
+              call setMGBC(g_def,0,1,nx,ny,nz,igrid
+     .                   ,g_def%gmetric%grid(igrid)%Gamma(:,:,:,i:i,j,k)
+     .                   ,bcs(:,1:1),iorder=2)
             enddo
+          enddo
+        enddo
+
+        !Transform back
+        do k = klom,khip
+          do j = jlom,jhip
+            do i = ilom,ihip
+               g_def%gmetric%grid(igrid)%Gamma(i,j,k,:,:,:) =
+     .              g_def%gmetric%grid(igrid)%Gamma(i,j,k,:,:,:)
+     .             /g_def%gmetric%grid(igrid)%jac  (i,j,k)
+             enddo
           enddo
         enddo
 
         deallocate(dr)
         nullify(xc)
 
+c$$$c     Compute Christoffel symbols
+c$$$
+c$$$        do k = kmin,kmax
+c$$$          do j = jmin,jmax
+c$$$            do i = imin,imax
+c$$$
+c$$$              cov = g_def%gmetric%grid(igrid)%cov(i,j,k,:,:)
+c$$$
+c$$$              do l=1,3
+c$$$                do m=1,3
+c$$$                  do n=1,3
+c$$$                    d2r = find_dr(g_def,i,j,k,igrid,dr(:,:,:,:,m))
+c$$$                    gamma(l,m,n) = dot_product(d2r(:,n),cov(:,l))
+c$$$                  enddo
+c$$$                enddo
+c$$$                gamma(l,:,:) =0.5*(gamma(l,:,:)+transpose(gamma(l,:,:))) !Symmetrize
+c$$$              enddo
+c$$$
+c$$$              g_def%gmetric%grid(igrid)%Gamma(i,j,k,:,:,:) = gamma
+c$$$
+c$$$            enddo
+c$$$          enddo
+c$$$        enddo
+c$$$
+c$$$        !Zero-force condition on Christoffle symbols 
+c$$$        if (igrid == 1) call hessianZeroForceCorr(igrid)
+c$$$
+c$$$        !Enforce topological constraints on Christoffel symbols
+c$$$        do k=1,3
+c$$$          do j=1,3
+c$$$            do i=1,3
+c$$$              call topol_bc(g_def,igrid,nx,ny,nz
+c$$$     .           ,g_def%gmetric%grid(igrid)%Gamma(:,:,:,i,j,k),bcond)
+c$$$            enddo
+c$$$          enddo
+c$$$        enddo
+
 c     End program
 
-      end subroutine findCellMetrics
-
+      end subroutine Christoffel
+      
 c     hessianZeroForceCorr
 c     #################################################################
-      subroutine hessianZeroForceCorr(igrid)
+      subroutine hessianZeroForceCorr(g_def)
 
 c     -----------------------------------------------------------------
 c     Postprocess Christoffel symbol to satisfy zero-force condition
@@ -1238,7 +1574,7 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer    :: igrid
+        type(grid_mg_def),pointer :: g_def
 
 c     Local variables
 
@@ -1570,7 +1906,7 @@ c     End program
 
 c     topol_bc
 c     #################################################################
-      subroutine topol_bc(gdef,igrid,nxl,nyl,nzl,array)
+      subroutine topol_bc(gdef,igrid,nxl,nyl,nzl,array,bcs)
 
 c     -----------------------------------------------------------------
 c     Enforce topological constraints on array
@@ -1581,7 +1917,7 @@ c     -----------------------------------------------------------------
 c     Call variables
 
         type(grid_mg_def),pointer :: gdef
-        integer :: igrid,nxl,nyl,nzl
+        integer :: igrid,nxl,nyl,nzl,bcs(6)
         real(8) :: array(0:nxl+1,0:nyl+1,0:nzl+1)
 
 c     Local variables
@@ -1595,17 +1931,17 @@ c     External
 c     Begin program
 
 #if !defined(petsc)
-        if (bcond(1) == PER .or. bcond(2) == PER) then
+        if (bcs(1) == PER .or. bcs(2) == PER) then
           array(0    ,:,:) = array(nxl,:,:)
           array(nxl+1,:,:) = array(1  ,:,:)
         endif
 
-        if (bcond(3) == PER .or. bcond(4) == PER) then
+        if (bcs(3) == PER .or. bcs(4) == PER) then
           array(:,0    ,:) = array(:,nyl,:)
           array(:,nyl+1,:) = array(:,1  ,:)
         endif
         
-        if (bcond(5) == PER .or. bcond(6) == PER) then
+        if (bcs(5) == PER .or. bcs(6) == PER) then
           array(:,:,0    ) = array(:,:,nzl)
           array(:,:,nzl+1) = array(:,:,1  )
         endif
@@ -1642,32 +1978,41 @@ c     Call variables
 
 c     Local variables
 
-        integer :: i,j,bcs(6,3)!,nxl,nyl,nzl,ibc,bcond_sv(6)
-
-c     External
+        integer :: i,j,bcs(6,3),nx,ny,nz
 
 c     Begin program
 
-        !Modify BC setup
+        nx = g_def%nxv(igrid)
+        ny = g_def%nyv(igrid)
+        nz = g_def%nzv(igrid)
+
+c     Modify BC setup
+
         bcs(:,1) = bcond
         bcs(:,2) = bcond
         bcs(:,3) = bcond
 
-cc        bcond_sv = bcond
-cc        where (bcs == DEF) bcs = EXT
-cc        where (bcs == FSYM .or. bcs == SYM) bcs   = NEU
-cc        where (bcond == FSYM .or. bcond == SYM) bcond = SYM    !Set BCs to do NEU across face
+c$$$        where (bcs == SP) bcs = DEF
 
-cc        call set_force_corners(.true.)
+c$$$        if (g_def%nglx == 1 .and. bcPER(1)) bcs(1:2,:) = DEF
+c$$$        if (g_def%ngly == 1 .and. bcPER(2)) bcs(3:4,:) = DEF
+c$$$        if (g_def%nglz == 1 .and. bcPER(3)) bcs(5:6,:) = DEF
+        
+c$$$        if (coords=='hel') bcs(5:6,:) = DEF !Do nothing in 3rd (ignorable) direction
+c$$$                                            !to preserve helical info
+
+c     Impose BCs
 
         do i=1,3
           call imposeBConVector_ez(g_def,igrid,dr(:,:,:,i,:)
      .                            ,.false.,bcs,2)
         enddo
 
-        !Recover original setup
-cc        call set_force_corners(.false.)
-cc        bcond = bcond_sv
+c$$$        do i=1,3
+c$$$          do j=1,3
+c$$$            call topol_bc(g_def,igrid,nx,ny,nz,dr(:,:,:,i,j),bcs(:,1))
+c$$$          enddo
+c$$$        enddo
 
 c     End program
 
@@ -1696,12 +2041,23 @@ c     Local variables
 
 c     Begin program
 
-        !Save topological BC config
+c     Save topological BC config
+
         bcond_sv = bcond
+
+c     Start with topological BCs
 
         bcs(:,1) = bcond
         bcs(:,2) = bcond
         bcs(:,3) = bcond
+
+c     Set up i=0, j=0, k=0 boundaries (do NOTHING: dr is trustworthy there)
+
+        where (bcs(1,:) /= PER) bcs(1,:) = DEF
+        where (bcs(3,:) /= PER) bcs(3,:) = DEF
+        where (bcs(5,:) /= PER) bcs(5,:) = DEF
+
+c     Set up i=imax, j=jmax, k=kmax boundaries
 
         where (bcs(2,:) == DEF) bcs(2,:) = EXT
         where (bcs(4,:) == DEF) bcs(4,:) = EXT 
@@ -1716,12 +2072,15 @@ c     Begin program
         where (bcs(4,:) == FSYM .or. bcs(4,:) == SYM) bcs(4,:) = NEU
         where (bcs(6,:) == FSYM .or. bcs(6,:) == SYM) bcs(6,:) = NEU
 
+c     Impose BCs
+
         do i=1,3
           call imposeBConVector_stg_ez(g_def,igrid,dr(:,:,:,i,:)
      .                                ,.false.,bcs,2)
         enddo
 
-        !Recover topological BC config
+c     Recover topological BC config
+
         bcond = bcond_sv
 
 c     End program

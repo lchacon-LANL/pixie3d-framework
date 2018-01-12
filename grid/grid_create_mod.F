@@ -1631,6 +1631,32 @@ cc     .              *gdef%gmetric%grid(igrid)%jac_v(i,j,k)
           enddo
         enddo
 
+        !Cov vectors
+        do l=1,3
+          do m=1,3
+            write(funit,*) '   Dumping Cov vector',l,' component',m
+            ivar = ivar+1
+            descr(ivar)='Cov_'//trim(int2char(l))//'('
+     .                        //trim(int2char(m))//')'
+
+            do j=0,ny+1
+              do i=0,nx+1
+                dbl(i,j,1) =
+     .               gdef%gmetric%grid(igrid)%cov(i,j,k,l,m)
+     .              *gdef%gmetric%grid(igrid)%jac(i,j,k)
+                if (dump_diff) then
+                  vec =
+     .               covariantVector(gdef,l,i,j,k,igrid,igrid,igrid)
+     .                 *jacobian(gdef,i,j,k,igrid,igrid,igrid)
+                  dbl(i,j,1) = dbl(i,j,1)-vec(m)
+                endif
+              enddo
+            enddo
+            call dumpGlobalField(gdef,debugfile,nx,ny,nz,nxg,nyg,nzg,dbl
+     .                          ,1)
+          enddo
+        enddo
+
         !Christoffle symbols
         do l=1,3
           do m=1,3
@@ -1787,7 +1813,8 @@ c     Dump quantities
           enddo
         enddo
 
-        call dumpGlobalField(gdef,debugfile,nx,ny,nz,nxg,nyg,nzg,dbl,0)
+        call dumpGlobalField(gdef,debugfile,nx,ny,nz,nxg,nyg,nzg,dbl,0
+     .                      ,no_bc=.true.)
 
         !Metric tensors
         do l=1,3
@@ -1813,7 +1840,7 @@ c     Dump quantities
             enddo
 
             call dumpGlobalField(gdef,debugfile,nx,ny,nz,nxg,nyg,nzg,dbl
-     .                          ,1)
+     .                          ,1,no_bc=.true.)
           enddo
         enddo
 
@@ -1839,7 +1866,7 @@ c     Dump quantities
               enddo
             enddo
             call dumpGlobalField(gdef,debugfile,nx,ny,nz,nxg,nyg,nzg,dbl
-     .                          ,1)
+     .                          ,1,no_bc=.true.)
           enddo
         enddo
 
@@ -1866,7 +1893,7 @@ c     Dump quantities
               enddo
             enddo
             call dumpGlobalField(gdef,debugfile,nx,ny,nz,nxg,nyg,nzg,dbl
-     .                          ,1)
+     .                          ,1,no_bc=.true.)
           enddo
         enddo
 

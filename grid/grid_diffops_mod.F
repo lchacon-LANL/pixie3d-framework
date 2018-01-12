@@ -495,13 +495,15 @@ c ######################################################################
 c     grad_ijk
 c     ###############################################################
       function grad_ijk(g_def,i,j,k,nx,ny,nz,igx,igy,igz,arr,hex,hey,hez
-     .                 ,order) result(cov)
+     .                 ) result(cov)
 
 c     ---------------------------------------------------------------
 c     Calculates grad(A) in general non-orthogonal coordinates.
 c     The vector grad(A) is covariant.
 c     ---------------------------------------------------------------
 
+      use oned_int
+      
       implicit none           !For safe fortran
 
 c     Call variables
@@ -512,13 +514,12 @@ c     Call variables
 
       real(8) :: arr(0:nx+1,0:ny+1,0:nz+1),cov(3)
 
-      integer,optional :: order,hex,hey,hez
+      integer,optional :: hex,hey,hez
 
 c     Local variables
 
-      integer :: ip,im,jp,jm,kp,km,ig,jg,kg,hx,hy,hz
+      integer :: ip,im,jp,jm,kp,km,ig,jg,kg,hx,hy,hz,ord,ordmax
       real(8) :: dhx,dhy,dhz,dx1,dx2,dy1,dy2,dz1,dz2
-      real(8) :: gx,gy,gz
 
 c     Begin program
 
@@ -582,99 +583,75 @@ cc      return
 
 c     2nd order formulas
 
-      gx = 0d0 ; gy = 0d0 ; gz = 0d0
+      cov = 0d0
+
+      ordmax = 3
 
       !X comp
+      ord = min(ordmax,nx+1)
       select case(hx)
       case(0)
         if (i==0) then
-          dx1=g_def%dx(ig)
-          dx2=g_def%dx(ig+1)
-          gx = (-arr(i+2,j,k)*dx1/dx2/(dx1+dx2)
-     .          +arr(i+1,j,k)*(dx1+dx2)/dx1/dx2
-     .          -arr(i  ,j,k)*(1./dx1+1./(dx1+dx2)))
+          call IntDriver1d (ord+1,g_def%xx(ig:ig+ord),arr(i:i+ord,j,k)
+     .                     ,1,g_def%xx(ig:ig),cov(1:1),ord,deriv=1)
         elseif (i==nx+1) then
-          dx1=g_def%dx(ig-1)
-          dx2=g_def%dx(ig-2)
-          gx = -(-arr(i-2,j,k)*dx1/dx2/(dx1+dx2)
-     .           +arr(i-1,j,k)*(dx1+dx2)/dx1/dx2
-     .           -arr(i  ,j,k)*(1./dx1+1./(dx1+dx2)))
+          call IntDriver1d (ord+1,g_def%xx(ig-ord:ig),arr(i-ord:i,j,k)
+     .                     ,1,g_def%xx(ig:ig),cov(1:1),ord,deriv=1)
         else
           dx1=g_def%dx(ig-1)
           dx2=g_def%dx(ig)
-
-cc          gx = ( arr(i+1,j,k)*dx1/dx2/(dx1+dx2)
-cc     .          +arr(i  ,j,k)*(dx2-dx1)/dx2/dx1
-cc     .          -arr(i-1,j,k)*dx2/dx1/(dx1+dx2))
-          gx = (arr(i+1,j,k)-arr(i-1,j,k))/(dx1+dx2)
+          cov(1) = (arr(i+1,j,k)-arr(i-1,j,k))/(dx1+dx2)
+c$$$          cov(1) = q_int(3,arr(i-1:i+1,j,k),g_def%xx(ig-1:ig+1),g_def%xx(ig),1)
         endif
       case(1)
-        if (i<nx+1) gx =(arr(i+1,j,k)-arr(i  ,j,k))/g_def%dx(ig)
+        if (i<nx+1) cov(1) =(arr(i+1,j,k)-arr(i  ,j,k))/g_def%dx(ig)
       case(-1)
-        if (i>0   ) gx =(arr(i  ,j,k)-arr(i-1,j,k))/g_def%dx(ig-1)
+        if (i>0   ) cov(1) =(arr(i  ,j,k)-arr(i-1,j,k))/g_def%dx(ig-1)
       end select
 
       !Y comp
+      ord = min(ordmax,ny+1)
       select case (hy)
       case(0)
         if (j==0) then
-          dy1=g_def%dy(jg)
-          dy2=g_def%dy(jg+1)
-          gy = (-arr(i,j+2,k)*dy1/dy2/(dy1+dy2)
-     .          +arr(i,j+1,k)*(dy1+dy2)/dy1/dy2
-     .          -arr(i,j  ,k)*(1./dy1+1./(dy1+dy2)))
+          call IntDriver1d (ord+1,g_def%yy(jg:jg+ord),arr(i,j:j+ord,k)
+     .                     ,1,g_def%yy(jg:jg),cov(2:2),ord,deriv=1)
         elseif (j==ny+1) then
-          dy1=g_def%dy(jg-1)
-          dy2=g_def%dy(jg-2)
-          gy = -(-arr(i,j-2,k)*dy1/dy2/(dy1+dy2)
-     .           +arr(i,j-1,k)*(dy1+dy2)/dy1/dy2
-     .           -arr(i,j  ,k)*(1./dy1+1./(dy1+dy2)))
+          call IntDriver1d (ord+1,g_def%yy(jg-ord:jg),arr(i,j-ord:j,k)
+     .                     ,1,g_def%yy(jg:jg),cov(2:2),ord,deriv=1)
         else
           dy1=g_def%dy(jg-1)
           dy2=g_def%dy(jg)
-
-cc          gy = ( arr(i,j+1,k)*dy1/dy2/(dy1+dy2)
-cc     .          +arr(i,j  ,k)*(dy2-dy1)/dy2/dy1
-cc     .          -arr(i,j-1,k)*dy2/dy1/(dy1+dy2))
-          gy = (arr(i,j+1,k)-arr(i,j-1,k))/(dy1+dy2)
+          cov(2) = (arr(i,j+1,k)-arr(i,j-1,k))/(dy1+dy2)
+c$$$          cov(2) = q_int(3,arr(i,j-1:j+1,k),g_def%yy(jg-1:jg+1),g_def%yy(jg),1)
         endif
       case(1)
-        if (j<ny+1) gy =(arr(i,j+1,k)-arr(i,j  ,k))/g_def%dy(jg  )
+        if (j<ny+1) cov(2) =(arr(i,j+1,k)-arr(i,j  ,k))/g_def%dy(jg  )
       case(-1)
-        if (j>0   ) gy =(arr(i,j  ,k)-arr(i,j-1,k))/g_def%dy(jg-1)
+        if (j>0   ) cov(2) =(arr(i,j  ,k)-arr(i,j-1,k))/g_def%dy(jg-1)
       end select
 
       !Z comp
+      ord = min(ordmax,nz+1)
       select case(hz)
       case(0)
         if (k==0) then
-          dz1=g_def%dz(kg)
-          dz2=g_def%dz(kg+1)
-          gz = (-arr(i,j,k+2)*dz1/dz2/(dz1+dz2)
-     .          +arr(i,j,k+1)*(dz1+dz2)/dz1/dz2
-     .          -arr(i,j,k  )*(1./dz1+1./(dz1+dz2)))
+          call IntDriver1d (ord+1,g_def%zz(kg:kg+ord),arr(i,j,k:k+ord)
+     .                     ,1,g_def%zz(kg:kg),cov(3:3),ord,deriv=1)
         elseif (k==nz+1) then
-          dz1=g_def%dz(kg-1)
-          dz2=g_def%dz(kg-2)
-          gz = -(-arr(i,j,k-2)*dz1/dz2/(dz1+dz2)
-     .           +arr(i,j,k-1)*(dz1+dz2)/dz1/dz2
-     .           -arr(i,j,k  )*(1./dz1+1./(dz1+dz2)))
+          call IntDriver1d (ord+1,g_def%zz(kg-ord:kg),arr(i,j,k-ord:k)
+     .                     ,1,g_def%zz(kg:kg),cov(3:3),ord,deriv=1)
         else
           dz1=g_def%dz(kg-1)
           dz2=g_def%dz(kg)
-
-cc          gz = ( arr(i,j,k+1)*dz1/dz2/(dz1+dz2)
-cc     .          +arr(i,j,k  )*(dz2-dz1)/dz2/dz1
-cc     .          -arr(i,j,k-1)*dz2/dz1/(dz1+dz2))
-          gz = (arr(i,j,k+1)-arr(i,j,k-1))/(dz1+dz2)
+          cov(3) = (arr(i,j,k+1)-arr(i,j,k-1))/(dz1+dz2)
+c$$$          cov(3) = q_int(3,arr(i,j,k-1:k+1),g_def%zz(kg-1:kg+1),g_def%zz(kg),1)
         endif
       case(1)
-        if (k<nz+1) gz =(arr(i,j,k+1)-arr(i,j,k  ))/g_def%dz(kg  )
+        if (k<nz+1) cov(3) =(arr(i,j,k+1)-arr(i,j,k  ))/g_def%dz(kg  )
       case(-1)
-        if (k>0   ) gz =(arr(i,j,k  )-arr(i,j,k-1))/g_def%dz(kg-1)
+        if (k>0   ) cov(3) =(arr(i,j,k  )-arr(i,j,k-1))/g_def%dz(kg-1)
       end select
-
-      cov = (/ gx,gy,gz /)
 
 c     End program
 
@@ -1352,9 +1329,9 @@ c     #####################################################################
      .         result(vec)
 
 c     ---------------------------------------------------------------
-c     Calculates grad(div(A)) in general non-orthogonal
-c     coordinates in a compact form. The vector A
-c     is contravariant, and returns covariant components unless cnv=true.
+c     Calculates grad(div(A)) in general non-orthogonal coordinates in a
+c     compact form. The vector A is contravariant, and returns covariant
+c     components unless cnv=true.
 c     ---------------------------------------------------------------
 
       implicit none
@@ -1462,7 +1439,7 @@ c     Calculate gradient
 
       if (vol_wgt) vec=vec*g_def%gmetric%grid(igx)%dvol(i,j,k)
 
-      if (cnvt)vec = matmul(g_def%gmetric%grid(igx)%gsup(i,j,k,:,:),vec)
+      if (cnvt) vec = XformToCnv(g_def,i,j,k,igx,vec)
 
       end function gradDiv
 
@@ -2364,10 +2341,6 @@ c ######################################################################
 
         use grid_nabla2_ops
 
-c$$$        INTERFACE veclaplacian
-c$$$          module procedure veclap!,veclap_diff,veclap_ndiff
-c$$$        end INTERFACE
-
         INTERFACE veclap
           module procedure veclap_mesh,veclap_ijk
         end INTERFACE
@@ -2469,10 +2442,13 @@ c     Begin program
         case (1)
           dhx = g_def%dx(ig)
 
-          if (cntv) then
-            gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i ,j,k,:,:)
-     .                   +g_def%gmetric%grid(igrid)%gsup(ip,j,k,:,:))
-          endif
+          if (cntv) 
+c$$$            gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i ,j,k,:,:)
+c$$$     .                   +g_def%gmetric%grid(igrid)%gsup(ip,j,k,:,:))
+     .      gsuper=.25*(g_def%gmetric%grid(igrid)%gsup_v(i,j  ,k  ,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup_v(i,j-1,k  ,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup_v(i,j  ,k-1,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup_v(i,j-1,k-1,:,:))
 
           vxip = ax(ip,j,k)
           vxim = ax(i ,j,k)
@@ -2501,8 +2477,12 @@ c     Begin program
           dhy = g_def%dy(jg)
 
           if (cntv)
-     .         gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,j ,k,:,:)
-     .                      +g_def%gmetric%grid(igrid)%gsup(i,jp,k,:,:))
+c$$$     .         gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,j ,k,:,:)
+c$$$     .                      +g_def%gmetric%grid(igrid)%gsup(i,jp,k,:,:))
+     .      gsuper=.25*(g_def%gmetric%grid(igrid)%gsup_v(i  ,j,k  ,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j,k  ,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup_v(i  ,j,k-1,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j,k-1,:,:))
 
           vxip = 0.5*(ax(ip,j,k)+ax(ip,jp,k))
           vxim = 0.5*(ax(im,j,k)+ax(im,jp,k))
@@ -2531,8 +2511,12 @@ c     Begin program
           dhz = g_def%dz(kg)
 
           if (cntv)
-     .         gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,j,k ,:,:)
-     .                      +g_def%gmetric%grid(igrid)%gsup(i,j,kp,:,:))
+c$$$     .         gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,j,k ,:,:)
+c$$$     .                      +g_def%gmetric%grid(igrid)%gsup(i,j,kp,:,:))
+     .      gsuper=.25*(g_def%gmetric%grid(igrid)%gsup_v(i  ,j  ,k,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j  ,k,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup_v(i  ,j-1,k,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j-1,k,:,:))
 
           vxip = 0.5*(ax(ip,j,k)+ax(ip,j,kp))
           vxim = 0.5*(ax(im,j,k)+ax(im,j,kp))
@@ -4008,8 +3992,8 @@ c     Begin program
         do j=1,ny
           do i=1,nx
             cnv_out(i,j,k,:)=veclap_ijk(g_def,i,j,k,nx,ny,nz
-     .                             ,igrid,igrid,igrid,cnv
-     .                             ,diff=diff,alteom=alt__eom())
+     .                                 ,igrid,igrid,igrid,cnv
+     .                                 ,diff=diff)
           enddo
         enddo
       enddo
@@ -4021,7 +4005,7 @@ c     End program
 c     veclap_ijk
 c     ###############################################################
       function veclap_ijk(g_def,i,j,k,nx,ny,nz,igx,igy,igz,vfield
-     .                   ,diff,alteom,vol) result (vlap)
+     .                   ,diff,vol) result (vlap)
 
 c     ---------------------------------------------------------------
 c     Calculates dvol*div(diff grad(vector)) at cell centers in general
@@ -4035,41 +4019,37 @@ c     Call variables
 
       type(grid_mg_def),pointer :: g_def
 
-      integer    :: i,j,k,nx,ny,nz,igx,igy,igz
+      integer :: i,j,k,nx,ny,nz,igx,igy,igz
 
       real(8),target :: vfield (0:nx+1,0:ny+1,0:nz+1,3)
       real(8),target,optional :: diff(0:nx+1,0:ny+1,0:nz+1)
 
-      real(8)    :: vlap(3)
+      real(8) :: vlap(3)
 
-      logical,optional,intent(IN) :: vol,alteom
+      logical,optional,intent(IN) :: vol
 
 c     Local variables
 
       integer    :: icomp
 
-      logical    :: vol_wgt,alt_eom
+      logical    :: alt_eom
 
 c     Begin program
 
-      vol_wgt = .false.
-      if (PRESENT(vol)) vol_wgt = vol
-
-      alt_eom = .false.
-      if (PRESENT(alteom)) alt_eom = alteom
+      alt_eom = alt__eom()
 
       if (no_map) then
         do icomp=1,3
           vlap(icomp)=lap(g_def,i,j,k,nx,ny,nz,igx,igy,igz
      .                   ,vfield(:,:,:,icomp),dff=diff
-     .                   ,vol=vol_wgt)
+     .                   ,vol=vol)
         enddo
       else
         vec  => vfield !Pointer passed to nabtensor routines
         if (PRESENT(diff)) coef => diff   !Pointer passed to nabtensor routines
         vlap = div_tensor(g_def,i,j,k,nx,ny,nz,igx,igy,igz,alt_eom
      .                   ,nabtensor_x,nabtensor_y,nabtensor_z
-     $                   ,vol=vol_wgt)
+     $                   ,vol=vol)
         if (PRESENT(diff)) nullify(coef)
       endif
 
@@ -4105,29 +4085,25 @@ c     Begin program
 
         igrid = igx
 
-        ip = i+1
-        if (flag == 0) ip = i
+        if (flag == 0) then
+          ip = i
+          jac = g_def%gmetric%grid(igrid)%jac(i,j,k)
 
-        jac    = 0.5*(g_def%gmetric%grid(igrid)%jac (ip,j,k)
-     .               +g_def%gmetric%grid(igrid)%jac (i ,j,k))
-
-cc        if (isSP(i+1,j,k,igx,igy,igz)) jac = SP_flsv
-        if (isSP2(g_def,i+1,igx).and. flag /= 0) then
-          ijac = 0d0
-        else
-          ijac = 1d0/jac
-        endif
-
-        if (flag /= 0) then
-          nabla_v_cnv = fnabla_v(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                          ,vec(:,:,:,1)
-     .                          ,vec(:,:,:,2)
-     .                          ,vec(:,:,:,3),1,cnv=.true.)
-        else
           nabla_v_cnv = fnabla_v(g_def,i,j,k,nx,ny,nz,igx,igy,igz
      .                          ,vec(:,:,:,1)
      .                          ,vec(:,:,:,2)
      .                          ,vec(:,:,:,3),0,cnv=.true.)
+        else
+          ip = i+1
+          jac = 0.25*(g_def%gmetric%grid(igrid)%jac_v(i,j  ,k  )
+     .               +g_def%gmetric%grid(igrid)%jac_v(i,j-1,k  )
+     .               +g_def%gmetric%grid(igrid)%jac_v(i,j  ,k-1)
+     .               +g_def%gmetric%grid(igrid)%jac_v(i,j-1,k-1))
+
+          nabla_v_cnv = fnabla_v(g_def,i,j,k,nx,ny,nz,igx,igy,igz
+     .                          ,vec(:,:,:,1)
+     .                          ,vec(:,:,:,2)
+     .                          ,vec(:,:,:,3),1,cnv=.true.)
         endif
 
         if (associated(coef)) then
@@ -4140,7 +4116,18 @@ cc        if (isSP(i+1,j,k,igx,igy,igz)) jac = SP_flsv
         t12 = dd*nabla_v_cnv(1,2)
         t13 = dd*nabla_v_cnv(1,3)
 
+c       Postprocessing
+
+c$$$        jac    = 0.5*(g_def%gmetric%grid(igrid)%jac (ip,j,k)
+c$$$     .               +g_def%gmetric%grid(igrid)%jac (i ,j,k))
+
         if (flag /= 0) then
+          if (isSP2(g_def,i+1,igx)) then
+            ijac = 0d0
+          else
+            ijac = 1d0/jac
+          endif
+
           t11 = t11*ijac
           if (.not.alteom) t12 = t12*ijac
           t13 = t13*ijac
@@ -4172,32 +4159,31 @@ c     Local variables
 
         integer    :: ig,jg,kg,jp,igrid
         real(8)    :: x,y,z,jac,ijac
-        real(8)    :: nabla_v_cnv(3,3),gsuper(3,3),dd
+        real(8)    :: nabla_v_cnv(3,3),dd
 
 c     Begin program
 
         igrid = igx
 
-        jp = j+1
-        if (flag == 0) jp = j
+        if (flag == 0) then
+          jp = j
+          jac= g_def%gmetric%grid(igrid)%jac(i,j,k)
 
-        jac    = 0.5*(g_def%gmetric%grid(igrid)%jac (i,jp,k)
-     .               +g_def%gmetric%grid(igrid)%jac (i,j ,k))
-        gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,jp,k,:,:)
-     .               +g_def%gmetric%grid(igrid)%gsup(i,j ,k,:,:))
-
-        ijac = 1d0/jac
-
-        if (flag /= 0) then
-          nabla_v_cnv = fnabla_v(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                          ,vec(:,:,:,1)
-     .                          ,vec(:,:,:,2)
-     .                          ,vec(:,:,:,3),2,cnv=.true.)
-        else
           nabla_v_cnv = fnabla_v(g_def,i,j,k,nx,ny,nz,igx,igy,igz
      .                          ,vec(:,:,:,1)
      .                          ,vec(:,:,:,2)
      .                          ,vec(:,:,:,3),0,cnv=.true.)
+        else
+          jp = j+1
+          jac= 0.25*(g_def%gmetric%grid(igrid)%jac_v(i  ,j,k  )
+     .              +g_def%gmetric%grid(igrid)%jac_v(i-1,j,k  )
+     .              +g_def%gmetric%grid(igrid)%jac_v(i  ,j,k-1)
+     .              +g_def%gmetric%grid(igrid)%jac_v(i-1,j,k-1))
+
+          nabla_v_cnv = fnabla_v(g_def,i,j,k,nx,ny,nz,igx,igy,igz
+     .                          ,vec(:,:,:,1)
+     .                          ,vec(:,:,:,2)
+     .                          ,vec(:,:,:,3),2,cnv=.true.)
         endif
 
         if (associated(coef)) then
@@ -4210,7 +4196,14 @@ c     Begin program
         t22 = dd*nabla_v_cnv(2,2)
         t23 = dd*nabla_v_cnv(2,3)
 
+c     Postprocessing
+
+c$$$        jac    = 0.5*(g_def%gmetric%grid(igrid)%jac (i,jp,k)
+c$$$     .               +g_def%gmetric%grid(igrid)%jac (i,j ,k))
+
         if (flag /= 0) then
+          ijac = 1d0/jac
+
           t21 = t21*ijac
           if (.not.alteom) t22 = t22*ijac
           t23 = t23*ijac
@@ -4242,32 +4235,31 @@ c     Local variables
 
         integer    :: ig,jg,kg,kp,igrid
         real(8)    :: x,y,z,jac,ijac
-        real(8)    :: nabla_v_cnv(3,3),gsuper(3,3),dd
+        real(8)    :: nabla_v_cnv(3,3),dd
 
 c     Begin program
 
         igrid = igx
 
-        kp=k+1
-        if (flag == 0) kp = k
+        if (flag == 0) then
+          kp = k
+          jac= g_def%gmetric%grid(igrid)%jac(i,j,k)
 
-        jac    = 0.5*(g_def%gmetric%grid(igrid)%jac (i,j,kp)
-     .               +g_def%gmetric%grid(igrid)%jac (i,j,k ))
-        gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,j,kp,:,:)
-     .               +g_def%gmetric%grid(igrid)%gsup(i,j,k ,:,:))
-
-        ijac = 1d0/jac
-
-        if (flag /= 0) then
-          nabla_v_cnv = fnabla_v(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                          ,vec(:,:,:,1)
-     .                          ,vec(:,:,:,2)
-     .                          ,vec(:,:,:,3),3,cnv=.true.)
-        else
           nabla_v_cnv = fnabla_v(g_def,i,j,k,nx,ny,nz,igx,igy,igz
      .                          ,vec(:,:,:,1)
      .                          ,vec(:,:,:,2)
      .                          ,vec(:,:,:,3),0,cnv=.true.)
+        else
+          kp = k+1
+          jac= 0.25*(g_def%gmetric%grid(igrid)%jac_v(i  ,j  ,k)
+     .              +g_def%gmetric%grid(igrid)%jac_v(i-1,j  ,k)
+     .              +g_def%gmetric%grid(igrid)%jac_v(i  ,j-1,k)
+     .              +g_def%gmetric%grid(igrid)%jac_v(i-1,j-1,k))
+
+          nabla_v_cnv = fnabla_v(g_def,i,j,k,nx,ny,nz,igx,igy,igz
+     .                          ,vec(:,:,:,1)
+     .                          ,vec(:,:,:,2)
+     .                          ,vec(:,:,:,3),3,cnv=.true.)
         endif
 
         if (associated(coef)) then
@@ -4280,7 +4272,14 @@ c     Begin program
         t32 = dd*nabla_v_cnv(3,2)
         t33 = dd*nabla_v_cnv(3,3)
 
+c     Postprocessing
+
+c$$$        jac    = 0.5*(g_def%gmetric%grid(igrid)%jac (i,j,kp)
+c$$$     .               +g_def%gmetric%grid(igrid)%jac (i,j,k ))
+
         if (flag /= 0) then
+          ijac = 1d0/jac
+
           t31 = t31*ijac
           if (.not.alteom) t32 = t32*ijac
           t33 = t33*ijac
@@ -4447,29 +4446,35 @@ c     Local variables
 
         integer    :: ig,jg,kg,ip,igrid
         real(8)    :: x,y,z
-        real(8)    :: nabla_v(3,3),gsuper(3,3),dd
+        real(8)    :: nabla_v(3,3),dd,gsuper(3,3)
 
 c     Begin program
 
         igrid = igx
 
-        ip = i+1
-        if (flag == 0) ip = i
+        if (flag == 0) then
+          ip = i
+          gsuper = g_def%gmetric%grid(igrid)%gsup  (i,j  ,k  ,:,:)
 
-        gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(ip,j,k,:,:)
-     .               +g_def%gmetric%grid(igrid)%gsup(i ,j,k,:,:))
-
-        if (flag /= 0) then
-          nabla_v = fnabla_v_cov(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                          ,vec(:,:,:,1)
-     .                          ,vec(:,:,:,2)
-     .                          ,vec(:,:,:,3),1)
-        else
           nabla_v = fnabla_v_cov(g_def,i,j,k,nx,ny,nz,igx,igy,igz
      .                          ,vec(:,:,:,1)
      .                          ,vec(:,:,:,2)
      .                          ,vec(:,:,:,3),0)
+        else
+          ip = i+1
+          gsuper =0.25*(g_def%gmetric%grid(igrid)%gsup_v(i,j  ,k  ,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup_v(i,j-1,k  ,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup_v(i,j  ,k-1,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup_v(i,j-1,k-1,:,:))
+
+          nabla_v = fnabla_v_cov(g_def,i,j,k,nx,ny,nz,igx,igy,igz
+     .                          ,vec(:,:,:,1)
+     .                          ,vec(:,:,:,2)
+     .                          ,vec(:,:,:,3),1)
         endif
+
+c$$$        gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(ip,j,k,:,:)
+c$$$     .               +g_def%gmetric%grid(igrid)%gsup(i ,j,k,:,:))
 
         if (associated(coef)) then
           dd = 2./(1./coef(ip,j,k) + 1./coef(i,j,k))
@@ -4514,32 +4519,36 @@ c     Call variables
 c     Local variables
 
         integer    :: ig,jg,kg,jp,igrid
-        real(8)    :: x,y,z,jac
+        real(8)    :: x,y,z
         real(8)    :: nabla_v(3,3),gsuper(3,3),dd
 
 c     Begin program
 
         igrid = igx
 
-        jp = j+1
-        if (flag == 0) jp = j
+        if (flag == 0) then
+          jp = j
+          gsuper = g_def%gmetric%grid(igrid)%gsup(i,j,k,:,:)
 
-        jac    = 0.5*(g_def%gmetric%grid(igrid)%jac (i,jp,k)
-     .               +g_def%gmetric%grid(igrid)%jac (i,j ,k))
-        gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,jp,k,:,:)
-     .               +g_def%gmetric%grid(igrid)%gsup(i,j ,k,:,:))
-
-        if (flag /= 0) then
-          nabla_v = fnabla_v_cov(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                          ,vec(:,:,:,1)
-     .                          ,vec(:,:,:,2)
-     .                          ,vec(:,:,:,3),2)
-        else
           nabla_v = fnabla_v_cov(g_def,i,j,k,nx,ny,nz,igx,igy,igz
      .                          ,vec(:,:,:,1)
      .                          ,vec(:,:,:,2)
      .                          ,vec(:,:,:,3),0)
+        else
+          jp = j+1
+          gsuper =0.25*(g_def%gmetric%grid(igrid)%gsup_v(i  ,j,k  ,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j,k  ,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup_v(i  ,j,k-1,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j,k-1,:,:))
+
+          nabla_v = fnabla_v_cov(g_def,i,j,k,nx,ny,nz,igx,igy,igz
+     .                          ,vec(:,:,:,1)
+     .                          ,vec(:,:,:,2)
+     .                          ,vec(:,:,:,3),2)
         endif
+
+c$$$        gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,jp,k,:,:)
+c$$$     .               +g_def%gmetric%grid(igrid)%gsup(i,j ,k,:,:))
 
         if (associated(coef)) then
           dd = 2./(1./coef(i,jp,k) + 1./coef(i,j,k))
@@ -4584,32 +4593,36 @@ c     Call variables
 c     Local variables
 
         integer    :: ig,jg,kg,kp,igrid
-        real(8)    :: x,y,z,jac
+        real(8)    :: x,y,z
         real(8)    :: nabla_v(3,3),gsuper(3,3),dd
 
 c     Begin program
 
         igrid = igx
 
-        kp=k+1
-        if (flag == 0) kp = k
+        if (flag == 0) then
+          kp = k
+          gsuper = g_def%gmetric%grid(igrid)%gsup(i,j,k,:,:)
 
-        jac    = 0.5*(g_def%gmetric%grid(igrid)%jac (i,j,kp)
-     .               +g_def%gmetric%grid(igrid)%jac (i,j,k ))
-        gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,j,kp,:,:)
-     .               +g_def%gmetric%grid(igrid)%gsup(i,j,k ,:,:))
-
-        if (flag /= 0) then
-          nabla_v = fnabla_v_cov(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                          ,vec(:,:,:,1)
-     .                          ,vec(:,:,:,2)
-     .                          ,vec(:,:,:,3),3)
-        else
           nabla_v = fnabla_v_cov(g_def,i,j,k,nx,ny,nz,igx,igy,igz
      .                          ,vec(:,:,:,1)
      .                          ,vec(:,:,:,2)
      .                          ,vec(:,:,:,3),0)
+        else
+          kp = k+1
+          gsuper =0.25*(g_def%gmetric%grid(igrid)%gsup_v(i  ,j  ,k,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j  ,k,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup_v(i  ,j-1,k,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j-1,k,:,:))
+
+          nabla_v = fnabla_v_cov(g_def,i,j,k,nx,ny,nz,igx,igy,igz
+     .                          ,vec(:,:,:,1)
+     .                          ,vec(:,:,:,2)
+     .                          ,vec(:,:,:,3),3)
         endif
+
+c$$$        gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,j,kp,:,:)
+c$$$     .               +g_def%gmetric%grid(igrid)%gsup(i,j,k ,:,:))
 
         if (associated(coef)) then
           dd = 2./(1./coef(i,j,kp) + 1./coef(i,j,k))
@@ -4746,23 +4759,29 @@ c     Begin program
 
         igrid = igx
 
-        ip = i+1
-        if (flag == 0) ip = i
+        if (flag == 0) then
+          ip = i
+          gsuper = g_def%gmetric%grid(igrid)%gsup  (i,j  ,k  ,:,:)
 
-        gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(ip,j,k,:,:)
-     .               +g_def%gmetric%grid(igrid)%gsup(i ,j,k,:,:))
-
-        if (flag /= 0) then
-          nabla_v = fnabla_v_cov(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                          ,vec(:,:,:,1)
-     .                          ,vec(:,:,:,2)
-     .                          ,vec(:,:,:,3),1)
-        else
           nabla_v = fnabla_v_cov(g_def,i,j,k,nx,ny,nz,igx,igy,igz
      .                          ,vec(:,:,:,1)
      .                          ,vec(:,:,:,2)
      .                          ,vec(:,:,:,3),0)
+        else
+          ip = i+1
+          gsuper =0.25*(g_def%gmetric%grid(igrid)%gsup_v(i,j  ,k  ,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup_v(i,j-1,k  ,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup_v(i,j  ,k-1,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup_v(i,j-1,k-1,:,:))
+
+          nabla_v = fnabla_v_cov(g_def,i,j,k,nx,ny,nz,igx,igy,igz
+     .                          ,vec(:,:,:,1)
+     .                          ,vec(:,:,:,2)
+     .                          ,vec(:,:,:,3),1)
         endif
+
+c$$$        gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(ip,j,k,:,:)
+c$$$     .               +g_def%gmetric%grid(igrid)%gsup(i ,j,k,:,:))
 
         nabla_v =-nabla_v + transpose(nabla_v)
 
@@ -4809,23 +4828,29 @@ c     Begin program
 
         igrid = igx
 
-        jp = j+1
-        if (flag == 0) jp = j
+        if (flag == 0) then
+          jp = j
+          gsuper = g_def%gmetric%grid(igrid)%gsup(i,j,k,:,:)
 
-        gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,jp,k,:,:)
-     .               +g_def%gmetric%grid(igrid)%gsup(i,j ,k,:,:))
-
-        if (flag /= 0) then
-          nabla_v = fnabla_v_cov(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                          ,vec(:,:,:,1)
-     .                          ,vec(:,:,:,2)
-     .                          ,vec(:,:,:,3),2)
-        else
           nabla_v = fnabla_v_cov(g_def,i,j,k,nx,ny,nz,igx,igy,igz
      .                          ,vec(:,:,:,1)
      .                          ,vec(:,:,:,2)
      .                          ,vec(:,:,:,3),0)
+        else
+          jp = j+1
+          gsuper =0.25*(g_def%gmetric%grid(igrid)%gsup_v(i  ,j,k  ,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j,k  ,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup_v(i  ,j,k-1,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j,k-1,:,:))
+
+          nabla_v = fnabla_v_cov(g_def,i,j,k,nx,ny,nz,igx,igy,igz
+     .                          ,vec(:,:,:,1)
+     .                          ,vec(:,:,:,2)
+     .                          ,vec(:,:,:,3),2)
         endif
+
+c$$$        gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,jp,k,:,:)
+c$$$     .               +g_def%gmetric%grid(igrid)%gsup(i,j ,k,:,:))
 
         nabla_v =-nabla_v + transpose(nabla_v)
 
@@ -4872,23 +4897,29 @@ c     Begin program
 
         igrid = igx
 
-        kp=k+1
-        if (flag == 0) kp = k
+        if (flag == 0) then
+          kp = k
+          gsuper = g_def%gmetric%grid(igrid)%gsup(i,j,k,:,:)
 
-        gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,j,kp,:,:)
-     .               +g_def%gmetric%grid(igrid)%gsup(i,j,k ,:,:))
-
-        if (flag /= 0) then
-          nabla_v = fnabla_v_cov(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                          ,vec(:,:,:,1)
-     .                          ,vec(:,:,:,2)
-     .                          ,vec(:,:,:,3),3)
-        else
           nabla_v = fnabla_v_cov(g_def,i,j,k,nx,ny,nz,igx,igy,igz
      .                          ,vec(:,:,:,1)
      .                          ,vec(:,:,:,2)
      .                          ,vec(:,:,:,3),0)
+        else
+          kp = k+1
+          gsuper =0.25*(g_def%gmetric%grid(igrid)%gsup_v(i  ,j  ,k,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j  ,k,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup_v(i  ,j-1,k,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j-1,k,:,:))
+
+          nabla_v = fnabla_v_cov(g_def,i,j,k,nx,ny,nz,igx,igy,igz
+     .                          ,vec(:,:,:,1)
+     .                          ,vec(:,:,:,2)
+     .                          ,vec(:,:,:,3),3)
         endif
+
+c$$$        gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,j,kp,:,:)
+c$$$     .               +g_def%gmetric%grid(igrid)%gsup(i,j,k ,:,:))
 
         nabla_v = -nabla_v + transpose(nabla_v)
 
@@ -4910,11 +4941,12 @@ c     End program
 
 c     curlcurl_mesh
 c     ###############################################################
-      function curlcurl_mesh(g_def,igrid,cnv,diff) result(cnv_out)
+      function curlcurl_mesh(g_def,igrid,vec,iscnv) result(cnv_out)
 
 c     ---------------------------------------------------------------
 c     Calculates curlcurl(A) in general non-orthogonal coordinates. The
-c     vector A is contravariant, and returns contravariant components.
+c     vector A can be covariant or contravariant, and returns
+c     contravariant components.
 c     ---------------------------------------------------------------
 
       implicit none           !For safe fortran
@@ -4925,14 +4957,16 @@ c     Call variables
 
       integer :: igrid
 
-      real(8) :: cnv(0:,0:,0:,:)
-     .          ,cnv_out(0:size(cnv,1)-1
-     $                  ,0:size(cnv,2)-1
-     $                  ,0:size(cnv,3)-1,3)
+      real(8) :: vec(0:,0:,0:,:)
+     .          ,cnv_out(0:size(vec,1)-1
+     $                  ,0:size(vec,2)-1
+     $                  ,0:size(vec,3)-1,3)
 
-      real(8), optional :: diff(0:size(cnv,1)-1
-     $                         ,0:size(cnv,2)-1
-     $                         ,0:size(cnv,3)-1)
+c$$$      real(8), optional :: diff(0:size(vec,1)-1
+c$$$     $                         ,0:size(vec,2)-1
+c$$$     $                         ,0:size(vec,3)-1)
+
+      logical :: iscnv
 
 c     Local variables
 
@@ -4948,8 +4982,7 @@ c     Begin program
         do j=1,ny
           do i=1,nx
             cnv_out(i,j,k,:)=curlcurl_ijk(g_def,i,j,k,nx,ny,nz
-     $                                   ,igrid,igrid,igrid,cnv
-     $                                   ,diff=diff)
+     $                                   ,igrid,igrid,igrid,vec,iscnv)
           enddo
         enddo
       enddo
@@ -4960,13 +4993,13 @@ c     End program
 
 c     curlcurl_ijk
 c     ###############################################################
-      function curlcurl_ijk(g_def,i,j,k,nx,ny,nz,igx,igy,igz,acnv,diff
+      function curlcurl_ijk(g_def,i,j,k,nx,ny,nz,igx,igy,igz,vec,iscnv
      .                     ,vol)  result(cnv)
 
 c     ---------------------------------------------------------------
 c     Calculates curl(curl(A)) in general non-orthogonal
-c     coordinates, preserving the SPD property. The vector A is
-c     contravariant, and returns contravariant components.
+c     coordinates, preserving the SPD property. The vector A can be
+c     covariant or contravariant, and returns contravariant components.
 c     ---------------------------------------------------------------
 
       implicit none           !For safe fortran
@@ -4976,285 +5009,32 @@ c     Call variables
       type(grid_mg_def),pointer :: g_def
 
       integer :: i,j,k,nx,ny,nz,igx,igy,igz
-      real(8) :: cnv(3)
 
-      real(8),target :: acnv(0:nx+1,0:ny+1,0:nz+1,3)
-      real(8),target,optional :: diff(0:nx+1,0:ny+1,0:nz+1)
+      real(8),target :: vec(0:nx+1,0:ny+1,0:nz+1,3)
+cc      real(8),target,optional :: diff(0:nx+1,0:ny+1,0:nz+1)
 
+      logical :: iscnv
+      
       logical,optional,intent(IN) :: vol
 
 c     Local variables
 
+      real(8) :: cnv(3),cov(3)
+
 c     Begin program
 
-c$$$      cnv=-veclap (i,j,k,nx,ny,nz,igx,igy,igz,acnv,vol=vol)
-c$$$     .    +gradDiv(i,j,k,nx,ny,nz,igx,igy,igz,acnv,vol=vol,cnv=.true.)
-
-      vec1 => acnv
-      if (PRESENT(diff)) then
-         coef => diff
+      if (iscnv) then
+        cnv=-veclap (g_def,i,j,k,nx,ny,nz,igx,igy,igz,vec,vol=vol)
+     .      +gradDiv(g_def,i,j,k,nx,ny,nz,igx,igy,igz,vec,vol=vol
+     .              ,cnv=.true.)
+      else
+        cov = curlcurl_cov_ijk(g_def,i,j,k,nx,ny,nz,igx,igy,igz,vec)
+        cnv = XformToCnv(g_def,i,j,k,igx,cov)
       endif
-
-      cnv = div_tensor(g_def,i,j,k,nx,ny,nz,igx,igy,igz,.false.
-     .                ,curlcurl_x,curlcurl_y,curlcurl_z
-     .                ,vol=vol)
-
-      if (associated(coef)) nullify(coef)
-      nullify(vec1)
-
+      
 c     End program
 
       end function curlcurl_ijk
-
-c     curlcurl_x
-c     #############################################################
-      subroutine curlcurl_x(g_def,i,j,k,nx,ny,nz,igx,igy,igz,alt_eom
-     .                     ,t11,t12,t13,flag)
-c     -------------------------------------------------------------
-c     Calculates tensor components t11-t13 for curl(curl), computed
-c     as div(grad - transpose(grad)). In the call sequence:
-c       * i,j,k: grid position
-c       * nx,ny,nz: grid size
-c       * igx,igy,igz: grid level (for MG evaluations)
-c       * alt_eom: whether to use alternate curl(curl) in singular coord.
-c                  systems or not.
-c       * t11,t12,t13: tensor components.
-c       * flag: whether evaluation is a cell center i,j,k (flag=0)
-c               or at cell face i+1/2,j,k (flag /= 0)
-c     This routine assumes vec1->v (velocity), vec2->p (momentum).
-c     -------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-        type(grid_mg_def),pointer :: g_def
-
-        integer    :: i,j,k,flag,igx,igy,igz,nx,ny,nz
-        real(8)    :: t11,t12,t13
-        logical    :: alt_eom
-
-c     Local variables
-
-        integer    :: ig,jg,kg,ip,im,ipp,igpp,igp,igm
-        real(8)    :: nabla_v_cnv(3,3)
-        real(8)    :: jac,ijac
-
-c     Begin program
-
-        if (.not.associated(vec1)) then
-          call pstop('curlcurl_x','Pointers not associated')
-        endif
-
-        ip = i+1
-        if (flag == 0) ip = i
-
-        jac    = 0.5*(g_def%gmetric%grid(igx)%jac (ip,j,k)
-     .               +g_def%gmetric%grid(igx)%jac (i ,j,k))
-
-        if (isSP(g_def,i+1,j,k,igx,igy,igz)) jac = SP_flsv
-
-        if (flag /= 0) then
-          nabla_v_cnv = fnabla_v(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                    ,vec1(:,:,:,1)
-     .                    ,vec1(:,:,:,2)
-     .                    ,vec1(:,:,:,3),1,cnv=.true.)
-        else
-          nabla_v_cnv = fnabla_v(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                    ,vec1(:,:,:,1)
-     .                    ,vec1(:,:,:,2)
-     .                    ,vec1(:,:,:,3),0,cnv=.true.)
-        endif
-
-        nabla_v_cnv = nabla_v_cnv - transpose(nabla_v_cnv)
-
-        if (associated(coef)) nabla_v_cnv = nabla_v_cnv
-     $                                     *0.5*(coef(ip,j,k)
-     $                                          +coef(i ,j,k))
-
-        t11 = -nabla_v_cnv(1,1)
-        t12 = -nabla_v_cnv(1,2)
-        t13 = -nabla_v_cnv(1,3)
-
-c       Postprocessing
-
-        if (flag /= 0) then
-          ijac = 1d0/jac
-
-          t11 = t11*ijac
-          if (.not.alt_eom) t12 = t12*ijac
-          t13 = t13*ijac
-        endif
-
-c     End program
-
-      end subroutine curlcurl_x
-
-c     curlcurl_y
-c     #############################################################
-      subroutine curlcurl_y(g_def,i,j,k,nx,ny,nz,igx,igy,igz,alt_eom
-     .                     ,t21,t22,t23,flag)
-c     -------------------------------------------------------------
-c     Calculates tensor components t21-t23 for curl(curl). In the call
-c     sequence:
-c       * i,j,k: grid position
-c       * nx,ny,nz: grid size
-c       * igx,igy,igz: grid level (for MG evaluations)
-c       * alt_eom: whether to use alternate curl(curl) in singular coord.
-c                  systems or not.
-c       * t21,t22,t23: tensor components.
-c       * flag: whether evaluation is a cell center i,j,k (flag=0)
-c               or at cell face i+1/2,j,k (flag /= 0)
-c     -------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-        type(grid_mg_def),pointer :: g_def
-
-        integer    :: i,j,k,flag,igx,igy,igz,nx,ny,nz
-        real(8)    :: t21,t22,t23
-        logical    :: alt_eom
-
-c     Local variables
-
-        integer    :: ig,jg,kg,jp,jm,jpp,jgpp,jgp,jgm
-        real(8)    :: nabla_v_cnv(3,3)
-        real(8)    :: jac,ijac
-
-c     Begin program
-
-        if (.not.associated(vec1)) then
-          call pstop('curlcurl_y','Pointers not associated')
-        endif
-
-        jp = j+1
-        if (flag == 0) jp = j
-
-        jac    = 0.5*(g_def%gmetric%grid(igx)%jac (i,jp,k)
-     .               +g_def%gmetric%grid(igx)%jac (i,j ,k))
-
-c       Diffusive part
-
-        if (flag /= 0) then
-          nabla_v_cnv = fnabla_v(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                    ,vec1(:,:,:,1)
-     .                    ,vec1(:,:,:,2)
-     .                    ,vec1(:,:,:,3),2,cnv=.true.)
-        else
-          nabla_v_cnv = fnabla_v(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                    ,vec1(:,:,:,1)
-     .                    ,vec1(:,:,:,2)
-     .                    ,vec1(:,:,:,3),0,cnv=.true.)
-        endif
-
-        nabla_v_cnv = nabla_v_cnv - transpose(nabla_v_cnv)
-
-        if (associated(coef)) nabla_v_cnv = nabla_v_cnv
-     $                                     *0.5*(coef(i,jp,k)
-     $                                          +coef(i,j ,k))
-
-        t21 = -nabla_v_cnv(2,1)
-        t22 = -nabla_v_cnv(2,2)
-        t23 = -nabla_v_cnv(2,3)
-
-c       Postprocessing
-
-        if (flag /= 0) then
-          ijac = 1d0/jac
-
-          t21 = t21*ijac
-          if (.not.alt_eom) t22 = t22*ijac
-          t23 = t23*ijac
-        endif
-
-c     End program
-
-      end subroutine curlcurl_y
-
-c     curlcurl_z
-c     #############################################################
-      subroutine curlcurl_z(g_def,i,j,k,nx,ny,nz,igx,igy,igz,alt_eom
-     .                     ,t31,t32,t33,flag)
-c     -------------------------------------------------------------
-c     Calculates tensor components t31-t33 for curl(curl). In the call
-c     sequence:
-c       * i,j,k: grid position
-c       * nx,ny,nz: grid size
-c       * igx,igy,igz: grid level (for MG evaluations)
-c       * alt_eom: whether to use alternate curl(curl) in singular coord.
-c                  systems or not.
-c       * t31,t32,t33: tensor components.
-c       * flag: whether evaluation is a cell center i,j,k (flag=0)
-c               or at cell face i+1/2,j,k (flag /= 0)
-c     -------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-        type(grid_mg_def),pointer :: g_def
-
-        integer    :: i,j,k,flag,igx,igy,igz,nx,ny,nz
-        real(8)    :: t31,t32,t33
-        logical    :: alt_eom
-
-c     Local variables
-
-        integer    :: ig,jg,kg,kp,km,kpp,kgpp,kgp,kgm
-        real(8)    :: nabla_v_cnv(3,3)
-        real(8)    :: jac,ijac
-
-c     Begin program
-
-        if (.not.associated(vec1)) then
-          call pstop('curlcurl_z','Pointers not associated')
-        endif
-
-        kp = k+1
-        if (flag == 0) kp = k
-
-        jac    = 0.5*(g_def%gmetric%grid(igx)%jac (i,j,kp)
-     .               +g_def%gmetric%grid(igx)%jac (i,j,k ))
-
-c       Diffusive part
-
-        if (flag /= 0) then
-          nabla_v_cnv = fnabla_v(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                    ,vec1(:,:,:,1)
-     .                    ,vec1(:,:,:,2)
-     .                    ,vec1(:,:,:,3),3,cnv=.true.)
-        else
-          nabla_v_cnv = fnabla_v(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                    ,vec1(:,:,:,1)
-     .                    ,vec1(:,:,:,2)
-     .                    ,vec1(:,:,:,3),0,cnv=.true.)
-        endif
-
-        nabla_v_cnv = nabla_v_cnv - transpose(nabla_v_cnv)
-
-        if (associated(coef)) nabla_v_cnv = nabla_v_cnv
-     $                                     *0.5*(coef(i,j,kp)
-     $                                          +coef(i,j,k ))
-
-        t31 = -nabla_v_cnv(3,1)
-        t32 = -nabla_v_cnv(3,2)
-        t33 = -nabla_v_cnv(3,3)
-
-c       Postprocessing
-
-        if (flag /= 0) then
-          ijac = 1d0/jac
-
-          t31 = t31*ijac
-          if (.not.alt_eom) t32 = t32*ijac
-          t33 = t33*ijac
-        endif
-
-c     End program
-
-      end subroutine curlcurl_z
 
 c     veclap_stg_mesh
 c     ###############################################################

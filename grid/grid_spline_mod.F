@@ -1,13 +1,14 @@
-c module spline_field
+c module grid_splines
 c #####################################################################
-      module spline_field
+      module grid_splines
 
         use xdraw_io
 
-!#! Marco
-        use lyapn
+        use OMP
 
-        use grid, ONLY:pstop,my_rank,grid_mg_def
+        use math, ONLY:fmed
+
+        use grid_mpi, ONLY:pstop,my_rank,grid_mg_def
 
         use bc_def, bcond2 => bcond
 
@@ -238,7 +239,7 @@ c     End program
 
 c     setupSplines_gst
 c     #################################################################
-      subroutine setupSplines_gst(g_def,igrid,order,bcnd)
+      subroutine setupSplines_gst(g_def,order,bcnd)
 c     -----------------------------------------------------------------
 c     This routine sets up 3D splines, including allocation of memory
 c     space.
@@ -250,7 +251,7 @@ c     Call variables
 
         type(grid_mg_def) :: g_def
 
-        integer :: igrid,order
+        integer :: order
         integer :: bcnd(6)
 
 c     Local variables
@@ -263,9 +264,9 @@ c     Begin program
 
 c     Initialize private variables
 
-        nx = g_def%nxgl(igrid) + 2
-        ny = g_def%nygl(igrid) + 2
-        nz = g_def%nzgl(igrid) + 2
+        nx = g_def%nxgl(1) + 2
+        ny = g_def%nygl(1) + 2
+        nz = g_def%nzgl(1) + 2
 
         allocate(xs(nx),ys(ny),zs(nz))
 
@@ -305,7 +306,7 @@ c     Prepare 3d spline interpolation
         allocate(tz(nz+kz),stat=alloc_stat)
 
 !$omp parallel
-        call set_omp_thread_id()
+        call set_omp_thread_id
 !$omp end parallel
 
 	dime = ky*kz + 3*max(kx,ky,kz) + kz
@@ -2027,4 +2028,4 @@ c     End programs
 
       end subroutine killSplines
 
-      end module spline_field
+      end module grid_splines

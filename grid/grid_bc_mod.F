@@ -4079,7 +4079,7 @@ c     End program
 
 c     extrapolateBC
 c     #################################################################
-      subroutine extrapolateBC(gbc_def,array,array0,dim,loc,order)
+      subroutine extrapolateBC(gbc_def,array,array0,dim,loc,order,atfce)
 c     -----------------------------------------------------------------
 c     Fills ghost nodes by extrapolation across relevant boundary.
 c     -----------------------------------------------------------------
@@ -4094,13 +4094,20 @@ c     Call variables
         real(8) :: array (0:nxbc+1,0:nybc+1,0:nzbc+1)
      .            ,array0(0:nxbc+1,0:nybc+1,0:nzbc+1)
 
+        logical, optional :: atfce
+
 c     Local variables
 
         integer :: imax,imin,jmax,jmin,kmax,kmin,ibc
      .            ,order_int(3)
 
         integer :: i,j,k,ig,jg,kg,one,two,thr
+
+        real(8) :: x0
+
         real(8),pointer,dimension(:) :: xx,yy,zz
+
+        logical :: atface
 
 c     Begin program
 
@@ -4111,6 +4118,12 @@ c     Begin program
         order_int(3) = min(order,nzbc)
 
         one = 1 ; two = 2; thr = 3
+
+        if (PRESENT(atfce)) then
+          atface = atfce
+        else
+          atface = .true.
+        endif
 
 c     Setup grid aliases
 
@@ -4143,12 +4156,15 @@ c     Extrapolate
 
             call getMGmap(gbc_def,i,1,1,igxbc,igybc,igzbc,ig,jg,kg)
 
-            array(i,:,:) = 
-     .              quad_int(0.5*(xx(ig+one)+xx(ig)),xx(ig+one)
-     .                      ,xx(ig+two),xx(ig+thr)
+            if (atface) then
+              x0 = 0.5*(xx(ig+one)+xx(ig))
+              array(i,:,:)= quad_int(x0,xx(ig+one),xx(ig+two),xx(ig+thr)
      .                      ,array0(i    ,:,:),array(i+one,:,:)
      .                      ,array (i+two,:,:),array(i+thr,:,:)
      .                      ,xx(ig),order_int(dim) )
+            else
+              array(i,:,:)= array0(i,:,:)
+            endif
 
           case (2)
 
@@ -4156,12 +4172,15 @@ c     Extrapolate
 
             call getMGmap(gbc_def,i,1,1,igxbc,igybc,igzbc,ig,jg,kg)
 
-            array(i,:,:) =
-     .              quad_int(0.5*(xx(ig-one)+xx(ig)),xx(ig-one)
-     .                      ,xx(ig-two),xx(ig-thr)
+            if (atface) then
+              x0 = 0.5*(xx(ig-one)+xx(ig))
+              array(i,:,:)= quad_int(x0,xx(ig-one),xx(ig-two),xx(ig-thr)
      .                      ,array0(i    ,:,:),array(i-one,:,:)
      .                      ,array (i-two,:,:),array(i-thr,:,:)
      .                      ,xx(ig),order_int(dim) )
+            else
+              array(i,:,:)= array0(i,:,:)
+            endif
 
           case (3)
 
@@ -4169,11 +4188,15 @@ c     Extrapolate
 
             call getMGmap(gbc_def,1,j,1,igxbc,igybc,igzbc,ig,jg,kg)
 
-            array(:,j,:) = quad_int(0.5*(yy(jg+one)+yy(jg)),yy(jg+one)
-     .                      ,yy(jg+two),yy(jg+thr)
+            if (atface) then
+              x0 = 0.5*(yy(jg+one)+yy(jg))
+              array(:,j,:)= quad_int(x0,yy(jg+one),yy(jg+two),yy(jg+thr)
      .                      ,array0(:,j    ,:),array(:,j+one,:)
      .                      ,array (:,j+two,:),array(:,j+thr,:)
      .                      ,yy(jg),order_int(dim) )
+            else
+              array(:,j,:)=array0(:,j,:)
+            endif
 
           case (4)
 
@@ -4181,11 +4204,16 @@ c     Extrapolate
 
             call getMGmap(gbc_def,1,j,1,igxbc,igybc,igzbc,ig,jg,kg)
 
-            array(:,j,:) = quad_int(0.5*(yy(jg-one)+yy(jg)),yy(jg-one)
-     .                      ,yy(jg-two),yy(jg-thr)
+            if (atface) then
+              x0 = 0.5*(yy(jg-one)+yy(jg))
+
+              array(:,j,:)= quad_int(x0,yy(jg-one),yy(jg-two),yy(jg-thr)
      .                      ,array0(:,j    ,:),array(:,j-one,:)
      .                      ,array (:,j-two,:),array(:,j-thr,:)
      .                      ,yy(jg),order_int(dim) )
+            else
+              array(:,j,:)=array0(:,j,:)
+            endif
 
           case (5)
 
@@ -4193,11 +4221,16 @@ c     Extrapolate
 
             call getMGmap(gbc_def,1,1,k,igxbc,igybc,igzbc,ig,jg,kg)
 
-            array(:,:,k) = quad_int(0.5*(zz(kg+one)+zz(kg)),zz(kg+one)
-     .                      ,zz(kg+two),zz(kg+thr)
+            if (atface) then
+              x0 = 0.5*(zz(kg+one)+zz(kg))
+
+              array(:,:,k)= quad_int(x0,zz(kg+one),zz(kg+two),zz(kg+thr)
      .                      ,array0(:,:,k    ),array(:,:,k+one)
      .                      ,array (:,:,k+two),array(:,:,k+thr)
      .                      ,zz(kg),order_int(dim) )
+            else
+              array(:,:,k)= array0(:,:,k)
+            endif
 
           case (6)
 
@@ -4205,12 +4238,16 @@ c     Extrapolate
 
             call getMGmap(gbc_def,1,1,k,igxbc,igybc,igzbc,ig,jg,kg)
 
-            array(:,:,k) =
-     .              quad_int(0.5*(zz(kg-one)+zz(kg)),zz(kg-one)
-     .                      ,zz(kg-two),zz(kg-thr)
+            if (atface) then
+              x0 = 0.5*(zz(kg-one)+zz(kg))
+ 
+              array(:,:,k)= quad_int(x0,zz(kg-one),zz(kg-two),zz(kg-thr)
      .                      ,array0(:,:,k    ),array(:,:,k-one)
      .                      ,array (:,:,k-two),array(:,:,k-thr)
      .                      ,zz(kg),order_int(dim) )
+            else
+             array(:,:,k)= array0(:,:,k)
+            endif
 
           case default
 
@@ -5921,7 +5958,7 @@ c     Local variables
       logical,save :: iscnv,iscurv !Needed to "remember' these from previous calls
                                    !when they are not provided.
 
-      logical      :: res_is_curv,fpointers,vector,isvec
+      logical      :: res_is_curv,fpointers,vector
 
       real(8)      :: car(3),curv(3)
 
@@ -5982,13 +6019,11 @@ c     Find GLOBAL limits (required for BC routine setBC)
 c     Select operation
 
       if (PRESENT(is_vec)) then
-        isvec = is_vec
+        vector = is_vec
       else
-        isvec = (neql == 3 .or. neql == 6) !Backward compatibility with previous
+        vector = (neql == 3 .or. neql == 6) !Backward compatibility with previous
                                            ! versions of this routine
       endif
-
-      vector = (neql == 3 .or. neql == 6).and.isvec
 
       if (vector) then
 
@@ -6216,7 +6251,7 @@ c     Local variables
       logical,save :: iscnv,iscurv !Needed to "remember' these from previous calls
                                    !when they are not provided.
 
-      logical      :: res_is_curv,fpointers,vector,isvec
+      logical      :: res_is_curv,fpointers,vector
 
       real(8)      :: car(3),curv(3)
 
@@ -6231,13 +6266,11 @@ c     Begin program
       neql = neq !To avoid problems if neq is hardwired
 
       if (PRESENT(is_vec)) then
-        isvec = is_vec
+        vector = is_vec
       else
-        isvec = (neql == 3 .or. neql == 6) !Backward compatibility with previous
+        vector = (neql == 3 .or. neql == 6) !Backward compatibility with previous
                                            ! versions of this routine
       endif
-
-      vector = (neql == 3 .or. neql == 6).and.isvec
 
       if (.not.vector) then
         call pstop('setMGBC_stg','Input is not a vector')

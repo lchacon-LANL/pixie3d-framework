@@ -3426,7 +3426,7 @@ c     End program
 
 c     fillVec1
 c     ###################################################################
-      subroutine fillVec1(g_def,igrid,neq,arr,x)
+      subroutine fillVec1(g_def,igrid,arr,x)
 
 c     -------------------------------------------------------------------
 c     Fills vector x from VECTOR array arr
@@ -3436,7 +3436,7 @@ c     -------------------------------------------------------------------
 
 c     Call variables
 
-        integer :: igrid,neq
+        integer :: igrid
         real(8),dimension(:) :: x
         real(8),dimension(:,:,:,:) :: arr
 
@@ -3444,11 +3444,14 @@ c     Call variables
 
 c     Local variables
 
+        integer :: neq
         logical :: fpointers
 
         type(mg_ctx),pointer :: mg_ctx_l => null()
 
 c     Begin program
+
+        neq = size(arr,4)
 
         call allocMGPointers(neq,g_def,mg_ctx_l,fpointers)
 
@@ -3462,7 +3465,7 @@ c     End program
 
 c     fillVec2
 c     ###################################################################
-      subroutine fillVec2(g_def,igrid,neq,arr,x)
+      subroutine fillVec2(g_def,igrid,arr,x)
 
 c     -------------------------------------------------------------------
 c     Fills vector x from VECTOR array arr
@@ -3472,7 +3475,7 @@ c     -------------------------------------------------------------------
 
 c     Call variables
 
-        integer :: igrid,neq
+        integer :: igrid
         real(8),dimension(:,:) :: x
         real(8),dimension(:,:,:,:) :: arr
 
@@ -3480,12 +3483,14 @@ c     Call variables
 
 c     Local variables
 
-        integer :: ieq
+        integer :: ieq,neq
         logical :: fpointers
 
         type(mg_ctx),pointer :: mg_ctx_l => null()
 
 c     Begin program
+
+        neq = size(arr,4)
 
         call allocMGPointers(1,g_def,mg_ctx_l,fpointers)
 
@@ -3903,140 +3908,6 @@ c     #################################################################
       mgcs = mg_coarse_solve
       
       end function MG_get_coarse_solve
-
-c     blockSolve
-c     #################################################################
-      subroutine blockSolve(size,mat,icol,rhs,x)
-
-c     -----------------------------------------------------------------
-c     Solves block systems using a direct solve approach. Requires
-c     linking with LAPACK.
-c
-c     In the call sequence, we have:
-c       * size (integer): block size
-c       * mat  (real array): block matrix
-c       * icol (integer) : number of columns of rhs
-c       * rhs  (real array): rhs of equation
-c       * x    ( "     "   ): solution (output)
-c       * smoother (character): identifies calling subroutine (JB, GS)
-c     -----------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-        integer    :: size,icol
-
-        real(8)    :: mat(size,size),rhs(size,icol),x(size,icol)
-
-c     Local variables
-
-        integer    :: ipiv(size),info
-
-        real(8)    :: mat2(size,size)
-
-        external dgesv
-
-c     Begin program
-
-        mat2 = mat !Avoid overwritting mat
-        x = rhs
-
-        call dgesv(size,icol,mat2,size,ipiv,x,size,info) !LAPACK routine
-
-        call LAPACK_error(info)
-
-      end subroutine blockSolve
-
-c     blockInv
-c     #################################################################
-      subroutine blockInv(size,mat)
-
-c     -----------------------------------------------------------------
-c     Inverts block systems using a direct solve approach. Requires
-c     linking with LAPACK.
-c
-c     In the call sequence, we have:
-c       * size (integer): block size
-c       * mat  (real array): block matrix on input, inverse on output
-c     -----------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-        integer    :: size
-
-        real(8)    :: mat(size,size)
-
-c     Local variables
-
-        integer    :: ipiv(size),info,lwork
-
-        real(8),allocatable,dimension(:) :: work
-
-        external   dgetri,dgetrf
-
-c     Begin program
-
-c     Find LU decomposition
-
-        call dgetrf(size,size,mat,size,ipiv,info) !LAPACK routine
-
-        call LAPACK_error(info)
-
-c     Invert matrix
-
-        !Workspace query
-        lwork=-1
-cc        lwork=size
-        allocate(work(1))
-        call dgetri(size,mat,size,ipiv,work,lwork,info) !LAPACK routine
-        lwork=floor(work(1))
-        deallocate(work)
-
-        !Matrix inversion
-        allocate(work(lwork))
-        call dgetri(size,mat,size,ipiv,work,lwork,info) !LAPACK routine
-        deallocate(work)
-
-        call LAPACK_error(info)
-
-      end subroutine blockInv
-
-c     LAPACK_error
-c     #################################################################
-      subroutine LAPACK_error(info)
-
-c     -----------------------------------------------------------------
-c     Error routine for LAPACK calls
-c     -----------------------------------------------------------------
-
-        use math
-
-        implicit none
-
-c     Call variables
-
-        integer    :: info
-
-c     Local variables
-
-c     Begin program
-
-        if (info /= 0) then
-          if (info < 0) then
-            messg = 'Problem in factorization in argument '
-     .             //int2char(-info)
-            call pstop('blockSolve',messg)
-          else
-            call pstop('blockSolve','Matrix is singular')
-          endif
-        endif
-
-c     End program
-
-      end subroutine LAPACK_error
 
 c     cSolver
 c     ##################################################################

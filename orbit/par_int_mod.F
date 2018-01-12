@@ -4,7 +4,7 @@ c #############################################################################
 
         use orbit
 
-        use math, ONLY: factorial,pi
+        use math, ONLY: factorial,pi,calerf
 
         integer,private :: kmax=100      !Maximum number of Fourier modes in Fourier Green's f. form
         real(8),private :: t_tol,T_cutoff2,S_cutoff2,alpha=0d0
@@ -555,7 +555,7 @@ c     Call variables
 c     Local variables
 
       integer :: ig,jg,kg
-      real(8) :: x1,x2,x3,x,y,z
+      real(8) :: x1,x2,x3,x,y,z,gp(ngparams),mm,kk,aa
 
 c     Begin program
 
@@ -567,12 +567,24 @@ c     Begin program
      .                            ,ig,jg,kg,x,y,z)
 
       select case (coords)
-      case('cyl')
+      case('cyl','hel')
         !Transform to cylindrical radius (may be mapped)
         rr = sign(1d0,x1)*sqrt(x**2+y**2)
         th = atan2(y,x)
         if (rr < 0d0) th = th + pi
         zz = z
+c$$$      case('hel')
+c$$$        gp = g_def%params
+c$$$
+c$$$        mm = gp(1)
+c$$$        kk = gp(2)
+c$$$        aa = kk/mm
+c$$$
+c$$$        !Transform to cylindrical radius (may be mapped)
+c$$$        rr = sign(1d0,x1)*sqrt(x**2+y**2)
+c$$$        th = atan2(y,x) + aa*z
+c$$$        if (rr < 0d0) th = th + pi
+c$$$        zz = z
       case default
         call pstop('find_polar_coords',"Coordinates not implemented")
       end select
@@ -1693,7 +1705,7 @@ c     Setup periodic integrator
           bg(:,:,:,1:2) = 0d0
           bg(:,:,:,3  ) = -psig
 
-          call orbit_setup(g_def,igrid
+          call orbit_setup(g_def
      .                    ,bg(:,:,:,1)
      .                    ,bg(:,:,:,2)
      .                    ,bg(:,:,:,3)
@@ -1715,7 +1727,7 @@ c     Setup periodic integrator
 
         else
 
-          call orbit_setup(g_def,igrid
+          call orbit_setup(g_def
      .                    ,bg(:,:,:,1)
      .                    ,bg(:,:,:,2)
      .                    ,bg(:,:,:,3)
@@ -1760,7 +1772,7 @@ c     Setup orbit integrator
 
         else
 
-          call orbit_setup(g_def,igrid
+          call orbit_setup(g_def
      .                    ,bg(:,:,:,1)
      .                    ,bg(:,:,:,2)
      .                    ,bg(:,:,:,3)
@@ -1853,7 +1865,7 @@ c     Begin program
 
 c     Setup orbits
 
-        call orbit_setup(g_def,igrid
+        call orbit_setup(g_def
      .                  ,bg(:,:,:,1)
      .                  ,bg(:,:,:,2)
      .                  ,bg(:,:,:,3)
@@ -2073,7 +2085,7 @@ c diag ****
 
 c     Orbit initialization on global array
 
-        call orbit_setup(g_def,igrid
+        call orbit_setup(g_def
      .                  ,bg(:,:,:,1)
      .                  ,bg(:,:,:,2)
      .                  ,bg(:,:,:,3)
@@ -2478,7 +2490,7 @@ c     Begin program
 c     Setup orbits
 
           !Orbit initialization
-          call orbit_setup(g_def,igrid
+          call orbit_setup(g_def
      .                    ,bg(:,:,:,1)
      .                    ,bg(:,:,:,2)
      .                    ,bg(:,:,:,3)

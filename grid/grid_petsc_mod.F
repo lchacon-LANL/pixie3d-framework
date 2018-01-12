@@ -135,7 +135,7 @@ c     Begin program
 
 c     bcSP
 c     #################################################################
-      function bcSP(ibc,bcnd) result(sing_bc)
+      function bcSP(dim,ibc,bcnd) result(sing_bc)
 
 c     -----------------------------------------------------------------
 c     Detects whether boundary is of SP type. Boundary is identified
@@ -149,7 +149,7 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer,optional :: ibc,bcnd(6)
+        integer,optional :: dim,ibc,bcnd(6)
         logical :: sing_bc
 
 c     Local variables
@@ -160,6 +160,8 @@ c     Begin program
 
         if (PRESENT(ibc)) then
           iibc = ibc
+        elseif (PRESENT(dim)) then
+          iibc = 1+2*(dim-1)
         else
           iibc = 1
         endif

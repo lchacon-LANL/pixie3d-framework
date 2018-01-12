@@ -6,4 +6,4 @@ MESSAGE = "Compiling math modules"
 
 COMMONDIR = ..
 
-SUBDIRS = 
+SUBDIRS = $(COMMONDIR)/io
