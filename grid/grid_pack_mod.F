@@ -133,6 +133,8 @@ c     -----------------------------------------------------------------
 
       contains
 
+      end subroutine find_pack_slope
+      
 c     find_eta
 c     #################################################################
       function find_eta(xmin,xmax,x0,slope) result(eta)
@@ -165,44 +167,186 @@ c     Begin program
           return
         endif
 
-        LL  = xmax-xmin
+        LL = xmax-xmin
+        Lp = xmax-x0
+        Lm = LL - Lp
 
-        if (slope > 1d0) then  !Pack at edges
+        res = 0d0 ; dxi = 0d0
 
+        if (slope > 1d0 .or. Lp == 0d0 .or. Lm == 0d0) then
+          call prep_cubic
+        else
+          call prep_gaussian
+        endif
+          
+c       Convergence check
+
+        if (i >= nit) then
+          write (*,*)
+          write (*,*) 'Nonlinear it. in grid-packing routine find_eta'
+     .               ,' did not converge'
+          write (*,*)
+          write (*,*) 'Convergence history:'
+          do i=1,nit
+            write (*,*) 'Nonlinear it.',i,' residual'
+     .                 ,sqrt(sum(res(i,:)**2))
+     .                 ,'update',sqrt(sum(dxi(i,:)**2))
+          enddo
+          write (*,*)
+          write (*,*) 'Aborting...'
+          stop
+        endif
+
+      contains
+
+c     prep_cubic
+c     ###############################################################
+      subroutine prep_cubic
+      
+      implicit none
+
+c     ---------------------------------------------------------------
+c     Prepares cubic polynomial for grid packing
+c     ---------------------------------------------------------------
+
+      if (slope > 1d0) then !Contraction
+        
 cc          eta = LL**3*(1d0-1d0/slope)/((xmax-x0)**3-(xmin-x0)**3)
-          eta = LL**pwr*(1d0-1d0/slope)/((xmax-x0)**pwr-(xmin-x0)**pwr)
+        eta = LL**pwr*(1d0-1d0/slope)/((xmax-x0)**pwr-(xmin-x0)**pwr)
 
-        else                    !Pack at x0
+      else
+                
+        xbar= 0.5*(xmax+xmin)
+        dx  = xbar - x0
+        dd  = (dx/LL)**2
 
-c       Cubic polynomial profile
+        !Initial guess
+
+        eta = 4d0*(1d0-slope)
+
+        !Newton iteration
+
+        if (dx == 0d0) return
+
+        do i=1,nit
+          res(i,1)=(1+2*(eta+slope))**2*(1-slope-0.25*eta) -27.*dd*eta
+          ijac = 4*(1+2*(eta+slope)) *(1-slope-0.25*eta)
+     .       -0.25*(1+2*(eta+slope))**2                    -27.*dd
+
+          dxi(i,1) = -res(i,1)/ijac
+          eta = abs(eta + dxi(i,1)) !Want to find positive root
+
+cc        write (*,*) abs(res(i,1)),dxi(i,1),ijac,eta
+
+          if (abs(res(i,1))<1d-10.or.(abs(dxi(i,1))<eps)) exit
+        enddo
+
+      endif
           
-c$$$          xbar= 0.5*(xmax+xmin)
-c$$$          dx  = xbar - x0
-c$$$          dd  = (dx/LL)**2
+      end subroutine prep_cubic
+
+c     prep_gaussian
+c     ###############################################################
+      subroutine prep_gaussian
+
+      implicit none
+
+c     ---------------------------------------------------------------
+c     Prepares Gaussian profile for grid packing
+c     ---------------------------------------------------------------
+
+      if (Lp == Lm) then
+        Lp = Lp*(1d0+1d-8)
+        Lm = Lm*(1d0-1d-8)
+      endif
+
+      !Initial condition (assume alpha ~ 0.5 + delta, delta << 1 and solve)
+      eta = 1d1
+      do i=1,5
+        eta =2*sqrt(abs(log(0.5*LL*slope/(2*eta*Lp/sqrt(pi)))))
+      enddo
+      alpha = 0.5*(1-log(Lm/Lp)/eta/eta)
+      a1 = sqrt(4/pi)*eta*Lm/LL
+      a2 = sqrt(4/pi)*eta*Lp/LL
+
+      !Newton iteration (variable order: a1,a2,alpha=Ep/L,eta=L/sqrt(sigma))
+      do i=1,nit
+        erfv1 = sqrt(pi/4.)*erf((1-alpha)*eta)
+        erfv2 = sqrt(pi/4.)*erf(   alpha *eta)
+        erfv  = sqrt(pi/4.)*erf(          eta)
+
+        derfv1 = exp(-((1-alpha)*eta)**2)
+        derfv2 = exp(-((  alpha)*eta)**2)
+        derfv  = exp(-eta**2)
+        
+        exp1    = exp(eta**2*(1-2*alpha))
+        dexp1d1 =-2*eta*eta*exp1         !wrt alpha
+        dexp1d2 = 2*eta*(1-2*alpha)*exp1 !wrt eta
+        
+        exp2    = exp(-(alpha*eta)**2)
+        dexp2d1 = -2*alpha*eta*eta*exp2  !wrt alpha
+        dexp2d2 = -2*eta*alpha*alpha*exp2!wrt eta
+
+        ff  = eta/erfv
+        dff = 1./erfv - eta*derfv/(erfv*erfv)
+        
+        !Residual
+        res(i,1) = Lm/LL*eta - a1*erfv1 - a2*erfv + a2*erfv2
+        res(i,2) = a1 + a2 - ff
+        res(i,3) = a1 - a2*alpha*exp1/(1-alpha)
+        res(i,4) = slope - a2*exp2/(1-alpha)
+
+        !Jacobian solution
+        jac(1,1) = -erfv1
+        jac(1,2) = +erfv2-erfv
+        jac(1,3) = a1*eta*derfv1 + a2*eta*derfv2
+        jac(1,4) = Lm/LL
+     .           - a1*(1-alpha)*derfv1
+     .           - a2*derfv
+     .           + a2*alpha*derfv2
+
+        jac(2,1) = 1.
+        jac(2,2) = 1.
+        jac(2,3) = 0d0
+        jac(2,4) = -dff
+
+        jac(3,1) = 1.
+        jac(3,2) = -alpha*exp1/(1-alpha)
+        jac(3,3) = -a2*(1-alpha)**(-2)*exp1
+     .             -a2*alpha/(1-alpha)*dexp1d1
+        jac(3,4) = -a2*alpha*dexp1d2/(1-alpha)
+
+        jac(4,1) = 0.
+        jac(4,2) = -exp2/(1-alpha)
+        jac(4,3) = -a2*(1-alpha)**(-2)*exp2 - a2*dexp2d1/(1-alpha)
+        jac(4,4) = -a2*dexp2d2/(1-alpha)
+
+        call blockSolve(neq,jac,1,res(i,:),dxi(i,:))
+
+        !Update solution
+        a1    = abs(   a1 - dxi(i,1))  !Enforce a1 > 0
+        a2    = abs(   a2 - dxi(i,2))  !Enforce a1 > 0
+        alpha = abs(alpha - dxi(i,3))  !Enforce alpha > 0
+        eta   = abs(  eta - dxi(i,4))  !Enforce eta >= 0d0
+
+cc        write (*,*) i,a1,a2,alpha,eta
+        
+        !Check convergence
+cc        write (*,*) i,dxi(i,:),res(i,:)
+
+        if (  sqrt(sum(res(i,:)**2))<1d-10
+     .   .or.(sqrt(sum(dxi(i,:)**2))<eps)) exit
+        
+      enddo
+
+      end subroutine prep_gaussian
+
+c$$$c     prep_tanh
+c$$$c     ###############################################################
+c$$$      subroutine prep_tanh
 c$$$
-c$$$c         Initial guess
-c$$$
-c$$$          eta = 4d0*(1d0-slope)
-c$$$
-c$$$c         Newton iteration
-c$$$
-c$$$          if (dx == 0d0) return
-c$$$
-c$$$          do i=1,nit
-c$$$            res(i,1)=(1+2*(eta+slope))**2*(1-slope-0.25*eta) -27.*dd*eta
-c$$$            ijac = 4*(1+2*(eta+slope)) *(1-slope-0.25*eta)
-c$$$     .         -0.25*(1+2*(eta+slope))**2                    -27.*dd
-c$$$
-c$$$            dxi(i,1) = -res(i,1)/ijac
-c$$$            eta = abs(eta + dxi(i,1)) !Want to find positive root
-c$$$
-c$$$cc            write (*,*) abs(res(i,1)),dxi(i,1),ijac,eta
-c$$$
-c$$$            if (abs(res(i,1))<1d-10.or.(abs(dxi(i,1))<eps)) exit
-c$$$          enddo
-          
-c         x*tanh(x) profile
-          
+c$$$      implicit none
+c$$$              
 c$$$          LL = xmax-xmin
 c$$$          Lp = xmax-x0
 c$$$          Lm = LL - Lp
@@ -248,120 +392,10 @@ c$$$     .       .or.(sqrt(sum(dxi(i,:)**2))<eps)) exit
 c$$$          enddo
 c$$$
 c$$$          eta = Ep/lambda
-
-c         Gaussian profile
-          
-          LL = xmax-xmin
-          Lp = xmax-x0
-          Lm = LL - Lp
-
-          if (Lp == Lm) then
-            Lp = Lp*(1d0+1d-8)
-            Lm = Lm*(1d0-1d-8)
-          endif
-
-          !Initial condition (assume alpha ~ 0.5 + delta, delta << 1 and solve)
-          eta = 1d1
-          do i=1,5
-            eta =2*sqrt(abs(log(0.5*LL*slope/(2*eta*Lp/sqrt(pi)))))
-          enddo
-          alpha = 0.5*(1-log(Lm/Lp)/eta/eta)
-          a1 = sqrt(4/pi)*eta*Lm/LL
-          a2 = sqrt(4/pi)*eta*Lp/LL
-        
-          !Newton iteration (variable order: a1,a2,alpha=Ep/L,eta=L/sqrt(sigma))
-          do i=1,nit
-            erfv1 = sqrt(pi/4.)*erf((1-alpha)*eta)
-            erfv2 = sqrt(pi/4.)*erf(   alpha *eta)
-            erfv  = sqrt(pi/4.)*erf(          eta)
-
-            derfv1 = exp(-((1-alpha)*eta)**2)
-            derfv2 = exp(-((  alpha)*eta)**2)
-            derfv  = exp(-eta**2)
-            
-            exp1    = exp(eta**2*(1-2*alpha))
-            dexp1d1 =-2*eta*eta*exp1         !wrt alpha
-            dexp1d2 = 2*eta*(1-2*alpha)*exp1 !wrt eta
-            
-            exp2    = exp(-(alpha*eta)**2)
-            dexp2d1 = -2*alpha*eta*eta*exp2  !wrt alpha
-            dexp2d2 = -2*eta*alpha*alpha*exp2!wrt eta
-
-            ff  = eta/erfv
-            dff = 1./erfv - eta*derfv/(erfv*erfv)
-            
-            !Residual
-            res(i,1) = Lm/LL*eta - a1*erfv1 - a2*erfv + a2*erfv2
-            res(i,2) = a1 + a2 - ff
-            res(i,3) = a1 - a2*alpha*exp1/(1-alpha)
-            res(i,4) = slope - a2*exp2/(1-alpha)
-
-            !Jacobian solution
-            jac(1,1) = -erfv1
-            jac(1,2) = +erfv2-erfv
-            jac(1,3) = a1*eta*derfv1 + a2*eta*derfv2
-            jac(1,4) = Lm/LL
-     .               - a1*(1-alpha)*derfv1
-     .               - a2*derfv
-     .               + a2*alpha*derfv2
-
-            jac(2,1) = 1.
-            jac(2,2) = 1.
-            jac(2,3) = 0d0
-            jac(2,4) = -dff
-
-            jac(3,1) = 1.
-            jac(3,2) = -alpha*exp1/(1-alpha)
-            jac(3,3) = -a2*(1-alpha)**(-2)*exp1
-     .                 -a2*alpha/(1-alpha)*dexp1d1
-            jac(3,4) = -a2*alpha*dexp1d2/(1-alpha)
-
-            jac(4,1) = 0.
-            jac(4,2) = -exp2/(1-alpha)
-            jac(4,3) = -a2*(1-alpha)**(-2)*exp2 - a2*dexp2d1/(1-alpha)
-            jac(4,4) = -a2*dexp2d2/(1-alpha)
-
-            call blockSolve(neq,jac,1,res(i,:),dxi(i,:))
-
-            !Update solution
-            a1    = abs(   a1 - dxi(i,1))  !Enforce a1 > 0
-            a2    = abs(   a2 - dxi(i,2))  !Enforce a1 > 0
-            alpha = abs(alpha - dxi(i,3))  !Enforce alpha > 0
-            eta   = abs(  eta - dxi(i,4))  !Enforce eta >= 0d0
-
-cc            write (*,*) i,a1,a2,alpha,eta
-            
-            !Check convergence
-cc            write (*,*) i,dxi(i,:),res(i,:)
-
-            if (  sqrt(sum(res(i,:)**2))<1d-10
-     .       .or.(sqrt(sum(dxi(i,:)**2))<eps)) exit
-            
-          enddo
-
-c         Convergence check
-
-          if (i >= nit) then
-            write (*,*)
-            write (*,*) 'Nonlinear it. in grid-packing routine find_eta'
-     .                 ,' did not converge'
-            write (*,*)
-            write (*,*) 'Convergence history:'
-            do i=1,nit
-              write (*,*) 'Nonlinear it.',i,' residual'
-     .                   ,sqrt(sum(res(i,:)**2))
-     .                   ,'update',sqrt(sum(dxi(i,:)**2))
-            enddo
-            write (*,*)
-            write (*,*) 'Aborting...'
-            stop
-          endif
-
-        endif
+c$$$
+c$$$      end subroutine prep_tanh
 
       end function find_eta
-
-      end subroutine find_pack_slope
 
 c     scale_coord
 c     #################################################################
@@ -447,9 +481,9 @@ c     Packing
 
           xlog = x1-(lmax-lmin)/TT*bb*sin(TT*(x1-lmin)/(lmax-lmin))
         else
-          if (gp(2) > 1d0) then       !expansion: monotonic cubic polynomial
+          if (gp(2)>1d0.or.(lmin==gp(1)).or.(lmax==gp(1))) then
             xlog = cubic_scl   (dim,x1,eta(dim),lmin,lmax,gp(1),gp(2))
-          else                        !contraction: Gaussian profile
+          else
             xlog = gaussian_scl(dim,x1,eta(dim),lmin,lmax,gp(1),gp(2))
           endif
 cc          write (*,*) x1,xlog

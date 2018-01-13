@@ -917,8 +917,8 @@ c       ANALYTICAL QUANTITIES **********************************
             enddo
           enddo
 
-c$$$          !Zero force condition on Christoffel symbols (only on finest grid)
-c$$$          if (igrid == 1) call hessianZeroForceCorr(g_def)
+          !Zero force condition on Christoffel symbols (only on finest grid)
+          if (igrid == 1) call hessianZeroForceCorr(g_def)
 
 c       NUMERICAL QUANTITIES ***********************************
 
