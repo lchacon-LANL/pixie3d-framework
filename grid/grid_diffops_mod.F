@@ -3440,14 +3440,18 @@ c     Begin program
           tsrc = 0.5*(nabla_v_src(ip,j,k)
      .               +nabla_v_src(i ,j,k))
 
-          gsuper =0.25*(g_def%gmetric%grid(igrid)%gsup_v(i,j  ,k  ,:,:)
-     .                 +g_def%gmetric%grid(igrid)%gsup_v(i,j-1,k  ,:,:)
-     .                 +g_def%gmetric%grid(igrid)%gsup_v(i,j  ,k-1,:,:)
-     .                 +g_def%gmetric%grid(igrid)%gsup_v(i,j-1,k-1,:,:))
-          jach   =0.25*(g_def%gmetric%grid(igrid)%jac_v(i,j  ,k  )
-     .                 +g_def%gmetric%grid(igrid)%jac_v(i,j-1,k  )
-     .                 +g_def%gmetric%grid(igrid)%jac_v(i,j  ,k-1)
-     .                 +g_def%gmetric%grid(igrid)%jac_v(i,j-1,k-1))
+c$$$          gsuper =0.25*(g_def%gmetric%grid(igrid)%gsup_v(i,j  ,k  ,:,:)
+c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i,j-1,k  ,:,:)
+c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i,j  ,k-1,:,:)
+c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i,j-1,k-1,:,:))
+          gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(ip,j,k,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup(i ,j,k,:,:))
+c$$$          jach   =0.25*(g_def%gmetric%grid(igrid)%jac_v(i,j  ,k  )
+c$$$     .                 +g_def%gmetric%grid(igrid)%jac_v(i,j-1,k  )
+c$$$     .                 +g_def%gmetric%grid(igrid)%jac_v(i,j  ,k-1)
+c$$$     .                 +g_def%gmetric%grid(igrid)%jac_v(i,j-1,k-1))
+          jach  = 0.5*(g_def%gmetric%grid(igrid)%jac (ip,j,k)
+     .                +g_def%gmetric%grid(igrid)%jac (i ,j,k))
 
         case (2)
           dhy = g_def%dy(jg)
@@ -3468,14 +3472,18 @@ c     Begin program
           tsrc = 0.5*(nabla_v_src(i,jp,k)
      .               +nabla_v_src(i,j ,k))
 
-          gsuper =0.25*(g_def%gmetric%grid(igrid)%gsup_v(i  ,j,k  ,:,:)
-     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j,k  ,:,:)
-     .                 +g_def%gmetric%grid(igrid)%gsup_v(i  ,j,k-1,:,:)
-     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j,k-1,:,:))
-          jach   =0.25*(g_def%gmetric%grid(igrid)%jac_v(i  ,j,k  )
-     .                 +g_def%gmetric%grid(igrid)%jac_v(i-1,j,k  )
-     .                 +g_def%gmetric%grid(igrid)%jac_v(i  ,j,k-1)
-     .                 +g_def%gmetric%grid(igrid)%jac_v(i-1,j,k-1))
+c$$$          gsuper =0.25*(g_def%gmetric%grid(igrid)%gsup_v(i  ,j,k  ,:,:)
+c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j,k  ,:,:)
+c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i  ,j,k-1,:,:)
+c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j,k-1,:,:))
+          gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,jp,k,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup(i,j ,k,:,:))
+c$$$          jach   =0.25*(g_def%gmetric%grid(igrid)%jac_v(i  ,j,k  )
+c$$$     .                 +g_def%gmetric%grid(igrid)%jac_v(i-1,j,k  )
+c$$$     .                 +g_def%gmetric%grid(igrid)%jac_v(i  ,j,k-1)
+c$$$     .                 +g_def%gmetric%grid(igrid)%jac_v(i-1,j,k-1))
+          jach  = 0.5*(g_def%gmetric%grid(igrid)%jac (i,jp,k)
+     .                +g_def%gmetric%grid(igrid)%jac (i,j ,k))
 
         case (3)
           dhz = g_def%dz(kg)
@@ -3496,14 +3504,18 @@ c     Begin program
           tsrc = 0.5*(nabla_v_src(i,j,kp)
      .               +nabla_v_src(i,j,k ))
 
-          gsuper =0.25*(g_def%gmetric%grid(igrid)%gsup_v(i  ,j  ,k,:,:)
-     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j  ,k,:,:)
-     .                 +g_def%gmetric%grid(igrid)%gsup_v(i  ,j-1,k,:,:)
-     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j-1,k,:,:))
-          jach   =0.25*(g_def%gmetric%grid(igrid)%jac_v(i  ,j  ,k)
-     .                 +g_def%gmetric%grid(igrid)%jac_v(i-1,j  ,k)
-     .                 +g_def%gmetric%grid(igrid)%jac_v(i  ,j-1,k)
-     .                 +g_def%gmetric%grid(igrid)%jac_v(i-1,j-1,k))
+c$$$          gsuper =0.25*(g_def%gmetric%grid(igrid)%gsup_v(i  ,j  ,k,:,:)
+c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j  ,k,:,:)
+c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i  ,j-1,k,:,:)
+c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j-1,k,:,:))
+          gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,j,kp,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup(i,j,k ,:,:))
+c$$$          jach   =0.25*(g_def%gmetric%grid(igrid)%jac_v(i  ,j  ,k)
+c$$$     .                 +g_def%gmetric%grid(igrid)%jac_v(i-1,j  ,k)
+c$$$     .                 +g_def%gmetric%grid(igrid)%jac_v(i  ,j-1,k)
+c$$$     .                 +g_def%gmetric%grid(igrid)%jac_v(i-1,j-1,k))
+          jach  = 0.5*(g_def%gmetric%grid(igrid)%jac (i,j,kp)
+     .                +g_def%gmetric%grid(igrid)%jac (i,j,k ))
 
         case default
 
@@ -3642,12 +3654,12 @@ c     Begin program
           tsrc = 0.5*(nabla_v_src(ip,j,k)
      .               +nabla_v_src(i ,j,k))
 
-          gsuper =0.25*(g_def%gmetric%grid(igrid)%gsup_v(i,j  ,k  ,:,:)
-     .                 +g_def%gmetric%grid(igrid)%gsup_v(i,j-1,k  ,:,:)
-     .                 +g_def%gmetric%grid(igrid)%gsup_v(i,j  ,k-1,:,:)
-     .                 +g_def%gmetric%grid(igrid)%gsup_v(i,j-1,k-1,:,:))
-c$$$          gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(ip,j,k,:,:)
-c$$$     .                 +g_def%gmetric%grid(igrid)%gsup(i ,j,k,:,:))
+c$$$          gsuper =0.25*(g_def%gmetric%grid(igrid)%gsup_v(i,j  ,k  ,:,:)
+c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i,j-1,k  ,:,:)
+c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i,j  ,k-1,:,:)
+c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i,j-1,k-1,:,:))
+          gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(ip,j,k,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup(i ,j,k,:,:))
 
         case (2)
           dhy = g_def%dy(jg)
@@ -3664,12 +3676,12 @@ c$$$     .                 +g_def%gmetric%grid(igrid)%gsup(i ,j,k,:,:))
           tsrc = 0.5*(nabla_v_src(i,jp,k)
      .               +nabla_v_src(i,j ,k))
 
-          gsuper =0.25*(g_def%gmetric%grid(igrid)%gsup_v(i  ,j,k  ,:,:)
-     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j,k  ,:,:)
-     .                 +g_def%gmetric%grid(igrid)%gsup_v(i  ,j,k-1,:,:)
-     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j,k-1,:,:))
-c$$$          gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,jp,k,:,:)
-c$$$     .                 +g_def%gmetric%grid(igrid)%gsup(i,j ,k,:,:))
+c$$$          gsuper =0.25*(g_def%gmetric%grid(igrid)%gsup_v(i  ,j,k  ,:,:)
+c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j,k  ,:,:)
+c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i  ,j,k-1,:,:)
+c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j,k-1,:,:))
+          gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,jp,k,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup(i,j ,k,:,:))
 
         case (3)
           dhz = g_def%dz(kg)
@@ -3686,12 +3698,12 @@ c$$$     .                 +g_def%gmetric%grid(igrid)%gsup(i,j ,k,:,:))
           tsrc = 0.5*(nabla_v_src(i,j,kp)
      .               +nabla_v_src(i,j,k ))
 
-          gsuper =0.25*(g_def%gmetric%grid(igrid)%gsup_v(i  ,j  ,k,:,:)
-     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j  ,k,:,:)
-     .                 +g_def%gmetric%grid(igrid)%gsup_v(i  ,j-1,k,:,:)
-     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j-1,k,:,:))
-c$$$          gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,j,kp,:,:)
-c$$$     .                 +g_def%gmetric%grid(igrid)%gsup(i,j,k ,:,:))
+c$$$          gsuper =0.25*(g_def%gmetric%grid(igrid)%gsup_v(i  ,j  ,k,:,:)
+c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j  ,k,:,:)
+c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i  ,j-1,k,:,:)
+c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j-1,k,:,:))
+          gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,j,kp,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup(i,j,k ,:,:))
 
         case default
 
@@ -5132,7 +5144,6 @@ c$$$          jac= 0.25*(g_def%gmetric%grid(igrid)%jac_v(i  ,j,k  )
 c$$$     .              +g_def%gmetric%grid(igrid)%jac_v(i-1,j,k  )
 c$$$     .              +g_def%gmetric%grid(igrid)%jac_v(i  ,j,k-1)
 c$$$     .              +g_def%gmetric%grid(igrid)%jac_v(i-1,j,k-1))
-
           jac  = 0.5*(g_def%gmetric%grid(igrid)%jac (i,jp,k)
      .               +g_def%gmetric%grid(igrid)%jac (i,j ,k))
 
@@ -5204,7 +5215,6 @@ c$$$          jac= 0.25*(g_def%gmetric%grid(igrid)%jac_v(i  ,j  ,k)
 c$$$     .              +g_def%gmetric%grid(igrid)%jac_v(i-1,j  ,k)
 c$$$     .              +g_def%gmetric%grid(igrid)%jac_v(i  ,j-1,k)
 c$$$     .              +g_def%gmetric%grid(igrid)%jac_v(i-1,j-1,k))
-
           jac  = 0.5*(g_def%gmetric%grid(igrid)%jac (i,j,kp)
      .               +g_def%gmetric%grid(igrid)%jac (i,j,k ))
 
@@ -5379,10 +5389,12 @@ c     Begin program
         else
           ip = i+1
 
-          jac = 0.25*(g_def%gmetric%grid(igx)%jac_v(i,j  ,k  )
-     .               +g_def%gmetric%grid(igx)%jac_v(i,j-1,k  )
-     .               +g_def%gmetric%grid(igx)%jac_v(i,j  ,k-1)
-     .               +g_def%gmetric%grid(igx)%jac_v(i,j-1,k-1))
+c$$$          jac = 0.25*(g_def%gmetric%grid(igx)%jac_v(i,j  ,k  )
+c$$$     .               +g_def%gmetric%grid(igx)%jac_v(i,j-1,k  )
+c$$$     .               +g_def%gmetric%grid(igx)%jac_v(i,j  ,k-1)
+c$$$     .               +g_def%gmetric%grid(igx)%jac_v(i,j-1,k-1))
+          jac  = 0.5*(g_def%gmetric%grid(igx)%jac (ip,j,k)
+     .               +g_def%gmetric%grid(igx)%jac (i ,j,k))
 
           nabla_v = fnabla_v_cnv(g_def,i,j,k,igx,vec,1)
         endif
@@ -5450,10 +5462,12 @@ c     Begin program
           nabla_v = fnabla_v_cnv(g_def,i,j,k,igx,vec,0)
         else
           jp = j+1
-          jac= 0.25*(g_def%gmetric%grid(igx)%jac_v(i  ,j,k  )
-     .              +g_def%gmetric%grid(igx)%jac_v(i-1,j,k  )
-     .              +g_def%gmetric%grid(igx)%jac_v(i  ,j,k-1)
-     .              +g_def%gmetric%grid(igx)%jac_v(i-1,j,k-1))
+c$$$          jac= 0.25*(g_def%gmetric%grid(igx)%jac_v(i  ,j,k  )
+c$$$     .              +g_def%gmetric%grid(igx)%jac_v(i-1,j,k  )
+c$$$     .              +g_def%gmetric%grid(igx)%jac_v(i  ,j,k-1)
+c$$$     .              +g_def%gmetric%grid(igx)%jac_v(i-1,j,k-1))
+          jac  = 0.5*(g_def%gmetric%grid(igx)%jac (i,jp,k)
+     .               +g_def%gmetric%grid(igx)%jac (i,j ,k))
 
           nabla_v = fnabla_v_cnv(g_def,i,j,k,igx,vec,2)
         endif
@@ -5517,10 +5531,12 @@ c     Begin program
           nabla_v = fnabla_v_cnv(g_def,i,j,k,igx,vec,0)
         else
           kp = k+1
-          jac= 0.25*(g_def%gmetric%grid(igx)%jac_v(i  ,j  ,k)
-     .              +g_def%gmetric%grid(igx)%jac_v(i-1,j  ,k)
-     .              +g_def%gmetric%grid(igx)%jac_v(i  ,j-1,k)
-     .              +g_def%gmetric%grid(igx)%jac_v(i-1,j-1,k))
+c$$$          jac= 0.25*(g_def%gmetric%grid(igx)%jac_v(i  ,j  ,k)
+c$$$     .              +g_def%gmetric%grid(igx)%jac_v(i-1,j  ,k)
+c$$$     .              +g_def%gmetric%grid(igx)%jac_v(i  ,j-1,k)
+c$$$     .              +g_def%gmetric%grid(igx)%jac_v(i-1,j-1,k))
+          jac  = 0.5*(g_def%gmetric%grid(igx)%jac (i,j,kp)
+     .               +g_def%gmetric%grid(igx)%jac (i,j,k ))
 
           nabla_v = fnabla_v_cnv(g_def,i,j,k,igx,vec,3)
         endif
@@ -6207,12 +6223,12 @@ c     Begin program
      .                          ,vec(:,:,:,3),0)
         else
           ip = i+1
-          gsuper =0.25*(g_def%gmetric%grid(igrid)%gsup_v(i,j  ,k  ,:,:)
-     .                 +g_def%gmetric%grid(igrid)%gsup_v(i,j-1,k  ,:,:)
-     .                 +g_def%gmetric%grid(igrid)%gsup_v(i,j  ,k-1,:,:)
-     .                 +g_def%gmetric%grid(igrid)%gsup_v(i,j-1,k-1,:,:))
-c$$$        gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(ip,j,k,:,:)
-c$$$     .               +g_def%gmetric%grid(igrid)%gsup(i ,j,k,:,:))
+c$$$          gsuper =0.25*(g_def%gmetric%grid(igrid)%gsup_v(i,j  ,k  ,:,:)
+c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i,j-1,k  ,:,:)
+c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i,j  ,k-1,:,:)
+c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i,j-1,k-1,:,:))
+          gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(ip,j,k,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup(i ,j,k,:,:))
 
           nabla_v = fnabla_v_cov(g_def,i,j,k,nx,ny,nz,igx,igy,igz
      .                          ,vec(:,:,:,1)
@@ -6275,12 +6291,12 @@ c     Begin program
      .                          ,vec(:,:,:,3),0)
         else
           jp = j+1
-          gsuper =0.25*(g_def%gmetric%grid(igrid)%gsup_v(i  ,j,k  ,:,:)
-     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j,k  ,:,:)
-     .                 +g_def%gmetric%grid(igrid)%gsup_v(i  ,j,k-1,:,:)
-     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j,k-1,:,:))
-c$$$        gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,jp,k,:,:)
-c$$$     .               +g_def%gmetric%grid(igrid)%gsup(i,j ,k,:,:))
+c$$$          gsuper =0.25*(g_def%gmetric%grid(igrid)%gsup_v(i  ,j,k  ,:,:)
+c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j,k  ,:,:)
+c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i  ,j,k-1,:,:)
+c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j,k-1,:,:))
+          gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,jp,k,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup(i,j ,k,:,:))
 
           nabla_v = fnabla_v_cov(g_def,i,j,k,nx,ny,nz,igx,igy,igz
      .                          ,vec(:,:,:,1)
@@ -6343,12 +6359,12 @@ c     Begin program
      .                          ,vec(:,:,:,3),0)
         else
           kp = k+1
-          gsuper =0.25*(g_def%gmetric%grid(igrid)%gsup_v(i  ,j  ,k,:,:)
-     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j  ,k,:,:)
-     .                 +g_def%gmetric%grid(igrid)%gsup_v(i  ,j-1,k,:,:)
-     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j-1,k,:,:))
-c$$$        gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,j,kp,:,:)
-c$$$     .               +g_def%gmetric%grid(igrid)%gsup(i,j,k ,:,:))
+c$$$          gsuper =0.25*(g_def%gmetric%grid(igrid)%gsup_v(i  ,j  ,k,:,:)
+c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j  ,k,:,:)
+c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i  ,j-1,k,:,:)
+c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j-1,k,:,:))
+          gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,j,kp,:,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup(i,j,k ,:,:))
 
           nabla_v = fnabla_v_cov(g_def,i,j,k,nx,ny,nz,igx,igy,igz
      .                          ,vec(:,:,:,1)
