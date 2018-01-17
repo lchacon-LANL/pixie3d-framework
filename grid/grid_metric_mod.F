@@ -1250,7 +1250,7 @@ c     NEW WAY: compute directly second-order derivatives
 
         d2r = find_d2r(g_def,igrid,xc)
 
-        do k = klo,khp
+        do k = klo,khi
           do j = jlo,jhi
             do i = ilo,ihi
 
