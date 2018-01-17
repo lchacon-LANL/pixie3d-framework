@@ -364,7 +364,7 @@ c     #####################################################################
       function find_d2r(g_def,igrid,x) result(d2r)
 
 c     ---------------------------------------------------------------------
-c     This routine finds d2x/d_xi/d_xj tensor everywhere on the mesh (w BCs)
+c     This routine finds d2x/d_xi/d_xj tensor everywhere on the mesh
 c     ---------------------------------------------------------------------
 
         implicit none
@@ -374,9 +374,10 @@ c     Call variables
         type(grid_mg_def),pointer :: g_def
 
         integer :: igrid
-        real(8) :: x(0:,0:,0:,:),d2r(0:size(x,1)-1
-     .                              ,0:size(x,2)-1
-     .                              ,0:size(x,3)-1,3,3,3)
+        real(8) :: x(0:,0:,0:,:)
+     .            ,d2r(0:size(x,1)-1
+     .                ,0:size(x,2)-1
+     .                ,0:size(x,3)-1,3,3,3)
 
 c     Local variables
 
@@ -413,166 +414,6 @@ c     Evaluate d2r=d2x/dxi/dxj hessian at cell centers
             enddo
           enddo
         enddo
-
-c     Apply BCs
-        
-        bcs(:,1) = bcond
-        bcs(:,2) = bcond
-        bcs(:,3) = bcond
-        where (bcs == DEF.or.bcs == SP) bcs = EXT
-        do k=1,3
-          do j=1,3
-            do i=1,3
-              call setMGBC(g_def,0,1,nx,ny,nz,igrid
-     .                    ,d2r(:,:,:,i:i,j,k),bcs(:,1:1),iorder=2)
-c$$$              call topol_bc(g_def,igrid,nx,ny,nz
-c$$$     .             ,g_def%gmetric%grid(igrid)%Gamma(:,:,:,i,j,k),bcond)
-            enddo
-          enddo
-        enddo
-
-c$$$        i0 = min(max(i,1),nx)
-c$$$        j0 = min(max(j,1),ny)
-c$$$        k0 = min(max(k,1),nz)
-c$$$
-c$$$        call getMGmap(g_def,i0,j0,k0,igx,igy,igz,ig,jg,kg)
-c$$$
-c$$$c     First derivatives
-c$$$
-c$$$        dr = find_dr(g_def,i,j,k,igrid,x)
-c$$$
-c$$$c     Second derivatives
-c$$$
-c$$$        do m=1,3
-c$$$          d2r(:,:,m) = find_dr(g_def,i,j,k,igrid,dr(:,m))
-c$$$        enddo
-c$$$
-c$$$c     
-c$$$        !X
-c$$$        ip = i0+1
-c$$$        im = i0-1
-c$$$c$$$        ip = min(i0+1 + max(i0-i,0),nx+1)  !Augment on the right at left bdry
-c$$$c$$$        im = max(i0-1 + min(i0-i,0),0   )  !Augment on the left at right bdry
-c$$$
-c$$$        igp = ig+(ip-i0)
-c$$$        igm = ig+(im-i0)
-c$$$
-c$$$cc        write (*,*) "i",i,i0,ip,im,2+2*max(i-i0,0)+min(i-i0,0)
-c$$$        pos = 2 + (i-i0)
-c$$$cc        if (ip-im == 3) pos = 2+2*max(i-i0,0)+min(i-i0,0)
-c$$$        d2r(:,1,1) = d2r_dxi(1,g_def%xx(igm:igp),x(im:ip,j0,k0,:),pos)
-c$$$
-c$$$        !Y
-c$$$        jp = j0+1
-c$$$        jm = j0-1
-c$$$c$$$        jp = min(j0+1 + max(j0-j,0),ny+1)  !Augment on the right at left bdry
-c$$$c$$$        jm = max(j0-1 + min(j0-j,0),0   )  !Augment on the left at right bdry
-c$$$
-c$$$        jgp = jg+(jp-j0)
-c$$$        jgm = jg+(jm-j0)
-c$$$
-c$$$cc        write (*,*) "j",j,j0,jp,jm,2+2*max(j-j0,0)+min(j-j0,0)
-c$$$        pos = 2
-c$$$        if (jp-jm == 3) pos = 2+2*max(j-j0,0)+min(j-j0,0)
-c$$$        d2r(:,2,2) = d2r_dxi(2,g_def%yy(jgm:jgp),x(i0,jm:jp,k0,:),pos)
-c$$$
-c$$$        !Z
-c$$$        kp = k0+1
-c$$$        km = k0-1
-c$$$c$$$        kp = min(k0+1 + max(k0-k,0),nz+1)  !Augment on the right at left bdry
-c$$$c$$$        km = max(k0-1 + min(k0-k,0),0   )  !Augment on the left at right bdry
-c$$$
-c$$$        kgp = kg+(kp-k0)
-c$$$        kgm = kg+(km-k0)
-c$$$
-c$$$cc        write (*,*) "k",k,k0,km,kp,2+2*max(k-k0,0)+min(k-k0,0)
-c$$$        pos = 2
-c$$$        if (kp-km == 3) pos = 2+2*max(k-k0,0)+min(k-k0,0)
-c$$$        d2r(:,3,3) = d2r_dxi(3,g_def%zz(kgm:kgp),x(i0,j0,km:kp,:),pos)
-c$$$
-c$$$c diag ****
-c$$$        if ((i==0.or.i==1).and.j==1.and.k==1.and.igrid==1) then
-c$$$c$$$          pos = 2
-c$$$c$$$          if (ip-im == 3) pos = 2+2*max(i-i0,0)+min(i-i0,0)
-c$$$c$$$          write (*,*) "i",i,i0,im,ip,pos
-c$$$c$$$          write (*,*) "x ",g_def%xx(igm:igp)
-c$$$c$$$          write (*,*) "x0",g_def%xx(pos)
-c$$$c$$$          write (*,*) "car1",x(im:ip,j,k,1)
-c$$$c$$$          write (*,*) "car2",x(im:ip,j,k,2)
-c$$$c$$$          write (*,*) "car3",x(im:ip,j,k,3)
-c$$$c$$$          write (*,*) d2r(:,1)
-c$$$
-c$$$          pos = 2
-c$$$          if (jp-jm == 3) pos = 2+2*max(j-j0,0)+min(j-j0,0)
-c$$$          write (*,*) "j",j,j0,jm,jp,pos
-c$$$          write (*,*) "y ",g_def%yy(jgm:jgp)
-c$$$          write (*,*) "y0",g_def%yy(pos)
-c$$$          write (*,*) "car1",x(i0,jm:jp,k0,1)
-c$$$          write (*,*) "car2",x(i0,jm:jp,k0,2)
-c$$$          write (*,*) "car3",x(i0,jm:jp,k0,3)
-c$$$          write (*,*) d2r(:,2)
-c$$$
-c$$$c$$$          pos = 2
-c$$$c$$$          if (kp-km == 3) pos = 2+2*max(k-k0,0)+min(k-k0,0)
-c$$$c$$$          write (*,*) "k",k,k0,km,kp,pos
-c$$$c$$$          write (*,*) "z ",g_def%zz(kgm:kgp)
-c$$$c$$$          write (*,*) "z0",g_def%zz(pos)
-c$$$c$$$          write (*,*) "car1",x(i,j,km:kp,1)
-c$$$c$$$          write (*,*) "car2",x(i,j,km:kp,2)
-c$$$c$$$          write (*,*) "car3",x(i,j,km:kp,3)
-c$$$c$$$          write (*,*) d2r(:,3)
-c$$$        endif
-c$$$c diag ****
-c$$$      contains
-c$$$
-c$$$c     d2r_dxi
-c$$$c     #################################################################
-c$$$      function d2r_dxi(dim,x,r,pos) result(d2r)
-c$$$
-c$$$        implicit none
-c$$$
-c$$$        integer :: pos,dim
-c$$$        real(8) :: x(:),r(:,:),d2r(1)
-c$$$
-c$$$        integer :: n
-c$$$        
-c$$$c     Begin program
-c$$$
-c$$$        n = size(x)
-c$$$
-c$$$        if (n < 3) then
-c$$$          call pstop("d2r_dxi","Cannot compute second derivative")
-c$$$        endif
-c$$$
-c$$$        call IntDriver1d(n,x,r(:,dim),1,x(pos:pos),d2r,n-1,deriv=2)
-c$$$
-c$$$      end function d2r_dxi
-c$$$
-c$$$c     dr_dxi
-c$$$c     #################################################################
-c$$$      function dr_dxi(x,r,pos) result(dr)
-c$$$
-c$$$        implicit none
-c$$$
-c$$$        integer :: pos
-c$$$        real(8) :: x(:),r(:,:),dr(size(r,2))
-c$$$
-c$$$        integer :: n
-c$$$
-c$$$c     Begin program
-c$$$
-c$$$        
-c$$$        n = size(x)
-c$$$
-c$$$        if (n < 3) then
-c$$$          call pstop("d2r_dxi","Cannot compute second derivative")
-c$$$        endif
-c$$$
-c$$$        call IntDriver1d(n,x,r(:,1),1,x(pos:pos),dr(1:1),n-1,deriv=1)
-c$$$        call IntDriver1d(n,x,r(:,2),1,x(pos:pos),dr(2:2),n-1,deriv=1)
-c$$$        call IntDriver1d(n,x,r(:,3),1,x(pos:pos),dr(3:3),n-1,deriv=1)
-c$$$
-c$$$      end function dr_dxi
 
       end function find_d2r
 
@@ -1381,7 +1222,7 @@ c     #################################################################
       subroutine Christoffel(g_def)
 
 c     -----------------------------------------------------------------
-c     Compute Christoffel symbols of the second kind
+c     Compute Christoffel symbols of the second kind at cell centers
 c     -----------------------------------------------------------------
 
         implicit  none
@@ -1393,7 +1234,7 @@ c     Call variables
 c     Local variables
 
         integer :: i,j,k,l,m,n,he,bcs(6,3)
-        real(8) :: r(3,3),cov(3,3),d2_r(3,3,3),gamma(3,3,3)
+        real(8) :: r(3,3),cov(3,3),gamma(3,3,3)
 
         real(8),pointer,dimension(:,:,:,:,:,:) :: d2r
         real(8),pointer,dimension(:,:,:,:,:)   :: dr
@@ -1403,64 +1244,22 @@ c     Begin program
 
         xc => g_def%gmetric%grid(igrid)%car
 
-c     Christoffel symbols (at cell centers)
+c     NEW WAY: compute directly second-order derivatives
 
-c$$$        allocate(d2r(ilom:ihip,jlom:jhip,klom:khip,3,3,3))
-c$$$
-c$$$        d2r = find_d2r(g_def,igrid,xc)
-c$$$
-c$$$        do k = klom,khip
-c$$$          do j = jlom,jhip
-c$$$            do i = ilom,ihip
-c$$$
-c$$$              cov = g_def%gmetric%grid(igrid)%cov(i,j,k,:,:)
-c$$$              
-c$$$              d2_r=d2r(i,j,k,:,:,:)
-c$$$
-c$$$              do l=1,3
-c$$$                do n=1,3
-c$$$                  do m=1,3
-c$$$                    gamma(l,m,n) = dot_product(d2_r(:,m,n),cov(l,:))
-c$$$                  enddo
-c$$$                enddo
-c$$$                gamma(l,:,:) =0.5*(gamma(l,:,:)+transpose(gamma(l,:,:))) !Symmetrize
-c$$$              enddo
-c$$$
-c$$$              g_def%gmetric%grid(igrid)%Gamma(i,j,k,:,:,:) = gamma
-c$$$
-c$$$            enddo
-c$$$          enddo
-c$$$        enddo
-c$$$
-c$$$        deallocate(d2r)
-c$$$        nullify(xc)
+        allocate(d2r(ilom:ihip,jlom:jhip,klom:khip,3,3,3))
 
-        allocate(dr(ilom:ihip,jlom:jhip,klom:khip,3,3))
+        d2r = find_d2r(g_def,igrid,xc)
 
-        dr = 0d0
-
-        he = 1
-
-        do k = klom,khi
-          do j = jlom,jhi
-            do i = ilom,ihi
-              dr(i,j,k,:,:) = find_dr(g_def,i,j,k,igrid,he,he,he,xc)
-            enddo
-          enddo
-        enddo
-
-        do k = klo,khi
-          do j = jlo,jhi
-            do i = ilo,ihi
+        do k = klom,khip
+          do j = jlom,jhip
+            do i = ilom,ihip
 
               cov = g_def%gmetric%grid(igrid)%cov(i,j,k,:,:)
               
               do l=1,3
-                do m=1,3
-                  d2_r(:,:,m)=find_dr(g_def,i-1,j-1,k-1,igrid,he,he,he
-     .                               ,dr(:,:,:,:,m))
-                  do n=1,3
-                    gamma(l,n,m) = dot_product(d2_r(:,n,m),cov(l,:))
+                do n=1,3
+                  do m=1,3
+                    gamma(l,m,n)=dot_product(d2r(i,j,k,:,m,n),cov(l,:))
                   enddo
                 enddo
                 gamma(l,:,:) =0.5*(gamma(l,:,:)+transpose(gamma(l,:,:))) !Symmetrize
@@ -1472,11 +1271,65 @@ c$$$        nullify(xc)
           enddo
         enddo
 
+        deallocate(d2r)
+
+c$$$c     LEGACY WAY: cell-centered derivatives
+c$$$
+c$$$        allocate(dr(ilom:ihip,jlom:jhip,klom:khip,3,3))
+c$$$
+c$$$        dr = 0d0
+c$$$
+c$$$        do k = klom,khip
+c$$$          do j = jlom,jhip
+c$$$            do i = ilom,ihip
+c$$$              dr(i,j,k,:,:) = find_dr(g_def,i,j,k,igrid,xc)
+c$$$            enddo
+c$$$          enddo
+c$$$        enddo
+c$$$
+c$$$        call dr_bc(g_def,igrid,dr)
+c$$$
+c$$$        do k = klom,khip
+c$$$          do j = jlom,jhip
+c$$$            do i = ilom,ihip
+c$$$
+c$$$              cov = g_def%gmetric%grid(igrid)%cov(i,j,k,:,:)
+c$$$              
+c$$$              do l=1,3
+c$$$                do m=1,3
+c$$$                  d2_r(:,:,m) = find_dr(g_def,i,j,k,igrid,dr(:,:,:,:,m))
+c$$$                  do n=1,3
+c$$$                    gamma(l,n,m) = dot_product(d2_r(:,n,m),cov(l,:))
+c$$$                  enddo
+c$$$                enddo
+c$$$                gamma(l,:,:) =0.5*(gamma(l,:,:)+transpose(gamma(l,:,:))) !Symmetrize
+c$$$              enddo
+c$$$
+c$$$              g_def%gmetric%grid(igrid)%Gamma(i,j,k,:,:,:) = gamma
+c$$$
+c$$$            enddo
+c$$$          enddo
+c$$$        enddo
+c$$$        
+c$$$        deallocate(dr)
+        
+        nullify(xc)
+
 c     Enforce zero-force condition on Christoffle symbols
         
         if (igrid == 1) call hessianZeroForceCorr(g_def)
 
 c     Apply BCs to Christoffel symbols
+
+c$$$        !Enforce topological constraints on Christoffel symbols
+c$$$        do i=1,3
+c$$$          do j=1,3
+c$$$            do k=1,3
+c$$$              call topol_bc(g_def,igrid,nx,ny,nz
+c$$$     .           ,g_def%gmetric%grid(igrid)%Gamma(:,:,:,i,j,k),bcond)
+c$$$            enddo
+c$$$          enddo
+c$$$        enddo
 
         !Regularize
         do k = klo,khi
@@ -1497,8 +1350,6 @@ c     Apply BCs to Christoffel symbols
         do k=1,3
           do j=1,3
             do i=1,3
-c$$$              call topol_bc(g_def,igrid,nx,ny,nz
-c$$$     .             ,g_def%gmetric%grid(igrid)%Gamma(:,:,:,i,j,k),bcond)
               call setMGBC(g_def,0,1,nx,ny,nz,igrid
      .                   ,g_def%gmetric%grid(igrid)%Gamma(:,:,:,i:i,j,k)
      .                   ,bcs(:,1:1),iorder=2)
@@ -1516,46 +1367,6 @@ c$$$     .             ,g_def%gmetric%grid(igrid)%Gamma(:,:,:,i,j,k),bcond)
              enddo
           enddo
         enddo
-
-        deallocate(dr)
-        nullify(xc)
-
-c$$$c     Compute Christoffel symbols
-c$$$
-c$$$        do k = kmin,kmax
-c$$$          do j = jmin,jmax
-c$$$            do i = imin,imax
-c$$$
-c$$$              cov = g_def%gmetric%grid(igrid)%cov(i,j,k,:,:)
-c$$$
-c$$$              do l=1,3
-c$$$                do m=1,3
-c$$$                  do n=1,3
-c$$$                    d2r = find_dr(g_def,i,j,k,igrid,dr(:,:,:,:,m))
-c$$$                    gamma(l,m,n) = dot_product(d2r(:,n),cov(:,l))
-c$$$                  enddo
-c$$$                enddo
-c$$$                gamma(l,:,:) =0.5*(gamma(l,:,:)+transpose(gamma(l,:,:))) !Symmetrize
-c$$$              enddo
-c$$$
-c$$$              g_def%gmetric%grid(igrid)%Gamma(i,j,k,:,:,:) = gamma
-c$$$
-c$$$            enddo
-c$$$          enddo
-c$$$        enddo
-c$$$
-c$$$        !Zero-force condition on Christoffle symbols 
-c$$$        if (igrid == 1) call hessianZeroForceCorr(igrid)
-c$$$
-c$$$        !Enforce topological constraints on Christoffel symbols
-c$$$        do k=1,3
-c$$$          do j=1,3
-c$$$            do i=1,3
-c$$$              call topol_bc(g_def,igrid,nx,ny,nz
-c$$$     .           ,g_def%gmetric%grid(igrid)%Gamma(:,:,:,i,j,k),bcond)
-c$$$            enddo
-c$$$          enddo
-c$$$        enddo
 
 c     End program
 

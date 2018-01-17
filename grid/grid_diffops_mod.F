@@ -3102,11 +3102,13 @@ c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j-1,k,:,:))
         tensor(2,:) = (vjp(:)-vjm(:))*idh(2)
         tensor(3,:) = (vkp(:)-vkm(:))*idh(3)
 
-        if (cntv) tensor = matmul(gsuper,tensor)
+c$$$        if (cntv) tensor = matmul(gsuper,tensor)
 
       ! Add geometric source
 
         tensor = tensor + tsrc
+
+        if (cntv) tensor = matmul(gsuper,tensor)
 
 c     End program
 
@@ -3146,17 +3148,11 @@ c     Begin program
      .              dot_product(cnv
      .                   ,g_def%gmetric%grid(igrid)%Gamma(i,j,k,m,:,l))
      .             -cnv(m)*dum(l)
-c$$$     .           cnv(1)* g_def%gmetric%grid(igrid)%Gamma(i,j,k,m,1,l)
-c$$$     .          +cnv(2)* g_def%gmetric%grid(igrid)%Gamma(i,j,k,m,2,l)
-c$$$     .          +cnv(3)* g_def%gmetric%grid(igrid)%Gamma(i,j,k,m,3,l)
-c$$$     .          -cnv(m)*(g_def%gmetric%grid(igrid)%Gamma(i,j,k,1,1,l)
-c$$$     .                  +g_def%gmetric%grid(igrid)%Gamma(i,j,k,2,2,l)
-c$$$     .                  +g_def%gmetric%grid(igrid)%Gamma(i,j,k,3,3,l))
           enddo
         enddo
 
-        if (cntv)
-     .   tensor=matmul(g_def%gmetric%grid(igrid)%gsup(i,j,k,:,:),tensor)
+c$$$        if (cntv)
+c$$$     .   tensor=matmul(g_def%gmetric%grid(igrid)%gsup(i,j,k,:,:),tensor)
 
 c     End program
 
