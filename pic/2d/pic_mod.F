@@ -1,5 +1,6 @@
 #include "pic_defs.h"
 
+#if !defined(plotting)
 c pic_mover
 c ######################################################################    
       module pic_mover
@@ -9,8 +10,6 @@ c ######################################################################
       use pic_moments
 
       use pic_diag
-
-      use pic_setup
 
       !Particle orbit iteration counters
       integer(8) :: pst_counter=0    !Total number of particle substeps
@@ -2119,3 +2118,4 @@ c$$$
 c$$$      end function f0v
 
       end module pic
+#endif

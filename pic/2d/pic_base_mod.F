@@ -1187,11 +1187,13 @@ c module pic_map
 c ######################################################################
       module pic_map
 
-      use spline_field
+      use grid_splines
 
       use pic_shape_f
 
       use pic_BCs
+
+      use math
 
       real(8),pointer,dimension(:,:)   :: jac_g
       real(8),pointer,dimension(:,:,:) :: map_g
@@ -3509,7 +3511,7 @@ c ######################################################################
 
 cc      use pic_io
 
-      use grid, ONLY: npx,npy,npz,gparams
+      use grid, ONLY: npx,npy,npz,gparams,np
 #if defined(petsc)
      .               ,add_profile_stage
 #endif
