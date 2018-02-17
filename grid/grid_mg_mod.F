@@ -23,7 +23,7 @@ c######################################################################
 
         type(grid_mg_def),pointer,private :: g_mg_def
 
-        integer,private :: mg_coarse_size = 4     !Minimum coarse grid size (mg_ratio^mg_coarse_size)
+        integer,private :: mg_coarse_size = 2     !Minimum coarse grid size (mg_ratio^mg_coarse_size)
 
 #if defined(coarse_MG)
         integer,private :: mg_proc_coarsen_factor=2  !Coarsening ratio in # procs/dim
@@ -56,19 +56,20 @@ c     Local variables
 
 c     Begin program
 
-      ngrd = int(dlog(1d0*nx)/dlog(1d0*mgr)+0.001)
+      !Initial estimate
+      ngrd = max(int(dlog(1d0*nx)/dlog(1d0*mgr)+0.001),1)
 
 c$$$      !Back off one level
-c$$$      ngrd = max(nl-1,1)
+c$$$      ngrd = max(ngrd-1,1)
 
       !Failsafes
-      do i = ngrd,2,-1
+      do i = ngrd,1,-1
         nl = nx/mgr**(i-1)
         if (    (nl*mgr**(i-1) == nx)                !Grid level is a power of MG ratio
      $     .and.(np*nl >= mgr**mg_coarse_size)) exit !Respect mg_coarse_size limit
       enddo
 
-      ngrd = i
+      ngrd = max(i,1)
 c$$$      if (np == 1) then
 c$$$        ngrd = i - mg_coarse_size + 2
 c$$$      else
