@@ -4304,7 +4304,7 @@ c     Find PIC physical quantities
       do isp=1,n_sp
          omega_p(isp) = sqrt(abs(q_m(isp))) !careful
          tot_bp = min_pcles*nng*pgroup
-         nps(isp) = npcles(isp) - gnip - tot_bp
+         nps(isp) = npcles(isp) - gnip !- tot_bp
 
          Jnpc_avg(isp) = (nps(isp))/sum(Jns(1:nxg,1:nyg,isp))
          n0 = Jnpc_avg(isp)/(hx*hy*hz)     !Add volume factor
