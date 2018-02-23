@@ -13,7 +13,7 @@ c ######################################################################
      .               ,MPI_INTEGER,mpierr
 #endif
 
-      integer, parameter :: nsp_max=5
+      integer, parameter :: nsp_max=5,Npg=_Npg
 
       type :: particle
         SEQUENCE
@@ -119,13 +119,9 @@ c     Allocate pcle quantities
       nip = gnip/(nproc*pgroup)
       np_r= mod(gnip/pgroup,nproc)
 
-      if(my_rank_pic.lt.np_r) then
-        nip = (nip + 1)*pgroup  !Group pcles
-      else
-        nip = nip*pgroup        !Group pcles
-      end if
+      if(my_rank_pic.lt.np_r) nip = nip + 1
 
-      nip = nip/_Npg
+      nip = nip*pgroup/_Npg
 
 c     End program
 
@@ -252,12 +248,12 @@ c     Begin program
       read(ufile,iostat=ierror,end=100) nip,nsp,npcl,pgroup,gnip,npc1_0
       if (ierror /= 0) goto 200
 
-      npcles(1:nsp) = npcl(1:nsp)
-      
       read(ufile,iostat=ierror,end=100) m_np,m_n,cm_ex,PoynFlux
       if (ierror /= 0) goto 200
 
-      if (.not.allocated(spcs)) call alloc_pcles(nsp,npcl(1:nsp))
+      npcles(1:nsp) = npcl(1:nsp)*_Npg
+      
+      if (.not.allocated(spcs)) call alloc_pcles(nsp,npcles(1:nsp))
 
       do isp=1,nsp
          read (ufile,iostat=ierror,end=100) spcs(isp)%q
@@ -555,15 +551,15 @@ cc      i  = mod(ijk, nx) + 1
 
 c     setup_pic_shape_f
 c     ##################################################################
-      subroutine setup_pic_shape_f(ih_x,ih_y,ih_z)
+      subroutine setup_pic_shape_f(hx,hy,hz)
 
       implicit none
 
-      real(8) :: ih_x,ih_y,ih_z
+      real(8) :: hx,hy,hz
 
-      ihx = ih_x
-      ihy = ih_y
-      ihz = ih_z
+      ihx = 1d0/hx
+      ihy = 1d0/hy
+      ihz = 1d0/hz
 
       ihxsq = ihx*ihx!1d0/(hx*hx)
       ihysq = ihy*ihy!1d0/(hy*hy)
@@ -1287,13 +1283,17 @@ c ######################################################################
 
       use pic_BCs
 
+      use grid, ONLY: createGrid
+
       use math
+
+      type(grid_mg_def),pointer :: gpicdef => null()
 
       real(8),pointer,dimension(:,:)   :: jac_g
       real(8),pointer,dimension(:,:,:) :: map_g
       integer,private :: nxl,nyl,nzl,nnl,nxg,nyg,nzg,nng
       real(8),private :: ihx,ihy,ihz,h_x,h_y,h_z
-      logical,private ::   global_splines=.false.
+      logical,private :: global_splines=.false.
       logical,protected :: no_map=.true.
 
       real(8),private :: x_min,x_max,y_min,y_max,z_min,z_max
@@ -1302,26 +1302,28 @@ c ######################################################################
 
 c     setup_map
 c     ##################################################################
-      subroutine setup_map(nxd,nyd,nzd,jac,no__map,xmap,
-     .     xin,yin,zin,xmin,xmax,ymin,ymax,zmin,zmax,hx,hy,hz)
+      subroutine setup_map(nxd,nyd,nzd,jac,no__map,xmap,xin,yin,zin)
 
       implicit none
 
 c     Call variables
+
       integer :: nxd,nyd,nzd
       real(8), intent(in) :: jac   (0:,0:,0:)
      .                      ,xmap  (0:,0:,0:,:)
      .                      ,xin(0:),yin(0:),zin(0:)
-      real(8), intent(out) :: hx,hy,hz
-      real(8), intent(inout):: xmin,xmax,ymin,ymax,zmin,zmax
       logical, intent(in) :: no__map
+
+c     Local variables
+
+      real(8) :: xmin,xmax,ymin,ymax,zmin,zmax
+
+c     Begin program
 
       no_map  = no__map
 
-      nxg = nxd;
-      nyg = nyd;
-      nzg = nzd;
-
+      call set_global_grid_size(nxd,nyd,nzd)
+      
       call alloc_map(nxg,nyg,nzg,nxl,nyl,nzl)
 
       jac_g  = jac (:,:,1)
@@ -1358,20 +1360,13 @@ c     Call variables
       endif
 
       !Mesh spacings
-      hx  = (xmax-xmin)/dble(nxg)
-      hy  = (ymax-ymin)/dble(nyg)
-      hz  = (zmax-zmin)/dble(nzg)
+      h_x = (xmax-xmin)/dble(nxg)
+      h_y = (ymax-ymin)/dble(nyg)
+      h_z = (zmax-zmin)/dble(nzg)
 
-      !Assign internal variables
+      call set_inverse_h(h_x,h_y,h_z)
 
-      h_x = hx
-      h_y = hy
-      h_z = hz
-
-      ihx = 1d0/hx
-      ihy = 1d0/hy
-      ihz = 1d0/hz
-
+      !Domain limits
       x_min = xmin
       x_max = xmax
       y_min = ymin
@@ -1379,7 +1374,42 @@ c     Call variables
       z_min = zmin
       z_max = zmax
 
+      call createGrid(nxd,nyd,nzd,xmin,xmax,ymin,ymax,zmin,zmax,gpicdef)
+
       end subroutine setup_map
+
+c     get_domain_limits
+c     ##################################################################
+      subroutine get_domain_limits(xmin,xmax,ymin,ymax,zmin,zmax)
+
+      implicit none
+
+      real(8) :: xmin,xmax,ymin,ymax,zmin,zmax
+
+      xmin = x_min
+      xmax = x_max
+      ymin = y_min
+      ymax = y_max
+      zmin = z_min
+      zmax = z_max
+
+      end subroutine get_domain_limits
+
+c     set_inverse_h
+c     ##################################################################
+      subroutine set_inverse_h(hx,hy,hz)
+
+      implicit none
+
+      real(8) :: hx,hy,hz
+
+      ihx = 1d0/hx
+      ihy = 1d0/hy
+      ihz = 1d0/hz
+
+      call setup_pic_shape_f(hx,hy,hz)
+
+      end subroutine set_inverse_h
 
 c     get_inverse_h
 c     ##################################################################
@@ -1390,7 +1420,7 @@ c     ##################################################################
       real(8) :: ihx0,ihy0,ihz0
 
       if (ihx == 0d0 .or. ihy == 0d0 .or. ihz == 0d0) then
-         write (*,*) "Inverse spacing undefined"
+         write (*,*) "Inverse grid spacing undefined"
          stop
       endif
 
@@ -1409,7 +1439,7 @@ c     ##################################################################
       real(8) :: hx0,hy0,hz0
 
       if (h_x == 0d0 .or. h_y == 0d0 .or. h_z == 0d0) then
-         write (*,*) "Inverse spacing undefined"
+         write (*,*) "Grid spacing undefined"
          stop
       endif
 
@@ -1432,6 +1462,20 @@ c     ##################################################################
       nz_g = nzg
 
       end subroutine get_global_grid_size
+
+c     set_global_grid_size
+c     ##################################################################
+      subroutine set_global_grid_size(nx_g,ny_g,nz_g)
+
+      implicit none
+
+      integer :: nx_g,ny_g,nz_g
+
+      nxg = nx_g
+      nyg = ny_g
+      nzg = nz_g
+
+      end subroutine set_global_grid_size
 
 c     alloc_map
 c     ##################################################################
@@ -1457,7 +1501,11 @@ c     dealloc_map
 c     ##################################################################
       subroutine dealloc_map
 
-      deallocate(jac_g,map_g)
+      implicit none
+
+      integer :: alloc_stat
+      
+      deallocate(jac_g,map_g,stat=alloc_stat)
 
       end subroutine dealloc_map
 
@@ -2020,8 +2068,6 @@ c ######################################################################
 
       use grid, ONLY: find_local,setbc,setmgbc_stg
 
-      use variables, ONLY: gv
-
       !Moments
       integer,parameter:: Ins=0,Ipx=1,Ipy=2,Ipz=3,IS11=4,IS22=5,IS33=6
       integer,private :: order_moms=1
@@ -2166,11 +2212,13 @@ c     ##################################################################
 
 c     gather_moments
 c     ##################################################################
-      subroutine gather_moments
+      subroutine gather_moments(gdef)
 
       implicit none
 
 c     Call variables
+
+      type(grid_mg_def),pointer :: gdef
 
 c     Call variables
 
@@ -2181,10 +2229,10 @@ c     Begin program
       call gather_2d_moments(moms_g(:,:,1,1:n_sp,:))
 
       do im=0,size(moms,5)-1
-       call find_local(gv%gparams,1,moms_g(:,:,:,:,im),moms(:,:,:,:,im))
+       call find_local(gdef,1,moms_g(:,:,:,:,im),moms(:,:,:,:,im))
       enddo
 
-      call applyBC_moms
+      call applyBC_moms(gdef)
 
 c     End program
 
@@ -2547,11 +2595,13 @@ c     end program
 
 c     applyBC_moms
 c     ##################################################################
-      subroutine applyBC_moms
+      subroutine applyBC_moms(gdef)
 
       implicit none
 
 c     Call variables
+
+      type(grid_mg_def),pointer :: gdef
 
 c     Local variables
 
@@ -2574,7 +2624,7 @@ c     Begin program
 
       !Densities
       do isp = 1,n_sp
-        call setBC(gv%gparams,icomp,nx,ny,nz
+        call setBC(gdef,icomp,nx,ny,nz
      .          ,moms(:,:,:,isp,Ins)
      .          ,dummy
      .          ,mom_bcs(:,Ins)
@@ -2583,7 +2633,7 @@ c     Begin program
 
       !Momenta
       do isp = 1,n_sp
-        call setMGBC_stg(gv%gparams,0,3,nx,ny,nz,igrid
+        call setMGBC_stg(gdef,0,3,nx,ny,nz,igrid
      $              ,moms(:,:,:,isp,IPx:IPz)
      $              ,mom_bcs(:,IPx:IPz)
      .              ,is_cnv=.true.,icomp=(/icomp+1/)
@@ -2593,7 +2643,7 @@ c     Begin program
       !Temperatures
       do im=IS11,IS33
         do isp = 1,n_sp
-          call setBC(gv%gparams,icomp,nx,ny,nz
+          call setBC(gdef,icomp,nx,ny,nz
      .              ,moms(:,:,:,isp,im)
      .              ,dummy
      .              ,mom_bcs(:,im)
@@ -2746,8 +2796,6 @@ c ######################################################################
      .               ,fromGlobalToLocalLimits
      .               ,find_global_nobc
 
-      use variables, ONLY: gv
-      
       use mg_solver, ONLY: cSolver
 
       logical :: mass_matrix_solve =.false. !Whether we solve mass matrix for Equ matching
@@ -2782,7 +2830,7 @@ c     ######################################################################
       implicit none
 
 c     Call variables
-      
+
       integer :: nx_g,ny_g,nz_g,nx_l,ny_l,nz_l,nsp
 
 c     Begin program
@@ -2850,7 +2898,7 @@ c     Build LOCAL rhs taking Jacobian into account
           do j=1,nyl
             do i=1,nxl
               ii = i + nxl*(j-1) + nxl*nyl*(k-1)
-              call fromLocalToGlobalLimits(gv%gparams,1,i,j,k
+              call fromLocalToGlobalLimits(gpicdef,1,i,j,k
      .                                    ,igl,jgl,kgl)
               !solve for delta weight
               rr(ii,:) = mments_given(i,j,:,0) -mments(i,j,:,0)
@@ -2862,7 +2910,7 @@ c     Build LOCAL rhs taking Jacobian into account
           do j=1,nyl
             do i=1,nxl
               ii = i + nxl*(j-1) + nxl*nyl*(k-1)
-              call fromLocalToGlobalLimits(gv%gparams,1,i,j,k
+              call fromLocalToGlobalLimits(gpicdef,1,i,j,k
      .                                    ,igl,jgl,kgl)
               !solve for delta weight
               rr(ii,:) = Jnpc_avg(1:n_sp)*Jns(igl,jgl,:)-mments(i,j,:,0)
@@ -2881,7 +2929,7 @@ c     Solve 2D mass matrix problem
       where (bcs == pREF .or. bcs == pOPN) bcs = NEU
 
       iiout = 0 !No output
-      call cSolver(gv%gparams,numspcs,nnl,rr,sol,bcs
+      call cSolver(gpicdef,numspcs,nnl,rr,sol,bcs
      .            ,1,iiout,0,massmat_mtvc,.false.
      .            ,tol           = 1d-12
      .            ,gm_driver     = .true.
@@ -3031,7 +3079,7 @@ c     Build LOCAL rhs taking Jacobian into account
           do j=1,nyl
             do i=1,nxl
               ii = i + nxl*(j-1) + nxl*nyl*(k-1)
-              call fromLocalToGlobalLimits(gv%gparams,1,i,j,k
+              call fromLocalToGlobalLimits(gpicdef,1,i,j,k
      .                                    ,igl,jgl,kgl)
               rr(ii,:) = mments_given(i,j,:,3)-mments(i,j,:,3) !No charge included!
             enddo
@@ -3042,7 +3090,7 @@ c     Build LOCAL rhs taking Jacobian into account
           do j=1,nyl
             do i=1,nxl
               ii = i + nxl*(j-1) + nxl*nyl*(k-1)
-              call fromLocalToGlobalLimits(gv%gparams,1,i,j,k
+              call fromLocalToGlobalLimits(gpicdef,1,i,j,k
      .                                    ,igl,jgl,kgl)
               rr(ii,:) = Jnpc_avg(1:n_sp)*Jpz(igl,jgl,:)-mments(i,j,:,3) !No charge included!
             enddo
@@ -3061,7 +3109,7 @@ c     Solve 2D mass matrix problem
       where (bcs == pOPN) bcs = DIR
 
       iiout = 0 !No output
-      call cSolver(gv%gparams,numspcs,nnl,rr,sol,bcs
+      call cSolver(gpicdef,numspcs,nnl,rr,sol,bcs
      .            ,1,iiout,0,massmat_mtvc,.false.
      .            ,tol           = 1d-12
      .            ,gm_driver     = .true.
@@ -3166,7 +3214,7 @@ c     Build LOCAL rhs taking Jacobian into account
           do j=1,nyl
             do i=1,nxl
               ii = i + nxl*(j-1) + nxl*nyl*(k-1)
-              call fromLocalToGlobalLimits(gv%gparams,1,i,j,k
+              call fromLocalToGlobalLimits(gpicdef,1,i,j,k
      .                                    ,igl,jgl,kgl)
               rr(ii,:) =  mments_given(i,j,:,1) -mments(i,j,:,1) 
             enddo
@@ -3177,7 +3225,7 @@ c     Build LOCAL rhs taking Jacobian into account
           do j=1,nyl
             do i=1,nxl
               ii = i + nxl*(j-1) + nxl*nyl*(k-1)
-              call fromLocalToGlobalLimits(gv%gparams,1,i,j,k
+              call fromLocalToGlobalLimits(gpicdef,1,i,j,k
      .                                    ,igl,jgl,kgl)
               rr(ii,:) = Jnpc_avg(1:n_sp)*Jpx(igl,jgl,:)-mments(i,j,:,1) 
             enddo
@@ -3196,7 +3244,7 @@ c     Solve 2D mass matrix problem
       where (bcs == pOPN) bcs = DIR
 
       iiout = 0 !No output
-      call cSolver(gv%gparams,numspcs,nnl,rr,sol,bcs
+      call cSolver(gpicdef,numspcs,nnl,rr,sol,bcs
      .            ,1,iiout,0,massmat_mtvc,.false.
      .            ,tol           = 1d-12
      .            ,gm_driver     = .true.
@@ -3308,7 +3356,7 @@ c     Build LOCAL rhs taking Jacobian into account
           do j=1,nyl
             do i=1,nxl
               ii = i + nxl*(j-1) + nxl*nyl*(k-1)
-              call fromLocalToGlobalLimits(gv%gparams,1,i,j,k
+              call fromLocalToGlobalLimits(gpicdef,1,i,j,k
      .                                    ,igl,jgl,kgl)
               rr(ii,:) =  mments_given(i,j,:,2)-mments(i,j,:,2) 
             enddo
@@ -3319,7 +3367,7 @@ c     Build LOCAL rhs taking Jacobian into account
           do j=1,nyl
             do i=1,nxl
               ii = i + nxl*(j-1) + nxl*nyl*(k-1)
-              call fromLocalToGlobalLimits(gv%gparams,1,i,j,k
+              call fromLocalToGlobalLimits(gpicdef,1,i,j,k
      .                                    ,igl,jgl,kgl)
               rr(ii,:) = Jnpc_avg(1:n_sp)*Jpy(igl,jgl,:)-mments(i,j,:,2) 
             enddo
@@ -3338,7 +3386,7 @@ c     Solve 2D mass matrix problem
       where (bcs == pOPN) bcs = DIR
 
       iiout = 0 !No output
-      call cSolver(gv%gparams,numspcs,nnl,rr,sol,bcs
+      call cSolver(gpicdef,numspcs,nnl,rr,sol,bcs
      .            ,1,iiout,0,massmat_mtvc,.false.
      .            ,tol           = 1d-12
      .            ,gm_driver     = .true.
@@ -3434,8 +3482,6 @@ c     Local variables
      .          ,ijkgl,i_npg
       real(_prec) :: w_pcle,xp,yp
 
-      real(8) :: My2(3,1),Mx2(1,3),My1(1,2),Mx1(1,2),Mxy2(3,3)
-
       real(8),allocatable,dimension(:) :: send_buf,rec_buf
 
       real(8),allocatable,dimension(:,:,:) :: MM2
@@ -3462,12 +3508,12 @@ c     Begin program
 
               xp = spcs(isp)%pcles(ipcl)%x_n(i_npg,1)*ihx
               yp = spcs(isp)%pcles(ipcl)%x_n(i_npg,2)*ihy
-              Mx2(1,:) = shape2_offset_scalar(xp)
-              My2(:,1) = shape2_offset_scalar(yp)
+              Mx2(:,1) = shape2_offset_scalar(xp)
+              My2(1,:) = shape2_offset_scalar(yp)
 #ifdef __GNU
-              Mxy2(:,:)= opt_vecvec_3(My2,Mx2)
+              Mxy2(:,:)= opt_vecvec_3(Mx2,My2)
 #else
-              Mxy2(:,:)= matmul(My2,Mx2)
+              Mxy2(:,:)= matmul(Mx2,My2)
 #endif
 
               if (include_pcle_weight) Mxy2 = Mxy2*w_pcle
@@ -3572,7 +3618,7 @@ c     Begin program
       !Assign LOCAL mass matrix
       do j=1,nyl
         do i=1,nxl
-          call fromLocalToGlobalLimits(gv%gparams,1,i,j,1,igl,jgl,k)
+          call fromLocalToGlobalLimits(gpicdef,1,i,j,1,igl,jgl,k)
 
           ijkgl = igl + nxg*(jgl-1)
           ijk   = i   + nxl*(j  -1)
@@ -3772,7 +3818,7 @@ c     Begin program
       !Assign LOCAL mass matrix
       do j=1,nyl
         do i=1,nxl
-          call fromLocalToGlobalLimits(gv%gparams,1,i,j,1,igl,jgl,k)
+          call fromLocalToGlobalLimits(gpicdef,1,i,j,1,igl,jgl,k)
 
           ijkgl = igl + nxg*(jgl-1)
           ijk   = i   + nxl*(j  -1)
@@ -3961,7 +4007,7 @@ c     Begin program
       !Assign LOCAL mass matrix
       do j=1,nyl
         do i=1,nxl
-          call fromLocalToGlobalLimits(gv%gparams,1,i,j,1,igl,jgl,k)
+          call fromLocalToGlobalLimits(gpicdef,1,i,j,1,igl,jgl,k)
 
           ijkgl = igl + nxg*(jgl-1)
           ijk   = i   + nxl*(j  -1)
@@ -3986,7 +4032,7 @@ c ######################################################################
 
 cc      use pic_io
 
-      use grid, ONLY: npx,npy,npz,gparams,np
+      use grid, ONLY: npx,npy,npz,gparams,np,destroyGrid
 #if defined(petsc)
      .               ,add_profile_stage
 #endif
@@ -4006,10 +4052,9 @@ cc      use pic_io
 
       integer,private :: nps(nsp_max)
       integer,private :: nxg,nyg,nzg,nng,nxl,nyl,nzl,nnl
-      real(8),private :: hx,hy,hz,dh(3),Lx,Ly,Lz
-      real(8),private :: ihx,ihy,ihz,ih(3)
       real(8),private :: mach_eps,two_mach_eps
       real(8),private :: xmax,xmin,ymax,ymin,zmax,zmin
+      real(8),private :: hx,hy,hz,dh(3),Lx,Ly,Lz
 
       character*(20),private :: test = ''
 
@@ -4187,6 +4232,8 @@ c     Local variables
 
       type(particle),pointer,dimension(:) :: pcles
 
+cc      real(8) :: ihx,ihy,ihz,ih(3)
+
 c     Begin program
 
 #if defined(petsc)
@@ -4248,25 +4295,18 @@ cc      pzz = 0.5*(zin(0:nzg)+zin(0:nzg+1))
 
 c     Initialize mesh quantities
 
-      call setup_map(nxg,nyg,nzg,jac,no__map,xmap,xin,yin,zin
-     .              ,xmin,xmax,ymin,ymax,zmin,zmax,hx,hy,hz) !Limits, and hx/y/z are output
+      call setup_map(nxg,nyg,nzg,jac,no__map,xmap,xin,yin,zin)
 
 c     Initialize mesh lengths and volumes
+
+      call get_h(hx,hy,hz)
+      dh = (/hx,hy,hz/)
+
+      call get_domain_limits(xmin,xmax,ymin,ymax,zmin,zmax)
 
       Lx = xmax-xmin
       Ly = ymax-ymin
       Lz = zmax-zmin
-
-      ihx = 1d0/hx
-      ihy = 1d0/hy
-      ihz = 1d0/hz
-
-      dh = (/hx,hy,hz/)
-      ih = (/ihx,ihy,ihz/)
-
-c     Initialize pcle shape f
-
-      call setup_pic_shape_f(ihx,ihy,ihz)
 
 c     Initialize pcle accounting qtys
 
@@ -4328,9 +4368,6 @@ c     Allocate particles
 
 c     Initialize particle quantities
 
-      !Setup shape functions
-      call setup_pic_shape_f(ihx,ihy,ihz)
-
       !Allocate particle accumulators
       call alloc_pcles_counters(nng,n_sp)
 
@@ -4349,7 +4386,7 @@ c     Initialize particles
           stop
         endif
 
-        call gather_moments
+        call gather_moments(gpicdef)
         momsn = moms
       else
         numspcs = size(spcs)
@@ -4362,8 +4399,6 @@ c     Initialize particles
         call load_pcles_offset
       endif
 
-cc      call setup_moms(nxg,nyg,nzg,nxl,nyl,nzl,n_sp,hx,hy,hz)
-
 c     End program
 
       end subroutine setup_pic_2d
@@ -4372,15 +4407,21 @@ c     kill_pic
 c     ##################################################################
       subroutine kill_pic
 
+      implicit none
+
+      integer :: alloc_stat
+      
+      call destroyGrid(gpicdef)
+
       call dealloc_pcles
 
       call dealloc_moms
 
       call dealloc_pcles_counters
       
-      deallocate(pxx,pyy,pzz)
+      deallocate(pxx,pyy,pzz,stat=alloc_stat)
 
-      deallocate(Jns,Jpx,Jpy,Jpz)
+      deallocate(Jns,Jpx,Jpy,Jpz,stat=alloc_stat)
 
       call dealloc_map
 
@@ -4661,14 +4702,14 @@ c     Find particle weights and drift velocities
           write (*,*) '******************'
         endif
 
-        call gather_moments
+        call gather_moments(gpicdef)
 
         call setup_mass_matrix(nxl,nyl,nzl,nxg,nyg,nzg)
 
         call find_pcle_weights(moms(:,:,1,1:n_sp,:))
 
         !Check GY
-        call gather_moments
+        call gather_moments(gpicdef)
 
         call find_pcle_drift_velocity_z(moms(:,:,1,1:n_sp,:))
 c$$$        call find_pcle_drift_velocity_x(moms(:,:,1,1:n_sp,:))
@@ -4717,7 +4758,7 @@ c$$$        end if
 
 c     Gather moments
 
-      call gather_moments
+      call gather_moments(gpicdef)
 
 c$$$      !Check GY
 c$$$      ierr = pic_dump_pcles(time)
@@ -5465,7 +5506,7 @@ c ######################################################################
 
 c     sort_particles
 c     ##################################################################
-      subroutine sort_particles(Npart_cell)
+      subroutine sort_particles(Npart_cell,pcle_cell_idx)
 
       implicit none
 
@@ -5476,6 +5517,7 @@ c     ------------------------------------------------------------------
 c     Call variables
 
       integer,optional,intent(out) :: Npart_cell(:,:,:,:)
+     .                               ,pcle_cell_idx(:,:)
 
 c     Local variables
 
@@ -5566,7 +5608,7 @@ c     Begin program
             ip = locl_cell_index(ijk(k))
 
             call xform_pcle_idx_scl(ip,_Npg,kl,ipl)
-            ipl = ipl + nip
+            ipl = ipl + nip  !Add pcle buffer
 
             !Save old positions and velocities only
             spcs(isp)%pcles(ipl)%x_n(kl,:)
@@ -5589,10 +5631,12 @@ c     Begin program
 !$OMP END DO
 !$OMP END PARALLEL 
 
+        if(present(pcle_cell_idx)) pcle_cell_idx(:,isp)=part_cell_index
+
       end do !species
 
       if(present(Npart_cell)) Npart_cell = Np_cell
-         
+
       if (my_rank_pic == 0.and.(.not.tst_flg)) write (*,*) "Done!"
 
       deallocate(part_cell_index,locl_cell_index)

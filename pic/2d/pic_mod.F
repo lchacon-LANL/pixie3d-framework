@@ -398,12 +398,12 @@ c     Synchronize moments
 c     Scatter moments to local mesh
 
       do im=0,size(moms,5)-1
-       call find_local(gv%gparams,1,moms_g(:,:,:,:,im),moms(:,:,:,:,im))
+       call find_local(gpicdef,1,moms_g(:,:,:,:,im),moms(:,:,:,:,im))
       enddo
 
 c     Apply BCs to moments
 
-      call applyBC_moms
+      call applyBC_moms(gpicdef)
 
 c     Output info
 
