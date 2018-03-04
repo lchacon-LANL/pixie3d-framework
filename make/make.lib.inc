@@ -81,6 +81,7 @@ endif
 # RNG setup
 
 CONTRIBLIBS += -L$(COMMONDIR)/contrib/rng/lib -lrng
+MODPATH     += $(ADDMODFLAG)$(COMMONDIR)/contrib/rng/lib
 
 # BTRIDIAG (block tridiagonal solver) setup
 

@@ -77,7 +77,7 @@ endif
 # Flags for gfortran
 ifeq ($(findstring gfortran,$(FC)),gfortran)
   ifeq ($(ARCH),Darwin)
-    OPTIMIZATION ?= -Wa,-q -O3 -march=$(M_ARCH) -fopenmp-simd #-fopt-info -ffast-math 
+    OPTIMIZATION ?= -Wa,-q -O3 -g -march=$(M_ARCH) -fopenmp-simd #-fopt-info -ffast-math 
   else
     OPTIMIZATION ?= -O3 -g -march=$(M_ARCH) #Only for gcc > 4.9... -ffast-math -fopenmp-simd -fopt-info 
   endif

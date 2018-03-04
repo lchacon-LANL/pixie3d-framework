@@ -48,9 +48,9 @@ c ######################################################################
       !XGMM mods
       integer(8) :: npcles(nsp_max)=0        !Number of particles
       real(8),allocatable,dimension(:) :: npc_acm
-      integer,allocatable,dimension(:,:) :: npc_int
-      integer,allocatable,dimension(:,:) :: mnpc_int
-
+      integer,allocatable,dimension(:,:) :: npc_int,mnpc_int,npc_scan
+      integer,allocatable,dimension(:) :: npc_max
+      
       contains
 
 c     set_groupn
@@ -164,9 +164,10 @@ c     ##################################################################
 c     Begin program
 
       !Allocate particle accumulators
-      allocate(npc_acm(0:nng+1),npc_int(nng,n_sp),mnpc_int(nng,n_sp))
+      allocate(npc_acm(0:nng+1),npc_int(nng,n_sp),mnpc_int(nng,n_sp)
+     .        ,npc_scan(nng,n_sp),npc_max(n_sp))
 
-      npc_acm = 0 ; npc_int = 0; mnpc_int = 0
+      npc_acm = 0 ; npc_int = 0; mnpc_int = 0; npc_scan = 0; npc_max = 0
 
 c     End program
 
@@ -176,7 +177,7 @@ c     dealloc_pcles_counters
 c     ##################################################################
       subroutine dealloc_pcles_counters
 
-      deallocate(npc_acm,npc_int,mnpc_int)
+      deallocate(npc_acm,npc_int,mnpc_int,npc_scan,npc_max)
 
       end subroutine dealloc_pcles_counters
 
@@ -2812,7 +2813,7 @@ c ######################################################################
 
       real(8),pointer,dimension(:,:,:) :: Jns,Jpx,Jpy,Jpz
 
-      real(8) :: Jnpc_avg(nsp_max)        !average Jac*np/cell
+      real(8) :: npc_avg(nsp_max)        !average Jac*np/cell
 
       integer :: npcles_cell(nsp_max)=0   !Number of particles/cell
 
@@ -2913,7 +2914,7 @@ c     Build LOCAL rhs taking Jacobian into account
               call fromLocalToGlobalLimits(gpicdef,1,i,j,k
      .                                    ,igl,jgl,kgl)
               !solve for delta weight
-              rr(ii,:) = Jnpc_avg(1:n_sp)*Jns(igl,jgl,:)-mments(i,j,:,0)
+              rr(ii,:) = npc_avg(1:n_sp)*Jns(igl,jgl,:)-mments(i,j,:,0)
             enddo
           enddo
         enddo
@@ -3092,7 +3093,7 @@ c     Build LOCAL rhs taking Jacobian into account
               ii = i + nxl*(j-1) + nxl*nyl*(k-1)
               call fromLocalToGlobalLimits(gpicdef,1,i,j,k
      .                                    ,igl,jgl,kgl)
-              rr(ii,:) = Jnpc_avg(1:n_sp)*Jpz(igl,jgl,:)-mments(i,j,:,3) !No charge included!
+              rr(ii,:) = npc_avg(1:n_sp)*Jpz(igl,jgl,:)-mments(i,j,:,3) !No charge included!
             enddo
           enddo
         enddo
@@ -3227,7 +3228,7 @@ c     Build LOCAL rhs taking Jacobian into account
               ii = i + nxl*(j-1) + nxl*nyl*(k-1)
               call fromLocalToGlobalLimits(gpicdef,1,i,j,k
      .                                    ,igl,jgl,kgl)
-              rr(ii,:) = Jnpc_avg(1:n_sp)*Jpx(igl,jgl,:)-mments(i,j,:,1) 
+              rr(ii,:) = npc_avg(1:n_sp)*Jpx(igl,jgl,:)-mments(i,j,:,1) 
             enddo
           enddo
         enddo
@@ -3369,7 +3370,7 @@ c     Build LOCAL rhs taking Jacobian into account
               ii = i + nxl*(j-1) + nxl*nyl*(k-1)
               call fromLocalToGlobalLimits(gpicdef,1,i,j,k
      .                                    ,igl,jgl,kgl)
-              rr(ii,:) = Jnpc_avg(1:n_sp)*Jpy(igl,jgl,:)-mments(i,j,:,2) 
+              rr(ii,:) = npc_avg(1:n_sp)*Jpy(igl,jgl,:)-mments(i,j,:,2) 
             enddo
           enddo
         enddo
@@ -4346,8 +4347,8 @@ c     Find PIC physical quantities
          tot_bp = min_pcles*nng*pgroup
          nps(isp) = npcles(isp) - gnip !- tot_bp
 
-         Jnpc_avg(isp) = (nps(isp))/sum(Jns(1:nxg,1:nyg,isp))
-         n0 = Jnpc_avg(isp)/(hx*hy*hz)     !Add volume factor
+         npc_avg(isp) = (nps(isp))/sum(Jns(1:nxg,1:nyg,isp))
+         n0 = npc_avg(isp)/(hx*hy*hz)     !Add volume factor
 
          if (n0 <= 0) call pstop("setup_pic_2d"
      .            ,"Not enough particles for species "//int2char(isp))
@@ -4448,6 +4449,8 @@ c     ##################################################################
       use iso_c_binding, only: c_int, c_double
       use F_call_C
 
+      use hammersley_seq
+
       implicit none
 c     ------------------------------------------------------------------
 c     Load particles in phase space
@@ -4461,13 +4464,13 @@ c     Local variables
      .          ,v_0y (1:n_sp+n_b)
      .          ,v_0z (1:n_sp+n_b)
 
-      integer :: ip,ip_ng,ipl,tot_np,ipc,is,ipb
+      integer :: ip,ip_ng,ipl,ipc,is,ipb,tot_np
      .           ,dimt,ipc0,ncall,i,j,k,ii,cii,offset
-     .           ,ipx,ipy,ipz,ixyz,np3,npc_max(n_sp),igl,jgl,kgl
-     .           ,tot_np_scan,npc_scan(nng,n_sp),numspcs,numpcles
+     .           ,ipx,ipy,ipz,ixyz,np3,igl,jgl,kgl
+     .           ,tot_np_scan,numspcs,numpcles,gtot_bnp
       real(8) :: rx1(_Npg),rx2(_Npg),rx3(_Npg),rx(_Npg),ry(_Npg)
      .          ,xp(_Npg),dxp,vx2,vt2
-     .          ,yp(_Npg),signx,signy,signz,pp,pr,betaj
+     .          ,yp(_Npg),signx,signy,signz,pp,pr,gtot_np,gnpc_avg
       real(8) :: v_tot(1:n_sp+n_b,_Dim)
       integer, save :: seed
       real(8) :: vt(3), v0(3)
@@ -4481,12 +4484,36 @@ c     Begin program
 
       call init_random_seed(nproc,my_rank_pic,.not.tst_flg)
 
+c     Initialize particle counters on the mesh
+
+      gtot_bnp = min_pcles*nng*pgroup  !Base particle number
+
       dimt = _Dim+_Dimx ! 2D3V
       numspcs = size(spcs)
       do is=1,numspcs
-         call compute_pcle_spat_dist(is,npc_int(:,is),npc_scan(:,is)
-     $                              ,npc_max(is),mnpc_int(:,is))
+
+        !Compute initial particle number distribution
+        tot_np  = size(spcs(is)%pcles)*_Npg
+        gtot_np = npcles(is)   !all particles         
+
+        !Always add some uniform base particles
+        gnpc_avg = (gtot_np-gnip-gtot_bnp)/sum(Jns(1:nxg,1:nyg,is))
+
+        if (gnpc_avg.le.0d0) then
+          write (*,'(a,i4)')
+     .         'Not enough particles to satisfy minimum per cell of'
+     .         ,min_pcles*pgroup
+          write (*,'(a,i8,a)')
+     .         'Need at least', min_pcles*nxg*nyg*nzg*pgroup,' pcles'
+          stop
+        endif
+
+        call compute_pcle_spat_dist(is,gnpc_avg*Jns(:,:,is)
+     .                             ,npc_int(:,is),npc_scan(:,is)
+     $                             ,npc_max(is),mnpc_int(:,is))
       end do
+
+c     Load particles
 
       if(quiet_start) then
 
@@ -4523,13 +4550,15 @@ c     Begin program
 
       call free_random_seed()
 
-      contains
+c$$$      contains
+c$$$
+c$$$      include 'problem_init/qsRandn.f'
 
-      include 'problem_init/qsRandn.f'
+      end subroutine load_pcles_offset
 
 c     compute_pcle_spat_dist
 c     ##################################################################
-      subroutine compute_pcle_spat_dist(isp,npc_int_s,npc_scan_s
+      subroutine compute_pcle_spat_dist(is,mom,npc_int_s,npc_scan_s
      $                                 ,npc_max_s,mnpc_int_s)
 
       implicit none
@@ -4538,61 +4567,50 @@ c     ------------------------------------------------------------------
 c     compute particle spatial distribution (LOCAL particles, GLOBAL mesh)
 c     ------------------------------------------------------------------
 
-      integer :: npc_max_s,npc_int_s(:),npc_scan_s(:),isp,gtot_np,npc
-     .          ,mnpc_int_s(:)
-      logical :: low_pcles = .false.
-      integer :: bnpc_avg,gtot_bnp, gnpc,npc_r,npc_r0,mnpc_r
-      real(8) :: gnpc_avg
+c     Call variables
       
+      integer :: is,npc_max_s,npc_int_s(:),npc_scan_s(:),npc
+     .          ,mnpc_int_s(:)
+      real(8) :: mom(0:,0:)
+
+c     Local variables
+      
+      logical :: low_pcles = .false.
+      integer :: gnpc,npc_r,npc_r0,mnpc_r,i,j,k,ii
+     .          ,bnp,nng,nxg,nyg,nzg
+     
 c     Begin program
 
-      tot_np = size(spcs(isp)%pcles)
-      tot_np = tot_np*_Npg
-      gtot_np = npcles(isp)    !all particles         
+      call get_global_grid_size(nxg,nyg,nzg)
 
-!     Always add some uniform base particles
+      nng = nxg*nyg*nzg
+      
+c     first sweep accumulates globally
 
-      bnpc_avg = min_pcles      !per pgroup*cell
-      gtot_bnp = bnpc_avg*nng*pgroup
-      betaj = 1d0
-      gnpc_avg = (gtot_np-gnip-gtot_bnp)/
-     $            sum(Jns  (1:nxg,1:nyg,isp)
-     .               *jac_g(1:nxg,1:nyg)**(betaj-1d0))
-
-      if (gnpc_avg.le.0d0) then
-        write (*,'(a,i4)')
-     .       'Not enough particles to satisfy minimum per cell of'
-     .       ,min_pcles*pgroup
-        write (*,'(a,i8,a)')
-     .       'Need at least', min_pcles*nxg*nyg*nzg*pgroup,' pcles'
-        stop
-      endif
-
-!     first sweep accumulates (per pgroup) globally
-
-      npc_acm(0) = gnip/pgroup
+      bnp = min_pcles*pgroup
+      npc_acm(0) = gnip
       do k = 1,nzg
          do j = 1,nyg
             do i = 1,nxg
                ii  = i + nxg*(j-1) + nxg*nyg*(k-1)
-               npc_acm(ii) = npc_acm(ii-1)
-     .                     +(gnpc_avg/pgroup)*Jns(i,j,isp)
-     .                      *jac_g(i,j)**(betaj-1d0) + bnpc_avg
+               npc_acm(ii) = npc_acm(ii-1) + mom(i,j) + bnp
             end do
          end do
       end do      
 
-!     Check the total accumulated particles
+c     Check the total accumulated particles
 
-      if(nint(npc_acm(ii)).ne.gtot_np/pgroup) then
-         write (*,*) ii,nng,gnip,nip,npc_acm(ii),gtot_np/pgroup
+      if(nint(npc_acm(ii)) /= npcles(is)) then
+         write (*,*) ii,nng,gnip,nip,npc_acm(ii),npcles(is)
          print *
      $        ,"The accumulated number of particles does not add up"
          print *," to the prescribed one, stop."
          stop
       end if
 
-!     second sweep allocate particles to each cell
+c     Second sweep allocate particles to each cell (per group)
+
+      npc_acm = npc_acm/pgroup
 
       npc_r0 = 0
       npc_max_s = 0 
@@ -4625,16 +4643,14 @@ cc               if(ii==8) print *,my_rank_pic,ii,mnpc_int_s(ii),mnpc_r
          end do
       end do
 
-c$$$      print *,"after arranging particles:",my_rank_pic,sum(npc_int_s)
-c$$$     .       ,tot_np
-      
 #if defined(petsc)
 !     find the index of counting particles per mpi process
       call MPI_SCAN(npc_int_s,npc_scan_s,nng,MPI_INTEGER,MPI_SUM
      $     ,MPI_COMM_WORLD,mpierr)         
       do ii = 1,nng
-         npc_scan_s(ii) = npc_scan_s(ii) - npc_int_s(ii) +
-     $        nint(npc_acm(ii-1)) 
+         npc_scan_s(ii) = npc_scan_s(ii)
+     .                  - npc_int_s (ii)
+     $                   +nint(npc_acm(ii-1)) 
       end do
 #else
       do ii = 1,nng
@@ -4645,8 +4661,6 @@ c$$$     .       ,tot_np
       npc1_0(1) = npc_int_s(1) +npc_int_s(2)
       
       end subroutine compute_pcle_spat_dist
-
-      end subroutine load_pcles_offset
 
 c     perturb_pcles_offset
 c     ##################################################################
