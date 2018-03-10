@@ -59,12 +59,12 @@ endif
 
 INITFILES = $(wildcard problem_init/*.[F,c,cpp,f]) 
 
-pic_base_mod.o: pic_defs.h $(INITFILES)
+pic_base_mod.o: Fcc_mod.o pic_defs.h $(INITFILES)
 pic_mod.o: pic_base_mod.o
 
 ifeq ($(PIC_CUDA),t) 
 pic.o : pic.cu pic_kernel.cuh
 	@echo 'Compiling' $@
 	$(NVCC) -c ${gpu_arch} $(CUDA_INCLUDE) $(NVCCFLAGS) $(CPPFLAGS) $<
-Fcc_Mod.o   : pic.o
+Fcc_mod.o   : pic.o
 endif
