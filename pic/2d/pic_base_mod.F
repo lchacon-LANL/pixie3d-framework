@@ -1347,6 +1347,9 @@ c     Begin program
       zmax = 0.5*(zin(nzg)+zin(nzg+1))
       zmin = 0.5*(zin(0)  +zin(1)    )
 
+      !Create grid
+      call createGrid(nxd,nyd,nzd,xmin,xmax,ymin,ymax,zmin,zmax,gpicdef)
+
       !Dimensional failsafes
       if (nxg == 1) then
         xmax = 1d0 ; xmin = 0d0
@@ -1367,15 +1370,13 @@ c     Begin program
 
       call set_inverse_h(h_x,h_y,h_z)
 
-      !Domain limits
+      !Store domain limits
       x_min = xmin
       x_max = xmax
       y_min = ymin
       y_max = ymax
       z_min = zmin
       z_max = zmax
-
-      call createGrid(nxd,nyd,nzd,xmin,xmax,ymin,ymax,zmin,zmax,gpicdef)
 
       end subroutine setup_map
 
