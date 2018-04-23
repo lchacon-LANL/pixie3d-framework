@@ -98,7 +98,7 @@ c     #################################################################
       function bcChk(ibc,bctype,bcnd) 
 
 c     -----------------------------------------------------------------
-c     Detects whether boundary is of SP type. Boundary is identified
+c     Detects whether boundary is of type bctype. Boundary is identified
 c     by ibc, with the following convention:
 c        * ibc = 1, 2 (xmin,xmax)
 c        * ibc = 3, 4 (ymin,ymax)
@@ -201,7 +201,7 @@ c     #################################################################
       function bcSYM(ibc,bcnd) result(sym_bc)
 
 c     -----------------------------------------------------------------
-c     Detects whether boundary is of SYM or FSYM type. Boundary is
+c     Detects whether boundary is of SYM type. Boundary is
 c     identified by ibc, with the following convention:
 c        * ibc = 1, 2 (xmin,xmax)
 c        * ibc = 3, 4 (ymin,ymax)
@@ -223,19 +223,6 @@ c     Local variables
 c     Begin program
 
         sym_bc = bcChk(ibc,SYM,bcnd=bcnd)
-
-cc        if (PRESENT(bcnd)) then
-cc          bc = bcnd
-cc        else
-cc          bc = bcond
-cc        endif
-cc
-cc        if (ibc < 1 .or. ibc > 6) then
-cc          sym_bc = .false.
-cc        else
-cc          sym_bc =    (abs(bc(ibc)) ==  SYM)
-cccc     .            .or.(abs(bc(ibc)) == FSYM)
-cc        endif
 
       end function bcSYM
 

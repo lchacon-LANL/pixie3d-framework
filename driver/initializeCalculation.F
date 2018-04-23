@@ -65,18 +65,15 @@ c Read PETSc runtime options
       call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-npz',npz
      .                       ,petsc_flg,ierr)
 
-      call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-restart'
-     .                         ,ts_restart,petsc_flg,ierr)
-
-      call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-test'
-     .                         ,tst_flg,petsc_flg,ierr)
-
       call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-pc_debug'
      .                         ,pc_debug,petsc_flg,ierr)
 
       call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-bc_debug'
      .                         ,bc_debg,petsc_flg,ierr)
       if (petsc_flg) call set_BC_debug(bc_debg)
+
+      call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-rtol',rtol
+     .                        ,petsc_flg,ierr)
 
 #if defined(coarse_MG)
       call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-mg_coarse'
@@ -96,14 +93,22 @@ c Read PETSc runtime options
       if (petsc_flg) tmax = 0d0
 
       call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-tmax',tmax
-     .                       ,petsc_flg,ierr)
+     .                        ,petsc_flg,ierr)
       if (petsc_flg) numtime = -1
 
       call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-trestart',trstrt
-     .                       ,petsc_flg,ierr)
+     .                        ,petsc_flg,ierr)
 
       call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-cpu_quota',quota
-     .                       ,petsc_flg,ierr)
+     .                        ,petsc_flg,ierr)
+
+
+      call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-restart'
+     .                         ,ts_restart,petsc_flg,ierr)
+
+      call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-test'
+     .                         ,tst_flg,petsc_flg,ierr)
+
 #else
 !!$  n_args = COMMAND_ARGUMENT_COUNT()
 !!$

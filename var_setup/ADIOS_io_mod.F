@@ -710,10 +710,15 @@ c          will not be accessible from file (everybody writes these vars)
         enddo
 
 c     write all boundary conditions into one array buffer
+
         if (addl_write) then
             do ieq=1,varray%nvar
                 bconds( (ieq-1)*6+1:ieq*6 ) = 
      .                  varray%array_var(ieq)%bconds(:)
+                if (adios_debug) then
+                  print"('bconds',i3,6i3')')", my_rank
+     .                    ,bconds( (ieq-1)*6+1:ieq*6 )
+                endif
             enddo
             call adios_write (handle, "nvar*6", varray%nvar*6, err)
             call adios_write (handle, "bconds", bconds, err)
@@ -858,6 +863,13 @@ c     .      ilomg,ihipg,jlomg,jhipg,klomg,khipg
             do ieq=1,adios_nvar
               varray%array_var(ieq)%bconds(:) = 
      .             bconds( (ieq-1)*6+1:ieq*6 ) 
+              if (adios_debug)
+     .           write (*,"(a,6i3)") "read bcond="
+     .                ,bconds( (ieq-1)*6+1:ieq*6 )
+            enddo
+          else
+            do ieq=1,adios_nvar
+              varray%array_var(ieq)%bconds = u_0%array_var(ieq)%bconds
             enddo
           endif
 

@@ -211,8 +211,8 @@ c     Begin program
         endif
       endif
 
-cc      if (.not.PRESENT(ierr)) then
-        if (ierror /= 0.and.message) then
+      if (.not.PRESENT(ierr)) then
+        if (ierror /= 0) then
           write (*,*) 
           write (*,*) 'Error in chk_pos: out of domain!'
           write (*,*)
@@ -223,17 +223,13 @@ cc      if (.not.PRESENT(ierr)) then
           write (*,*) 'Z domain limits=',zsmin,zsmax
           write (*,*)
           write (*,*) 'BCs',sbcnd
-cc          stop
+          stop
         endif
-cc      else
-cc        ierr = ierror
-cc      endif
-
-        if (PRESENT(ierr)) then
-          ierr = ierror
-        else
-          if (ierror /= 0) stop
-        endif
+      else
+        if (ierror /= 0.and.message)
+     .    write (*,*) 'Proc=',my_rank,'Error in chk_pos: out of domain!'
+        ierr = ierror
+      endif
 
 c     End program
 
@@ -280,14 +276,18 @@ c     Initialize spline domain arrays
 
 c     Define domain limits
 
-        xsmin = g_def%gxmin
-        xsmax = g_def%gxmax
-          
-        ysmin = g_def%gymin
-        ysmax = g_def%gymax
-          
-        zsmin = g_def%gzmin
-        zsmax = g_def%gzmax
+        call set_sp_domain_limits(xs,sbcnd(1),xsmin,xsmax)
+        call set_sp_domain_limits(ys,sbcnd(3),ysmin,ysmax)
+        call set_sp_domain_limits(zs,sbcnd(5),zsmin,zsmax)
+
+c$$$        xsmin = g_def%gxmin
+c$$$        xsmax = g_def%gxmax
+c$$$          
+c$$$        ysmin = g_def%gymin
+c$$$        ysmax = g_def%gymax
+c$$$          
+c$$$        zsmin = g_def%gzmin
+c$$$        zsmax = g_def%gzmax
 
 c     Prepare 3d spline interpolation
 
@@ -305,7 +305,7 @@ c     Prepare 3d spline interpolation
 
 !$omp parallel
         call set_omp_thread_id()
-!$omp end parallel                                                             
+!$omp end parallel
 
 	dime = ky*kz + 3*max(kx,ky,kz) + kz
 	allocate(worke(dime*thr_tot),stat=alloc_stat)
@@ -1504,7 +1504,7 @@ c     Local variables
 
       integer :: iter
       real(8) :: JJ(size,size),res(size,icol)
-     .          ,dxi(size,icol),error(maxit)
+     .          ,dxi(size,icol),error(maxit),damp(maxit)
 
       logical :: prnt
 
@@ -1518,15 +1518,21 @@ c     Begin program
         lxcoef => xcoef
       endif
 
-      prnt = (my_rank == 0).and.(ilevel > 1)
+      prnt = (ilevel > 1)
 
-      if (ilevel > 1) then
+      ierror = ORB_OK
+
+c$$$      x1 = sqrt(x*x+y*y)  !Radius
+c$$$      x2 = acos(x/x1)     !Theta
+c$$$      x3 = z              !Z
+
+      if (prnt) then
         write (*,*)
         write (*,*) 'evalXi -- x =',x,y,z
         write (*,*) 'evalXi -- xi=',x1,x2,x3
       endif
 
-      ierror = ORB_OK
+c     Perform iteration
 
       do iter=1,maxit
 
@@ -1539,7 +1545,7 @@ c     Begin program
 
         if (prnt) write (*,*) 'evalXi -- res=',res
 
-        error(iter) = sqrt(sum(res**2))
+        error(iter) = sqrt(sum(res*res))
 
         if (prnt) write (*,*) 'evalXi -- error=',error(iter)
 
@@ -1554,15 +1560,23 @@ c     Begin program
         if (prnt) write (*,*) 'evalXi -- J(2,:)=',JJ(2,:)
         if (prnt) write (*,*) 'evalXi -- J(3,:)=',JJ(3,:)
 
-        !Find update dxi = JJ^-1(res)
+        !Find update dxi =-JJ^-1(res)
         call blockSolve(size,JJ,icol,res,dxi)
 
         if (prnt) write (*,*) 'evalXi -- dxi=',dxi
 
-        !Update solution
-        x1 = x1 + dxi(1,1)
-        x2 = x2 + dxi(2,1)
-        x3 = x3 + dxi(3,1)
+        !Linesearch
+c$$$        if (iter > 1) then
+c$$$          call linesearch(x1,x2,x3,dxi(:,1),error(iter),damp(iter)
+c$$$     .                   ,ierror)
+c$$$        else
+          damp(iter) = 1d0
+          x1 = x1 + dxi(1,1)
+          x2 = x2 + dxi(2,1)
+          x3 = x3 + dxi(3,1)
+c$$$        endif
+
+        if (ierror /= ORB_OK) exit
 
         !Singular point BC
         call chk_pos(x1,x2,x3,ierr=ierror,no_per_bc=.true.)
@@ -1573,9 +1587,9 @@ c     Begin program
 
       enddo
 
-      if (iter > maxit) ierror = ORB_MAP_INV
+      if (iter > maxit.or.ierror /= ORB_OK) ierror = ORB_MAP_INV
 
-      if (ilevel == 1 .or. iter > maxit) then
+      if (ilevel == 1 .or. ierror == ORB_MAP_INV) then
         write (*,*)
         write (*,*) 'evalXi -- x =',x,y,z
         write (*,*) 'evalXi -- xi=',x1,x2,x3
@@ -1584,6 +1598,9 @@ c     Begin program
      .                                 ,zsmin,zsmax
         write (*,*) 'evalXi -- Convergence history: '
      .              ,error(1:min(iter,maxit))
+        write (*,*) 'evalXi -- Damp parameter history: '
+     .              ,damp (1:min(iter,maxit))
+        stop
       endif
 
       contains
@@ -1610,17 +1627,14 @@ c     ###################################################################
       res(1) = x - db3val(x11,x22,x33,0,0,0,tx,ty,tz,nx,ny,nz
      .                   ,kx,ky,kz,lxcoef(:,:,:,1)
      .                   ,worke(1+thr_num*dime:(thr_num+1)*dime))
-!     .                   ,work(1+thr_num*dim:(thr_num+1)*dim))
 
       res(2) = y - db3val(x11,x22,x33,0,0,0,tx,ty,tz,nx,ny,nz
      .                   ,kx,ky,kz,lxcoef(:,:,:,2)
      .                   ,worke(1+thr_num*dime:(thr_num+1)*dime))
-!     .                   ,work(1+thr_num*dim:(thr_num+1)*dim))
 
       res(3) = z - db3val(x11,x22,x33,0,0,0,tx,ty,tz,nx,ny,nz
      .                   ,kx,ky,kz,lxcoef(:,:,:,3)
      .                   ,worke(1+thr_num*dime:(thr_num+1)*dime))
-!     .                   ,work(1+thr_num*dim:(thr_num+1)*dim))
 
       !Shift residual if physical coord is logical coord
       if (x_is_log) res(1) = res(1) - (x1-x11)
@@ -1655,6 +1669,7 @@ c     ###################################################################
       integer :: ierror
 
       real(8) :: x11,x22,x33
+      integer :: ieq
 
       x11 = x1
       x22 = x2
@@ -1664,46 +1679,132 @@ c     ###################################################################
 
       if (ierror /= ORB_OK) return
 
-      JJ(1,1) = db3val(x11,x22,x33,1,0,0,tx,ty,tz,nx,ny,nz
-     .                ,kx,ky,kz,lxcoef(:,:,:,1)
-     .                ,worke(1+thr_num*dime:(thr_num+1)*dime))
-!     .                ,work(1+thr_num*dim:(thr_num+1)*dim))
-      JJ(1,2) = db3val(x11,x22,x33,0,1,0,tx,ty,tz,nx,ny,nz
-     .                ,kx,ky,kz,lxcoef(:,:,:,1)
-     .                ,worke(1+thr_num*dime:(thr_num+1)*dime))
-!     .                ,work(1+thr_num*dim:(thr_num+1)*dim))
-      JJ(1,3) = db3val(x11,x22,x33,0,0,1,tx,ty,tz,nx,ny,nz
-     .                ,kx,ky,kz,lxcoef(:,:,:,1)
-     .                ,worke(1+thr_num*dime:(thr_num+1)*dime))
-!     .                ,work(1+thr_num*dim:(thr_num+1)*dim))
-
-      JJ(2,1) = db3val(x11,x22,x33,1,0,0,tx,ty,tz,nx,ny,nz
-     .                ,kx,ky,kz,lxcoef(:,:,:,2)
-     .                ,worke(1+thr_num*dime:(thr_num+1)*dime))
-!     .                ,work(1+thr_num*dim:(thr_num+1)*dim))
-      JJ(2,2) = db3val(x11,x22,x33,0,1,0,tx,ty,tz,nx,ny,nz
-     .                ,kx,ky,kz,lxcoef(:,:,:,2)
-     .                ,worke(1+thr_num*dime:(thr_num+1)*dime))
-!     .                ,work(1+thr_num*dim:(thr_num+1)*dim))
-      JJ(2,3) = db3val(x11,x22,x33,0,0,1,tx,ty,tz,nx,ny,nz
-     .                ,kx,ky,kz,lxcoef(:,:,:,2)
-     .                ,worke(1+thr_num*dime:(thr_num+1)*dime))
-!     .                ,work(1+thr_num*dim:(thr_num+1)*dim))
-
-      JJ(3,1) = db3val(x11,x22,x33,1,0,0,tx,ty,tz,nx,ny,nz
-     .                ,kx,ky,kz,lxcoef(:,:,:,3)
-     .                ,worke(1+thr_num*dime:(thr_num+1)*dime))
-!     .                ,work(1+thr_num*dim:(thr_num+1)*dim))
-      JJ(3,2) = db3val(x11,x22,x33,0,1,0,tx,ty,tz,nx,ny,nz
-     .                ,kx,ky,kz,lxcoef(:,:,:,3)
-     .                ,worke(1+thr_num*dime:(thr_num+1)*dime))
-!     .                ,work(1+thr_num*dim:(thr_num+1)*dim))
-      JJ(3,3) = db3val(x11,x22,x33,0,0,1,tx,ty,tz,nx,ny,nz
-     .                ,kx,ky,kz,lxcoef(:,:,:,3)
-     .                ,worke(1+thr_num*dime:(thr_num+1)*dime))
-!     .                ,work(1+thr_num*dim:(thr_num+1)*dim))
+      do ieq=1,3
+        JJ(ieq,1) = db3val(x11,x22,x33,1,0,0,tx,ty,tz,nx,ny,nz
+     .                    ,kx,ky,kz,lxcoef(:,:,:,ieq)
+     .                    ,worke(1+thr_num*dime:(thr_num+1)*dime))
+        JJ(ieq,2) = db3val(x11,x22,x33,0,1,0,tx,ty,tz,nx,ny,nz
+     .                    ,kx,ky,kz,lxcoef(:,:,:,ieq)
+     .                    ,worke(1+thr_num*dime:(thr_num+1)*dime))
+        JJ(ieq,3) = db3val(x11,x22,x33,0,0,1,tx,ty,tz,nx,ny,nz
+     .                    ,kx,ky,kz,lxcoef(:,:,:,ieq)
+     .                    ,worke(1+thr_num*dime:(thr_num+1)*dime))
+      enddo
 
       end function formJacobian
+
+c     linesearch
+c     ###############################################################
+      subroutine linesearch (x1,x2,x3,ddx,fk,damp,ierror)
+      implicit none       !For safe fortran
+c     ---------------------------------------------------------------
+c     If global is true, uses linesearch backtracking to ensure
+c     sufficient reduction in the Newton residual norm.
+c     In call:
+c       - x1,x2,x3 (input/output): current/next Newton state
+c       - ddx (input): Newton update
+c       - fk (input): current Newton residual
+c       - damp (output): damping parameter
+c       - ierror (output): error code
+c
+c     Taken from C. T. Kelley's "Iterative methods for Linear and
+c     Nonlinear Equations", Sec. 8.3.
+c     ---------------------------------------------------------------
+
+c     Call variables
+
+      integer :: ierror
+      real(8) :: x1,x2,x3,ddx(size),fk,damp
+
+c     Local variables
+
+      integer :: idamp
+      real(8) :: dampm,theta,dxnorm,fkp,fm,df,ddf
+      real(8) :: b(size),dummy(size),x(size)
+      real(8) :: alpha,sigma0,sigma1
+
+c     Begin program
+
+c     Initialize parameters
+
+      damp = 1d0    !Damping
+
+      sigma0 = 0.1  !Lower limit in damping parameter decrease
+      sigma1 = 0.5  !Damping parameter decrease for linesearch backtracking
+
+      alpha = 1d-1  !Residual reduction parameter
+
+c     Start quadratic linesearch backtracking
+
+      x = (/x1,x2,x3/)
+
+      do idamp = 1,100
+
+        !Find residual norm |F(xk+dxk)| --> fkp
+        dummy = x + damp*ddx
+        b = formResidual(dummy(1),dummy(2),dummy(3),ierror)
+        fkp = sqrt(sum(b*b))
+
+        !Check residual minimation condition
+        if (fkp.lt.(1.-alpha*damp)*fk) then
+
+          exit  !All is well
+
+        else
+          !New damping parameter
+          dampm = sigma1*damp
+
+          !Evaluate residual norm |F(xk+lambda*dxk)| --> fm
+          dummy = x + dampm*ddx
+          b = formResidual(dummy(1),dummy(2),dummy(3),ierror)
+          fm = sqrt(sum(b*b))
+
+          !Check convergence
+          if (fm.lt.(1.-alpha*dampm)*fk) then   !Good enough
+
+            damp = dampm
+            exit
+
+          else  !Quadratic minimization in lambda
+
+            !Find out curvature of parabola
+            ddf = 2./(damp-dampm)*((fkp-fk)/damp-(fm-fk)/dampm)
+
+            if (ddf > 0) then !Parabola has a minimum
+
+              df = 1./(damp-dampm)*(-dampm/damp*(fkp-fk)
+     .                              +damp/dampm*(fm -fk))
+              theta = -df/ddf
+
+              damp = fmed(sigma0*damp,sigma1*damp,theta)  !Takes middle value
+
+            else  !Try again
+
+              damp = dampm
+
+            endif
+
+          endif
+cc          if (damp < 1d-2) then
+cc            damp = 1d0
+cc            exit
+cc          endif
+cc          write (*,*) 'Residuals',fk,fm,fkp
+cc          write (*,*) 'Damping parameters',dampm,damp
+        endif
+      enddo
+
+      x1 = dummy(1)
+      x2 = dummy(2)
+      x3 = dummy(3)
+
+      if (damp < 1d-8) ierror = ORB_SP_ERR
+
+      if (prnt.and.damp<1d0) write (*,*) 'evalXi -- damping=',damp
+
+c     End program
+
+      end subroutine linesearch
 
       end subroutine evalXi
 

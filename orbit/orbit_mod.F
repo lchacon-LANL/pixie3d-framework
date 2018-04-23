@@ -615,7 +615,7 @@ c     Finalize B diagnostics
 
 c     orbit_find
 c     ######################################################################
-      subroutine orbit_find(iout,x0,y0,z0,fwd,line_int,lsode_f!,ss_order
+      subroutine orbit_find(iout,x0,y0,z0,fwd,line_int,lsode_f
      .                     ,t_max,s_max,ierror,lsode_sum)
 
 c     ----------------------------------------------------------------------
@@ -629,7 +629,6 @@ c       * line_int: external routine to perform line integrals
 c       * lsode_f: external routine to perform line integrals using LSODE
 c       * ss_check: check for surface of section (default: not when
 c                   performing integrals along line)
-ccc       * ss_order: order of interpolation for SS (default: 1)
 c       * t_max,s_max: override maximum orbit lengths, measured in pseudotime
 c                      units (t_max, for solenoidal int), or arclength (s_max)
 c     Optional output:
@@ -645,7 +644,6 @@ c     Call variables
         real(8),intent(IN) :: x0,y0,z0
         logical :: fwd
 
-cc        integer,optional,INTENT(IN) :: ss_order
         real(8),optional,INTENT(IN) :: t_max,s_max
 
         integer,optional,INTENT(OUT) :: ierror
@@ -1053,7 +1051,7 @@ c     ----------------------------------------------------------------------
 
         logical :: exitl
 
-        exit_loop = exitl
+        exit_loop = exitl.or.chk_lsode_err()
 
       end subroutine set_orbit_exit
 
@@ -3263,6 +3261,18 @@ cc      pause
       if ((x11-x0 )*(x22-x0 ) <= 0d0) xss = x0 +pp*(xmax-xmin)
 
       end function chk_ss_pos
+
+c     chk_lsode_err
+c     ##################################################################
+      function chk_lsode_err() result(lsode_err)
+
+      implicit none
+
+      logical :: lsode_err
+
+      lsode_err = (LSODE_IERR /= ORB_OK)
+
+      end function chk_lsode_err
 
       end module orbit
 

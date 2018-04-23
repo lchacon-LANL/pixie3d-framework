@@ -723,6 +723,8 @@ c     Converge with Newton for accuracy
         res0 = poly(x,a,b,c,d,0)
         res = res0
 
+        if (abs(res0) < 1d2*findRoundOff()) cycle
+
 cc        write (*,*) 'Residual root',iroot,'=',res/res0
 
         do inewt=1,100
@@ -741,7 +743,7 @@ cc            write (*,*) 'Update root=',dx
 cc          write (*,*) 'Residual root',iroot,'=',res/res0
 cc          write (*,*) 'Update root  ',iroot,'=',dx/x
 
-          if (abs(res/res0) < 1d-8 .or. abs(dx/x) < 1d-10) exit
+          if (abs(res)/abs(res0)<1d-8.or.abs(dx)/abs(x)<1d-10) exit
         enddo
         root(iroot) = x
 cc        write (*,*)
@@ -864,6 +866,8 @@ cc      enddo
         res0 = poly(x,a,b,c,d,0)
         res = res0
 
+        if (abs(res0) < 1d2*findRoundOff()) cycle
+
 cc        write (*,*) 'Residual root',iroot,'=',res/res0
 
         do inewt=1,100
@@ -882,7 +886,7 @@ cc            write (*,*) 'Update root=',dx
 cc          write (*,*) 'Residual root',iroot,'=',res/res0
 cc          write (*,*) 'Update root  ',iroot,'=',dx/x
 
-          if (abs(res/res0) < 1d-8 .or. abs(dx/x) < 1d-10) exit
+          if (abs(res)/abs(res0)<1d-8.or.abs(dx)/abs(x)<1d-10) exit
         enddo
         root(iroot) = x
 cc        write (*,*)

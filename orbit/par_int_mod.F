@@ -1592,15 +1592,14 @@ c     Fill global arrays
         call find_global(g_def%gmetric%grid(igrid)%jac,jacg
      .                  ,mpi_comm=g_def%mpi_comm)
         call find_global(g_def%gmetric%grid(igrid)%car,carg
-     .                  ,map_bc=.true.,mpi_comm=g_def%mpi_comm)
+     .                  ,mpi_comm=g_def%mpi_comm)
 #else
         call find_global(bb,bg)
 
         call find_global(bcar,bcarg)
 
         call find_global(g_def%gmetric%grid(igrid)%jac,jacg)
-        call find_global(g_def%gmetric%grid(igrid)%car,carg
-     .                  ,map_bc=.true.)
+        call find_global(g_def%gmetric%grid(igrid)%car,carg)
 #endif
 
 c     Output
@@ -2003,6 +2002,11 @@ c     Compute Green's integral cut-offs
 
 c     Find global arrays
 
+        allocate(bg   (0:nxg+1,0:nyg+1,0:nzg+1,3)
+     .          ,bcarg(0:nxg+1,0:nyg+1,0:nzg+1,3)
+     .          ,carg (0:nxg+1,0:nyg+1,0:nzg+1,3)
+     .          ,jacg (0:nxg+1,0:nyg+1,0:nzg+1))
+
         if (PRESENT(poinc_file)) then
           call get_global_data_from_file
         else
@@ -2055,7 +2059,7 @@ c     Orbit initialization on global array
      .                  ,ds_is_Bds=bwgt   !Use B.ds as integration variable
      .                  )
 
-c     Deallocate memory
+c     Deallocate LOCAL memory
 
         deallocate(bg,bcarg,jacg,carg)
 
@@ -2083,11 +2087,6 @@ c     Find local cartesian components
 
 c     Fill global arrays
 
-        allocate(bg   (0:nxg+1,0:nyg+1,0:nzg+1,3)
-     .          ,bcarg(0:nxg+1,0:nyg+1,0:nzg+1,3)
-     .          ,carg (0:nxg+1,0:nyg+1,0:nzg+1,3)
-     .          ,jacg (0:nxg+1,0:nyg+1,0:nzg+1))
-
 #if defined(petsc)
         call find_global(bb  ,bg   ,mpi_comm=g_def%mpi_comm)
         call find_global(bcar,bcarg,mpi_comm=g_def%mpi_comm)
@@ -2095,14 +2094,13 @@ c     Fill global arrays
         call find_global(g_def%gmetric%grid(igrid)%jac,jacg
      .                  ,mpi_comm=g_def%mpi_comm)
         call find_global(g_def%gmetric%grid(igrid)%car,carg
-     .                  ,map_bc=.true.,mpi_comm=g_def%mpi_comm)
+     .                  ,mpi_comm=g_def%mpi_comm)
 #else
         call find_global(bb  ,bg   )
         call find_global(bcar,bcarg)
 
         call find_global(g_def%gmetric%grid(igrid)%jac,jacg)
-        call find_global(g_def%gmetric%grid(igrid)%car,carg
-     .                  ,map_bc=.true.)
+        call find_global(g_def%gmetric%grid(igrid)%car,carg)
 #endif
 
         deallocate(bcar)
@@ -2173,11 +2171,6 @@ c     Read setup info
 c     Allocate global arrays
 
         allocate(xx(0:nxg+1),yy(0:nyg+1),zz(0:nzg+1))
-
-        allocate(bg   (0:nxg+1,0:nyg+1,0:nzg+1,3)
-     .          ,bcarg(0:nxg+1,0:nyg+1,0:nzg+1,3)
-     .          ,carg (0:nxg+1,0:nyg+1,0:nzg+1,3)
-     .          ,jacg (0:nxg+1,0:nyg+1,0:nzg+1  ))
 
 c     Read global arrays
 
@@ -2295,13 +2288,18 @@ c     --------------------------------------------------------------
 c     Begin program
 
         if (my_rank == 0) then
-          write (*,*) 'Asynchronous input in Lagrangian step'
+          write (*,*) 'External POINCARE input in Lagrangian step'
         endif
 
-c     Read POINCARE data
+c     Read POINCARE data (this sets up orbit, splines)
 
         sporder = spline_order
-        call read_poinc_files(g_def,poinc_file) !This sets up orbit, splines, and mesh
+        call read_poinc_files(poinc_file,xmin,xmax,ymin,ymax,zmin,zmax) 
+
+c     Recreate grid structure
+
+        call deallocateGridStructure(g_def)
+        call createGrid(nxd,nyd,nzd,xmin,xmax,ymin,ymax,zmin,zmax,g_def)
 
 c     Interpolate global fields
 
@@ -2329,10 +2327,9 @@ c     Interpolate global fields
           enddo
 
           !Map BCs
-          car0 = car !Assign EQU boundary values
-          call map_bc(g_def,1,igrid,nx,ny,nz,car(:,:,:,1),car0(:,:,:,1))
-          call map_bc(g_def,2,igrid,nx,ny,nz,car(:,:,:,2),car0(:,:,:,2))
-          call map_bc(g_def,3,igrid,nx,ny,nz,car(:,:,:,3),car0(:,:,:,3))
+          call map_bc(g_def,1,igrid,nx,ny,nz,car(:,:,:,1))
+          call map_bc(g_def,2,igrid,nx,ny,nz,car(:,:,:,2))
+          call map_bc(g_def,3,igrid,nx,ny,nz,car(:,:,:,3))
 
           !Rebuild metrics
           call defineGridMetric(g_def,xcar=car)
@@ -2374,11 +2371,6 @@ c     Assign LOCAL B by interpolating POINCARE data
         
 c     Assign GLOBAL arrays
 
-        allocate(bg   (0:nxg+1,0:nyg+1,0:nzg+1,3)
-     .          ,bcarg(0:nxg+1,0:nyg+1,0:nzg+1,3)
-     .          ,carg (0:nxg+1,0:nyg+1,0:nzg+1,3)
-     .          ,jacg (0:nxg+1,0:nyg+1,0:nzg+1))
-
 #if defined(petsc)
         call find_global(bb  ,bg   ,mpi_comm=g_def%mpi_comm)
         call find_global(bcar,bcarg,mpi_comm=g_def%mpi_comm)
@@ -2386,18 +2378,19 @@ c     Assign GLOBAL arrays
         call find_global(g_def%gmetric%grid(igrid)%jac,jacg
      .                  ,mpi_comm=g_def%mpi_comm)
         call find_global(g_def%gmetric%grid(igrid)%car,carg
-     .                  ,map_bc=.true.,mpi_comm=g_def%mpi_comm)
+     .                  ,mpi_comm=g_def%mpi_comm)
 #else
         call find_global(bb  ,bg   )
         call find_global(bcar,bcarg)
 
         call find_global(g_def%gmetric%grid(igrid)%jac,jacg)
-        call find_global(g_def%gmetric%grid(igrid)%car,carg
-     .                  ,map_bc=.true.)
+        call find_global(g_def%gmetric%grid(igrid)%car,carg)
 #endif
+
 c     Destroy work space
 
         deallocate(car,car0,bcov,bcar)
+
         call orbit_destroy !Destroys orbit and splines
 
       end subroutine get_global_data_from_file

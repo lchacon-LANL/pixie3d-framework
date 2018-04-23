@@ -440,7 +440,6 @@ c     Local variables
 
         integer    :: igf,ic,jc,kc,if,jf,kf,mgx,mgy,mgz
      .               ,i_off,j_off,k_off
-        real(8)    :: x0_j(0:nxc+1,0:nyc+1,0:nzc+1)
 
         real(8)    :: volc,ac
 
@@ -479,34 +478,9 @@ c     Begin program
           enddo
         enddo
 
-c       Prepare boundaries
-
-        x0_j = xc_j
-
-        if ((nxc == 1).and.(dim == 1)) then
-          i=0
-          x0_j(i,:,:) = 0.5*(x0_j(i,:,:)+x0_j(i+1,:,:))
-          i=nxc+1
-          x0_j(i,:,:) = 0.5*(x0_j(i,:,:)+x0_j(i-1,:,:))
-        endif
-
-        if ((nyc == 1).and.(dim == 2)) then
-          j=0
-          x0_j(:,j,:) = 0.5*(x0_j(:,j,:)+x0_j(:,j+1,:))
-          j=nyc+1
-          x0_j(:,j,:) = 0.5*(x0_j(:,j,:)+x0_j(:,j-1,:))
-        endif
-
-        if ((nzc == 1).and.(dim == 3)) then
-          k=0
-          x0_j(:,:,k) = 0.5*(x0_j(:,:,k)+x0_j(:,:,k+1))
-          k=nzc+1
-          x0_j(:,:,k) = 0.5*(x0_j(:,:,k)+x0_j(:,:,k-1))
-        endif
-
 c     Fill ghost cells
 
-        call map_bc(g_def,dim,igc,nxc,nyc,nzc,xc_j,x0_j,bcs=bcs)
+        call map_bc(g_def,dim,igc,nxc,nyc,nzc,xc_j,bcs=bcs)
 
       end subroutine crse_map_comp
 
@@ -514,7 +488,7 @@ c     Fill ghost cells
 
 c     map_bc
 c     #################################################################
-      subroutine map_bc(g_def,dim,igrid,nxl,nyl,nzl,x_j,x0_j,iorder,bcs)
+      subroutine map_bc(g_def,dim,igrid,nxl,nyl,nzl,x_j,iorder,bcs)
 
 c     -----------------------------------------------------------------
 c     Impose BCs on map component x_j using boundary of x0_j.
@@ -529,7 +503,6 @@ c     Call variables
         integer :: dim,igrid,nxl,nyl,nzl
 
         real(8) :: x_j (0:nxl+1,0:nyl+1,0:nzl+1)
-     .            ,x0_j(0:nxl+1,0:nyl+1,0:nzl+1)
 
         integer,optional,intent(IN) :: iorder
         integer,optional :: bcs(6)
@@ -537,6 +510,7 @@ c     Call variables
 c     Local variables
 
         integer :: bcnd(6),iibc,order
+        real(8) :: x0_j(0:nxl+1,0:nyl+1,0:nzl+1)
 
 c     Begin program
 
@@ -564,6 +538,31 @@ c     Setup boundary conditions
           end select
 
           where(bcnd == DEF) bcnd = EXT
+        endif
+
+c     Prepare boundaries
+
+        x0_j = x_j
+
+        if ((nxl == 1).and.(dim == 1)) then
+          i=0
+          x0_j(i,:,:) = 0.5*(x0_j(i,:,:)+x0_j(i+1,:,:))
+          i=nxl+1
+          x0_j(i,:,:) = 0.5*(x0_j(i,:,:)+x0_j(i-1,:,:))
+        endif
+
+        if ((nyl == 1).and.(dim == 2)) then
+          j=0
+          x0_j(:,j,:) = 0.5*(x0_j(:,j,:)+x0_j(:,j+1,:))
+          j=nyl+1
+          x0_j(:,j,:) = 0.5*(x0_j(:,j,:)+x0_j(:,j-1,:))
+        endif
+
+        if ((nzl == 1).and.(dim == 3)) then
+          k=0
+          x0_j(:,:,k) = 0.5*(x0_j(:,:,k)+x0_j(:,:,k+1))
+          k=nzl+1
+          x0_j(:,:,k) = 0.5*(x0_j(:,:,k)+x0_j(:,:,k-1))
         endif
 
 c     Impose BCs
@@ -725,7 +724,16 @@ c       NUMERICAL QUANTITIES ***********************************
 
         endif
 
-        if (return_error) ierr = lerr
+c     Gather error flags
+
+        if (return_error) then
+#if defined(petsc)
+          call MPI_Allreduce(lerr,ierr,1,MPI_INTEGER
+     .                      ,MPI_MAX,g_def%mpi_comm,mpierr)
+#else
+          ierr = lerr
+#endif
+        endif
 
 c     End program
 
@@ -893,12 +901,9 @@ c     Evaluate dr=dx/dxi vectors at vertices
 
 c     Evaluate grid quantities (at vertices)
 
-cc        do k = kmin,kmax
-cc          do j = jmin,jmax
-cc            do i = imin,imax
-        do k = klom,khi
-          do j = jlom,jhi
-            do i = ilom,ihi
+        do k = klom,khip
+          do j = jlom,jhip
+            do i = ilom,ihip
               r = dr(i,j,k,:,:)
 
               !Jacobian <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
@@ -907,20 +912,21 @@ cc            do i = imin,imax
 
               if (jac <= 0d0
      .           .and. (.not.isSP2(g_def,i+1,igrid,ibc=1))) then
-                if (.not.check_grid .and. (.not.return_error)) then
-                  write (*,*) 'Negative Jacobian in half mesh'
-                  write (*,*) 'Grid level',igrid
-                  write (*,*) 'Processor rank=',my_rank
-                  write (*,*) 'Grid position=',i,j,k
-                  write (*,*) 'dr/dxi_1=',r(:,1)
-                  write (*,*) 'dr/dxi_2=',r(:,2)
-                  write (*,*) 'dr/dxi_3=',r(:,3)
-                  write (*,*) 'Jacobian=',jac
 
-                  call sstop(0,'findVertexMetrics','Inverted Jacobian')
-                elseif (return_error) then
-                  lerr = 1 ; exit
-                endif
+                write (*,*) 'Negative Jacobian in half mesh'
+                write (*,*) 'Grid level',igrid
+                write (*,*) 'Processor rank=',my_rank
+                write (*,*) 'Grid position=',i,j,k
+                write (*,*) 'dr/dxi_1=',r(:,1)
+                write (*,*) 'dr/dxi_2=',r(:,2)
+                write (*,*) 'dr/dxi_3=',r(:,3)
+                write (*,*) 'Jacobian=',jac
+
+                if (.not.(check_grid.or.return_error))
+     .             call sstop(0,'findVertexMetrics','Inverted Jacobian')
+
+                lerr = 1
+                exit
               elseif (isSP2(g_def,i+1,igrid,ibc=1)) then
                 ijac = 0d0
               else
@@ -958,6 +964,12 @@ cc            do i = imin,imax
             enddo
           enddo
         enddo
+
+        if (lerr == 1) then
+           deallocate(dr)
+           nullify(xc)
+           return
+        endif
 
 c     Christoffel symbols (at cell centers; BCs enforced in findCellMetrics)
 
@@ -1187,6 +1199,12 @@ c     Evaluate grid quantities
             enddo
           enddo
         enddo
+
+        if (lerr == 2) then
+           deallocate(dr)
+           nullify(xc)
+           return
+        endif
 
         !Zero-force condition on Christoffle symbols 
         if (igrid == 1) call hessianZeroForceCorr(igrid)
@@ -1675,59 +1693,37 @@ c     Call variables
 
 c     Local variables
 
-        integer :: i,j,bcs(6,3)
-cc        integer :: bcs(6),bcond_sv(6),nxl,nyl,nzl
-
-c     External
+        integer :: bcond_sv(6),bcs(6,3),i
 
 c     Begin program
 
-cc        nxl = size(dr,1)-2
-cc        nyl = size(dr,2)-2
-cc        nzl = size(dr,3)-2
-cc        
-cc        !Modify BC setup to do staggered
-cc        bcond_sv = bcond
-cc        bcs = bcond
-cc        !Do no overwrite i=j=k=0
-cc        if (bcs(2) == DEF) bcs(2) = EXT
-cc        if (bcs(4) == DEF) bcs(4) = EXT 
-cc        if (bcs(6) == DEF) bcs(6) = EXT 
-cc        if (bcs(2) == FSYM .or. bcs(2) == SYM) then
-cc          bcs  (2) = NEU
-cc          bcond(2) = SYM  !Set BCs to do NEU across face
-cc        endif
-cc        if (bcs(4) == FSYM .or. bcs(4) == SYM) then
-cc          bcs  (4) = NEU 
-cc          bcond(4) = SYM  !Set BCs to do NEU across face
-cc        endif
-cc        if (bcs(6) == FSYM .or. bcs(6) == SYM) then
-cc          bcs  (6) = NEU
-cc          bcond(6) = SYM  !Set BCs to do NEU across face
-cc        endif
-cc
-cccc        call set_force_corners(.true.)
-cc        
-cc        do i=1,3
-cc          do j=1,3
-cc            call setMGBC(g_def,0,1,nxl,nyl,nzl,igrid,dr(:,:,:,i:i,j),bcs
-cc     .                  ,iorder=2)
-cc            write (*,*) my_rank,'after',dr(nxl+1,:,1,1,1)
-cc            stop
-cc          enddo
-cc        enddo
-cc
-cc        !Recover original setup
-cccc        call set_force_corners(.false.)
-cc        bcond = bcond_sv
+        !Save topological BC config
+        bcond_sv = bcond
 
         bcs(:,1) = bcond
         bcs(:,2) = bcond
         bcs(:,3) = bcond
+
+        where (bcs(2,:) == DEF) bcs(2,:) = EXT
+        where (bcs(4,:) == DEF) bcs(4,:) = EXT 
+        where (bcs(6,:) == DEF) bcs(6,:) = EXT 
+
+        !Set BCs to do NEU across face
+        if (bcond_sv(2) == FSYM .or. bcond_sv(2) == SYM) bcond(2) = SYM
+        if (bcond_sv(4) == FSYM .or. bcond_sv(4) == SYM) bcond(4) = SYM
+        if (bcond_sv(6) == FSYM .or. bcond_sv(6) == SYM) bcond(6) = SYM
+
+        where (bcs(2,:) == FSYM .or. bcs(2,:) == SYM) bcs(2,:) = NEU
+        where (bcs(4,:) == FSYM .or. bcs(4,:) == SYM) bcs(4,:) = NEU
+        where (bcs(6,:) == FSYM .or. bcs(6,:) == SYM) bcs(6,:) = NEU
+
         do i=1,3
           call imposeBConVector_stg_ez(g_def,igrid,dr(:,:,:,i,:)
      .                                ,.false.,bcs,2)
         enddo
+
+        !Recover topological BC config
+        bcond = bcond_sv
 
 c     End program
 
@@ -1788,18 +1784,23 @@ c     Allocate arrays
 c     Find grid metrics
 
         do igrid=igrmin,igrmax
-          call findGridMetrics(g_def,igrid,.not.PRESENT(igr),ierr=ierr)
+          call findGridMetrics(g_def,igrid,.not.PRESENT(igr),ierr=lerr)
+c$$$          if (my_rank == 0) write (*,*) 'igrid=',igrid,
+c$$$     $                            'findGridMetrics error',lerr
+          if (lerr /= 0) exit
         enddo
+
+        !Reset grid level to last usable
+        if (lerr /= 0 .and. (.not.PRESENT(igr))) g_def%ngrid = igrid - 1
+
+        if (g_def%ngrid < 1) then
+          call pstop("defineGridMetric"
+     .              ,"Cannot evaluate metrics on top mesh")
+        endif
 
 c     Gather error flags
 
-#if defined(petsc)
-        if (PRESENT(ierr)) then
-          lerr = ierr
-          call MPI_Allreduce(lerr,ierr,1,MPI_INTEGER
-     .                      ,MPI_MAX,g_def%mpi_comm,mpierr)
-        endif
-#endif
+        if (PRESENT(ierr)) ierr = lerr
 
 c     End program
 
