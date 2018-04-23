@@ -13,7 +13,8 @@
              do i = 1,nxg
                ii = i + nxg*(j-1) + nxg*nyg*(k-1)
 
-               call HamSeq(npc_int(ii,is),r4,dimt,npc_scan(ii,is))
+               call HamSeq(npc_int(ii,is),r4,dimt,npc_scan(ii,is)
+     .                  ,rank=my_rank,nproc=np)
 
 c$$$!$OMP PARALLEL DEFAULT(SHARED) private(ip,ipc,ipl,ip_ng,xp,yp,zp
 c$$$!$OMP.    ,rx,rx1,rx2,rx3,vpar,vperp,signx,signy,signz,ixyz,ipx
@@ -80,10 +81,10 @@ c$$$!$OMP.REDUCTION(+:v_tot,vx2,vt2)
 
                      ip_ng = mod(ixyz,_Npg) + 1
 
-!                     vpar(ip_ng) = signx*v_thx(is)*rx1(ip_ng)! + v0_x(is) ! Assume x is //-dirn.
-!                    vperp(ip_ng) = signy*v_thy(is)*rx2(ip_ng)! + v0_y(is) !        y is perp-dirn.
-                     vpar(ip_ng) = v_thx(is)*rx1(ip_ng)! + v0_x(is) ! Assume x is //-dirn.
-                    vperp(ip_ng) = v_thy(is)*rx2(ip_ng)! + v0_y(is) !        y is perp-dirn.
+                     vpar(ip_ng) = signx*v_thx(is)*rx1(ip_ng)! + v0_x(is) ! Assume x is //-dirn.
+                    vperp(ip_ng) = signy*v_thy(is)*rx2(ip_ng)! + v0_y(is) !        y is perp-dirn.
+!                     vpar(ip_ng) = v_thx(is)*rx1(ip_ng)! + v0_x(is) ! Assume x is //-dirn.
+!                    vperp(ip_ng) = v_thy(is)*rx2(ip_ng)! + v0_y(is) !        y is perp-dirn.
 
 
 !                    print*,'theta=',theta
@@ -91,15 +92,23 @@ c$$$!$OMP.REDUCTION(+:v_tot,vx2,vt2)
 !                    print*,'vperp=',vperp
 
                      spcs(is)%pcles(ipl)%v_n(ip_ng,1)
-     .             = signx*(vpar(ip_ng)*cos(theta*pi/180.)
+     .             = (vpar(ip_ng)*cos(theta*pi/180.)
      .                    -vperp(ip_ng)*sin(theta*pi/180.))
+!                     spcs(is)%pcles(ipl)%v_n(ip_ng,1)
+!     .             = signx*(vpar(ip_ng)*cos(theta*pi/180.)
+!     .                    -vperp(ip_ng)*sin(theta*pi/180.))
 
 ! (vpar(ip_ng)*B0(1)-vperp(ip_ng)*B0(2))
 !     .                       /sqrt(B0(1)*B0(1)+B0(2)*B0(2))
 
                      spcs(is)%pcles(ipl)%v_n(ip_ng,2)
-     .             = signy*(vpar(ip_ng)*sin(theta*pi/180.)
+     .             = (vpar(ip_ng)*sin(theta*pi/180.)
      .                    +vperp(ip_ng)*cos(theta*pi/180.))
+!                     spcs(is)%pcles(ipl)%v_n(ip_ng,2)
+!     .             = signy*(vpar(ip_ng)*sin(theta*pi/180.)
+!     .                    +vperp(ip_ng)*cos(theta*pi/180.))
+
+
 !     .                    = (vpar(ip_ng)*B0(2)+vperp(ip_ng)*B0(1))
 !     .                       /sqrt(B0(1)*B0(1)+B0(2)*B0(2))
 !                     print*,'vx=',spcs(is)%pcles(ipl)%v_n(:,1)

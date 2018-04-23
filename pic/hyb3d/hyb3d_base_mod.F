@@ -5690,17 +5690,18 @@ c$$$     .                          ,(/0d0,0d0,eps_pic/))
 c$$$        end if
       case('weibel','wbl_bc','aniso','bpnch')
         if(quiet_start) then
+           print*,'eps_v=',eps_v
             call perturb_pcle_xv(1
      .                          ,(/nh1,nh2,0/)
-     .                          ,(/0d0,0d0,0d0/)
+     .                          ,(/0d0,0d0,eps_v/)
      .                          ,(/0d0,0d0,eps_pic/),delta_fun=.true.)
         end if
-      case('2strm','iaw','msw','landau','langdon','whsl2')
+      case('2strm','iaw','iash','msw','landau','langdon','whsl2')
         do isp=1,n_sp
           call perturb_pcle_xv(isp
      .                        ,(/nh1,nh2,0/)
      .                        ,(/eps_pic,0d0,0d0/)
-     .                        ,(/0d0,0d0,eps_v/))
+     .                        ,(/eps_v,0d0,0d0/),delta_fun=.false.)!(/0d0,0d0,eps_v/))
         enddo
       case default
         print *, "test is not set correctly in the input, "
@@ -5761,7 +5762,8 @@ c     Begin program
 
       k0 = 2d0*pi*dble(mode)/(/Lx,Ly,Lz/)
 
-!      print*,'eps_vel=',eps_vel
+      print*,'delta=',delta
+      print*,'eps_vel=',eps_vel
 
       do ip=1,numpcles
 
@@ -5786,15 +5788,23 @@ c     Begin program
      .                                  + dx(j,:)
 
            if(delta) then
-             if (i_np(j)==nxg/2+1.and.j_np(j)==nyg/2+1) then
+             if (i_np(j)==nxg/2+1) then!.and.j_np(j)==nyg/2+1) then
                spcs(isp)%pcles(ip)%v_n(j,:)
      .              = spcs(isp)%pcles(ip)%v_n(j,:) + eps_vel(:)
                spcs(isp)%pcles(ip)%v_np(j,:)
      .              = spcs(isp)%pcles(ip)%v_n(j,:)
              endif
            else
-!             where (kxp(1) /= 0d0) 
+!             where (kxp(1) /= 0d0)
+              select case(trim(test))
+              case('whsl2')
+               dv(j,2) = -eps_vel(1)*cos(kxp(1))
+               dv(j,3) = eps_vel(1)*sin(kxp(1))
+
+              case default
                dv(j,:) = eps_vel*sin(kxp(1))!eps_vel*cos(kxp)
+              end select
+
  !            elsewhere
  !              dv(j,:) = 0d0
  !            end where
