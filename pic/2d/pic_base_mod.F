@@ -4752,12 +4752,12 @@ c$$$     .                          ,(/0d0,0d0,0d0/)
 c$$$     .                          ,(/0d0,0d0,eps_pic/))
 c$$$        end if
       case('weibel','wbl_bc','bpnch')
-        if(quiet_start) then
+cc        if(quiet_start) then
             call perturb_pcle_xv(1
      .                          ,(/nh1,nh2,0/)
      .                          ,(/0d0,0d0,0d0/)
      .                          ,(/0d0,0d0,eps_pic/),delta_fun=.true.)
-        end if
+cc        end if
       case('2strm','iaw','landau','langdon')
         do isp=1,n_sp
           call perturb_pcle_xv(isp
