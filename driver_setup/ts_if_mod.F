@@ -234,8 +234,9 @@ c     Define TS parameters
 c     Time step update
 
       if (cnfactor <= 5d-1) then
+#if !defined(NO_BDF2_XOLD)
         call AXPYDerivedType(-cn/cnp,u_n,-cnm/cnp,u_nm,vnp)
-
+#endif
         old_time_eval = .true. !Processing n time level info
         call evaluate_NLF(1,vnp,fold)
         old_time_eval = .false.
