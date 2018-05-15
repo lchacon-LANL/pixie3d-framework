@@ -181,7 +181,7 @@ c     Store grid metric parameters in grid metric structure
 
 c     Create beyond-processor sub-grids for coarse MG solve
 
-#if defined(petsc) && defined(coarse_MG)
+#if defined(petsc) && defined(coarse_MG) && !defined(samrai)
       g_def%mpi_comm_crse = MPI_COMM_WORLD
 
       il = 0
@@ -189,7 +189,11 @@ c     Create beyond-processor sub-grids for coarse MG solve
       do
         il = il + 1
 
-        exit_loop= create_coarse_gdef(il,g_def_sav,g_def_sav%g_crse_def)
+        exit_loop= create_coarse_gdef(il,g_def_sav,g_def_sav%g_crse_def
+     .                               ,cx=coarsen_x
+     .                               ,cy=coarsen_y
+     .                               ,cz=coarsen_z
+     .                               )
         if (exit_loop) exit
 
         g_def_sav => g_def_sav%g_crse_def
@@ -255,7 +259,8 @@ c     ######################################################################
 #if defined(petsc) && defined(coarse_MG)
 c     create_coarse_gdef
 c     ######################################################################
-      function create_coarse_gdef(il,g_def,g_crse_def) result(exit_loop)
+      function create_coarse_gdef(il,g_def,g_crse_def,cx,cy,cz)
+     .         result(exit_loop)
  
       implicit none
 
@@ -269,6 +274,7 @@ c     Call variables
       logical :: exit_loop
       type(grid_mg_def),pointer,INTENT(INOUT)  :: g_def
       type(grid_mg_def),pointer,INTENT(OUT) :: g_crse_def
+      logical,optional :: cx,cy,cz
 
 c     Local variables
 
@@ -305,6 +311,9 @@ c     Init coarse mesh structure
      .              ,g_crse_def
      .              ,np_x=npx,np_y=npy,np_z=npz
      .              ,mpi_comm=mpi_comm_splt
+     .              ,coarsen_in_x=cx
+     .              ,coarsen_in_y=cy
+     .              ,coarsen_in_z=cz
      .              )
 
       g_crse_def%mpi_comm_crse = mpi_comm_crse
