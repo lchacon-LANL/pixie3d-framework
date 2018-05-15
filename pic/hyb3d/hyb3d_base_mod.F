@@ -1613,7 +1613,11 @@ c module pic_map
 c ######################################################################
       module pic_map
 
-      use spline_field
+      use math
+
+      use grid_operations
+
+      use grid_splines
 
       use pic_shape_f
 
@@ -1623,7 +1627,7 @@ c ######################################################################
       real(8),pointer,dimension(:,:,:,:) :: map_g
       integer,private :: nxl,nyl,nzl,nnl,nxg,nyg,nzg,nng
       real(8),private :: ihx,ihy,ihz,h_x,h_y,h_z
-      logical,private ::   global_splines=.false.
+      logical,private :: global_splines=.false.
       logical,protected :: no_map=.true.
 
       real(8),private :: x_min,x_max,y_min,y_max,z_min,z_max
@@ -4969,9 +4973,7 @@ c ######################################################################
 
       use pic_mass_matrix
 
-cc      use pic_io
-
-      use grid, ONLY: npx,npy,npz,gparams
+      use grid, ONLY: npx,npy,npz,gparams,np
 #if defined(petsc)
      .               ,add_profile_stage
 #endif
@@ -5402,7 +5404,9 @@ c     ##################################################################
 
       use iso_c_binding, only: c_int, c_double
       use F_call_C
-
+      
+      use hammersley_seq
+      
       implicit none
 c     ------------------------------------------------------------------
 c     Load particles in phase space
@@ -5486,7 +5490,7 @@ c     Begin program
 
       contains
 
-      include 'problem_init/qsRandn.f'
+cc      include 'problem_init/qsRandn.f'
 
 c     compute_pcle_spat_dist
 c     ##################################################################

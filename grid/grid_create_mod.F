@@ -933,8 +933,8 @@ c     Coordinate-specific checks
         case ('s3d','hsn')
           numerical_grid = .true.
         case ('car')
-          no_map = .not.map_grid_pack
-          if (no_map) numerical_grid = .false.
+          call set_map(map_grid_pack)
+          if (.not.have_map()) numerical_grid = .false.
         case ('cyl','hel','hl2')
           if (xmin /= 0d0 .and. bcSP()) then
             write (*,*) 'Error in setup: xmin =/0 is not singular point'

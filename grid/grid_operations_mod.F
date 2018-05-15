@@ -345,9 +345,29 @@ cc        private :: transformFromCurvToCurv
 cc     .             transformVectorToCartesian
 cc     .            ,transformVectorToCurvilinear
 
-        logical :: no_map=.false.
+        logical,private :: no_map=.false.
 
       contains
+
+c     have_map
+c     #################################################################
+      function have_map()
+
+      logical :: have_map
+
+      have_map = .not.no_map
+      
+      end function have_map
+
+c     set_map
+c     #################################################################
+      subroutine set_map(is_map)
+
+      logical :: is_map
+
+      no_map = .not.is_map
+      
+      end subroutine set_map
 
 c     getMGmap
 c     #################################################################
