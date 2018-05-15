@@ -5766,8 +5766,10 @@ c     Begin program
 
       k0 = 2d0*pi*dble(mode)/(/Lx,Ly,Lz/)
 
-      print*,'delta=',delta
-      print*,'eps_vel=',eps_vel
+      if (my_rank == 0) then
+        print*,'delta=',delta
+        print*,'eps_vel=',eps_vel
+      endif
 
       do ip=1,numpcles
 
