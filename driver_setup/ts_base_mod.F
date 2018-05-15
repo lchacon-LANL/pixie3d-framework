@@ -35,34 +35,44 @@ c ######################################################################
         logical,private :: ts_after_restart = .false.
 
 #if !defined(samrai)
-
-cc        real(8),pointer,dimension(:,:) :: old_f
-
-c$$$#if !defined(petsc_c)
-c$$$        type(var_array),pointer :: dn,dnm,dnp
-c$$$        real(8) :: l_np,l_n,et1,et2
-c$$$
       contains
 
-c$$$c     findGuess
-c$$$c     ###############################################################
-c$$$      subroutine findGuess(vn,vnp)
-c$$$
-c$$$c     ---------------------------------------------------------------
-c$$$c     Correct time step
-c$$$c     ---------------------------------------------------------------
-c$$$
-c$$$      implicit none
-c$$$
-c$$$c     Call variables
-c$$$
-c$$$      type(var_array),pointer :: vn,vnp
-c$$$
-c$$$c     Local variables
-c$$$
-c$$$c     Begin program
-c$$$
-c$$$      if (itime <= 2) then
+c     findGuess
+c     ###############################################################
+      subroutine findGuess(vnm,vn,vnp)
+
+c     ---------------------------------------------------------------
+c     Correct time step
+c     ---------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      type(var_array),pointer :: vnm,vn,vnp
+
+c     Local variables
+
+      real(8),pointer,dimension(:,:) :: old_f
+
+      type(var_array),pointer :: dn,dnm,dnp
+      real(8) :: l_np,l_n,et1,et2
+
+#if defined(EXT_EXPLICIT)
+      function app_newt_guess(vnm,vn,vnp)
+        use var_setup
+        type(var_array),pointer :: vnm,vn,vnp
+      end function app_newt_guess
+#endif
+
+c     Begin program
+
+#if defined(EXT_NEWT_GUESS)
+      call app_newt_guess(vnm,vn,vnp)
+#else
+      call AXPYDerivedType(-cn/cnp,vn,-cnm/cnp,vnm,vnp)
+ 
+c$$$      if (itime < 2) then
 c$$$        !Previous time step
 c$$$        vnp = vn
 c$$$cc      elseif (itime == 2) then
@@ -78,27 +88,28 @@ c$$$        et2 =-l_np*l_n**2*(1+l_np)/(1+l_n)
 c$$$        call AXPYDerivedType(et1,dn,et2,dnm,dnp) !Recursion relation
 c$$$        call AXPYDerivedType(1d0,vn,1d0,dnp,vnp) !vnp = vn + dnp
 c$$$      endif
-c$$$
-c$$$cc      write (*,*) itime,l_np,l_n,et1,et2
-c$$$
-c$$$cc      if (itime <= 2) then
-c$$$cc        !Previous time step
-c$$$cc        vnp = vn
-c$$$cccc      elseif (itime == 2) then
-c$$$cccc        !FE predictor
-c$$$cccc        dn = dt*old_f(:,1)
-c$$$cccc        call AXPYDerivedType(1d0,vn,-1d0,dn,vnp)
-c$$$cc      else
-c$$$cc        !AB@ predictor
-c$$$cc        old_f(:,2) = 0.5*dt*(3*old_f(:,1)-old_f(:,2))
-c$$$cc        dn = old_f(:,2)
-c$$$cc        call AXPYDerivedType(1d0,vn,-1d0,dn,vnp) !vnp = vn - dt/2*(3*f_n - f_n-1)
-c$$$cc      endif
-c$$$
-c$$$c     End program
-c$$$
-c$$$      end subroutine findGuess
-c$$$
+
+cc      write (*,*) itime,l_np,l_n,et1,et2
+
+cc      if (itime <= 2) then
+cc        !Previous time step
+cc        vnp = vn
+cccc      elseif (itime == 2) then
+cccc        !FE predictor
+cccc        dn = dt*old_f(:,1)
+cccc        call AXPYDerivedType(1d0,vn,-1d0,dn,vnp)
+cc      else
+cc        !AB@ predictor
+cc        old_f(:,2) = 0.5*dt*(3*old_f(:,1)-old_f(:,2))
+cc        dn = old_f(:,2)
+cc        call AXPYDerivedType(1d0,vn,-1d0,dn,vnp) !vnp = vn - dt/2*(3*f_n - f_n-1)
+cc      endif
+#endif
+
+c     End program
+
+      end subroutine findGuess
+
 c$$$c     storeTSinfo
 c$$$c     ###############################################################
 c$$$      subroutine storeTSinfo(vn,vnp)

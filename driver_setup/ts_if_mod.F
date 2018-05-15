@@ -67,6 +67,8 @@ c     Newton-Krylov iteration
 
       nk_conf%deferred_correction = nk_def_corr
 
+      nk_conf%implicit_mid_point = implicit_mid_point
+
       nk_conf%krylov_method='fg'
 cc      nk_conf%krylov_method='gm'
       nk_conf%fpa=fpa
@@ -234,12 +236,17 @@ c     Define TS parameters
 c     Time step update
 
       if (cnfactor <= 5d-1) then
-        call AXPYDerivedType(-cn/cnp,u_n,-cnm/cnp,u_nm,vnp)
+        call findGuess(u_nm,u_n,vnp)
+cc        call AXPYDerivedType(-cn/cnp,u_n,-cnm/cnp,u_nm,vnp)
 
-        old_time_eval = .true. !Processing n time level info
-        call evaluate_NLF(1,vnp,fold)
-        old_time_eval = .false.
-
+        if (.not.implicit_mid_point) then
+          old_time_eval = .true. !Processing n time level info
+          call evaluate_NLF(1,vnp,fold)
+          old_time_eval = .false.
+        else
+          fold = 0d0
+        endif
+        
         call mapStructureToVector(gv%gparams,x,vnp) !BDF2 ref
 
         x_old = x
