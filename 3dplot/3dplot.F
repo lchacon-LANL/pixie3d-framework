@@ -38,14 +38,6 @@ c Initialize PETSc (parallel version)
 
 #if defined(petsc)
       call PetscInitialize(PETSC_NULL_CHARACTER,mpierr)
-
-      !Read PETSc runtime options
-      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-npx',npx
-     .                       ,petsc_flg,ierr)
-      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-npy',npy
-     .                       ,petsc_flg,ierr)
-      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-npz',npz
-     .                       ,petsc_flg,ierr)
 #endif
 
 c Initialize computation
@@ -301,6 +293,24 @@ c Read user initializations
 
 #if defined(MK)
       if (mk_grid) neqd = neqd+1  !Add MK equation
+#endif
+
+c Runtime initializations
+
+#if defined(petsc)
+      !Read PETSc runtime options
+      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-npx',npx
+     .                       ,petsc_flg,ierr)
+      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-npy',npy
+     .                       ,petsc_flg,ierr)
+      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-npz',npz
+     .                       ,petsc_flg,ierr)
+
+      call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-tmax',tmax
+     .                        ,petsc_flg,ierr)
+
+      call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-dplot',dplot
+     .                        ,petsc_flg,ierr)
 #endif
 
 c Allocate global variable

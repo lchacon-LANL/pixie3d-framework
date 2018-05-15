@@ -13,15 +13,7 @@ c #####################################################################
 
         real(8) :: xmax,ymax,zmax,xmin,ymin,zmin !3D global domain dimensions
 
-        integer :: nxd,nyd,nzd,nxdp,nydp,nzdp
-     .            ,nxl,nyl,nzl,nxlp,nylp,nzlp
-
-        integer :: ilo ,ihi ,jlo ,jhi ,klo ,khi
-     .            ,ilom,ihip,jlom,jhip,klom,khip
-     .            ,ilog ,ihig ,jlog ,jhig ,klog ,khig
-     .            ,ilomg,ihipg,jlomg,jhipg,klomg,khipg
-
-        integer :: gcw=1  !Ghost cell width
+        integer :: nxd,nyd,nzd
 
       contains
 

@@ -13,7 +13,7 @@ c ######################################################################
      .               ,MPI_INTEGER,mpierr
 #endif
 
-      integer, parameter :: nsp_max=5
+      integer, parameter :: nsp_max=5,Npg=_Npg
 
       type :: particle
         SEQUENCE
@@ -45,7 +45,31 @@ c ######################################################################
  
       integer :: nproc=1,my_rank_pic=0
 
+      !XGMM mods
+      integer(8) :: npcles(nsp_max)=0        !Number of particles
+      real(8),allocatable,dimension(:) :: npc_acm
+      integer,allocatable,dimension(:,:) :: npc_int,mnpc_int,npc_scan
+      integer,allocatable,dimension(:) :: npc_max
+      
       contains
+
+c     set_groupn
+c     ##################################################################
+      subroutine set_groupn(quiet_start)
+
+      implicit none
+      logical :: quiet_start
+
+      if(quiet_start) then
+!     group of Antithetic variables
+         pgroup = 8
+      else
+         pgroup = 1
+      end if
+
+      pgroup = max(pgroup,_Npg)
+
+      end subroutine set_groupn
 
 c     alloc_pcles
 c     ##################################################################
@@ -95,18 +119,14 @@ c     Allocate pcle quantities
       nip = gnip/(nproc*pgroup)
       np_r= mod(gnip/pgroup,nproc)
 
-      if(my_rank_pic.lt.np_r) then
-        nip = (nip + 1)*pgroup  !Group pcles
-      else
-        nip = nip*pgroup        !Group pcles
-      end if
+      if(my_rank_pic.lt.np_r) nip = nip + 1
 
-      nip = nip/_Npg
+      nip = nip*pgroup/_Npg
 
 c     End program
 
       end subroutine alloc_pcles
-
+   
 c     dealloc_pcles
 c     ##################################################################
       subroutine dealloc_pcles
@@ -132,6 +152,34 @@ c     Begin program
 c     End program
 
       end subroutine dealloc_pcles
+
+c     alloc_pcles_counters
+c     ##################################################################
+      subroutine alloc_pcles_counters(nng,n_sp)
+
+      implicit none
+
+      integer :: nng,n_sp
+
+c     Begin program
+
+      !Allocate particle accumulators
+      allocate(npc_acm(0:nng+1),npc_int(nng,n_sp),mnpc_int(nng,n_sp)
+     .        ,npc_scan(nng,n_sp),npc_max(n_sp))
+
+      npc_acm = 0 ; npc_int = 0; mnpc_int = 0; npc_scan = 0; npc_max = 0
+
+c     End program
+
+      end subroutine alloc_pcles_counters
+
+c     dealloc_pcles_counters
+c     ##################################################################
+      subroutine dealloc_pcles_counters
+
+      deallocate(npc_acm,npc_int,mnpc_int,npc_scan,npc_max)
+
+      end subroutine dealloc_pcles_counters
 
 c     pic_read_pcles
 c     ######################################################################
@@ -204,7 +252,9 @@ c     Begin program
       read(ufile,iostat=ierror,end=100) m_np,m_n,cm_ex,PoynFlux
       if (ierror /= 0) goto 200
 
-      if (.not.allocated(spcs)) call alloc_pcles(nsp,npcl(1:nsp))
+      npcles(1:nsp) = npcl(1:nsp)*_Npg
+      
+      if (.not.allocated(spcs)) call alloc_pcles(nsp,npcles(1:nsp))
 
       do isp=1,nsp
          read (ufile,iostat=ierror,end=100) spcs(isp)%q
@@ -302,6 +352,47 @@ c     Begin program
 c     End program
 
       end function pic_dump_pcles
+
+c$$$c     histogram
+c$$$c     ################################################################      
+c$$$      subroutine histogram(spcs,hist,ncv,nng,v_thx,v_thy,v_thz,nxg)
+c$$$
+c$$$      implicit none
+c$$$c     call variables
+c$$$      type(species) , INTENT (IN) :: spcs(:)
+c$$$      integer :: hist(:,:),ncv,nng,nxg
+c$$$      real(8) :: v_thx(:),v_thy(:),v_thz(:)
+c$$$      
+c$$$c     local variables
+c$$$      type(particle),pointer :: pcles(:)      
+c$$$      integer :: isp,ipc,ci,vi1,vi2,vi3,cvi,Np
+c$$$      real(8) :: vmin,vmax,dv,vn
+c$$$
+c$$$!     set up the grid in velocity
+c$$$      vmax = 3
+c$$$      vmin =-3
+c$$$      dv = (vmax-vmin)/(ncv-2)
+c$$$      
+c$$$      do isp=1,size(spcs)
+c$$$         pcles => spcs(isp)%pcles
+c$$$         Np = size(pcles) !/2 !hack
+c$$$         do ipc=1,Np
+c$$$            ci = (pcles(ipc)%j_np-1)*nxg + pcles(ipc)%i_np
+c$$$            vn = pcles(ipc)%v_n(1)/v_thx(isp)
+c$$$            vi1 = min(ncv,max(0,ceiling((vn-vmin)/dv)) + 1)
+c$$$            vn = pcles(ipc)%v_n(2)/v_thy(isp)
+c$$$            vi2 = min(ncv,max(0,ceiling((vn-vmin)/dv)) + 1)
+c$$$            vn = pcles(ipc)%v_n(3)/v_thz(isp)
+c$$$            vi3 = min(ncv,max(0,ceiling((vn-vmin)/dv)) + 1)
+c$$$            cvi = (vi3-1)*ncv*ncv + (vi2-1)*ncv + vi1
+c$$$            if(cvi<0) then
+c$$$               print *,isp,ipc,pcles(ipc)%v_n,vi1,vi2,vi3
+c$$$            end if
+c$$$            hist(cvi,ci) = hist(cvi,ci)+1
+c$$$         end do
+c$$$      end do
+c$$$
+c$$$      end subroutine histogram
 
 c     p_stop
 c     ################################################################
@@ -461,15 +552,15 @@ cc      i  = mod(ijk, nx) + 1
 
 c     setup_pic_shape_f
 c     ##################################################################
-      subroutine setup_pic_shape_f(ih_x,ih_y,ih_z)
+      subroutine setup_pic_shape_f(hx,hy,hz)
 
       implicit none
 
-      real(8) :: ih_x,ih_y,ih_z
+      real(8) :: hx,hy,hz
 
-      ihx = ih_x
-      ihy = ih_y
-      ihz = ih_z
+      ihx = 1d0/hx
+      ihy = 1d0/hy
+      ihz = 1d0/hz
 
       ihxsq = ihx*ihx!1d0/(hx*hx)
       ihysq = ihy*ihy!1d0/(hy*hy)
@@ -1187,17 +1278,23 @@ c module pic_map
 c ######################################################################
       module pic_map
 
-      use spline_field
+      use grid_splines
 
       use pic_shape_f
 
       use pic_BCs
 
+      use grid, ONLY: createGrid
+
+      use math
+
+      type(grid_mg_def),pointer :: gpicdef => null()
+
       real(8),pointer,dimension(:,:)   :: jac_g
       real(8),pointer,dimension(:,:,:) :: map_g
       integer,private :: nxl,nyl,nzl,nnl,nxg,nyg,nzg,nng
       real(8),private :: ihx,ihy,ihz,h_x,h_y,h_z
-      logical,private ::   global_splines=.false.
+      logical,private :: global_splines=.false.
       logical,protected :: no_map=.true.
 
       real(8),private :: x_min,x_max,y_min,y_max,z_min,z_max
@@ -1206,26 +1303,28 @@ c ######################################################################
 
 c     setup_map
 c     ##################################################################
-      subroutine setup_map(nxd,nyd,nzd,jac,no__map,xmap,
-     .     xin,yin,zin,xmin,xmax,ymin,ymax,zmin,zmax,hx,hy,hz)
+      subroutine setup_map(nxd,nyd,nzd,jac,no__map,xmap,xin,yin,zin)
 
       implicit none
 
 c     Call variables
+
       integer :: nxd,nyd,nzd
       real(8), intent(in) :: jac   (0:,0:,0:)
      .                      ,xmap  (0:,0:,0:,:)
      .                      ,xin(0:),yin(0:),zin(0:)
-      real(8), intent(out) :: hx,hy,hz
-      real(8), intent(inout):: xmin,xmax,ymin,ymax,zmin,zmax
       logical, intent(in) :: no__map
+
+c     Local variables
+
+      real(8) :: xmin,xmax,ymin,ymax,zmin,zmax
+
+c     Begin program
 
       no_map  = no__map
 
-      nxg = nxd;
-      nyg = nyd;
-      nzg = nzd;
-
+      call set_global_grid_size(nxd,nyd,nzd)
+      
       call alloc_map(nxg,nyg,nzg,nxl,nyl,nzl)
 
       jac_g  = jac (:,:,1)
@@ -1234,7 +1333,7 @@ c     Call variables
       if (.not.no_map.and.global_splines) then
         call setupSplines(nxg+2,nyg+2,nzg+2,xin,yin,zin
      .                   ,3 !Spline order
-     .                   ,bcond) !Limits are output
+     .                   ,bcond)
 
         call splineJ(jac )
         call splineX(xmap)
@@ -1247,6 +1346,9 @@ c     Call variables
       ymin = 0.5*(yin(0)  +yin(1)    )
       zmax = 0.5*(zin(nzg)+zin(nzg+1))
       zmin = 0.5*(zin(0)  +zin(1)    )
+
+      !Create grid
+      call createGrid(nxd,nyd,nzd,xmin,xmax,ymin,ymax,zmin,zmax,gpicdef)
 
       !Dimensional failsafes
       if (nxg == 1) then
@@ -1262,20 +1364,13 @@ c     Call variables
       endif
 
       !Mesh spacings
-      hx  = (xmax-xmin)/dble(nxg)
-      hy  = (ymax-ymin)/dble(nyg)
-      hz  = (zmax-zmin)/dble(nzg)
+      h_x = (xmax-xmin)/dble(nxg)
+      h_y = (ymax-ymin)/dble(nyg)
+      h_z = (zmax-zmin)/dble(nzg)
 
-      !Assign internal variables
+      call set_inverse_h(h_x,h_y,h_z)
 
-      h_x = hx
-      h_y = hy
-      h_z = hz
-
-      ihx = 1d0/hx
-      ihy = 1d0/hy
-      ihz = 1d0/hz
-
+      !Store domain limits
       x_min = xmin
       x_max = xmax
       y_min = ymin
@@ -1284,6 +1379,39 @@ c     Call variables
       z_max = zmax
 
       end subroutine setup_map
+
+c     get_domain_limits
+c     ##################################################################
+      subroutine get_domain_limits(xmin,xmax,ymin,ymax,zmin,zmax)
+
+      implicit none
+
+      real(8) :: xmin,xmax,ymin,ymax,zmin,zmax
+
+      xmin = x_min
+      xmax = x_max
+      ymin = y_min
+      ymax = y_max
+      zmin = z_min
+      zmax = z_max
+
+      end subroutine get_domain_limits
+
+c     set_inverse_h
+c     ##################################################################
+      subroutine set_inverse_h(hx,hy,hz)
+
+      implicit none
+
+      real(8) :: hx,hy,hz
+
+      ihx = 1d0/hx
+      ihy = 1d0/hy
+      ihz = 1d0/hz
+
+      call setup_pic_shape_f(hx,hy,hz)
+
+      end subroutine set_inverse_h
 
 c     get_inverse_h
 c     ##################################################################
@@ -1294,7 +1422,7 @@ c     ##################################################################
       real(8) :: ihx0,ihy0,ihz0
 
       if (ihx == 0d0 .or. ihy == 0d0 .or. ihz == 0d0) then
-         write (*,*) "Inverse spacing undefined"
+         write (*,*) "Inverse grid spacing undefined"
          stop
       endif
 
@@ -1313,7 +1441,7 @@ c     ##################################################################
       real(8) :: hx0,hy0,hz0
 
       if (h_x == 0d0 .or. h_y == 0d0 .or. h_z == 0d0) then
-         write (*,*) "Inverse spacing undefined"
+         write (*,*) "Grid spacing undefined"
          stop
       endif
 
@@ -1336,6 +1464,20 @@ c     ##################################################################
       nz_g = nzg
 
       end subroutine get_global_grid_size
+
+c     set_global_grid_size
+c     ##################################################################
+      subroutine set_global_grid_size(nx_g,ny_g,nz_g)
+
+      implicit none
+
+      integer :: nx_g,ny_g,nz_g
+
+      nxg = nx_g
+      nyg = ny_g
+      nzg = nz_g
+
+      end subroutine set_global_grid_size
 
 c     alloc_map
 c     ##################################################################
@@ -1361,7 +1503,11 @@ c     dealloc_map
 c     ##################################################################
       subroutine dealloc_map
 
-      deallocate(jac_g,map_g)
+      implicit none
+
+      integer :: alloc_stat
+      
+      deallocate(jac_g,map_g,stat=alloc_stat)
 
       end subroutine dealloc_map
 
@@ -1381,7 +1527,7 @@ c     Call variables
 
 c     Local variables
 
-      real(_prec) :: xlog(_Npg,3),cov(_Npg,3,3)
+      real(_prec) :: xlog(_Npg,3),cov(_Npg,3,3),cnv(_Npg,3,3)
       integer :: k
 
 c     Begin program
@@ -1390,7 +1536,7 @@ c     Begin program
       xlog(:,2) = xp(:,2)*ihy
       xlog(:,3) = xp(:,3)*ihz
 
-      call transf_vector_Bspl(i,j,xlog,cov,gamma=gamma)
+      call transf_vector_Bspl(i,j,xlog,cov,cnv)!,gamma=gamma)
 
       !VECTOR SIMD
       do k=1,_Npg
@@ -1407,7 +1553,7 @@ c     End program
 
 c     transf_vector_Bspl
 c     #################################################################
-      subroutine transf_vector_Bspl(i0,j0,xlog,cov,cnv,gamma)
+      subroutine transf_vector_Bspl(i0,j0,xlog,cov,cnv)!,gamma)
 
 c     -----------------------------------------------------------------
 c     Transform Cartesian vectors to curvilinear using B-splines.
@@ -1420,14 +1566,14 @@ c     Input variables
      
       integer, intent(in) :: i0(_Npg),j0(_Npg) !particle cell-indices
       real(_prec) :: xlog(_Npg,3) !normalized particle offset position
-      real(_prec),INTENT(OUT) :: cov(_Npg,3,3)
-      real(_prec),optional :: cnv(_Npg,3,3),gamma(_Npg,3,3,3) !Christoffel symbol of 2nd kind
+      real(_prec),INTENT(OUT) :: cov(_Npg,3,3),cnv(_Npg,3,3)
+cc      real(_prec),optional :: gamma(_Npg,3,3,3) !Christoffel symbol of 2nd kind
 
 c     Local variables
 
       integer :: ierr,k
 
-      real(8) :: vec(_Npg,3,3),dum3(_Npg,3),iJac(_Npg)
+      real(8) :: vec(_Npg,3,3),dum3(_Npg,3),iJac(_Npg),dum1(_Npg)
       real(8) :: Sx2(_Npg,3),Sy2(_Npg,3),DSx(_Npg,3)
       real(8) :: DSy(_Npg,3),DSxx(_Npg,3),DSyy(_Npg,3)
       real(8) :: map_g_1(_Npg,3,3), map_g_2(_Npg,3,3)
@@ -1448,15 +1594,19 @@ c     Tangential vectors (2D for now)
       enddo
 
       call opt_matvec_tr_pcle(DSx,map_g_1,dum3)
-      call dot_product_3_pcle(dum3,Sy2,vec(:,1,1))
+      call dot_product_3_pcle(dum3,Sy2,dum1)
+      vec(:,1,1) = dum1
       call opt_matvec_tr_pcle(DSx,map_g_2,dum3)
-      call dot_product_3_pcle(dum3,Sy2,vec(:,1,2))
+      call dot_product_3_pcle(dum3,Sy2,dum1)
+      vec(:,1,2) = dum1
       vec(:,1,3)=0d0
 
       call opt_matvec_tr_pcle(Sx2,map_g_1,dum3)
-      call dot_product_3_pcle(dum3,Dsy,vec(:,2,1))
+      call dot_product_3_pcle(dum3,Dsy,dum1)
+      vec(:,2,1) = dum1
       call opt_matvec_tr_pcle(Sx2,map_g_2,dum3)
-      call dot_product_3_pcle(dum3,DSy,vec(:,2,2))
+      call dot_product_3_pcle(dum3,DSy,dum1)
+      vec(:,2,2) = dum1
       vec(:,2,3)=0d0
 
       !(careful) z is orthogonal to the (x,y) plane
@@ -1470,12 +1620,10 @@ c     Find the inverse Jacobian
 
 c     Divide tangential vectors by Jacobian (Luis's convention)
 
-      if(present(cnv)) then
-        !VECTOR SIMD
-        do k=1,_Npg
-          cnv(k,:,:) = vec(k,:,:)*iJac(k)
-        enddo
-      end if
+      !VECTOR SIMD
+      do k=1,_Npg
+         cnv(k,:,:) = vec(k,:,:)*iJac(k)
+      enddo
 
 c     Normal vectors (J*grad(xi)=(dx/deta x dx/dzeta))
 
@@ -1485,7 +1633,7 @@ c     Normal vectors (J*grad(xi)=(dx/deta x dx/dzeta))
 
 c     Christoffel symbols
 
-      if(present(gamma)) call compute_gamma
+cc      if(present(gamma)) call compute_gamma
 
 c     Find normal vectors
 
@@ -1494,134 +1642,134 @@ c     Find normal vectors
         cov(k,:,:) = cov(k,:,:)*iJac(k)
       enddo
 
-      contains
-
-c     compute_gamma
-c     #################################################################
-      subroutine compute_gamma
-
-      implicit none
-
-c     -----------------------------------------------------------------
-c     Compute Christoffel symbols
-c     -----------------------------------------------------------------
-
-      gamma = 0d0
-
-      !Gamma(:,1,2)
-      call Dxx_shape2_offset(xlog(:,1),DSxx)
-      call Dyy_shape2_offset(xlog(:,2),DSyy)
-c$$$         DSxx(1,:)=Dxx_shape2_offset_scalar(xlog(1))
-c$$$         DSyy(1,:)=Dyy_shape2_offset_scalar(xlog(2))
+c$$$      contains
 c$$$
-c$$$cc         call evalX(xlog(1),xlog(2),xlog(3),x,y,z
-c$$$cc     .             ,ierr,xder=1,yder=1,zder=0)  
-
-      call opt_matvec_tr_pcle(DSx,map_g_1,dum3)
-      call dot_product_3_pcle(dum3,Dsy,vec(:,1,1))
-      call opt_matvec_tr_pcle(DSx,map_g_2,dum3)
-      call dot_product_3_pcle(dum3,Dsy,vec(:,1,2))
-      vec(:,1,3)=0d0
-
-      !VECTOR SIMD
-      do k=1,_Npg
-#ifdef __GNU
-        gamma(k,:,1,2) = opt_matvec(cov(k,:,:),vec(k,1,:))
-#else
-        gamma(k,:,1,2) = matmul    (cov(k,:,:),vec(k,1,:))
-#endif
-        gamma(k,:,2,1) = gamma(k,:,1,2)
-      enddo
-c$$$#ifdef __GNU
-c$$$         x = dot_product(opt_matvec_tr(DSx(1,:),
-c$$$     .                  map_g_1),DSy(1,:))
-c$$$         y = dot_product(opt_matvec_tr(DSx(1,:),
-c$$$     .                  map_g_2),DSy(1,:))
-c$$$#else
-c$$$         x = dot_product(MATMUL(DSx(1,:),map_g_1),DSy(1,:))
-c$$$         y = dot_product(MATMUL(DSx(1,:),map_g_2),DSy(1,:))
-c$$$#endif
-c$$$         z = 0d0
-c$$$         gamma(:,1,2) = x*cov(:,1) + y*cov(:,2) + z*cov(:,3)
-c$$$         gamma(:,2,1) = gamma(:,1,2)
-
-         !Gamma(:,1,3)
-c$$$c$$$         call evalX(xlog(1),xlog(2),xlog(3),x,y,z
-c$$$c$$$     .             ,ierr,xder=1,yder=0,zder=1)  
-c$$$         x = 0d0 !dot_product(MATMUL(DSx,map_g(i0-1:i0+1,j0-1:j0+1,1)),Sy2)
-c$$$         y = 0d0 !dot_product(MATMUL(DSx,map_g(i0-1:i0+1,j0-1:j0+1,2)),Sy2)
-c$$$         z = 0d0
-c$$$         
-c$$$         gamma(:,1,3) = x*cov(:,1) + y*cov(:,2) + z*cov(:,3)
-c$$$         gamma(:,3,1) = gamma(:,1,3)
+c$$$c     compute_gamma
+c$$$c     #################################################################
+c$$$      subroutine compute_gamma
 c$$$
-         !Gamma(:,2,3)
-c$$$c$$$         call evalX(xlog(1),xlog(2),xlog(3),x,y,z
-c$$$c$$$     .             ,ierr,xder=0,yder=1,zder=1)  
-c$$$         x = 0d0 !dot_product(MATMUL(Sx2,map_g(i0-1:i0+1,j0-1:j0+1,1)),DSy)
-c$$$         y = 0d0 !dot_product(MATMUL(Sx2,map_g(i0-1:i0+1,j0-1:j0+1,2)),DSy)
-c$$$         z = 0d0
+c$$$      implicit none
 c$$$
-c$$$         gamma(:,2,3) = x*cov(:,1) + y*cov(:,2) + z*cov(:,3)
-c$$$         gamma(:,3,2) = gamma(:,2,3)
-
-      !Gamma(:,1,1)
-      call opt_matvec_tr_pcle(DSxx,map_g_1,dum3)
-      call dot_product_3_pcle(dum3,Sy2,vec(:,1,1))
-      call opt_matvec_tr_pcle(DSxx,map_g_2,dum3)
-      call dot_product_3_pcle(dum3,Sy2,vec(:,1,2))
-      vec(:,1,3)=0d0
-      !VECTOR SIMD
-      do k=1,_Npg
-#ifdef __GNU
-        gamma(k,:,1,1) = opt_matvec(cov(k,:,:),vec(k,1,:))
-#else
-        gamma(k,:,1,1) = matmul    (cov(k,:,:),vec(k,1,:))
-#endif
-      enddo
+c$$$c     -----------------------------------------------------------------
+c$$$c     Compute Christoffel symbols
+c$$$c     -----------------------------------------------------------------
+c$$$
+c$$$      gamma = 0d0
+c$$$
+c$$$      !Gamma(:,1,2)
+c$$$      call Dxx_shape2_offset(xlog(:,1),DSxx)
+c$$$      call Dyy_shape2_offset(xlog(:,2),DSyy)
+c$$$c$$$         DSxx(1,:)=Dxx_shape2_offset_scalar(xlog(1))
+c$$$c$$$         DSyy(1,:)=Dyy_shape2_offset_scalar(xlog(2))
+c$$$c$$$
+c$$$c$$$cc         call evalX(xlog(1),xlog(2),xlog(3),x,y,z
+c$$$c$$$cc     .             ,ierr,xder=1,yder=1,zder=0)  
+c$$$
+c$$$      call opt_matvec_tr_pcle(DSx,map_g_1,dum3)
+c$$$      call dot_product_3_pcle(dum3,Dsy,vec(:,1,1))
+c$$$      call opt_matvec_tr_pcle(DSx,map_g_2,dum3)
+c$$$      call dot_product_3_pcle(dum3,Dsy,vec(:,1,2))
+c$$$      vec(:,1,3)=0d0
+c$$$
+c$$$      !VECTOR SIMD
+c$$$      do k=1,_Npg
 c$$$#ifdef __GNU
-c$$$         x = dot_product(opt_matvec_tr(DSxx(1,:),
-c$$$     .                   map_g_1),Sy2(1,:))
-c$$$         y = dot_product(opt_matvec_tr(DSxx(1,:),
-c$$$     .                   map_g_2),Sy2(1,:))
+c$$$        gamma(k,:,1,2) = opt_matvec(cov(k,:,:),vec(k,1,:))
 c$$$#else
-c$$$         x = dot_product(MATMUL(DSxx(1,:),map_g_1),Sy2(1,:))
-c$$$         y = dot_product(MATMUL(DSxx(1,:),map_g_2),Sy2(1,:))
+c$$$        gamma(k,:,1,2) = matmul    (cov(k,:,:),vec(k,1,:))
 c$$$#endif
-c$$$         z = 0d0
-c$$$         gamma(:,1,1) = x*cov(:,1) + y*cov(:,2) + z*cov(:,3)
-
-      !Gamma(:,2,2)
-      if(nyg>1) then
-        call opt_matvec_tr_pcle(Sx2,map_g_1,dum3)
-        call dot_product_3_pcle(dum3,DSyy,vec(:,2,1))
-        call opt_matvec_tr_pcle(Sx2,map_g_2,dum3)
-        call dot_product_3_pcle(dum3,DSyy,vec(:,2,2))
-        vec(:,2,3)=0d0
-        !VECTOR SIMD
-        do k=1,_Npg
-#ifdef __GNU
-          gamma(k,:,2,2) = opt_matvec(cov(k,:,:),vec(k,2,:))
-#else
-          gamma(k,:,2,2) = matmul    (cov(k,:,:),vec(k,2,:))
-#endif
-        enddo
-c$$$c$$$            call evalX(xlog(1),xlog(2),xlog(3),x,y,z
-c$$$c$$$     .           ,ierr,xder=0,yder=2,zder=0)  
+c$$$        gamma(k,:,2,1) = gamma(k,:,1,2)
+c$$$      enddo
+c$$$c$$$#ifdef __GNU
+c$$$c$$$         x = dot_product(opt_matvec_tr(DSx(1,:),
+c$$$c$$$     .                  map_g_1),DSy(1,:))
+c$$$c$$$         y = dot_product(opt_matvec_tr(DSx(1,:),
+c$$$c$$$     .                  map_g_2),DSy(1,:))
+c$$$c$$$#else
+c$$$c$$$         x = dot_product(MATMUL(DSx(1,:),map_g_1),DSy(1,:))
+c$$$c$$$         y = dot_product(MATMUL(DSx(1,:),map_g_2),DSy(1,:))
+c$$$c$$$#endif
+c$$$c$$$         z = 0d0
+c$$$c$$$         gamma(:,1,2) = x*cov(:,1) + y*cov(:,2) + z*cov(:,3)
+c$$$c$$$         gamma(:,2,1) = gamma(:,1,2)
+c$$$
+c$$$         !Gamma(:,1,3)
+c$$$c$$$c$$$         call evalX(xlog(1),xlog(2),xlog(3),x,y,z
+c$$$c$$$c$$$     .             ,ierr,xder=1,yder=0,zder=1)  
+c$$$c$$$         x = 0d0 !dot_product(MATMUL(DSx,map_g(i0-1:i0+1,j0-1:j0+1,1)),Sy2)
+c$$$c$$$         y = 0d0 !dot_product(MATMUL(DSx,map_g(i0-1:i0+1,j0-1:j0+1,2)),Sy2)
+c$$$c$$$         z = 0d0
+c$$$c$$$         
+c$$$c$$$         gamma(:,1,3) = x*cov(:,1) + y*cov(:,2) + z*cov(:,3)
+c$$$c$$$         gamma(:,3,1) = gamma(:,1,3)
+c$$$c$$$
+c$$$         !Gamma(:,2,3)
+c$$$c$$$c$$$         call evalX(xlog(1),xlog(2),xlog(3),x,y,z
+c$$$c$$$c$$$     .             ,ierr,xder=0,yder=1,zder=1)  
+c$$$c$$$         x = 0d0 !dot_product(MATMUL(Sx2,map_g(i0-1:i0+1,j0-1:j0+1,1)),DSy)
+c$$$c$$$         y = 0d0 !dot_product(MATMUL(Sx2,map_g(i0-1:i0+1,j0-1:j0+1,2)),DSy)
+c$$$c$$$         z = 0d0
+c$$$c$$$
+c$$$c$$$         gamma(:,2,3) = x*cov(:,1) + y*cov(:,2) + z*cov(:,3)
+c$$$c$$$         gamma(:,3,2) = gamma(:,2,3)
+c$$$
+c$$$      !Gamma(:,1,1)
+c$$$      call opt_matvec_tr_pcle(DSxx,map_g_1,dum3)
+c$$$      call dot_product_3_pcle(dum3,Sy2,vec(:,1,1))
+c$$$      call opt_matvec_tr_pcle(DSxx,map_g_2,dum3)
+c$$$      call dot_product_3_pcle(dum3,Sy2,vec(:,1,2))
+c$$$      vec(:,1,3)=0d0
+c$$$      !VECTOR SIMD
+c$$$      do k=1,_Npg
 c$$$#ifdef __GNU
-c$$$          x = dot_product(opt_matvec_tr(Sx2(1,:),
-c$$$     .                    map_g_1),DSyy(1,:))
-c$$$          y = dot_product(opt_matvec_tr(Sx2(1,:),
-c$$$     .                    map_g_2),DSyy(1,:))
+c$$$        gamma(k,:,1,1) = opt_matvec(cov(k,:,:),vec(k,1,:))
 c$$$#else
-c$$$          x = dot_product(MATMUL(Sx2(1,:),map_g_1),DSyy(1,:))
-c$$$          y = dot_product(MATMUL(Sx2(1,:),map_g_2),DSyy(1,:))
+c$$$        gamma(k,:,1,1) = matmul    (cov(k,:,:),vec(k,1,:))
 c$$$#endif
-c$$$          z = 0d0            
-c$$$          gamma(:,2,2) = x*cov(:,1) + y*cov(:,2) + z*cov(:,3)
-      end if
-
-      end subroutine compute_gamma
+c$$$      enddo
+c$$$c$$$#ifdef __GNU
+c$$$c$$$         x = dot_product(opt_matvec_tr(DSxx(1,:),
+c$$$c$$$     .                   map_g_1),Sy2(1,:))
+c$$$c$$$         y = dot_product(opt_matvec_tr(DSxx(1,:),
+c$$$c$$$     .                   map_g_2),Sy2(1,:))
+c$$$c$$$#else
+c$$$c$$$         x = dot_product(MATMUL(DSxx(1,:),map_g_1),Sy2(1,:))
+c$$$c$$$         y = dot_product(MATMUL(DSxx(1,:),map_g_2),Sy2(1,:))
+c$$$c$$$#endif
+c$$$c$$$         z = 0d0
+c$$$c$$$         gamma(:,1,1) = x*cov(:,1) + y*cov(:,2) + z*cov(:,3)
+c$$$
+c$$$      !Gamma(:,2,2)
+c$$$      if(nyg>1) then
+c$$$        call opt_matvec_tr_pcle(Sx2,map_g_1,dum3)
+c$$$        call dot_product_3_pcle(dum3,DSyy,vec(:,2,1))
+c$$$        call opt_matvec_tr_pcle(Sx2,map_g_2,dum3)
+c$$$        call dot_product_3_pcle(dum3,DSyy,vec(:,2,2))
+c$$$        vec(:,2,3)=0d0
+c$$$        !VECTOR SIMD
+c$$$        do k=1,_Npg
+c$$$#ifdef __GNU
+c$$$          gamma(k,:,2,2) = opt_matvec(cov(k,:,:),vec(k,2,:))
+c$$$#else
+c$$$          gamma(k,:,2,2) = matmul    (cov(k,:,:),vec(k,2,:))
+c$$$#endif
+c$$$        enddo
+c$$$c$$$c$$$            call evalX(xlog(1),xlog(2),xlog(3),x,y,z
+c$$$c$$$c$$$     .           ,ierr,xder=0,yder=2,zder=0)  
+c$$$c$$$#ifdef __GNU
+c$$$c$$$          x = dot_product(opt_matvec_tr(Sx2(1,:),
+c$$$c$$$     .                    map_g_1),DSyy(1,:))
+c$$$c$$$          y = dot_product(opt_matvec_tr(Sx2(1,:),
+c$$$c$$$     .                    map_g_2),DSyy(1,:))
+c$$$c$$$#else
+c$$$c$$$          x = dot_product(MATMUL(Sx2(1,:),map_g_1),DSyy(1,:))
+c$$$c$$$          y = dot_product(MATMUL(Sx2(1,:),map_g_2),DSyy(1,:))
+c$$$c$$$#endif
+c$$$c$$$          z = 0d0            
+c$$$c$$$          gamma(:,2,2) = x*cov(:,1) + y*cov(:,2) + z*cov(:,3)
+c$$$      end if
+c$$$
+c$$$      end subroutine compute_gamma
 
       end subroutine transf_vector_Bspl
 
@@ -1750,19 +1898,18 @@ c     -----------------------------------------------------------------
 c     Local variables
 
         integer :: k
-        real(8) :: det
 
 c     Begin program
 
         !VECTOR SIMD
         do k=1,_Npg
-          det = tensor(k,1,1)*tensor(k,2,2)*tensor(k,3,3)
-     .        + tensor(k,3,2)*tensor(k,2,1)*tensor(k,1,3)
-     .        + tensor(k,1,2)*tensor(k,2,3)*tensor(k,3,1)
-     .        - tensor(k,1,3)*tensor(k,2,2)*tensor(k,3,1)
-     .        - tensor(k,1,1)*tensor(k,2,3)*tensor(k,3,2)
-     .        - tensor(k,3,3)*tensor(k,1,2)*tensor(k,2,1)
-          ideter(k) = 1d0/det
+          ideter(k) = tensor(k,1,1)*tensor(k,2,2)*tensor(k,3,3)
+     .              + tensor(k,3,2)*tensor(k,2,1)*tensor(k,1,3)
+     .              + tensor(k,1,2)*tensor(k,2,3)*tensor(k,3,1)
+     .              - tensor(k,1,3)*tensor(k,2,2)*tensor(k,3,1)
+     .              - tensor(k,1,1)*tensor(k,2,3)*tensor(k,3,2)
+     .              - tensor(k,3,3)*tensor(k,1,2)*tensor(k,2,1)
+          ideter(k) = 1d0/ideter(k)
         enddo
 
       end subroutine idet
@@ -1923,8 +2070,6 @@ c ######################################################################
 
       use grid, ONLY: find_local,setbc,setmgbc_stg
 
-      use variables, ONLY: gv
-
       !Moments
       integer,parameter:: Ins=0,Ipx=1,Ipy=2,Ipz=3,IS11=4,IS22=5,IS33=6
       integer,private :: order_moms=1
@@ -2069,11 +2214,13 @@ c     ##################################################################
 
 c     gather_moments
 c     ##################################################################
-      subroutine gather_moments
+      subroutine gather_moments(gdef)
 
       implicit none
 
 c     Call variables
+
+      type(grid_mg_def),pointer :: gdef
 
 c     Call variables
 
@@ -2084,10 +2231,10 @@ c     Begin program
       call gather_2d_moments(moms_g(:,:,1,1:n_sp,:))
 
       do im=0,size(moms,5)-1
-       call find_local(gv%gparams,1,moms_g(:,:,:,:,im),moms(:,:,:,:,im))
+       call find_local(gdef,1,moms_g(:,:,:,:,im),moms(:,:,:,:,im))
       enddo
 
-      call applyBC_moms
+      call applyBC_moms(gdef)
 
 c     End program
 
@@ -2450,11 +2597,13 @@ c     end program
 
 c     applyBC_moms
 c     ##################################################################
-      subroutine applyBC_moms
+      subroutine applyBC_moms(gdef)
 
       implicit none
 
 c     Call variables
+
+      type(grid_mg_def),pointer :: gdef
 
 c     Local variables
 
@@ -2477,7 +2626,7 @@ c     Begin program
 
       !Densities
       do isp = 1,n_sp
-        call setBC(gv%gparams,icomp,nx,ny,nz
+        call setBC(gdef,icomp,nx,ny,nz
      .          ,moms(:,:,:,isp,Ins)
      .          ,dummy
      .          ,mom_bcs(:,Ins)
@@ -2486,7 +2635,7 @@ c     Begin program
 
       !Momenta
       do isp = 1,n_sp
-        call setMGBC_stg(gv%gparams,0,3,nx,ny,nz,igrid
+        call setMGBC_stg(gdef,0,3,nx,ny,nz,igrid
      $              ,moms(:,:,:,isp,IPx:IPz)
      $              ,mom_bcs(:,IPx:IPz)
      .              ,is_cnv=.true.,icomp=(/icomp+1/)
@@ -2496,7 +2645,7 @@ c     Begin program
       !Temperatures
       do im=IS11,IS33
         do isp = 1,n_sp
-          call setBC(gv%gparams,icomp,nx,ny,nz
+          call setBC(gdef,icomp,nx,ny,nz
      .              ,moms(:,:,:,isp,im)
      .              ,dummy
      .              ,mom_bcs(:,im)
@@ -2649,16 +2798,13 @@ c ######################################################################
      .               ,fromGlobalToLocalLimits
      .               ,find_global_nobc
 
-      use variables, ONLY: gv
-      
       use mg_solver, ONLY: cSolver
 
       logical :: mass_matrix_solve =.false. !Whether we solve mass matrix for Equ matching
 
       real(8),private :: My2(1,3),Mx2(3,1)
      .                  ,My1(1,2),Mx1(2,1)
-     .                  ,Mxy2(3,3)
-     $                  ,Mx1y2(2,3)
+     .                  ,Mxy2(3,3),Mx1y2(2,3),Mx2y1(3,2)
       real(8),pointer,dimension(:,:),private :: sol,rr
       real(8),pointer,dimension(:,:,:,:),private :: solg
 
@@ -2666,17 +2812,14 @@ c ######################################################################
       real(8),pointer,dimension(:,:,:) :: MM2l
       integer :: it_count,iiout=0
 
-      real(8),pointer,dimension(:,:,:) :: Jns,Jpz,Jpx
+      real(8),pointer,dimension(:,:,:) :: Jns,Jpx,Jpy,Jpz
 
-      real(8) :: Jnpc_avg(nsp_max)        !average Jac*np/cell
+      real(8) :: npc_avg(nsp_max)        !average Jac*np/cell
 
-      integer(8) :: npcles(nsp_max)=0        !Number of particles
-      integer    :: npcles_cell(nsp_max)=0   !Number of particles/cell
+      integer :: npcles_cell(nsp_max)=0   !Number of particles/cell
 
       integer,private :: n_sp,nxl,nyl,nzl,nnl,nxg,nyg,nzg,nng
       real(8),private :: ihx,ihy,ihz
-
-      integer,allocatable,dimension(:,:) :: npc_int
 
       type(particle),pointer,dimension(:) :: pcles
 
@@ -2689,7 +2832,7 @@ c     ######################################################################
       implicit none
 
 c     Call variables
-      
+
       integer :: nx_g,ny_g,nz_g,nx_l,ny_l,nz_l,nsp
 
 c     Begin program
@@ -2725,13 +2868,14 @@ c     ######################################################################
 
 c     find_pcle_weights
 c     ######################################################################
-      subroutine find_pcle_weights(mments)
+      subroutine find_pcle_weights(mments,mments_given)
 
       implicit none
 
 c     Call variables
 
       real(8), intent(in) :: mments(0:,0:,:,0:)
+      real(8), intent(in),optional :: mments_given(0:,0:,:,0:)
 
       integer :: bcs(6,n_sp),igl,jgl,kgl,i,j,k,ii,ip,isp,numspcs
      .          ,numpcles
@@ -2751,16 +2895,31 @@ c     Build LOCAL rhs taking Jacobian into account
 
       rr  = 0d0
 
-      do k=1,nzl
-        do j=1,nyl
-          do i=1,nxl
-            ii = i + nxl*(j-1) + nxl*nyl*(k-1)
-            call fromLocalToGlobalLimits(gv%gparams,1,i,j,k,igl,jgl,kgl)
-            !solve for delta weight
-            rr(ii,:) = Jnpc_avg(1:n_sp)*Jns(igl,jgl,:) -mments(i,j,:,0)
+      if(present(mments_given)) then
+        do k=1,nzl
+          do j=1,nyl
+            do i=1,nxl
+              ii = i + nxl*(j-1) + nxl*nyl*(k-1)
+              call fromLocalToGlobalLimits(gpicdef,1,i,j,k
+     .                                    ,igl,jgl,kgl)
+              !solve for delta weight
+              rr(ii,:) = mments_given(i,j,:,0) -mments(i,j,:,0)
+            enddo
           enddo
         enddo
-      enddo
+      else
+        do k=1,nzl
+          do j=1,nyl
+            do i=1,nxl
+              ii = i + nxl*(j-1) + nxl*nyl*(k-1)
+              call fromLocalToGlobalLimits(gpicdef,1,i,j,k
+     .                                    ,igl,jgl,kgl)
+              !solve for delta weight
+              rr(ii,:) = npc_avg(1:n_sp)*Jns(igl,jgl,:)-mments(i,j,:,0)
+            enddo
+          enddo
+        enddo
+      endif
 
 c     Solve 2D mass matrix problem
 
@@ -2772,7 +2931,7 @@ c     Solve 2D mass matrix problem
       where (bcs == pREF .or. bcs == pOPN) bcs = NEU
 
       iiout = 0 !No output
-      call cSolver(gv%gparams,numspcs,nnl,rr,sol,bcs
+      call cSolver(gpicdef,numspcs,nnl,rr,sol,bcs
      .            ,1,iiout,0,massmat_mtvc,.false.
      .            ,tol           = 1d-12
      .            ,gm_driver     = .true.
@@ -2813,48 +2972,42 @@ c     Gather global solution, sol => solg
       
       call find_global_nobc(reshape(sol,(/nxl,nyl,nzl,n_sp/)),solg)
 
-c     Particle accounting
+c$$$c     Particle accounting
+c$$$
+c$$$      sump = 0d0
+c$$$      do k = 1,nzg
+c$$$        do j = 1,nyg
+c$$$          do i = 1,nxg
+c$$$            ii  = i + nxg*(j-1) + nxg*nyg*(k-1)
+c$$$            sump = sump + npc_int(ii,:)*solg(i,j,k,:)
+c$$$          enddo
+c$$$       enddo
+c$$$      enddo
+c$$$
+c$$$#if defined(petsc)
+c$$$      lsump = sump
+c$$$      call MPI_Allreduce(lsump,sump,size(sump)
+c$$$     $                  ,MPI_DOUBLE_PRECISION
+c$$$     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+c$$$#endif
+c$$$
+c$$$      do isp=1,n_sp
+c$$$        sump(isp) = pgroup*sump(isp)/npcles(isp)
+c$$$      enddo
+c$$$
+c$$$      if (my_rank_pic == 0) then
+c$$$        write (*,*) 
+c$$$        write (*,*) 'Particle weight accounting:',sump+1d0
+c$$$      endif
+
+c     Assign particle weights and perform particle accounting
 
       sump = 0d0
-      do k = 1,nzg
-        do j = 1,nyg
-          do i = 1,nxg
-            ii  = i + nxg*(j-1) + nxg*nyg*(k-1)
-            sump = sump + npc_int(ii,:)*solg(i,j,k,:)
-          enddo
-       enddo
-      enddo
-
-#if defined(petsc)
-      lsump = sump
-      call MPI_Allreduce(lsump,sump,size(sump)
-     $                  ,MPI_DOUBLE_PRECISION
-     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-#endif
-
-      do isp=1,n_sp
-        sump(isp) = pgroup*sump(isp)/npcles(isp)
-      enddo
-
-      if (my_rank_pic == 0) then
-        write (*,*) 
-        write (*,*) 'Particle weight accounting:',sump+1d0
-      endif
-
-      !Adjust particle accounting
-cc      do isp=1,n_sp
-cc        solg(:,:,:,isp) = solg(:,:,:,isp)/sump(isp)
-cccc        Jnpc_avg(isp) = Jnpc_avg(isp)/sump(isp)
-cccc        charge(isp) = sign(1d0,q_m(isp))/Jnpc_avg(isp)*(hx*hy*hz)
-cccc        mass(isp) = charge(isp)/q_m(isp)
-cc      enddo
-
-c     Assign particle weights
-
       do isp=1, numspcs
         numpcles = size(spcs(isp)%pcles)
 !$OMP PARALLEL DEFAULT(SHARED) private(ip,i,i_n,j_n)
 !$OMP DO
+!$OMP.reduction(+:sump)
         do ip=1,numpcles
           if(ip.le.nip) then    !reserved inflow particles
             spcs(isp)%pcles(ip)%w_n = 1d0
@@ -2863,6 +3016,7 @@ c     Assign particle weights
             do i=1,_Npg
               spcs(isp)%pcles(ip)%w_n(i) = spcs(isp)%pcles(ip)%w_n(i)
      .                                    +solg(i_n(i),j_n(i),1,isp)
+              sump(isp) = sump(isp)+spcs(isp)%pcles(ip)%w_n(i)
             enddo
           end if
         end do
@@ -2870,17 +3024,32 @@ c     Assign particle weights
 !$OMP END PARALLEL
       end do
 
+#if defined(petsc)
+      lsump = sump
+      call MPI_Allreduce(lsump,sump,size(sump)
+     $                  ,MPI_DOUBLE_PRECISION
+     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+#endif
+
+      sump(1:n_sp) = sump(1:n_sp)/npcles(1:n_sp)
+
+      if (my_rank_pic == 0) then
+        write (*,*) 
+        write (*,*) 'Particle weight accounting:',sump
+      endif
+
 c     Free work space
 
       end subroutine find_pcle_weights
 
-c     find_pcle_drift_velocity (vz only, which is cell-centered)
+c     find_pcle_drift_velocity_z (vz only, which is cell-centered)
 c     ######################################################################
-      subroutine find_pcle_drift_velocity(mments)
+      subroutine find_pcle_drift_velocity_z(mments,mments_given)
 
       implicit none
 
       real(8), intent(in) :: mments(0:,0:,:,0:)
+      real(8), intent(in),optional :: mments_given(0:,0:,:,0:)
 
       integer :: bcs(6,n_sp)
       integer :: ci(9),ipcl,numpcles,numspcs
@@ -2896,7 +3065,8 @@ c     ######################################################################
 
 c     Begin program
 
-      if (maxval(abs(Jpz(:,:,:)))==0d0) return
+      if (maxval(abs(Jpz(:,:,:)))==0d0
+     .    .and.(.not.PRESENT(mments_given))) return
 
 c     Build GLOBAL 9-point stencil matrix
 
@@ -2906,15 +3076,29 @@ c     Build LOCAL rhs taking Jacobian into account
 
       rr  = 0d0
 
-      do k=1,nzl
-        do j=1,nyl
-          do i=1,nxl
-            ii = i + nxl*(j-1) + nxl*nyl*(k-1)
-            call fromLocalToGlobalLimits(gv%gparams,1,i,j,k,igl,jgl,kgl)
-            rr(ii,:) = Jnpc_avg(1:n_sp)*Jpz(igl,jgl,:) -mments(i,j,:,3) !No charge included!
+      if(present(mments_given)) then
+        do k=1,nzl
+          do j=1,nyl
+            do i=1,nxl
+              ii = i + nxl*(j-1) + nxl*nyl*(k-1)
+              call fromLocalToGlobalLimits(gpicdef,1,i,j,k
+     .                                    ,igl,jgl,kgl)
+              rr(ii,:) = mments_given(i,j,:,3)-mments(i,j,:,3) !No charge included!
+            enddo
           enddo
         enddo
-      enddo
+      else
+        do k=1,nzl
+          do j=1,nyl
+            do i=1,nxl
+              ii = i + nxl*(j-1) + nxl*nyl*(k-1)
+              call fromLocalToGlobalLimits(gpicdef,1,i,j,k
+     .                                    ,igl,jgl,kgl)
+              rr(ii,:) = npc_avg(1:n_sp)*Jpz(igl,jgl,:)-mments(i,j,:,3) !No charge included!
+            enddo
+          enddo
+        enddo
+      endif
 
 c     Solve 2D mass matrix problem
 
@@ -2927,7 +3111,7 @@ c     Solve 2D mass matrix problem
       where (bcs == pOPN) bcs = DIR
 
       iiout = 0 !No output
-      call cSolver(gv%gparams,numspcs,nnl,rr,sol,bcs
+      call cSolver(gpicdef,numspcs,nnl,rr,sol,bcs
      .            ,1,iiout,0,massmat_mtvc,.false.
      .            ,tol           = 1d-12
      .            ,gm_driver     = .true.
@@ -2990,15 +3174,16 @@ cc     .                                     -v0_z(isp)
 !$OMP END PARALLEL 
       end do
 
-      end subroutine find_pcle_drift_velocity
+      end subroutine find_pcle_drift_velocity_z
 
 c     find_pcle_drift_velocity_x (vx only)
 c     ######################################################################
-      subroutine find_pcle_drift_velocity_x(mments)
+      subroutine find_pcle_drift_velocity_x(mments,mments_given)
 
       implicit none
 
       real(8), intent(in) :: mments(0:,0:,:,0:)
+      real(8), intent(in),optional :: mments_given(0:,0:,:,0:)
 
       integer :: bcs(6,n_sp)
       integer :: ci(9),ipcl,numpcles,numspcs
@@ -3026,15 +3211,29 @@ c     Build LOCAL rhs taking Jacobian into account
 
       rr  = 0d0
 
-      do k=1,nzl
-        do j=1,nyl
-          do i=1,nxl
-            ii = i + nxl*(j-1) + nxl*nyl*(k-1)
-            call fromLocalToGlobalLimits(gv%gparams,1,i,j,k,igl,jgl,kgl)
-            rr(ii,:) = Jnpc_avg(1:n_sp)*Jpx(igl,jgl,:) -mments(i,j,:,1) 
+      if(present(mments_given)) then
+        do k=1,nzl
+          do j=1,nyl
+            do i=1,nxl
+              ii = i + nxl*(j-1) + nxl*nyl*(k-1)
+              call fromLocalToGlobalLimits(gpicdef,1,i,j,k
+     .                                    ,igl,jgl,kgl)
+              rr(ii,:) =  mments_given(i,j,:,1) -mments(i,j,:,1) 
+            enddo
+          enddo
+        enddo         
+      else
+        do k=1,nzl
+          do j=1,nyl
+            do i=1,nxl
+              ii = i + nxl*(j-1) + nxl*nyl*(k-1)
+              call fromLocalToGlobalLimits(gpicdef,1,i,j,k
+     .                                    ,igl,jgl,kgl)
+              rr(ii,:) = npc_avg(1:n_sp)*Jpx(igl,jgl,:)-mments(i,j,:,1) 
+            enddo
           enddo
         enddo
-      enddo
+      endif
 
 c     Solve 2D mass matrix problem
 
@@ -3047,7 +3246,7 @@ c     Solve 2D mass matrix problem
       where (bcs == pOPN) bcs = DIR
 
       iiout = 0 !No output
-      call cSolver(gv%gparams,numspcs,nnl,rr,sol,bcs
+      call cSolver(gpicdef,numspcs,nnl,rr,sol,bcs
      .            ,1,iiout,0,massmat_mtvc,.false.
      .            ,tol           = 1d-12
      .            ,gm_driver     = .true.
@@ -3098,7 +3297,7 @@ c     Assign particle drift velocity vz (Stardard curvilinear convention, i.e., 
             do i=1, _Npg
               imp = i_n(i)-1
               !periodic b.c.
-              if(imp==0) imp = nxg
+              if(imp==0.and.bcs(1,isp)==PER) imp = nxg
               xp = spcs(isp)%pcles(ip)%x_n(i,1)*ihx
               if(xp>0.5d0) then
                  spcs(isp)%pcles(ip)%v_n(i,1) =
@@ -3119,6 +3318,148 @@ c     Assign particle drift velocity vz (Stardard curvilinear convention, i.e., 
       enddo
 
       end subroutine find_pcle_drift_velocity_x
+
+c     find_pcle_drift_velocity_y (vy only)
+c     ######################################################################
+      subroutine find_pcle_drift_velocity_y(mments,mments_given)
+
+      implicit none
+
+      real(8), intent(in) :: mments(0:,0:,:,0:)
+      real(8), intent(in),optional :: mments_given(0:,0:,:,0:)
+
+      integer :: bcs(6,n_sp)
+      integer :: ci(9),ipcl,numpcles,numspcs
+
+      integer :: i,j,k,im,ip,jm,jp,ijk,ijkim,ijkip,ijkjm,ijkjp
+     .          ,ijkimjm,ijkimjp,ijkipjm,ijkipjp,igl,jgl,kgl
+     .          ,ijkgl,ii,isp
+      integer :: i_n(_Npg),j_n(_Npg)
+
+      real(8) :: send_buf(n_sp),rec_buf(n_sp),sump(n_sp),tol_out,yp
+      integer :: inp,jnp,imp,jmp
+
+      external massmat_mtvc
+
+c     Begin program
+
+cc      if (maxval(abs(Jpy(:,:,:)))==0d0) return
+
+c     Build GLOBAL 9-point stencil matrix
+
+      call build_mass_matrix_y(.true.)
+
+c     Build LOCAL rhs taking Jacobian into account
+
+      rr  = 0d0
+
+      if(present(mments_given)) then
+        do k=1,nzl
+          do j=1,nyl
+            do i=1,nxl
+              ii = i + nxl*(j-1) + nxl*nyl*(k-1)
+              call fromLocalToGlobalLimits(gpicdef,1,i,j,k
+     .                                    ,igl,jgl,kgl)
+              rr(ii,:) =  mments_given(i,j,:,2)-mments(i,j,:,2) 
+            enddo
+          enddo
+        enddo         
+      else
+        do k=1,nzl
+          do j=1,nyl
+            do i=1,nxl
+              ii = i + nxl*(j-1) + nxl*nyl*(k-1)
+              call fromLocalToGlobalLimits(gpicdef,1,i,j,k
+     .                                    ,igl,jgl,kgl)
+              rr(ii,:) = npc_avg(1:n_sp)*Jpy(igl,jgl,:)-mments(i,j,:,2) 
+            enddo
+          enddo
+        enddo
+      endif
+
+c     Solve 2D mass matrix problem
+
+      numspcs = size(spcs)
+
+      do isp=1,numspcs
+        bcs(:,isp) = pbcond
+      enddo
+      where (bcs == pREF) bcs = NEU
+      where (bcs == pOPN) bcs = DIR
+
+      iiout = 0 !No output
+      call cSolver(gpicdef,numspcs,nnl,rr,sol,bcs
+     .            ,1,iiout,0,massmat_mtvc,.false.
+     .            ,tol           = 1d-12
+     .            ,gm_driver     = .true.
+     .            ,ks_it         = 100
+     .            !Identity preconditioner
+cc     .            ,mg_vcyc       = 0
+     .            !GS preconditioner
+     .            ,mg_vcyc       = 1
+     .            ,mg_smooth_only= .true. !Only at fine level
+     .            ,mg_smooth     = 'gs'
+     .
+     .            ,sm_it         = 1
+     .            ,sm_omega      = 1d0
+     .            !Output
+     .            ,iters         = it_count
+     .            ,conv_tol      = tol_out)  
+
+c$$$      do isp=1,n_sp
+c$$$        call vec_plot_gl(1,rr(:,isp),1,"rhs"//trim(int2char(isp))
+c$$$     .       ,"Pz rhs")
+c$$$        call vec_plot_gl(1,sol(:,isp),1,"pz"//trim(int2char(isp))
+c$$$     .       ,"Pz match")
+c$$$      enddo
+c$$$      stop 'after drift vel solve'
+
+      if (my_rank_pic == 0) then
+        if (iiout == 0) then
+          write (*,*)
+          write (*,'(a,i3,a,1pe10.3)')
+     .        ' Current mass matrix solve converged in ',it_count,' its'
+     .       //' at tol=',tol_out
+        endif
+      endif
+
+c     Gather global solution, sol => solg
+
+      call find_global_nobc(reshape(sol,(/nxl,nyl,nzl,n_sp/)),solg)
+
+c     Assign particle drift velocity vy (Stardard curvilinear convention, i.e., no Jac)
+
+      do isp=1, numspcs 
+        numpcles = size(spcs(isp)%pcles)
+!$OMP PARALLEL DEFAULT(SHARED) private(ip,i,i_n,j_n,imp)
+!$OMP DO
+        do ip=1,numpcles
+          if(ip > nip) then    !reserved inflow particles
+            call xform_pcle_idx(spcs(isp)%pcles(ip)%ijk_n,nxg,i_n,j_n)
+            do i=1, _Npg
+              jmp = j_n(i)-1
+              !periodic b.c.
+              if(jmp==0.and.bcs(3,isp)==PER) jmp = nyg
+              yp = spcs(isp)%pcles(ip)%x_n(i,2)*ihy
+              if(yp>0.5d0) then
+                 spcs(isp)%pcles(ip)%v_n(i,2) =
+     .                    spcs(isp)%pcles(ip)%v_n(i,2)
+     .                   +solg(i_n(i),j_n(i),1,isp)
+              else
+                 spcs(isp)%pcles(ip)%v_n(i,2) =
+     .                    spcs(isp)%pcles(ip)%v_n(i,2)
+     .                   +solg(i_n(i),jmp   ,1,isp)
+              end if
+              spcs(isp)%pcles(ip)%v_np(i,2)
+     .                  = spcs(isp)%pcles(ip)%v_n(i,2)
+	    end do
+          end if
+        end do
+!$OMP END DO
+!$OMP END PARALLEL
+      enddo
+
+      end subroutine find_pcle_drift_velocity_y
 
 c     build_mass_matrix
 c     ######################################################################
@@ -3142,8 +3483,6 @@ c     Local variables
      .          ,ijkimjm,ijkimjp,ijkipjm,ijkipjp,igl,jgl,kgl
      .          ,ijkgl,i_npg
       real(_prec) :: w_pcle,xp,yp
-
-      real(8) :: My2(3,1),Mx2(1,3),My1(1,2),Mx1(1,2),Mxy2(3,3)
 
       real(8),allocatable,dimension(:) :: send_buf,rec_buf
 
@@ -3171,12 +3510,12 @@ c     Begin program
 
               xp = spcs(isp)%pcles(ipcl)%x_n(i_npg,1)*ihx
               yp = spcs(isp)%pcles(ipcl)%x_n(i_npg,2)*ihy
-              Mx2(1,:) = shape2_offset_scalar(xp)
-              My2(:,1) = shape2_offset_scalar(yp)
+              Mx2(:,1) = shape2_offset_scalar(xp)
+              My2(1,:) = shape2_offset_scalar(yp)
 #ifdef __GNU
-              Mxy2(:,:)= opt_vecvec_3(My2,Mx2)
+              Mxy2(:,:)= opt_vecvec_3(Mx2,My2)
 #else
-              Mxy2(:,:)= matmul(My2,Mx2)
+              Mxy2(:,:)= matmul(Mx2,My2)
 #endif
 
               if (include_pcle_weight) Mxy2 = Mxy2*w_pcle
@@ -3281,7 +3620,7 @@ c     Begin program
       !Assign LOCAL mass matrix
       do j=1,nyl
         do i=1,nxl
-          call fromLocalToGlobalLimits(gv%gparams,1,i,j,1,igl,jgl,k)
+          call fromLocalToGlobalLimits(gpicdef,1,i,j,1,igl,jgl,k)
 
           ijkgl = igl + nxg*(jgl-1)
           ijk   = i   + nxl*(j  -1)
@@ -3318,8 +3657,6 @@ c     Local variables
      .          ,ijkgl,i_npg
       real(_prec) :: w_pcle,xp,yp
 
-      real(8) :: My2(3,1),Mx2(1,3),My1(1,2),Mx1(1,2),Mxy2(3,3)
-
       real(8),allocatable,dimension(:) :: send_buf,rec_buf
 
       real(8),allocatable,dimension(:,:,:) :: MM2
@@ -3336,7 +3673,7 @@ c     Begin program
         numpcles = size(spcs(isp)%pcles)
 !$omp parallel DEFAULT(SHARED) private(ipcl,i,j,ip,im,jp,jm,ci,ijk
 !$omp.         ,ijkim,ijkip,ijkjm,ijkjp,ijkimjm,ijkimjp,ijkipjm
-!$omp.         ,ijkipjp,Mx2,My2,Mxy2,xp,yp,i_npg,w_pcle)
+!$omp.         ,ijkipjp,Mx1,My2,Mx1y2,xp,yp,i_npg,w_pcle)
 !$         call set_omp_thread_id()
 !$omp DO 
 !$omp.reduction(+:MM2) 
@@ -3346,15 +3683,15 @@ c     Begin program
 
               xp = spcs(isp)%pcles(ipcl)%x_n(i_npg,1)*ihx
               yp = spcs(isp)%pcles(ipcl)%x_n(i_npg,2)*ihy
-              Mx2(1,:) = shape2_offset_scalar(xp)
-              My2(:,1) = shape2_offset_scalar(yp)
+              Mx1(:,1) = shape1_offset_scalar(xp)
+              My2(1,:) = shape2_offset_scalar(yp)
 #ifdef __GNU
-              Mxy2(:,:)= opt_vecvec_3(My2,Mx2)
+              Mx1y2(:,:)= opt_vecvec_23(Mx1,My2)
 #else
-              Mxy2(:,:)= matmul(My2,Mx2)
+              Mx1y2(:,:)= matmul(Mx1,My2)
 #endif
 
-              if (include_pcle_weight) Mxy2 = Mxy2*w_pcle
+              if (include_pcle_weight) Mx1y2 = Mx1y2*w_pcle
 
               call xform_pcle_idx_scl(spcs(isp)%pcles(ipcl)%ijk_n(i_npg)
      .                               ,nxg,i,j)
@@ -3483,7 +3820,7 @@ c     Begin program
       !Assign LOCAL mass matrix
       do j=1,nyl
         do i=1,nxl
-          call fromLocalToGlobalLimits(gv%gparams,1,i,j,1,igl,jgl,k)
+          call fromLocalToGlobalLimits(gpicdef,1,i,j,1,igl,jgl,k)
 
           ijkgl = igl + nxg*(jgl-1)
           ijk   = i   + nxl*(j  -1)
@@ -3495,6 +3832,195 @@ c     Begin program
       deallocate(MM2)
 
       end subroutine build_mass_matrix_x
+
+c     build_mass_matrix_y
+c     ######################################################################
+      subroutine build_mass_matrix_y(include_pcle_weight)
+
+      implicit none
+
+c     ----------------------------------------------------------------------
+c     Build GLOBAL 9-point stencil Mass Matrix for staggered grid
+c     component in y (e.g. jy)
+c     ----------------------------------------------------------------------
+
+c     Call variables
+
+      logical :: include_pcle_weight
+
+c     Local variables
+
+      integer :: ci(9),ipcl,isp,numspcs,numpcles
+
+      integer :: i,j,k,im,ip,jm,jp,ijk,ijkim,ijkip,ijkjm,ijkjp
+     .          ,ijkimjm,ijkimjp,ijkipjm,ijkipjp,igl,jgl,kgl
+     .          ,ijkgl,i_npg
+      real(_prec) :: w_pcle,xp,yp
+
+      real(8),allocatable,dimension(:) :: send_buf,rec_buf
+
+      real(8),allocatable,dimension(:,:,:) :: MM2
+
+c     Begin program
+
+      allocate(MM2(nng,3**_Dimx,n_sp)) !Global
+
+      MM2 = 0d0
+
+      numspcs = size(spcs)
+
+      do isp=1,numspcs
+        numpcles = size(spcs(isp)%pcles)
+!$omp parallel DEFAULT(SHARED) private(ipcl,i,j,ip,im,jp,jm,ci,ijk
+!$omp.         ,ijkim,ijkip,ijkjm,ijkjp,ijkimjm,ijkimjp,ijkipjm
+!$omp.         ,ijkipjp,Mx2,My1,Mx2y1,xp,yp,i_npg,w_pcle)
+!$         call set_omp_thread_id()
+!$omp DO 
+!$omp.reduction(+:MM2) 
+         do ipcl=nip+1,numpcles
+           do i_npg=1,_Npg
+              w_pcle = spcs(isp)%pcles(ipcl)%w_n(i_npg)
+
+              xp = spcs(isp)%pcles(ipcl)%x_n(i_npg,1)*ihx
+              yp = spcs(isp)%pcles(ipcl)%x_n(i_npg,2)*ihy
+              Mx2(:,1) = shape2_offset_scalar(xp)
+              My1(1,:) = shape1_offset_scalar(yp)
+#ifdef __GNU
+              Mx2y1(:,:)= opt_vecvec_32(Mx2,My1)
+#else
+              Mx2y1(:,:)= matmul(Mx2,My1)
+#endif
+
+              if (include_pcle_weight) Mx2y1 = Mx2y1*w_pcle
+
+              call xform_pcle_idx_scl(spcs(isp)%pcles(ipcl)%ijk_n(i_npg)
+     .                               ,nxg,i,j)
+
+              ip = i + 1
+              im = i - 1
+              jp = j + 1
+              jm = j - 1
+
+              !Set up the contributing matrix index
+!              ci(7)=3; ci(8)=2; ci(9)=1
+              ci(4)=6; ci(5)=5; ci(6)=4
+              ci(1)=9; ci(2)=8; ci(3)=7
+
+              if (i==1) then
+                if (pbcond(1)==pPER) then
+                  im = nxg
+                else
+                  print *,"May not be correct building mass-matrix 
+     .                     with relfectiv b.c.. Stop."
+                  stop
+                  im = i
+                  ci(1) = ci(1)-2
+                  ci(4) = ci(4)-2
+                  ci(7) = ci(7)-2
+                endif              
+              endif
+
+              if (i==nxg) then
+                if (pbcond(2)==pPER) then
+                  ip = 1
+                else
+                  ip = i
+                  ci(3) = ci(3)+2
+                  ci(6) = ci(6)+2
+                  ci(9) = ci(9)+2                
+                endif
+              endif
+
+              if (j==1) then
+                if (pbcond(3)==pPER) then
+                  jm = nyg
+                else
+                  jm = j
+                  ci(1) = ci(1)-6 
+                  ci(2) = ci(2)-6 
+                  ci(3) = ci(3)-6                 
+                endif
+              endif
+
+              if (j==nyg) then
+                if (pbcond(4)==pPER) then
+                  jp = 1
+                else
+                  jp = j
+                  ci(7) = ci(7)+6 
+                  ci(8) = ci(8)+6 
+                  ci(9) = ci(9)+6 
+                endif
+              endif
+            
+              ijk = i + nxg*(j-1)
+
+              ijkip   = ijk + ip-i
+              ijkim   = ijk + im-i
+              ijkjp   = ijk + (jp-j)*nxg
+              ijkjm   = ijk + (jm-j)*nxg
+              ijkimjm = ijk + im-i + (jm-j)*nxg
+              ijkipjm = ijk + ip-i + (jm-j)*nxg
+              ijkimjp = ijk + im-i + (jp-j)*nxg
+              ijkipjp = ijk + ip-i + (jp-j)*nxg
+
+              if(yp>0.5d0) then   !    J=j
+                MM2(ijkip  ,ci(6),isp)=MM2(ijkip  ,ci(6),isp)+Mx2y1(3,2)
+                MM2(ijk    ,ci(5),isp)=MM2(ijk    ,ci(5),isp)+Mx2y1(2,2)
+                MM2(ijkim  ,ci(4),isp)=MM2(ijkim  ,ci(4),isp)+Mx2y1(1,2)
+                                                     
+                MM2(ijkipjm,ci(3),isp)=MM2(ijkipjm,ci(3),isp)+Mx2y1(3,1)
+                MM2(ijkjm  ,ci(2),isp)=MM2(ijkjm  ,ci(2),isp)+Mx2y1(2,1)
+                MM2(ijkimjm,ci(1),isp)=MM2(ijkimjm,ci(1),isp)+Mx2y1(1,1)
+              else               !     J=j-1
+                MM2(ijkip  ,ci(6)-3,isp) = MM2(ijkip  ,ci(6)-3,isp)
+     $                                   + Mx2y1(3,2)
+                MM2(ijk    ,ci(5)-3,isp) = MM2(ijk    ,ci(5)-3,isp)
+     $                                   + Mx2y1(2,2)
+                MM2(ijkim  ,ci(4)-3,isp) = MM2(ijkim  ,ci(4)-3,isp)
+     $                                   + Mx2y1(1,2)
+                                                       
+                MM2(ijkipjm,ci(3)-3,isp) = MM2(ijkipjm,ci(3)-3,isp)
+     $                                   + Mx2y1(3,1)
+                MM2(ijkjm  ,ci(2)-3,isp) = MM2(ijkjm  ,ci(2)-3,isp)
+     $                                   + Mx2y1(2,1)
+                MM2(ijkimjm,ci(1)-3,isp) = MM2(ijkimjm,ci(1)-3,isp)
+     $                                   + Mx2y1(1,1)
+              end if
+
+            end do
+         end do
+!$omp end do 
+!$omp end parallel 
+      end do
+
+      !Wrap GLOBAL mass matrix
+#if defined(petsc)
+      allocate(send_buf(size(mm2))
+     $        ,rec_buf (size(mm2)))
+      send_buf = reshape(mm2, (/size(mm2)/))
+      call MPI_Allreduce(send_buf,rec_buf,size(send_buf)
+     $                  ,MPI_DOUBLE_PRECISION
+     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+      mm2 = reshape(rec_buf,shape(mm2))
+      deallocate(send_buf,rec_buf)
+#endif
+
+      !Assign LOCAL mass matrix
+      do j=1,nyl
+        do i=1,nxl
+          call fromLocalToGlobalLimits(gpicdef,1,i,j,1,igl,jgl,k)
+
+          ijkgl = igl + nxg*(jgl-1)
+          ijk   = i   + nxl*(j  -1)
+             
+          MM2l(ijk,:,:) = MM2(ijkgl,:,:)
+        enddo
+      enddo
+
+      deallocate(MM2)
+
+      end subroutine build_mass_matrix_y
 
       end module pic_mass_matrix
 
@@ -3508,7 +4034,7 @@ c ######################################################################
 
 cc      use pic_io
 
-      use grid, ONLY: npx,npy,npz,gparams
+      use grid, ONLY: npx,npy,npz,gparams,np,destroyGrid
 #if defined(petsc)
      .               ,add_profile_stage
 #endif
@@ -3525,15 +4051,12 @@ cc      use pic_io
       real(8),private :: w_bp (nsp_max)  !weight of background particles
 
       real(8),allocatable,dimension(:) :: pxx,pyy,pzz
-      real(8),allocatable,dimension(:) :: npc_acm
-      integer,allocatable,dimension(:,:) :: mnpc_int
 
       integer,private :: nps(nsp_max)
       integer,private :: nxg,nyg,nzg,nng,nxl,nyl,nzl,nnl
-      real(8),private :: hx,hy,hz,dh(3),Lx,Ly,Lz
-      real(8),private :: ihx,ihy,ihz,ih(3)
       real(8),private :: mach_eps,two_mach_eps
       real(8),private :: xmax,xmin,ymax,ymin,zmax,zmin
+      real(8),private :: hx,hy,hz,dh(3),Lx,Ly,Lz
 
       character*(20),private :: test = ''
 
@@ -3546,7 +4069,7 @@ cc      use pic_io
  
       !Input parameters defaults
       integer :: n_sp=nsp_max              !Number of species
-     .          ,min_pcles=0               !Minimun number of particles
+     .          ,min_pcles=0               !Minimun number of particles per cell
 
       integer :: n_b=0                     !Number and index of beam species
       integer :: i_b=0
@@ -3711,6 +4234,8 @@ c     Local variables
 
       type(particle),pointer,dimension(:) :: pcles
 
+cc      real(8) :: ihx,ihy,ihz,ih(3)
+
 c     Begin program
 
 #if defined(petsc)
@@ -3772,25 +4297,18 @@ cc      pzz = 0.5*(zin(0:nzg)+zin(0:nzg+1))
 
 c     Initialize mesh quantities
 
-      call setup_map(nxg,nyg,nzg,jac,no__map,xmap,xin,yin,zin
-     .              ,xmin,xmax,ymin,ymax,zmin,zmax,hx,hy,hz) !Limits, and hx/y/z are output
+      call setup_map(nxg,nyg,nzg,jac,no__map,xmap,xin,yin,zin)
 
 c     Initialize mesh lengths and volumes
+
+      call get_h(hx,hy,hz)
+      dh = (/hx,hy,hz/)
+
+      call get_domain_limits(xmin,xmax,ymin,ymax,zmin,zmax)
 
       Lx = xmax-xmin
       Ly = ymax-ymin
       Lz = zmax-zmin
-
-      ihx = 1d0/hx
-      ihy = 1d0/hy
-      ihz = 1d0/hz
-
-      dh = (/hx,hy,hz/)
-      ih = (/ihx,ihy,ihz/)
-
-c     Initialize pcle shape f
-
-      call setup_pic_shape_f(ihx,ihy,ihz)
 
 c     Initialize pcle accounting qtys
 
@@ -3805,14 +4323,7 @@ c     Initialize pcle accounting qtys
         endif
       enddo
 
-      if(quiet_start) then
-!     group of Antithetic variables
-         groupn = 8
-      else
-         groupn = 1
-      end if
-
-      pgroup = max(groupn,_Npg)
+      call set_groupn(quiet_start)
 
       if (_Npg > 8.and.quiet_start) then
         call pstop('setup_pic_2d',' _Npg > 8')
@@ -3822,21 +4333,23 @@ c     Find PIC physical quantities
 
       allocate(Jns(0:nxg+1,0:nyg+1,n_sp)
      $        ,Jpz(0:nxg+1,0:nyg+1,n_sp)
+     $        ,Jpy(0:nxg+1,0:nyg+1,n_sp)
      $        ,Jpx(0:nxg+1,0:nyg+1,n_sp))
 
       do isp=1,n_sp
         Jns(:,:,isp)  = moms_g(:,:,1,isp,Ins)*jac(:,:,1)
       enddo
-      Jpz = moms_g(:,:,1,:,IPz)
       Jpx = moms_g(:,:,1,:,IPx)
+      Jpy = moms_g(:,:,1,:,IPy)
+      Jpz = moms_g(:,:,1,:,IPz)
 
       do isp=1,n_sp
          omega_p(isp) = sqrt(abs(q_m(isp))) !careful
          tot_bp = min_pcles*nng*pgroup
-         nps(isp) = npcles(isp) - gnip - tot_bp
+         nps(isp) = npcles(isp) - gnip !- tot_bp
 
-         Jnpc_avg(isp) = (nps(isp))/sum(Jns(1:nxg,1:nyg,isp))
-         n0 = Jnpc_avg(isp)/(hx*hy*hz)     !Add volume factor
+         npc_avg(isp) = (nps(isp))/sum(Jns(1:nxg,1:nyg,isp))
+         n0 = npc_avg(isp)/(hx*hy*hz)     !Add volume factor
 
          if (n0 <= 0) call pstop("setup_pic_2d"
      .            ,"Not enough particles for species "//int2char(isp))
@@ -3857,13 +4370,8 @@ c     Allocate particles
 
 c     Initialize particle quantities
 
-      !Setup shape functions
-      call setup_pic_shape_f(ihx,ihy,ihz)
-
       !Allocate particle accumulators
-      allocate(npc_acm(0:nng+1),npc_int(nng,n_sp),mnpc_int(nng,n_sp))
-
-      npc_acm = 0 ; npc_int = 0; mnpc_int = 0
+      call alloc_pcles_counters(nng,n_sp)
 
       m_np = 0d0
       m_n  = 0d0
@@ -3880,7 +4388,7 @@ c     Initialize particles
           stop
         endif
 
-        call gather_moments
+        call gather_moments(gpicdef)
         momsn = moms
       else
         numspcs = size(spcs)
@@ -3893,8 +4401,6 @@ c     Initialize particles
         call load_pcles_offset
       endif
 
-cc      call setup_moms(nxg,nyg,nzg,nxl,nyl,nzl,n_sp,hx,hy,hz)
-
 c     End program
 
       end subroutine setup_pic_2d
@@ -3903,15 +4409,21 @@ c     kill_pic
 c     ##################################################################
       subroutine kill_pic
 
+      implicit none
+
+      integer :: alloc_stat
+      
+      call destroyGrid(gpicdef)
+
       call dealloc_pcles
 
       call dealloc_moms
 
-      deallocate(npc_acm,npc_int,mnpc_int)
+      call dealloc_pcles_counters
       
-      deallocate(pxx,pyy,pzz)
+      deallocate(pxx,pyy,pzz,stat=alloc_stat)
 
-      deallocate(Jns,Jpz,Jpx)
+      deallocate(Jns,Jpx,Jpy,Jpz,stat=alloc_stat)
 
       call dealloc_map
 
@@ -3938,6 +4450,8 @@ c     ##################################################################
       use iso_c_binding, only: c_int, c_double
       use F_call_C
 
+      use hammersley_seq
+
       implicit none
 c     ------------------------------------------------------------------
 c     Load particles in phase space
@@ -3951,13 +4465,13 @@ c     Local variables
      .          ,v_0y (1:n_sp+n_b)
      .          ,v_0z (1:n_sp+n_b)
 
-      integer :: ip,ip_ng,ipl,tot_np,ipc,is,ipb
+      integer :: ip,ip_ng,ipl,ipc,is,ipb,tot_np
      .           ,dimt,ipc0,ncall,i,j,k,ii,cii,offset
-     .           ,ipx,ipy,ipz,ixyz,np3,npc_max(n_sp),igl,jgl,kgl
-     .           ,tot_np_scan,npc_scan(nng,n_sp),numspcs,numpcles
+     .           ,ipx,ipy,ipz,ixyz,np3,igl,jgl,kgl
+     .           ,tot_np_scan,numspcs,numpcles,gtot_bnp
       real(8) :: rx1(_Npg),rx2(_Npg),rx3(_Npg),rx(_Npg),ry(_Npg)
      .          ,xp(_Npg),dxp,vx2,vt2
-     .          ,yp(_Npg),signx,signy,signz,pp,pr,betaj
+     .          ,yp(_Npg),signx,signy,signz,pp,pr,gtot_np,gnpc_avg
       real(8) :: v_tot(1:n_sp+n_b,_Dim)
       integer, save :: seed
       real(8) :: vt(3), v0(3)
@@ -3971,12 +4485,36 @@ c     Begin program
 
       call init_random_seed(nproc,my_rank_pic,.not.tst_flg)
 
+c     Initialize particle counters on the mesh
+
+      gtot_bnp = min_pcles*nng*pgroup  !Base particle number
+
       dimt = _Dim+_Dimx ! 2D3V
       numspcs = size(spcs)
       do is=1,numspcs
-         call compute_pcle_spat_dist(is,npc_int(:,is),npc_scan(:,is)
-     $                              ,npc_max(is),mnpc_int(:,is))
+
+        !Compute initial particle number distribution
+        tot_np  = size(spcs(is)%pcles)*_Npg
+        gtot_np = npcles(is)   !all particles         
+
+        !Always add some uniform base particles
+        gnpc_avg = (gtot_np-gnip-gtot_bnp)/sum(Jns(1:nxg,1:nyg,is))
+
+        if (gnpc_avg.le.0d0) then
+          write (*,'(a,i4)')
+     .         'Not enough particles to satisfy minimum per cell of'
+     .         ,min_pcles*pgroup
+          write (*,'(a,i8,a)')
+     .         'Need at least', min_pcles*nxg*nyg*nzg*pgroup,' pcles'
+          stop
+        endif
+
+        call compute_pcle_spat_dist(is,gnpc_avg*Jns(:,:,is)
+     .                             ,npc_int(:,is),npc_scan(:,is)
+     $                             ,npc_max(is),mnpc_int(:,is))
       end do
+
+c     Load particles
 
       if(quiet_start) then
 
@@ -4013,13 +4551,15 @@ c     Begin program
 
       call free_random_seed()
 
-      contains
+c$$$      contains
+c$$$
+c$$$      include 'problem_init/qsRandn.f'
 
-      include 'problem_init/qsRandn.f'
+      end subroutine load_pcles_offset
 
 c     compute_pcle_spat_dist
 c     ##################################################################
-      subroutine compute_pcle_spat_dist(isp,npc_int_s,npc_scan_s
+      subroutine compute_pcle_spat_dist(is,mom,npc_int_s,npc_scan_s
      $                                 ,npc_max_s,mnpc_int_s)
 
       implicit none
@@ -4028,61 +4568,50 @@ c     ------------------------------------------------------------------
 c     compute particle spatial distribution (LOCAL particles, GLOBAL mesh)
 c     ------------------------------------------------------------------
 
-      integer :: npc_max_s,npc_int_s(:),npc_scan_s(:),isp,gtot_np,npc
-     .          ,mnpc_int_s(:)
-      logical :: low_pcles = .false.
-      integer :: bnpc_avg,gtot_bnp, gnpc,npc_r,npc_r0,mnpc_r
-      real(8) :: gnpc_avg
+c     Call variables
       
+      integer :: is,npc_max_s,npc_int_s(:),npc_scan_s(:),npc
+     .          ,mnpc_int_s(:)
+      real(8) :: mom(0:,0:)
+
+c     Local variables
+      
+      logical :: low_pcles = .false.
+      integer :: gnpc,npc_r,npc_r0,mnpc_r,i,j,k,ii
+     .          ,bnp,nng,nxg,nyg,nzg
+     
 c     Begin program
 
-      tot_np = size(spcs(isp)%pcles)
-      tot_np = tot_np*_Npg
-      gtot_np = npcles(isp)    !all particles         
+      call get_global_grid_size(nxg,nyg,nzg)
 
-!     Always add some uniform base particles
+      nng = nxg*nyg*nzg
+      
+c     first sweep accumulates globally
 
-      bnpc_avg = min_pcles      !per pgroup*cell
-      gtot_bnp = bnpc_avg*nng*pgroup
-      betaj = 1d0
-      gnpc_avg = (gtot_np-gnip-gtot_bnp)/
-     $            sum(Jns  (1:nxg,1:nyg,isp)
-     .               *jac_g(1:nxg,1:nyg)**(betaj-1d0))
-
-      if (gnpc_avg.le.0d0) then
-        write (*,'(a,i4)')
-     .       'Not enough particles to satisfy minimum per cell of'
-     .       ,min_pcles*pgroup
-        write (*,'(a,i8,a)')
-     .       'Need at least', min_pcles*nxg*nyg*nzg*pgroup,' pcles'
-        stop
-      endif
-
-!     first sweep accumulates (per pgroup) globally
-
-      npc_acm(0) = gnip/pgroup
+      bnp = min_pcles*pgroup
+      npc_acm(0) = gnip
       do k = 1,nzg
          do j = 1,nyg
             do i = 1,nxg
                ii  = i + nxg*(j-1) + nxg*nyg*(k-1)
-               npc_acm(ii) = npc_acm(ii-1)
-     .                     +(gnpc_avg/pgroup)*Jns(i,j,isp)
-     .                      *jac_g(i,j)**(betaj-1d0) + bnpc_avg
+               npc_acm(ii) = npc_acm(ii-1) + mom(i,j) + bnp
             end do
          end do
       end do      
 
-!     Check the total accumulated particles
+c     Check the total accumulated particles
 
-      if(nint(npc_acm(ii)).ne.gtot_np/pgroup) then
-         write (*,*) ii,nng,gnip,nip,npc_acm(ii),gtot_np/pgroup
+      if(nint(npc_acm(ii)) /= npcles(is)) then
+         write (*,*) ii,nng,gnip,nip,npc_acm(ii),npcles(is)
          print *
      $        ,"The accumulated number of particles does not add up"
          print *," to the prescribed one, stop."
          stop
       end if
 
-!     second sweep allocate particles to each cell
+c     Second sweep allocate particles to each cell (per group)
+
+      npc_acm = npc_acm/pgroup
 
       npc_r0 = 0
       npc_max_s = 0 
@@ -4115,16 +4644,14 @@ cc               if(ii==8) print *,my_rank_pic,ii,mnpc_int_s(ii),mnpc_r
          end do
       end do
 
-c$$$      print *,"after arranging particles:",my_rank_pic,sum(npc_int_s)
-c$$$     .       ,tot_np
-      
 #if defined(petsc)
 !     find the index of counting particles per mpi process
       call MPI_SCAN(npc_int_s,npc_scan_s,nng,MPI_INTEGER,MPI_SUM
      $     ,MPI_COMM_WORLD,mpierr)         
       do ii = 1,nng
-         npc_scan_s(ii) = npc_scan_s(ii) - npc_int_s(ii) +
-     $        nint(npc_acm(ii-1)) 
+         npc_scan_s(ii) = npc_scan_s(ii)
+     .                  - npc_int_s (ii)
+     $                   +nint(npc_acm(ii-1)) 
       end do
 #else
       do ii = 1,nng
@@ -4135,8 +4662,6 @@ c$$$     .       ,tot_np
       npc1_0(1) = npc_int_s(1) +npc_int_s(2)
       
       end subroutine compute_pcle_spat_dist
-
-      end subroutine load_pcles_offset
 
 c     perturb_pcles_offset
 c     ##################################################################
@@ -4157,6 +4682,7 @@ c     Local variables
 
       real(8) :: vcurv(3),cov(3,3),xpp(3),xlog(3)
       real(8) :: const_pi
+      integer :: ierr
 
 c     Begin program
 
@@ -4191,16 +4717,18 @@ c     Find particle weights and drift velocities
           write (*,*) '******************'
         endif
 
-        call gather_moments
+        call gather_moments(gpicdef)
 
         call setup_mass_matrix(nxl,nyl,nzl,nxg,nyg,nzg)
 
         call find_pcle_weights(moms(:,:,1,1:n_sp,:))
 
-        call gather_moments
+        !Check GY
+        call gather_moments(gpicdef)
 
-        call find_pcle_drift_velocity(moms(:,:,1,1:n_sp,:))
-c        call find_pcle_drift_velocity_x(moms(:,:,1,1:n_sp,:))
+        call find_pcle_drift_velocity_z(moms(:,:,1,1:n_sp,:))
+c$$$        call find_pcle_drift_velocity_x(moms(:,:,1,1:n_sp,:))
+c$$$        call find_pcle_drift_velocity_y(moms(:,:,1,1:n_sp,:))
 
         call destroy_mass_matrix
       end if
@@ -4245,7 +4773,10 @@ c$$$        end if
 
 c     Gather moments
 
-      call gather_moments
+      call gather_moments(gpicdef)
+
+c$$$      !Check GY
+c$$$      ierr = pic_dump_pcles(time)
 
 c     Diagnostics and memory freeing
 
@@ -4990,7 +5521,7 @@ c ######################################################################
 
 c     sort_particles
 c     ##################################################################
-      subroutine sort_particles(Npart_cell)
+      subroutine sort_particles(Npart_cell,pcle_cell_idx)
 
       implicit none
 
@@ -5001,6 +5532,7 @@ c     ------------------------------------------------------------------
 c     Call variables
 
       integer,optional,intent(out) :: Npart_cell(:,:,:,:)
+     .                               ,pcle_cell_idx(:,:)
 
 c     Local variables
 
@@ -5091,7 +5623,7 @@ c     Begin program
             ip = locl_cell_index(ijk(k))
 
             call xform_pcle_idx_scl(ip,_Npg,kl,ipl)
-            ipl = ipl + nip
+            ipl = ipl + nip  !Add pcle buffer
 
             !Save old positions and velocities only
             spcs(isp)%pcles(ipl)%x_n(kl,:)
@@ -5114,10 +5646,12 @@ c     Begin program
 !$OMP END DO
 !$OMP END PARALLEL 
 
+        if(present(pcle_cell_idx)) pcle_cell_idx(:,isp)=part_cell_index
+
       end do !species
 
       if(present(Npart_cell)) Npart_cell = Np_cell
-         
+
       if (my_rank_pic == 0.and.(.not.tst_flg)) write (*,*) "Done!"
 
       deallocate(part_cell_index,locl_cell_index)

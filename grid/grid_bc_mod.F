@@ -1,288 +1,3 @@
-c module bc_ops
-c #####################################################################
-      module bc_ops
-
-c     -----------------------------------------------------------------
-c     This module defines various BC-related operators
-c     -----------------------------------------------------------------
-
-        use grid_def
-
-cc        type(grid_mg_def),pointer :: gbc_def => null()
-
-      contains
-
-c     isBdry
-c     #################################################################
-      function isBdry(gl_def,i,igr,ibc)
-
-c     -----------------------------------------------------------------
-c     Detects whether we are at a PHYSICAL boundary or not. Boundary is
-c     identified by ibc, with the following convention:
-c        * ibc = 1, 2 (xmin,xmax)
-c        * ibc = 3, 4 (ymin,ymax)
-c        * ibc = 5, 6 (zmin,zmax)
-c     -----------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-        integer :: i,igr,ibc
-        logical :: isBdry
-
-        type(grid_mg_def),pointer :: gl_def
-
-c     Local variables
-
-        integer :: ilog,itst,diml,locl
-
-c     Begin program
-
-        locl = abs(mod(ibc,2)-2)-1
-        diml = 1 + (ibc-1-locl)/2
-
-        if (.not.associated(gl_def)) then
-          write (*,*) 'Grid def struct not associated'
-          write (*,*) 'Aborting in routine isBdry'
-          stop
-        endif
-
-        select case(diml)
-        case(1)
-          ilog = gl_def%ilo(igr)
-          select case(locl)
-          case (0)
-            itst = 1
-          case (1)
-            itst = gl_def%nxgl(igr)
-          end select
-        case(2)
-          ilog = gl_def%jlo(igr)
-          select case(locl)
-          case (0)
-            itst = 1
-          case (1)
-            itst = gl_def%nygl(igr)
-          end select
-        case(3)
-          ilog = gl_def%klo(igr)
-          select case(locl)
-          case (0)
-            itst = 1
-          case (1)
-            itst = gl_def%nzgl(igr)
-          end select
-        end select
-
-        isBdry = (i+ilog-1 == itst)
-
-      end function isBdry
-
-c     isBC
-c     #################################################################
-      function isBC(g_def,i,igr,ibc,BC,bcnd)
-
-c     -----------------------------------------------------------------
-c     Checks whether point i at grid level igr, boundary location
-c     ibc=(1,6) (see isBdry for definition) is of boundary type BC.
-c     -----------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-        integer :: i,igr,ibc,BC
-        logical :: isBC
-        integer,optional :: bcnd(6)
-
-        type(grid_mg_def),pointer :: g_def
-
-c     Local variables
-
-        integer :: bcc(6)
-
-c     Begin program
-
-        if (ibc < 1 .or. ibc > 6) then
-          isBC = .false.
-          return
-        endif
-
-        if (PRESENT(bcnd)) then
-          bcc = bcnd
-        else
-          bcc = bcond
-        endif
-
-        isBC = (isBdry(g_def,i,igr,ibc) .and. abs(bcc(ibc)) == BC)
-
-      end function isBC
-
-c     isSP
-c     #################################################################
-      function isSP(gl_def,i,j,k,igx,igy,igz) result(sing_point)
-
-        implicit none
-
-        integer    :: i,j,k,igx,igy,igz
-        logical    :: sing_point
-
-        type(grid_mg_def),pointer :: gl_def
-
-c     Local variables
-
-c     Begin program
-
-        if (.not.associated(gl_def)) then
-          write (*,*) 'Grid def struct not associated'
-          write (*,*) 'Aborting in routine isBdry'
-          stop
-        endif
-
-        sing_point = (i+gl_def%ilo(igx)-1==1).and.bcSP()
-
-      end function isSP
-
-c     isSP2
-c     #################################################################
-      function isSP2(g_def,i,igr,dim,loc,ibc)
-
-c     -----------------------------------------------------------------
-c     Checks whether point at grid level igr, dimension dim(=1,2,3)
-c     and location loc(=0,1) is at SP boundary.
-c     -----------------------------------------------------------------
-
-        implicit none
-
-        integer    :: i,igr
-        logical    :: isSP2
-        integer,optional :: dim,loc,ibc
-
-        type(grid_mg_def),pointer :: g_def
-
-        integer    :: ibcl,ilog,itst,diml,locl
-
-        if (PRESENT(dim) .and.PRESENT(loc)) then
-          diml = dim
-          locl = loc
-          ibcl = (1+locl)+2*(diml-1)
-        elseif (PRESENT(ibc)) then
-          ibcl = ibc
-        else
-          ibcl = 1
-        endif
-
-        if (ibcl < 1 .or. ibcl > 6) then
-          isSP2 = .false.
-          return
-        else
-          isSP2 = isBC(g_def,i,igr,ibcl,SP)
-        endif
-
-      end function isSP2
-
-c     isSYM
-c     #################################################################
-      function isSYM(g_def,i,igr,dim,loc,ibc)
-
-c     -----------------------------------------------------------------
-c     Checks whether point at grid level igr, dimension dim(=1,2,3)
-c     and location loc(=0,1) is at SYM boundary
-c     -----------------------------------------------------------------
-
-        implicit none
-
-        type(grid_mg_def),pointer :: g_def
-
-        integer    :: i,igr
-        logical    :: isSYM
-        integer,optional :: dim,loc,ibc
-
-        integer    :: ibcl,ilog,itst,diml,locl
-
-        if (PRESENT(dim) .and.PRESENT(loc)) then
-          diml = dim
-          locl = loc
-          ibcl = (1+locl)+2*(diml-1)
-        elseif (PRESENT(ibc)) then
-          ibcl = ibc
-          locl = abs(mod(ibcl,2)-2)-1
-          diml = 1 + (ibcl-1-locl)/2
-        else
-          write (*,*) 'Error in isSYM'
-          write (*,*) 'Aborting...'
-          stop
-        endif
-
-        isSYM = isBC(g_def,i,igr,ibcl,SYM)
-
-      end function isSYM
-
-c     isSYMBdry
-c     #################################################################
-      function isSYMBdry(gl_def,dim,loc,ibc)
-
-c     -----------------------------------------------------------------
-c     Checks whether boundary at dimension dim(=1,2,3)
-c     and location loc(=0,1) is a SYM boundary
-c     -----------------------------------------------------------------
-
-        implicit none
-
-        logical    :: isSYMBdry
-        integer,optional :: dim,loc,ibc
-
-        integer    :: ibcl,ilog,itst,diml,locl,igr
-
-        type(grid_mg_def),pointer :: gl_def
-
-        if (PRESENT(dim) .and.PRESENT(loc)) then
-          diml = dim
-          locl = loc
-          ibcl = (1+locl)+2*(diml-1)
-        elseif (PRESENT(ibc)) then
-          ibcl = ibc
-          locl = abs(mod(ibcl,2)-2)-1
-          diml = 1 + (ibcl-1-locl)/2
-        else
-          write (*,*) 'Error in isSYMBdry'
-          write (*,*) 'Aborting...'
-          stop
-        endif
-
-        igr = 1 !Use fine grid for test
-
-        select case(diml)
-        case(1)
-          select case(locl)
-          case (0)
-            itst = 1
-          case (1)
-            itst = gl_def%nxv(igr)
-          end select
-        case(2)
-          select case(locl)
-          case (0)
-            itst = 1
-          case (1)
-            itst = gl_def%nyv(igr)
-          end select
-        case(3)
-          select case(locl)
-          case (0)
-            itst = 1
-          case (1)
-            itst = gl_def%nzv(igr)
-          end select
-        end select
-
-        isSYMBdry = isBC(gl_def,itst,igr,ibcl,SYM)
-
-      end function isSYMBdry
-
-      end module bc_ops
-
 c module BCS_variables
 c####################################################################
       module BCS_variables
@@ -713,6 +428,155 @@ c     End program
 
       end subroutine vectorSingularBC_stg
 
+c     averageSingularBC
+c     ################################################################
+      subroutine averageSingularBC(gl_def,igr,vec,order_avg,order_ext
+     .                            ,iscnv,iscar)
+
+      implicit none
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: gl_def
+
+      real(8) :: vec(0:,0:,0:,:)
+
+      integer :: igr,order_avg,order_ext
+
+      logical :: iscnv,iscar
+
+c     Local variables
+      
+      integer :: nx,ny,nz,neq,i,j,k,ig,jg,kg,ieq,one,two,thr
+     .          ,oavg,oext,icomp,ivar,nr
+
+      real(8) :: curv(3),car(3)
+
+      real(8),allocatable :: sp_sum(:,:),dv_sum(:,:),l_sum(:,:)
+
+      real(8),pointer,dimension(:) :: xx
+
+c     Begin program
+
+      neq = size(vec,4)
+
+      nx = gl_def%nxv(igr)
+      ny = gl_def%nyv(igr)
+      nz = gl_def%nzv(igr)
+
+c     Prepare interpolations
+
+      oext = min(order_ext,nx)
+      oavg = min(order_avg,nx)
+      nr = max(oext,oavg)
+
+      one = 1 ; two = 2; thr = 3
+
+      if (nr <= 1) then
+        two = one
+        thr = one
+      elseif (nr == 2) then
+        thr = two
+      endif
+
+      call getMGmap(gl_def,1,1,1,igr,igr,igr,ig,jg,kg)
+
+      xx => gl_def%xx
+
+c     Regularize innermost cell layer (closest to SP)
+
+      allocate(sp_sum(0:nz+1,3),dv_sum(0:nz+1,3))
+
+      do ivar=1,neq/3
+
+        !Transform to Cartesian
+        if (.not.iscar) then
+          icomp = 3*(ivar-1)
+
+          do k = 0,nz+1
+            do j = 0,ny+1
+              do i = 1,nr+1
+                curv = vec(i,j,k,icomp+1:icomp+3)
+                vec(i,j,k,icomp+1:icomp+3)
+     .             = XformToCar_ijk(gl_def,i,j,k,igr,curv,.not.iscnv)
+              enddo
+            enddo
+          enddo
+        endif
+
+        !Compute weighed average
+        do ieq=1,3
+
+          icomp = ieq+3*(ivar-1)
+
+cc          vec(0,:,:,icomp) = vec(1,:,:,icomp)
+          vec(0,:,:,icomp) =
+     .        quad_int(xx(ig),xx(ig+one),xx(ig+two),xx(ig+thr)
+     .                ,vec(1    ,:,:,icomp),vec(1+one,:,:,icomp)
+     .                ,vec(1+two,:,:,icomp),vec(1+thr,:,:,icomp)
+     .                ,0d0,oavg)
+
+          do k=0,nz+1
+            sp_sum(k,ieq)= sum(vec(0,1:ny,k,icomp)
+     .                *gl_def%gmetric%grid(igr)%dvol(1,1:ny,k))
+            dv_sum(k,ieq)=
+     .             sum(gl_def%gmetric%grid(igr)%dvol(1,1:ny,k))
+          enddo
+        enddo
+
+#if defined(petsc)
+        allocate(l_sum(0:nz+1,3))
+        l_sum = sp_sum
+        call MPI_Allreduce(l_sum,sp_sum,3*(nz+2)
+     .                    ,MPI_DOUBLE_PRECISION
+     .                    ,MPI_SUM,gl_def%MPI_COMM_SP,mpierr)
+
+        l_sum = dv_sum
+        call MPI_Allreduce(l_sum,dv_sum,3*(nz+2)
+     .                    ,MPI_DOUBLE_PRECISION
+     .                    ,MPI_SUM,gl_def%MPI_COMM_SP,mpierr)
+
+        deallocate(l_sum)
+#endif
+
+        !Assign back to innermost cell center
+        do ieq=1,3
+          icomp = ieq+3*(ivar-1)
+
+          do k=0,nz+1
+            vec(0,:,k,icomp) = sp_sum(k,ieq)/dv_sum(k,ieq)
+          enddo
+
+          vec(1,:,:,icomp) =
+     .        quad_int(0d0,xx(ig+one),xx(ig+two),xx(ig+thr)
+     .                ,vec(0    ,:,:,icomp),vec(1+one,:,:,icomp)
+     .                ,vec(1+two,:,:,icomp),vec(1+thr,:,:,icomp)
+     .                ,xx(ig),oext)
+        enddo
+
+        !Transform back to Curvilinear
+        if (.not.iscar) then
+          icomp = 3*(ivar-1)
+
+          do k = 0,nz+1
+            do j = 0,ny+1
+              do i = 1,nr+1
+                car = vec(i,j,k,icomp+1:icomp+3)
+                vec(i,j,k,icomp+1:icomp+3)
+     .             = XformToCurv_ijk(gl_def,i,j,k,igr,car,iscnv)
+              enddo
+            enddo
+          enddo
+        endif
+
+      enddo
+
+      deallocate(sp_sum,dv_sum)
+        
+c     End program
+
+      end subroutine averageSingularBC
+
       end module singularBCinterface
 
 c module imposeBCinterface
@@ -750,6 +614,50 @@ c #####################################################################
      .            ,fillEdges,fillCorners
 
       contains
+
+c     set_stg_vector
+c     ##############################################################
+      subroutine set_stg_vector(stg)
+
+      implicit none
+
+c     --------------------------------------------------------------
+c     Whether to skip corners in BC treatment
+c     --------------------------------------------------------------
+
+c     Call variables
+
+      logical :: stg
+
+c     Begin program
+
+      stg_vector = stg
+
+c     End program
+
+      end subroutine set_stg_vector
+
+c     get_stg_vector
+c     ##############################################################
+      function get_stg_vector() result(stg)
+
+      implicit none
+
+c     --------------------------------------------------------------
+c     Whether to skip corners in BC treatment
+c     --------------------------------------------------------------
+
+c     Call variables
+
+      logical :: stg
+
+c     Begin program
+
+      stg = stg_vector
+
+c     End program
+
+      end function get_stg_vector
 
 c     set_skip_corners
 c     ##############################################################
@@ -1335,7 +1243,7 @@ c     #################################################################
       subroutine imposeBConVector(gbc_def,fcomp,ncomp,nx,ny,nz
      .                           ,v_cnv,v_cov,var0
      .                           ,bcnd,iigx,iigy,iigz,i1,i2,j1,j2,k1,k2
-     .                           ,iorder,is_cnv,is_vec)
+     .                           ,iorder,is_cnv,is_vec,sp_reg)
 c     -----------------------------------------------------------------
 c     Imposes BC on vector field
 c     -----------------------------------------------------------------
@@ -1351,7 +1259,7 @@ c     Call variables
      .             ,var0 (0:,0:,0:,:)
      .             ,v_cov(0:,0:,0:,:)
       integer   ,optional,intent(IN) :: i1,i2,j1,j2,k1,k2,iorder
-      logical   ,optional,intent(IN) :: is_cnv,is_vec
+      logical   ,optional,intent(IN) :: is_cnv,is_vec,sp_reg
 
 c     Local variables
 
@@ -1359,6 +1267,7 @@ c     Local variables
       integer    :: ivar,ieq,ibc,loc,dim,bctype,xtrap_o
      .             ,ilmin,jlmin,klmin,ilmax,jlmax,klmax
       logical    :: cov_to_cnv(6,3),to_cnv,is__vec,petsc__bc
+     .             ,regularize_sp
 
 #if defined(petsc)
       type(petsc_da_ctx),pointer :: da_ctx
@@ -1383,6 +1292,13 @@ c     Begin program
         to_cnv = .not.is_cnv
       else
         to_cnv = .false.
+      endif
+
+      !By default, we assume input is in cnv representation
+      if (PRESENT(sp_reg)) then
+        regularize_sp = sp_reg
+      else
+        regularize_sp = .false.
       endif
 
 c     Initialize interpolation order (else use last set)
@@ -1439,6 +1355,13 @@ c     Initialize GLOBAL limits
       kkmxp =  min(kkmax + 1,gbc_def%nzgl(iigz)+1)
 #endif
 
+c     Prepare SP BCs
+
+      if (isSP2(gbc_def,1,igxbc).and.regularize_sp) then
+        call averageSingularBC(gbc_def,igxbc,v_cnv,0,2,.true. ,.false.)
+        call averageSingularBC(gbc_def,igxbc,v_cov,0,2,.false.,.false.)
+      endif
+
 c     Fill PETSc ghost cells and PER BCs
 
 #if defined(petsc) && !defined(samrai)
@@ -1459,16 +1382,6 @@ c     Fill PETSc ghost cells and PER BCs
 #endif
 
       if (bcPER(1).and.bcPER(2).and.bcPER(3)) return
-
-c$$$c     Find complete curvilinear representation at boundaries
-c$$$
-c$$$      if (is__vec) then
-c$$$        if (to_cnv) then
-c$$$          call XformVector_BC(gbc_def,igxbc,v_cov,v_cnv,to_cnv)
-c$$$        else
-c$$$          call XformVector_BC(gbc_def,igxbc,v_cnv,v_cov,to_cnv)
-c$$$        endif
-c$$$      endif
 
 c     Impose physical BCs
 
@@ -1984,7 +1897,7 @@ c     Local variables
 c     Begin program
 
       !Indicate staggered vector treatment
-      stg_vector = .true.
+      call set_stg_vector(.true.)
 
       !By default, we assume input is in cnv representation
       if (PRESENT(is_cnv)) then
@@ -2137,7 +2050,7 @@ c     Periodic boundary synchronizing
 
 c     End program
 
-      stg_vector = .false.
+      call set_stg_vector(.false.)
       if (flg_sc) skip_corners=.false. !Reset skip_corners
 
       contains
@@ -2570,7 +2483,7 @@ c     Local variables
 c     Begin program
 
       !Indicate staggered vector treatment
-      stg_vector = .true.
+      call set_stg_vector(.true.)
 
       !Skip BC corner treatment
       flg_sc = .false.
@@ -2652,7 +2565,7 @@ c     Fill PETSc ghost cells and PER BCs
 
       !Exit if all periodic domains 
       if (bcPER(1).and.bcPER(2).and.bcPER(3)) then
-        stg_vector = .false.
+        call set_stg_vector(.false.)
         if (flg_sc) skip_corners=.false. !Reset skip_corners
         return
       endif
@@ -2677,18 +2590,18 @@ c     Impose physical BCs
 
 c     Fill edges 
 
-      xtrap_o = max(2,order)
-
-      do ivar=1,ncomp
-        call fillEdges(gbc_def,vec(:,:,:,ivar),vec_0(:,:,:,ivar)
-     .                ,bcnd(:,ivar),xtrap_o)
-      enddo
-
-c     Fill corners 
-
-      do ivar=1,ncomp
-        call fillCorners(gbc_def,vec(:,:,:,ivar),bcnd(:,ivar),xtrap_o)
-      enddo
+c$$$      xtrap_o = max(2,order)
+c$$$
+c$$$      do ivar=1,ncomp
+c$$$        call fillEdges(gbc_def,vec(:,:,:,ivar),vec_0(:,:,:,ivar)
+c$$$     .                ,bcnd(:,ivar),xtrap_o)
+c$$$      enddo
+c$$$
+c$$$c     Fill corners 
+c$$$
+c$$$      do ivar=1,ncomp
+c$$$        call fillCorners(gbc_def,vec(:,:,:,ivar),bcnd(:,ivar),xtrap_o)
+c$$$      enddo
 
 c     Periodic boundary synchronizing
 
@@ -2704,7 +2617,7 @@ c     Periodic boundary synchronizing
 
 c     End program
 
-      stg_vector = .false.
+      call set_stg_vector(.false.)
       if (flg_sc) skip_corners=.false. !Reset skip_corners
 
       contains
@@ -2991,7 +2904,7 @@ c     Find BC update
         case(EXT)
           call fillFaces(gbc_def,array(:,:,:,ivar),dim,loc,order)
         case(SP)
-          if (stg_vector) then
+          if (get_stg_vector()) then
            call vectorSingularBC_stg(gbc_def,ivar,array(:,:,:,ivar),cov)
           else
            call vectorSingularBC    (gbc_def,ivar,array(:,:,:,ivar),cov)
@@ -3058,12 +2971,50 @@ c     Begin program
       ibc = (1+loc)+2*(dim-1)
 
 #if !defined(petsc)
-
-cc      if (bcPER(dim)) call per_BC(ibc,array)
+      !Synchronize PER corners
+      select case(dim)
+      case(1)
+        if (bcPER(2)) then
+          array(0   ,0     ,:) = array(0   ,nybc,:)
+          array(0   ,nybc+1,:) = array(0   ,1   ,:)
+          array(nxbc,0     ,:) = array(nxbc,nybc,:)
+          array(nxbc,nybc+1,:) = array(nxbc,1   ,:)
+        endif
+        if (bcPER(3)) then
+          array(0   ,:,0     ) = array(0   ,:,nzbc)
+          array(0   ,:,nzbc+1) = array(0   ,:,1   )
+          array(nxbc,:,0     ) = array(nxbc,:,nzbc)
+          array(nxbc,:,nzbc+1) = array(nxbc,:,1   )
+        endif
+      case(2)
+        if (bcPER(1)) then
+          array(0     ,0   ,:) = array(nxbc,0   ,:)
+          array(nxbc+1,0   ,:) = array(1   ,0   ,:)
+          array(0     ,nybc,:) = array(nxbc,nybc,:)
+          array(nxbc+1,nybc,:) = array(1   ,nybc,:)
+        endif
+        if (bcPER(3)) then
+          array(:,0   ,0     ) = array(:,0   ,nzbc)
+          array(:,0   ,nzbc+1) = array(:,0   ,1   )
+          array(:,nybc,0     ) = array(:,nybc,nzbc)
+          array(:,nybc,nzbc+1) = array(:,nybc,1   )
+        endif
+      case(3)
+        if (bcPER(1)) then
+          array(0     ,:,0   ) = array(nxbc,:,0   )
+          array(nxbc+1,:,0   ) = array(1   ,:,0   )
+          array(0     ,:,nzbc) = array(nxbc,:,nzbc)
+          array(nxbc+1,:,nzbc) = array(1   ,:,nzbc)
+        endif
+        if (bcPER(2)) then
+          array(:,0     ,0   ) = array(:,nybc,0   )
+          array(:,nybc+1,0   ) = array(:,1   ,0   )
+          array(:,0     ,nzbc) = array(:,nybc,nzbc)
+          array(:,nybc+1,nzbc) = array(:,1   ,nzbc)
+        endif
+      end select
 
 #else
-
-cc      if (bcPER(dim)) return
 
       dumxin1 = 0d0 ; dumxout1 = 0d0
       dumyin1 = 0d0 ; dumyout1 = 0d0
@@ -3138,8 +3089,8 @@ c     Begin program
       
       !Down
       dest = pn(0,-1,0)
-      if (dest /= currp) then
-        down = (dest /= nullp)
+      down = (dest /= currp).and.(dest /= nullp)
+      if (down) then
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumzout1,(nzbc+2)
@@ -3158,8 +3109,8 @@ c     Begin program
 
       !Up
       dest = pn(0,1,0)
-      if (dest /= currp) then
-        up = (dest /= nullp)
+      up = (dest /= currp).and.(dest /= nullp)
+      if (up) then
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumzout2,(nzbc+2)
@@ -3178,8 +3129,8 @@ c     Begin program
 
       !Bottom
       dest = pn(0,0,-1)
-      if (dest /= currp) then
-        bottom = (dest /= nullp)
+      bottom = (dest /= currp).and.(dest /= nullp)
+      if (bottom) then
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumyout1,(nybc+2)
@@ -3198,8 +3149,8 @@ c     Begin program
 
       !Top
       dest = pn(0,0,1)
-      if (dest /= currp) then
-        top = (dest /= nullp)
+      top = (dest /= currp).and.(dest /= nullp)
+      if (top) then
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumyout2,(nybc+2)
@@ -3284,8 +3235,8 @@ c     Begin program
 
       !Left
       dest = pn(-1,0,0)
-      if (dest /= currp) then
-        left = (dest /= nullp)
+      left = (dest /= currp).and.(dest /= nullp)
+      if (left) then
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumzout1,(nzbc+2)
@@ -3304,8 +3255,8 @@ c     Begin program
 
       !Right
       dest = pn(1,0,0)
-      if (dest /= currp) then
-        right = (dest /= nullp)
+      right = (dest /= currp).and.(dest /= nullp)
+      if (right) then
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumzout2,(nzbc+2)
@@ -3324,8 +3275,8 @@ c     Begin program
 
       !Bottom
       dest = pn(0,0,-1)
-      if (dest /= currp) then
-        bottom = (dest /= nullp)
+      bottom = (dest /= currp).and.(dest /= nullp)
+      if (bottom) then
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumxout1,(nxbc+2)
@@ -3344,8 +3295,8 @@ c     Begin program
 
       !Top
       dest = pn(0,0,1)
-      if (dest /= currp) then
-        top = (dest /= nullp)
+      top = (dest /= currp).and.(dest /= nullp)
+      if (top) then
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumxout2,(nxbc+2)
@@ -3429,8 +3380,8 @@ c     Begin program
 
       !Left
       dest = pn(-1,0,0)
-      if (dest /= currp) then
-        left = (dest /= nullp)
+      left = (dest /= currp).and.(dest /= nullp)
+      if (left) then
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumyout1,(nybc+2)
@@ -3449,8 +3400,8 @@ c     Begin program
 
       !Right
       dest = pn(1,0,0)
-      if (dest /= currp) then
-        right = (dest /= nullp)
+      right = (dest /= currp).and.(dest /= nullp)
+      if (right) then
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumyout2,(nybc+2)
@@ -3469,8 +3420,8 @@ c     Begin program
 
       !Down
       dest = pn(0,-1,0)
-      if (dest /= currp) then
-        down = (dest /= nullp)
+      down = (dest /= currp).and.(dest /= nullp)
+      if (down) then
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumxout1,(nxbc+2)
@@ -3489,8 +3440,8 @@ c     Begin program
 
       !Up
       dest = pn(0,1,0)
-      if (dest /= currp) then
-        up = (dest /= nullp)
+      up = (dest /= currp).and.(dest /= nullp)
+      if (up) then
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumxout2,(nxbc+2)
@@ -3843,7 +3794,7 @@ c     End program
 
 c     extrapolateBC
 c     #################################################################
-      subroutine extrapolateBC(gbc_def,array,array0,dim,loc,order)
+      subroutine extrapolateBC(gbc_def,array,array0,dim,loc,order,atfce)
 c     -----------------------------------------------------------------
 c     Fills ghost nodes by extrapolation across relevant boundary.
 c     -----------------------------------------------------------------
@@ -3858,13 +3809,20 @@ c     Call variables
         real(8) :: array (0:nxbc+1,0:nybc+1,0:nzbc+1)
      .            ,array0(0:nxbc+1,0:nybc+1,0:nzbc+1)
 
+        logical, optional :: atfce
+
 c     Local variables
 
         integer :: imax,imin,jmax,jmin,kmax,kmin,ibc
      .            ,order_int(3)
 
         integer :: i,j,k,ig,jg,kg,one,two,thr
+
+        real(8) :: x0
+
         real(8),pointer,dimension(:) :: xx,yy,zz
+
+        logical :: atface
 
 c     Begin program
 
@@ -3875,6 +3833,12 @@ c     Begin program
         order_int(3) = min(order,nzbc)
 
         one = 1 ; two = 2; thr = 3
+
+        if (PRESENT(atfce)) then
+          atface = atfce
+        else
+          atface = .true.
+        endif
 
 c     Setup grid aliases
 
@@ -3907,12 +3871,15 @@ c     Extrapolate
 
             call getMGmap(gbc_def,i,1,1,igxbc,igybc,igzbc,ig,jg,kg)
 
-            array(i,:,:) = 
-     .              quad_int(0.5*(xx(ig+one)+xx(ig)),xx(ig+one)
-     .                      ,xx(ig+two),xx(ig+thr)
+            if (atface) then
+              x0 = 0.5*(xx(ig+one)+xx(ig))
+              array(i,:,:)= quad_int(x0,xx(ig+one),xx(ig+two),xx(ig+thr)
      .                      ,array0(i    ,:,:),array(i+one,:,:)
      .                      ,array (i+two,:,:),array(i+thr,:,:)
      .                      ,xx(ig),order_int(dim) )
+            else
+              array(i,:,:)= array0(i,:,:)
+            endif
 
           case (2)
 
@@ -3920,12 +3887,15 @@ c     Extrapolate
 
             call getMGmap(gbc_def,i,1,1,igxbc,igybc,igzbc,ig,jg,kg)
 
-            array(i,:,:) =
-     .              quad_int(0.5*(xx(ig-one)+xx(ig)),xx(ig-one)
-     .                      ,xx(ig-two),xx(ig-thr)
+            if (atface) then
+              x0 = 0.5*(xx(ig-one)+xx(ig))
+              array(i,:,:)= quad_int(x0,xx(ig-one),xx(ig-two),xx(ig-thr)
      .                      ,array0(i    ,:,:),array(i-one,:,:)
      .                      ,array (i-two,:,:),array(i-thr,:,:)
      .                      ,xx(ig),order_int(dim) )
+            else
+              array(i,:,:)= array0(i,:,:)
+            endif
 
           case (3)
 
@@ -3933,11 +3903,15 @@ c     Extrapolate
 
             call getMGmap(gbc_def,1,j,1,igxbc,igybc,igzbc,ig,jg,kg)
 
-            array(:,j,:) = quad_int(0.5*(yy(jg+one)+yy(jg)),yy(jg+one)
-     .                      ,yy(jg+two),yy(jg+thr)
+            if (atface) then
+              x0 = 0.5*(yy(jg+one)+yy(jg))
+              array(:,j,:)= quad_int(x0,yy(jg+one),yy(jg+two),yy(jg+thr)
      .                      ,array0(:,j    ,:),array(:,j+one,:)
      .                      ,array (:,j+two,:),array(:,j+thr,:)
      .                      ,yy(jg),order_int(dim) )
+            else
+              array(:,j,:)=array0(:,j,:)
+            endif
 
           case (4)
 
@@ -3945,11 +3919,16 @@ c     Extrapolate
 
             call getMGmap(gbc_def,1,j,1,igxbc,igybc,igzbc,ig,jg,kg)
 
-            array(:,j,:) = quad_int(0.5*(yy(jg-one)+yy(jg)),yy(jg-one)
-     .                      ,yy(jg-two),yy(jg-thr)
+            if (atface) then
+              x0 = 0.5*(yy(jg-one)+yy(jg))
+
+              array(:,j,:)= quad_int(x0,yy(jg-one),yy(jg-two),yy(jg-thr)
      .                      ,array0(:,j    ,:),array(:,j-one,:)
      .                      ,array (:,j-two,:),array(:,j-thr,:)
      .                      ,yy(jg),order_int(dim) )
+            else
+              array(:,j,:)=array0(:,j,:)
+            endif
 
           case (5)
 
@@ -3957,11 +3936,16 @@ c     Extrapolate
 
             call getMGmap(gbc_def,1,1,k,igxbc,igybc,igzbc,ig,jg,kg)
 
-            array(:,:,k) = quad_int(0.5*(zz(kg+one)+zz(kg)),zz(kg+one)
-     .                      ,zz(kg+two),zz(kg+thr)
+            if (atface) then
+              x0 = 0.5*(zz(kg+one)+zz(kg))
+
+              array(:,:,k)= quad_int(x0,zz(kg+one),zz(kg+two),zz(kg+thr)
      .                      ,array0(:,:,k    ),array(:,:,k+one)
      .                      ,array (:,:,k+two),array(:,:,k+thr)
      .                      ,zz(kg),order_int(dim) )
+            else
+              array(:,:,k)= array0(:,:,k)
+            endif
 
           case (6)
 
@@ -3969,12 +3953,16 @@ c     Extrapolate
 
             call getMGmap(gbc_def,1,1,k,igxbc,igybc,igzbc,ig,jg,kg)
 
-            array(:,:,k) =
-     .              quad_int(0.5*(zz(kg-one)+zz(kg)),zz(kg-one)
-     .                      ,zz(kg-two),zz(kg-thr)
+            if (atface) then
+              x0 = 0.5*(zz(kg-one)+zz(kg))
+ 
+              array(:,:,k)= quad_int(x0,zz(kg-one),zz(kg-two),zz(kg-thr)
      .                      ,array0(:,:,k    ),array(:,:,k-one)
      .                      ,array (:,:,k-two),array(:,:,k-thr)
      .                      ,zz(kg),order_int(dim) )
+            else
+             array(:,:,k)= array0(:,:,k)
+            endif
 
           case default
 
@@ -5600,10 +5588,12 @@ c     setMGBC
 c     ###############################################################
       subroutine setMGBC(gbc_def,gpos,neq,nnx,nny,nnz,iig,array,bcnd
      .                  ,arr_cov,arr0,icomp,is_cnv,is_vec,is_curv
-     .                  ,result_is_curv,out_iscnv,out_iscurv,iorder)
+     .                  ,result_is_curv,out_iscnv,out_iscurv,iorder
+     .                  ,regularize_sp)
 c     ---------------------------------------------------------------
 c     Interfaces BC routines with MG code, for preconditioning.
 c     On input:
+c       *gbc_def: grid definitions for MG
 c       *gpos: node number (whole grid if gpos=0)
 c       *neq,nnx,nny,nnz: number of degrees of freedom.
 c       *iig: grid level
@@ -5640,7 +5630,7 @@ c                                vector (needed when is_cnv is inherited
 c                                from a previous call).
 c       *iorder: order of inter/extrapolation in BC routines (quadratic
 c                by default).
-c       *g_def: grid definitions for MG
+c       *regularize_sp: whether to regularize around SP
 c
 c     On output, array is returned either in the same curvilinear
 c     representation or in Cartesian, if specified by "result_is_vec".
@@ -5662,6 +5652,7 @@ c     Call variables
       integer,optional,intent(IN) :: icomp(max(neq,3)/3),iorder
 
       logical,optional,intent(IN) ::is_cnv,is_vec,is_curv,result_is_curv
+     .                             ,regularize_sp
       logical,optional,intent(OUT)::out_iscnv,out_iscurv
 
       type(grid_mg_def),pointer :: gbc_def
@@ -5682,7 +5673,7 @@ c     Local variables
       logical,save :: iscnv,iscurv !Needed to "remember' these from previous calls
                                    !when they are not provided.
 
-      logical      :: res_is_curv,fpointers,vector,isvec
+      logical      :: res_is_curv,fpointers,vector
 
       real(8)      :: car(3),curv(3)
 
@@ -5743,13 +5734,11 @@ c     Find GLOBAL limits (required for BC routine setBC)
 c     Select operation
 
       if (PRESENT(is_vec)) then
-        isvec = is_vec
+        vector = is_vec
       else
-        isvec = (neql == 3 .or. neql == 6) !Backward compatibility with previous
+        vector = (neql == 3 .or. neql == 6) !Backward compatibility with previous
                                            ! versions of this routine
       endif
-
-      vector = (neql == 3 .or. neql == 6).and.isvec
 
       if (vector) then
 
@@ -5829,7 +5818,8 @@ c     Select operation
      .            ,bcnd (:    ,1+3*(ieq-1):3*ieq)
      .            ,iig,iig,iig
      .            ,i1=imng,i2=imxg,j1=jmng,j2=jmxg,k1=kmng,k2=kmxg
-     .            ,is_cnv=iscnv,is_vec=.true.,iorder=order)
+     .            ,is_cnv=iscnv,is_vec=.true.,iorder=order
+     .            ,sp_reg=regularize_sp)
         enddo
 
         if (.not.PRESENT(arr0)) deallocate(vv0)
@@ -5976,7 +5966,7 @@ c     Local variables
       logical,save :: iscnv,iscurv !Needed to "remember' these from previous calls
                                    !when they are not provided.
 
-      logical      :: res_is_curv,fpointers,vector,isvec
+      logical      :: res_is_curv,fpointers,vector
 
       real(8)      :: car(3),curv(3)
 
@@ -5991,13 +5981,11 @@ c     Begin program
       neql = neq !To avoid problems if neq is hardwired
 
       if (PRESENT(is_vec)) then
-        isvec = is_vec
+        vector = is_vec
       else
-        isvec = (neql == 3 .or. neql == 6) !Backward compatibility with previous
+        vector = (neql == 3 .or. neql == 6) !Backward compatibility with previous
                                            ! versions of this routine
       endif
-
-      vector = (neql == 3 .or. neql == 6).and.isvec
 
       if (.not.vector) then
         call pstop('setMGBC_stg','Input is not a vector')

@@ -26,7 +26,7 @@ c######################################################################
         integer,private :: mg_coarse_size = 2     !Minimum coarse grid size (mg_ratio^mg_coarse_size)
 
 #if defined(coarse_MG)
-        integer,private :: mg_proc_coarsen_factor=4  !Coarsening ratio in # procs/dim
+        integer,private :: mg_proc_coarsen_factor=2  !Coarsening ratio in # procs/dim
                                                      !in parallel MG solve
         integer,private :: MPI_COMM_SAV
 
@@ -56,20 +56,25 @@ c     Local variables
 
 c     Begin program
 
-      nl = int(dlog(1d0*nx)/dlog(1d0*mgr)+0.001)
+      !Initial estimate
+      ngrd = max(int(dlog(1d0*nx)/dlog(1d0*mgr)+0.001),1)
 
-      ngrd = max(nl-1,1)  !Back off one level
+c$$$      !Back off one level
+c$$$      ngrd = max(ngrd-1,1)
 
+      !Failsafes
       do i = ngrd,1,-1
         nl = nx/mgr**(i-1)
-        if (nl*mgr**(i-1) == nx) exit
+        if (    (nl*mgr**(i-1) == nx)                !Grid level is a power of MG ratio
+     $     .and.(np*nl >= mgr**mg_coarse_size)) exit !Respect mg_coarse_size limit
       enddo
 
-      if (np == 1) then
-        ngrd = i - mg_coarse_size + 2
-      else
-        ngrd = i
-      endif
+      ngrd = max(i,1)
+c$$$      if (np == 1) then
+c$$$        ngrd = i - mg_coarse_size + 2
+c$$$      else
+c$$$        ngrd = i
+c$$$      endif
 
       end function MG_levels
 
@@ -134,16 +139,16 @@ c     Check if MG pointers are allocated
      .          ,mgctx%ntotv     (mgctx%ngrid)
      .          ,mgctx%ntotvp    (mgctx%ngrid)
      .          ,mgctx%ntotb     (mgctx%ngrid)
-     .          ,mgctx%nxv       (mgctx%ngrid)
-     .          ,mgctx%nyv       (mgctx%ngrid)
-     .          ,mgctx%nzv       (mgctx%ngrid)
-     .          ,mgctx%iline     (mgctx%ngrid)
-     .          ,mgctx%jline     (mgctx%ngrid)
-     .          ,mgctx%kline     (mgctx%ngrid)
      .          ,mgctx%nblock    (mgctx%ngrid)
-     .          ,mgctx%mg_ratio_x(mgctx%ngrid)
-     .          ,mgctx%mg_ratio_y(mgctx%ngrid)
-     .          ,mgctx%mg_ratio_z(mgctx%ngrid))
+     .          ,mgctx%nxv       (size(g_def%nxv))
+     .          ,mgctx%nyv       (size(g_def%nyv))
+     .          ,mgctx%nzv       (size(g_def%nzv))
+     .          ,mgctx%iline     (size(g_def%iline))
+     .          ,mgctx%jline     (size(g_def%jline))
+     .          ,mgctx%kline     (size(g_def%kline))
+     .          ,mgctx%mg_ratio_x(size(g_def%mg_ratio_x))
+     .          ,mgctx%mg_ratio_y(size(g_def%mg_ratio_y))
+     .          ,mgctx%mg_ratio_z(size(g_def%mg_ratio_z)))
 
         mgctx%iline = g_def%iline
         mgctx%jline = g_def%jline

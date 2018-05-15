@@ -4,11 +4,13 @@ c #############################################################################
 
         use orbit
 
-        use math, ONLY: factorial
+        use math, ONLY: factorial,pi,calerf
 
         integer,private :: kmax=100      !Maximum number of Fourier modes in Fourier Green's f. form
         real(8),private :: t_tol,T_cutoff2,S_cutoff2,alpha=0d0
      .                    ,aa(0:10,0:10),cc(0:10)
+
+        real(8),parameter :: sqrpi=sqrt(pi),isqrpi=1d0/sqrpi,ipi=1d0/pi
 
       contains
 
@@ -38,8 +40,8 @@ c     ---------------------------------------------------------------
         T_cutoff2 = 1d0
         S_cutoff2 = 1d0
         do i=1,10
-          T_cutoff2 = abs(log(    sqrt(pi)*t_tol*sqrt(T_cutoff2)))
-          S_cutoff2 = abs(log(2d0*sqrt(pi)*t_tol*     S_cutoff2 ))
+          T_cutoff2 = abs(log(    sqrpi*t_tol*sqrt(T_cutoff2)))
+          S_cutoff2 = abs(log(2d0*sqrpi*t_tol*     S_cutoff2 ))
         enddo
       endif
 
@@ -56,7 +58,7 @@ c     ---------------------------------------------------------------
 cc        write (*,*) aa(j,0:j)
       enddo
 
-      aa = aa/sqrt(pi)
+      aa = aa*isqrpi
 
       !Compute prefactor for SDC kernels
       cc(0) = 1d0
@@ -84,32 +86,20 @@ c     Call variables
 
 c     Local variables
 
+      real(8) :: isct0,s2
+
 c     Begin program
 
-      if (ct0 == 0d0) then
-        call pstop('tkernel_3d','Cannot deal with chi*t=0!')
-      endif
-
       if (alpha == 2d0) then
-cc        if (ct0 == 0d0 .and. ss == 0d0) then
-cc           tkernel = 1d0
-cc        elseif (ct0 == 0d0) then
-cc           tkernel = 0d0
-cc        else
-           tkernel = 0.5d0/sqrt(pi*ct0)*exp(-0.25*ss*ss/ct0) !ct0=chi_par*t0
-cc        endif
+        isct0 = 1d0/sqrt(ct0)
+        s2 = ss*ss
+        tkernel = 0.5d0*isqrpi*isct0*exp(-0.25*s2*isct0*isct0) !ct0=chi_par*t0
 
-        ex_loop = (abs(ss) > sqrt(4*T_cutoff2*ct0))
+        ex_loop = (s2 > 4*T_cutoff2*ct0)
       elseif (alpha == 1d0) then
-cc        if (ct0 == 0d0 .and. ss == 0d0) then
-cc           tkernel = 1d0
-cc        elseif (ct0 == 0d0) then
-cc           tkernel = 0d0
-cc        else
-           tkernel = 1d0/(pi*ct0*(1+(ss*ss)/(ct0*ct0)))
-cc        endif
+        tkernel = ipi/(ct0*(1+(ss*ss)/(ct0*ct0)))
 
-        ex_loop = (abs(ss) >  2d0/pi/t_tol*ct0)
+        ex_loop = (abs(ss) >  2d0*ipi/t_tol*ct0)
       else
         call pstop('tkernel_3d','Fractional order not implemented')
       endif
@@ -135,7 +125,7 @@ c     Call variables
 c     Local variables
 
       integer :: kk,k0
-      real(8) :: twopi_L,dtk,eta,smax,ismax
+      real(8) :: twopi_L,dtk,eta,smax,ismax,s1,s2
       logical :: ex_loop,ex_loop2
 
 c     Begin program
@@ -148,21 +138,21 @@ c     Begin program
       eta = ct0*(twopi_L)**alpha
 
       if (eta < 1d0) then
-cc        if (my_rank == 0) write (*,*) 'tkernel_per: small eta'
 
         tkernel = tkernel_3d(ss,ct0,ex_loop)
 
         kk = 1
-        do 
-          tkernel = tkernel + tkernel_3d(ss-kk*smax,ct0,ex_loop)
-     .                      + tkernel_3d(ss+kk*smax,ct0,ex_loop2)
+        do
+          s1 = ss-kk*smax
+          s2 = ss+kk*smax
+          tkernel = tkernel + tkernel_3d(s1,ct0,ex_loop)
+     .                      + tkernel_3d(s2,ct0,ex_loop2)
 
           if (ex_loop .and. ex_loop2) exit
           kk = kk + 1
         enddo
 
       else
-cc        if (my_rank == 0) write (*,*) 'tkernel_per: large eta'
 
         !Compute iteration limit
         k0 = ceiling((abs(log(0.5*t_tol))/eta)**(1d0/alpha))
@@ -202,25 +192,17 @@ c     Local variables
 
       real(8) :: eta,z,dum
 
-#if defined(pgf90)
-      real(8) :: erfc
-#endif
-
 c     Begin program
-
-      if (ct0 == 0d0) then
-        call pstop('skernel_3d','Cannot deal with chi*t=0!')
-      endif
 
       z = abs(ss)
 
       if (alpha == 2d0) then
         dum = 1d0/sqrt(ct0)       !ct0=chi_par/chi_perp*t0
         eta = 0.5d0*z*dum
-cc        skernel = ukernel(eta,0)*dum
-        skernel = (exp(-eta**2)/sqrt(pi)-eta*erfc(eta))/sqrt(ct0)
+        skernel = ukernel(eta,0)*dum
+cc        skernel = (exp(-eta**2)*isqrpi-eta*erfc(eta))*dum
 
-        ex_loop = (z > sqrt(4*S_cutoff2*ct0))
+        ex_loop = (z*z > 4*S_cutoff2*ct0)
 cc      elseif (alpha == 1d0) then
 cc        skernel = 1d0/(pi*ct0*(1+(abs(ss)/ct0)**2))
 cc
@@ -252,7 +234,7 @@ c     Call variables
 c     Local variables
 
       integer :: kk,k0
-      real(8) :: twopi_L,dtk,eta,smax,ismax
+      real(8) :: twopi_L,dtk,eta,smax,ismax,s1,s2
       logical :: ex_loop,ex_loop2
 
 c     Begin program
@@ -264,24 +246,22 @@ c     Begin program
 
       eta = ct0*(twopi_L)**alpha
 
-      if (eta < 1d0/sqrt(t_tol*abs(log(t_tol)))) then
-
-cc        if (my_rank == 0) write (*,*) 'skernel_per: small eta'
+      if (t_tol*abs(log(t_tol))*eta*eta < 1d0) then
 
         skernel = skernel_3d(ss,ct0,ex_loop)
 
         kk = 1
         do
-          skernel = skernel + skernel_3d(ss-kk*smax,ct0,ex_loop)
-     .                      + skernel_3d(ss+kk*smax,ct0,ex_loop2)
+          s1 = ss-kk*smax
+          s2 = ss+kk*smax
+          skernel = skernel + skernel_3d(s1,ct0,ex_loop)
+     .                      + skernel_3d(s2,ct0,ex_loop2)
 
           if (ex_loop .and. ex_loop2) exit
           kk = kk + 1
         enddo
 
       else
-
-cc        if (my_rank == 0) write (*,*) 'skernel_per: large eta'
 
         !Compute iteration limit
         k0 = ceiling((2d0/t_tol/eta)**(1d0/alpha))
@@ -325,15 +305,7 @@ c     Local variables
 
       real(8) :: eta,z,dum
 
-#if defined(pgf90)
-      real(8) :: erfc
-#endif
-
 c     Begin program
-
-      if (sig == 0d0) then
-        call pstop('sdc_kernel_3d','Cannot deal with chi*t=0!')
-      endif
 
       z = abs(ss)
 
@@ -342,7 +314,7 @@ c     Begin program
         eta = 0.5*z*dum
         skernel = ukernel(eta,jj)*dum
 
-        ex_loop = (z > sqrt(4*S_cutoff2*sig))
+        ex_loop = (z*z > 4*S_cutoff2*sig)
 cc      elseif (alpha == 1d0) then
 cc        skernel = 1d0/(pi*sig*(1+(abs(ss)/sig)**2))
 cc
@@ -486,41 +458,36 @@ c     Call variables
 c     Local variables
 
       integer :: i,mtwo_to_j
-      real(8) :: ff,eta2,et2
+      real(8) :: ff,eta2,et2,errorf
 
 #if defined(pgf90)
-      real(8) :: erfc
+cc      real(8) :: erfc
 #endif
 
 c     Begin program
 
-      if (alpha == 2d0) then
+      et2 = eta*eta
+      mtwo_to_j = 1
+      eta2 = 1d0
+      ff = aa(jj,0)
+      do i=1,jj
+         eta2 = eta2*et2
+         ff = ff + aa(jj,i)*eta2
+         mtwo_to_j = -2*mtwo_to_j
+      enddo
 
-cc        if (jj+1 > size(aa,1)) then
-cc          call pstop('ukernel','SDC order not supported')
-cc        endif
+cc      errorf = erfc(eta)
+cc      errorf = erfcc(eta)
+      CALL CALERF(eta,errorf,2)
+      ukernel = exp(-et2)*( ff  !Factor ff includes factor 1/sqrt(pi)
+     .           -mtwo_to_j*eta2*eta*errorf)*cc(jj)
 
-        et2 = eta*eta
-        mtwo_to_j = 1
-        eta2 = 1d0
-        ff = aa(jj,0)
-        do i=1,jj
-          eta2 = eta2*et2
-          ff = ff + aa(jj,i)*eta2
-          mtwo_to_j = -2*mtwo_to_j
-        enddo
-
-        ukernel = ( exp(-et2)*ff  !Factor ff includes factor 1/sqrt(pi)
-     .             -mtwo_to_j*eta2*eta*erfc(eta))*cc(jj)
 cc      elseif (alpha == 1d0) then
 cc        skernel = 1d0/(pi*sig*(1+(abs(ss)/sig)**2))
 cc
 cc        slim = s_max + 2/pi/t_tol*sig
 cc
 cc        ex_loop = (abs(ss) > slim)
-      else
-        call pstop('ukernel','Fractional order not implemented')
-      endif
 
 c     End program
 
@@ -552,8 +519,6 @@ cc        integer :: n_lag_ints=0        !Number of lagrangian integrals
 !$OMP THREADPRIVATE(ieps,temp_s,kernel_s,length_s,b0_s)
 
         !Private variables
-cc        real(8),private :: orbit_atol=1e-10    !Orbit integrator absolute tolerance
-cc     .                    ,orbit_rtol=1e-8     !Orbit integrator relative tolerance
         real(8),private :: orbit_atol=1d-14    !Orbit integrator absolute tolerance
      .                    ,orbit_rtol=1d-14    !Orbit integrator relative tolerance
      .                    ,orbit_dt  =1d-2     !Orbit integrator time step
@@ -571,6 +536,83 @@ cc     .                    ,orbit_rtol=1e-8     !Orbit integrator relative tole
         private :: lag_2d,lag_3d,lag_2d_init,lag_3d_init
 
       contains
+
+c     find_polar_coords
+c     ########################################################################
+      subroutine find_polar_coords(g_def,igrid,i,j,k,rr,th,zz,coords)
+
+      implicit none
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
+
+      integer,INTENT(IN)  :: i,j,k,igrid
+      real(8),INTENT(OUT) :: rr,th,zz
+
+      character(3) :: coords
+
+c     Local variables
+
+      integer :: ig,jg,kg
+      real(8) :: x1,x2,x3,x,y,z,gp(ngparams),mm,kk,aa
+
+c     Begin program
+
+      call getCurvilinearCoordinates(g_def,i,j,k
+     .                              ,igrid,igrid,igrid
+     .                              ,ig,jg,kg,x1,x2,x3)
+      call getCartesianCoordinates(g_def,i,j,k
+     .                            ,igrid,igrid,igrid
+     .                            ,ig,jg,kg,x,y,z)
+
+      select case (coords)
+      case('cyl','hel')
+        !Transform to cylindrical radius (may be mapped)
+        rr = sign(1d0,x1)*sqrt(x**2+y**2)
+        th = atan2(y,x)
+        if (rr < 0d0) th = th + pi
+        zz = z
+c$$$      case('hel')
+c$$$        gp = g_def%params
+c$$$
+c$$$        mm = gp(1)
+c$$$        kk = gp(2)
+c$$$        aa = kk/mm
+c$$$
+c$$$        !Transform to cylindrical radius (may be mapped)
+c$$$        rr = sign(1d0,x1)*sqrt(x**2+y**2)
+c$$$        th = atan2(y,x) + aa*z
+c$$$        if (rr < 0d0) th = th + pi
+c$$$        zz = z
+      case default
+        call pstop('find_polar_coords',"Coordinates not implemented")
+      end select
+      
+c     End program
+
+      end subroutine find_polar_coords
+
+c     set_orbit_tols
+c     ########################################################################
+      subroutine set_orbit_tols(atol,rtol)
+
+      implicit none
+
+c     Call variables
+
+      real(8) :: atol,rtol
+
+c     Local variables
+
+c     Begin program
+
+      orbit_atol = atol
+      orbit_rtol = rtol
+
+c     End program
+
+      end subroutine set_orbit_tols
 
 c     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 c     PRIVATE ROUTINES
@@ -978,7 +1020,7 @@ c     Orbit integration
           do j=1,ny
             do i=1,nx
 
-cc              if (chi(i,j,k) == 0d0) cycle
+              if (chi(i,j,k) == 0d0) cycle
 
               call getMGmap(g_def,i,j,k,igrid,igrid,igrid,ig,jg,kg)
 
@@ -1286,7 +1328,7 @@ c     LSODE orbit integration
           do j=1,ny
             do i=1,nx
 
-cc              if (chi(i,j,k) == 0d0) cycle
+              if (chi(i,j,k) == 0d0) cycle
 
               call getMGmap(g_def,i,j,k,igrid,igrid,igrid,ig,jg,kg)
 
@@ -1663,7 +1705,7 @@ c     Setup periodic integrator
           bg(:,:,:,1:2) = 0d0
           bg(:,:,:,3  ) = -psig
 
-          call orbit_setup(g_def,igrid
+          call orbit_setup(g_def
      .                    ,bg(:,:,:,1)
      .                    ,bg(:,:,:,2)
      .                    ,bg(:,:,:,3)
@@ -1685,7 +1727,7 @@ c     Setup periodic integrator
 
         else
 
-          call orbit_setup(g_def,igrid
+          call orbit_setup(g_def
      .                    ,bg(:,:,:,1)
      .                    ,bg(:,:,:,2)
      .                    ,bg(:,:,:,3)
@@ -1730,7 +1772,7 @@ c     Setup orbit integrator
 
         else
 
-          call orbit_setup(g_def,igrid
+          call orbit_setup(g_def
      .                    ,bg(:,:,:,1)
      .                    ,bg(:,:,:,2)
      .                    ,bg(:,:,:,3)
@@ -1823,7 +1865,7 @@ c     Begin program
 
 c     Setup orbits
 
-        call orbit_setup(g_def,igrid
+        call orbit_setup(g_def
      .                  ,bg(:,:,:,1)
      .                  ,bg(:,:,:,2)
      .                  ,bg(:,:,:,3)
@@ -1874,7 +1916,9 @@ cc          b0 = 1d0 !Normalization test
             do j=1,ny
               do i=1,nx
 
-                ieps = chi(i,j,k)/b0(i,j,k)
+                 if (chi(i,j,k) == 0d0) cycle
+
+                 ieps = chi(i,j,k)/b0(i,j,k)
 
 cc                if (ct0 < CHI_LIMIT) then  !Delta function
 cc                  b0_s = 1d0/sum(bcar(i,j,k,:)**2)
@@ -2041,7 +2085,7 @@ c diag ****
 
 c     Orbit initialization on global array
 
-        call orbit_setup(g_def,igrid
+        call orbit_setup(g_def
      .                  ,bg(:,:,:,1)
      .                  ,bg(:,:,:,2)
      .                  ,bg(:,:,:,3)
@@ -2280,7 +2324,7 @@ c     --------------------------------------------------------------
 
         implicit none
 
-        integer :: nfiles,ig,jg,kg,i,j,k,bcnd(6,3)
+        integer :: nfiles,i,j,k,bcnd(6,3),ierr
         real(8) :: x1,x2,x3
 
         real(8),pointer,dimension(:,:,:,:) :: car,car0,bcov,bcar
@@ -2312,12 +2356,18 @@ c     Interpolate global fields
           do k=0,nz+1
             do j=0,ny+1
               do i=0,nx+1
-                call getCurvilinearCoordinates(g_def,i,j,k
-     .                                        ,igrid,igrid,igrid
-     .                                        ,ig,jg,kg,x1,x2,x3)
-                x1 = min(max(x1,xmin),xmax)
-                x2 = min(max(x2,ymin),ymax)
-                x3 = min(max(x3,zmin),zmax)
+                call find_polar_coords(g_def,igrid,i,j,k,x1,x2,x3
+     .                                ,coords)
+
+                call chk_pos(x1,x2,x3,warning=.false.,ierr=ierr)
+                if(ierr/=0.and.(.not.bcPER(1)))x1=min(max(x1,xmin),xmax)
+                if(ierr/=0.and.(.not.bcPER(2)))x2=min(max(x2,ymin),ymax)
+                if(ierr/=0.and.(.not.bcPER(3)))x3=min(max(x3,zmin),zmax)
+c$$$                x1 = min(max(x1,xmin),xmax)
+c$$$                x2 = min(max(x2,ymin),ymax)
+c$$$                x3 = min(max(x3,zmin),zmax)
+
+                !Interpolate map
                 call evalX(x1,x2,x3
      .                    ,car(i,j,k,1)
      .                    ,car(i,j,k,2)
@@ -2340,33 +2390,40 @@ c     Assign LOCAL B by interpolating POINCARE data
         do k=0,nz+1
           do j=0,ny+1
             do i=0,nx+1
-              call getCurvilinearCoordinates(g_def,i,j,k
-     .                                      ,igrid,igrid,igrid
-     .                                      ,ig,jg,kg,x1,x2,x3)
+              call find_polar_coords(g_def,igrid,i,j,k,x1,x2,x3,coords)
               
               call chk_pos(x1,x2,x3,warning=.false.,ierr=ierr)
-              if (ierr/=0) x1=min(max(x1,xmin),xmax)
-              if (ierr/=0) x2=min(max(x2,ymin),ymax)
-              if (ierr/=0) x3=min(max(x3,zmin),zmax)
+              if (ierr/=0.and.(.not.bcPER(1))) x1=min(max(x1,xmin),xmax)
+              if (ierr/=0.and.(.not.bcPER(2))) x2=min(max(x2,ymin),ymax)
+              if (ierr/=0.and.(.not.bcPER(3))) x3=min(max(x3,zmin),zmax)
 
-              call evalB(x1,x2,x3
-     .                  ,bb(i,j,k,1)
-     .                  ,bb(i,j,k,2)
-     .                  ,bb(i,j,k,3),ierr)
+c$$$              call evalB(x1,x2,x3
+c$$$     .                  ,bb(i,j,k,1)
+c$$$     .                  ,bb(i,j,k,2)
+c$$$     .                  ,bb(i,j,k,3),ierr)
+              call evalBcar(x1,x2,x3
+     .                  ,bcar(i,j,k,1)
+     .                  ,bcar(i,j,k,2)
+     .                  ,bcar(i,j,k,3),ierr)
+
             enddo
           enddo
         enddo
 
+        !Contravariant components
+        bb = XformToCurv(g_def,igrid,bcar,.true.)
+
         !BCs
-        car0 = bb               !Assign EQU boundary values
         bcnd(:,1) = bcond
         bcnd(:,2) = bcond
         bcnd(:,3) = bcond
-        where (bcnd == DEF) bcnd = EQU
+c$$$        car0 = bb               !Assign EQU boundary values
+c$$$        where (bcnd == DEF) bcnd = EQU
+        where (bcnd == DEF) bcnd = EXT
         call setBC(g_def,0,3,nx,ny,nz,bb,bcov,car0,bcnd
-     .            ,igrid,igrid,igrid,iorder=1)
+     .            ,igrid,igrid,igrid,iorder=2)
 
-        !Cartesian components
+        !Recompute Cartesian components
         bcar = XformToCar(g_def,igrid,bb,.false.)
         
 c     Assign GLOBAL arrays
@@ -2433,7 +2490,7 @@ c     Begin program
 c     Setup orbits
 
           !Orbit initialization
-          call orbit_setup(g_def,igrid
+          call orbit_setup(g_def
      .                    ,bg(:,:,:,1)
      .                    ,bg(:,:,:,2)
      .                    ,bg(:,:,:,3)
@@ -2483,6 +2540,8 @@ cc          b0 = 1d0 !Normalization test
           do k=1,nz
             do j=1,ny
               do i=1,nx
+
+                if (chi(i,j,k) == 0d0) cycle
 
                 call getMGmap(g_def,i,j,k,igrid,igrid,igrid,ig,jg,kg)
 

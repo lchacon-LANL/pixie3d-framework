@@ -273,7 +273,7 @@ c     Call variables
 c     Local variables
 
       integer :: mpi_comm_splt,mpi_comm_crse,mgcf
-      integer :: igr,nxg,nyg,nzg,npx,npy,npz
+      integer :: igr,nxg,nyg,nzg,npx,npy,npz,ierr
 
 c     Begin program
 
@@ -298,20 +298,26 @@ c     Global mesh
 c     Init coarse mesh structure
 
       call init_gdef(nxg,nyg,nzg
-     .               ,g_def%gxmin,g_def%gxmax
-     .               ,g_def%gymin,g_def%gymax
-     .               ,g_def%gzmin,g_def%gzmax
-     .               ,g_def%g_pack,g_def%params
-     .               ,g_crse_def
-     .               ,np_x=npx,np_y=npy,np_z=npz
-     .               ,mpi_comm=mpi_comm_splt
-     .               )
+     .              ,g_def%gxmin,g_def%gxmax
+     .              ,g_def%gymin,g_def%gymax
+     .              ,g_def%gzmin,g_def%gzmax
+     .              ,g_def%g_pack,g_def%params
+     .              ,g_crse_def
+     .              ,np_x=npx,np_y=npy,np_z=npz
+     .              ,mpi_comm=mpi_comm_splt
+     .              )
 
       g_crse_def%mpi_comm_crse = mpi_comm_crse
 
 c     Gather map and define grid metrics
 
-      if (checkAnalMapDatabase()) call defineGridMetric(g_crse_def)
+      if (checkAnalMapDatabase()) then
+        call defineGridMetric(g_crse_def,ierr=ierr)
+        if (g_crse_def%ngrid < 1.and.ierr /= 0) then !Could not evaluate metrics at top level
+          exit_loop = .true.
+          call destroyGrid(g_crse_def)
+        endif
+      endif
 
 c     Diagnostics
 
@@ -935,12 +941,14 @@ c     Coordinate-specific checks
             write (*,*) 'Aborting...'
             stop
           endif
-        case ('tor')
+        case ('tor','sha','sh2','stl')
           if (xmin /= 0d0 .and. bcSP()) then
             write (*,*) 'Error in setup: xmin =/0 is not singular point'
             write (*,*) 'Aborting...'
             stop
           endif
+
+          if (coords=='sh2'.or.coords=='stl') numerical_grid = .true.
 
           major_r = gdef%params(1)
 
@@ -1448,12 +1456,12 @@ c     Begin program
 c     Output
 
       write(funit,*)
-      write(funit,*) 'Dumping grid debugging graphics...'
+      write(funit,*) 'Dumping CELL-CENTERED grid debugging graphics...'
       write(funit,*)
 
       if (my_rank == 0) then
         write(*  ,*)
-        write(*  ,*) 'Dumping grid debugging graphics...'
+        write(*  ,*) 'Dumping CELL-CENTERED grid debugging graphics...'
         write(*  ,*)
       endif
 
@@ -1623,6 +1631,32 @@ cc     .              *gdef%gmetric%grid(igrid)%jac_v(i,j,k)
           enddo
         enddo
 
+        !Cov vectors
+        do l=1,3
+          do m=1,3
+            write(funit,*) '   Dumping Cov vector',l,' component',m
+            ivar = ivar+1
+            descr(ivar)='Cov_'//trim(int2char(l))//'('
+     .                        //trim(int2char(m))//')'
+
+            do j=0,ny+1
+              do i=0,nx+1
+                dbl(i,j,1) =
+     .               gdef%gmetric%grid(igrid)%cov(i,j,k,l,m)
+     .              *gdef%gmetric%grid(igrid)%jac(i,j,k)
+                if (dump_diff) then
+                  vec =
+     .               covariantVector(gdef,l,i,j,k,igrid,igrid,igrid)
+     .                 *jacobian(gdef,i,j,k,igrid,igrid,igrid)
+                  dbl(i,j,1) = dbl(i,j,1)-vec(m)
+                endif
+              enddo
+            enddo
+            call dumpGlobalField(gdef,debugfile,nx,ny,nz,nxg,nyg,nzg,dbl
+     .                          ,1)
+          enddo
+        enddo
+
         !Christoffle symbols
         do l=1,3
           do m=1,3
@@ -1708,12 +1742,12 @@ c     Begin program
 c     Output
 
       write(funit,*)
-      write(funit,*) 'Dumping grid debugging graphics...'
+      write(funit,*) 'Dumping VERTEX grid debugging graphics...'
       write(funit,*)
 
       if (my_rank == 0) then
         write(*  ,*)
-        write(*  ,*) 'Dumping grid debugging graphics...'
+        write(*  ,*) 'Dumping VERTEX grid debugging graphics...'
         write(*  ,*)
       endif
 
@@ -1779,7 +1813,8 @@ c     Dump quantities
           enddo
         enddo
 
-        call dumpGlobalField(gdef,debugfile,nx,ny,nz,nxg,nyg,nzg,dbl,0)
+        call dumpGlobalField(gdef,debugfile,nx,ny,nz,nxg,nyg,nzg,dbl,0
+     .                      ,no_bc=.true.)
 
         !Metric tensors
         do l=1,3
@@ -1805,7 +1840,7 @@ c     Dump quantities
             enddo
 
             call dumpGlobalField(gdef,debugfile,nx,ny,nz,nxg,nyg,nzg,dbl
-     .                          ,1)
+     .                          ,1,no_bc=.true.)
           enddo
         enddo
 
@@ -1831,7 +1866,7 @@ c     Dump quantities
               enddo
             enddo
             call dumpGlobalField(gdef,debugfile,nx,ny,nz,nxg,nyg,nzg,dbl
-     .                          ,1)
+     .                          ,1,no_bc=.true.)
           enddo
         enddo
 
@@ -1858,7 +1893,7 @@ c     Dump quantities
               enddo
             enddo
             call dumpGlobalField(gdef,debugfile,nx,ny,nz,nxg,nyg,nzg,dbl
-     .                          ,1)
+     .                          ,1,no_bc=.true.)
           enddo
         enddo
 

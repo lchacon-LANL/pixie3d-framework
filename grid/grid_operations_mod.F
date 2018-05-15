@@ -1,3 +1,285 @@
+c module bc_ops
+c #####################################################################
+      module bc_ops
+
+c     -----------------------------------------------------------------
+c     This module defines various BC-related operators
+c     -----------------------------------------------------------------
+
+        use grid_def
+
+      contains
+
+c     isBdry
+c     #################################################################
+      function isBdry(gl_def,i,igr,ibc)
+
+c     -----------------------------------------------------------------
+c     Detects whether we are at a PHYSICAL boundary or not. Boundary is
+c     identified by ibc, with the following convention:
+c        * ibc = 1, 2 (xmin,xmax)
+c        * ibc = 3, 4 (ymin,ymax)
+c        * ibc = 5, 6 (zmin,zmax)
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer :: i,igr,ibc
+        logical :: isBdry
+
+        type(grid_mg_def),pointer :: gl_def
+
+c     Local variables
+
+        integer :: ilog,itst,diml,locl
+
+c     Begin program
+
+        locl = abs(mod(ibc,2)-2)-1
+        diml = 1 + (ibc-1-locl)/2
+
+        if (.not.associated(gl_def)) then
+          write (*,*) 'Grid def struct not associated'
+          write (*,*) 'Aborting in routine isBdry'
+          stop
+        endif
+
+        select case(diml)
+        case(1)
+          ilog = gl_def%ilo(igr)
+          select case(locl)
+          case (0)
+            itst = 1
+          case (1)
+            itst = gl_def%nxgl(igr)
+          end select
+        case(2)
+          ilog = gl_def%jlo(igr)
+          select case(locl)
+          case (0)
+            itst = 1
+          case (1)
+            itst = gl_def%nygl(igr)
+          end select
+        case(3)
+          ilog = gl_def%klo(igr)
+          select case(locl)
+          case (0)
+            itst = 1
+          case (1)
+            itst = gl_def%nzgl(igr)
+          end select
+        end select
+
+        isBdry = (i+ilog-1 == itst)
+
+      end function isBdry
+
+c     isBC
+c     #################################################################
+      function isBC(g_def,i,igr,ibc,BC,bcnd)
+
+c     -----------------------------------------------------------------
+c     Checks whether point i at grid level igr, boundary location
+c     ibc=(1,6) (see isBdry for definition) is of boundary type BC.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer :: i,igr,ibc,BC
+        logical :: isBC
+        integer,optional :: bcnd(6)
+
+        type(grid_mg_def),pointer :: g_def
+
+c     Local variables
+
+        integer :: bcc(6)
+
+c     Begin program
+
+        if (ibc < 1 .or. ibc > 6) then
+          isBC = .false.
+          return
+        endif
+
+        if (PRESENT(bcnd)) then
+          bcc = bcnd
+        else
+          bcc = bcond
+        endif
+
+        isBC = (isBdry(g_def,i,igr,ibc) .and. abs(bcc(ibc)) == BC)
+
+      end function isBC
+
+c     isSP
+c     #################################################################
+      function isSP(gl_def,i,j,k,igx,igy,igz) result(sing_point)
+
+        implicit none
+
+        integer    :: i,j,k,igx,igy,igz
+        logical    :: sing_point
+
+        type(grid_mg_def),pointer :: gl_def
+
+c     Local variables
+
+c     Begin program
+
+        if (.not.associated(gl_def)) then
+          write (*,*) 'Grid def struct not associated'
+          write (*,*) 'Aborting in routine isBdry'
+          stop
+        endif
+
+        sing_point = (i+gl_def%ilo(igx)-1==1).and.bcSP()
+
+      end function isSP
+
+c     isSP2
+c     #################################################################
+      function isSP2(g_def,i,igr,dim,loc,ibc)
+
+c     -----------------------------------------------------------------
+c     Checks whether point at grid level igr, dimension dim(=1,2,3)
+c     and location loc(=0,1) is at SP boundary.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+        integer    :: i,igr
+        logical    :: isSP2
+        integer,optional :: dim,loc,ibc
+
+        type(grid_mg_def),pointer :: g_def
+
+        integer    :: ibcl,ilog,itst,diml,locl
+
+        if (PRESENT(dim) .and.PRESENT(loc)) then
+          diml = dim
+          locl = loc
+          ibcl = (1+locl)+2*(diml-1)
+        elseif (PRESENT(ibc)) then
+          ibcl = ibc
+        else
+          ibcl = 1
+        endif
+
+        if (ibcl < 1 .or. ibcl > 6) then
+          isSP2 = .false.
+          return
+        else
+          isSP2 = isBC(g_def,i,igr,ibcl,SP)
+        endif
+
+      end function isSP2
+
+c     isSYM
+c     #################################################################
+      function isSYM(g_def,i,igr,dim,loc,ibc)
+
+c     -----------------------------------------------------------------
+c     Checks whether point at grid level igr, dimension dim(=1,2,3)
+c     and location loc(=0,1) is at SYM boundary
+c     -----------------------------------------------------------------
+
+        implicit none
+
+        type(grid_mg_def),pointer :: g_def
+
+        integer    :: i,igr
+        logical    :: isSYM
+        integer,optional :: dim,loc,ibc
+
+        integer    :: ibcl,ilog,itst,diml,locl
+
+        if (PRESENT(dim) .and.PRESENT(loc)) then
+          diml = dim
+          locl = loc
+          ibcl = (1+locl)+2*(diml-1)
+        elseif (PRESENT(ibc)) then
+          ibcl = ibc
+          locl = abs(mod(ibcl,2)-2)-1
+          diml = 1 + (ibcl-1-locl)/2
+        else
+          write (*,*) 'Error in isSYM'
+          write (*,*) 'Aborting...'
+          stop
+        endif
+
+        isSYM = isBC(g_def,i,igr,ibcl,SYM)
+
+      end function isSYM
+
+c     isSYMBdry
+c     #################################################################
+      function isSYMBdry(gl_def,dim,loc,ibc)
+
+c     -----------------------------------------------------------------
+c     Checks whether boundary at dimension dim(=1,2,3)
+c     and location loc(=0,1) is a SYM boundary
+c     -----------------------------------------------------------------
+
+        implicit none
+
+        logical    :: isSYMBdry
+        integer,optional :: dim,loc,ibc
+
+        integer    :: ibcl,ilog,itst,diml,locl,igr
+
+        type(grid_mg_def),pointer :: gl_def
+
+        if (PRESENT(dim) .and.PRESENT(loc)) then
+          diml = dim
+          locl = loc
+          ibcl = (1+locl)+2*(diml-1)
+        elseif (PRESENT(ibc)) then
+          ibcl = ibc
+          locl = abs(mod(ibcl,2)-2)-1
+          diml = 1 + (ibcl-1-locl)/2
+        else
+          write (*,*) 'Error in isSYMBdry'
+          write (*,*) 'Aborting...'
+          stop
+        endif
+
+        igr = 1 !Use fine grid for test
+
+        select case(diml)
+        case(1)
+          select case(locl)
+          case (0)
+            itst = 1
+          case (1)
+            itst = gl_def%nxv(igr)
+          end select
+        case(2)
+          select case(locl)
+          case (0)
+            itst = 1
+          case (1)
+            itst = gl_def%nyv(igr)
+          end select
+        case(3)
+          select case(locl)
+          case (0)
+            itst = 1
+          case (1)
+            itst = gl_def%nzv(igr)
+          end select
+        end select
+
+        isSYMBdry = isBC(gl_def,itst,igr,ibcl,SYM)
+
+      end function isSYMBdry
+
+      end module bc_ops
 
 c module grid_operations_cell
 c #####################################################################
@@ -18,6 +300,8 @@ c     and filled.
 c ---------------------------------------------------------------------
 
         use grid_packing
+
+        use bc_ops
 
         implicit none
 
@@ -47,6 +331,10 @@ c ---------------------------------------------------------------------
 
         INTERFACE XformToCov
           module procedure XformToCov_ijk,XformToCov_mesh
+        end INTERFACE
+
+        INTERFACE XformToCov_vrtx
+          module procedure XformToCov_ijk_vrtx,XformToCov_mesh_vrtx
         end INTERFACE
 
         INTERFACE XformVector
@@ -91,7 +379,7 @@ c     Begin program
 c     getCurvilinearCoordinates
 c     #################################################################
       subroutine getCurvilinearCoordinates(g_def,i,j,k,igx,igy,igz
-     .                                    ,ig,jg,kg,x1,y1,z1)
+     .                                    ,ig,jg,kg,x1,y1,z1,vertex)
 
 c     -----------------------------------------------------------------
 c     Finds curvilinear coordinates for position (i,j,k)
@@ -101,20 +389,35 @@ c     -----------------------------------------------------------------
 
 c     Input variables
 
-        integer :: i,j,k,igx,igy,igz,ig,jg,kg
-        real(8) :: x1,y1,z1
-
         type(grid_mg_def),pointer :: g_def
 
+        integer :: i,j,k,igx,igy,igz,ig,jg,kg
+        real(8) :: x1,y1,z1
+        logical,optional :: vertex
+
 c     Local variables
+
+        logical :: vrtx
 
 c     Begin program
 
         call getMGmap(g_def,i,j,k,igx,igy,igz,ig,jg,kg)
 
-        x1 = g_def%xx(ig)
-        y1 = g_def%yy(jg)
-        z1 = g_def%zz(kg)
+        if (PRESENT(vertex)) then
+          vrtx = vertex
+        else
+          vrtx = .false.
+        endif
+
+        if (vrtx) then
+          x1 = 0.5*(g_def%xx(ig)+g_def%xx(ig+1))
+          y1 = 0.5*(g_def%yy(jg)+g_def%yy(jg+1))
+          z1 = 0.5*(g_def%zz(kg)+g_def%zz(kg+1))
+        else
+          x1 = g_def%xx(ig)
+          y1 = g_def%yy(jg)
+          z1 = g_def%zz(kg)
+        endif
 
       end subroutine getCurvilinearCoordinates
 
@@ -294,6 +597,43 @@ c     Begin program
 
       end function XformToCar_ijk
 
+c     XformToCar_ijk_vrtx
+c     #################################################################
+      function XformToCar_ijk_vrtx(g_def,i,j,k,igrid,curv,covariant)
+     .         result(car)
+
+c     -----------------------------------------------------------------
+c     Transforms a curvilinear vector (c1,c2,c3) to Cartesian (cx,cy,cz)
+c     at grid coordinates (i,j,k). Curvilinear vector is covariant if
+c     covariant=.true., and contravariant otherwise.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        type(grid_mg_def),pointer :: g_def
+
+        integer    :: i,j,k,igrid
+        real(8)    :: curv(3),car(3)
+        logical    :: covariant
+
+c     Local variables
+
+        type(MG_grid_metrics),pointer :: gmetric 
+
+c     Begin program
+
+        gmetric => g_def%gmetric
+
+        if (covariant) then
+          car = matmul(curv,gmetric%grid(igrid)%cov_v(i,j,k,:,:))
+        else
+          car = matmul(curv,gmetric%grid(igrid)%cnv_v(i,j,k,:,:))
+        endif
+
+      end function XformToCar_ijk_vrtx
+
 c     XformToCar_mesh
 c     #################################################################
       function XformToCar_mesh(g_def,igrid,curv,covariant) result(car)
@@ -392,6 +732,60 @@ c     Begin program
         endif
 
       end function XformToCurv_ijk
+
+c     XformToCurv_ijk
+c     #################################################################
+      function XformToCurv_ijk_vrtx(g_def,i,j,k,igrid,car,tocnv,nojac)
+     .         result(curv)
+
+c     -----------------------------------------------------------------
+c     Transforms a Cartesian vector to curvilinear representation at
+c     grid coordinates (i,j,k). Curvilinear vector is covariant if
+c     tocnv=.false., and contravariant otherwise.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        type(grid_mg_def),pointer :: g_def
+
+        integer :: i,j,k,igrid
+        real(8) :: car(3),curv(3)
+        logical :: tocnv
+
+        logical,optional :: nojac
+
+c     Local variables
+
+        real(8) :: jac
+        logical :: nj
+        
+        type(MG_grid_metrics),pointer :: gmetric 
+
+c     Begin program
+
+        gmetric => g_def%gmetric
+
+        if (PRESENT(nojac)) then
+          nj = nojac
+        else
+          nj = .false.
+        endif
+
+        if (nj) then
+          jac = 1d0
+        else
+          jac = gmetric%grid(igrid)%jac_v(i,j,k)
+        endif
+
+        if (.not.tocnv) then
+          curv = jac*matmul(gmetric%grid(igrid)%cnv_v(i,j,k,:,:),car)
+        else
+          curv = jac*matmul(gmetric%grid(igrid)%cov_v(i,j,k,:,:),car)
+        endif
+
+      end function XformToCurv_ijk_vrtx
 
 c     XformToCurv_mesh
 c     #################################################################
@@ -1080,6 +1474,38 @@ c     Begin program
 
       end function XformToCov_ijk
 
+c     XformToCov_ijk_vrtx
+c     #################################################################
+      function XformToCov_ijk_vrtx(g_def,i,j,k,igrid,cnv)
+     .         result(cov)
+
+c     -----------------------------------------------------------------
+c     Transforms a contravariant vector into covariant at a vertex.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        type(grid_mg_def),pointer :: g_def
+
+        integer    :: i,j,k,igrid
+        real(8)    :: cov(3),cnv(3)
+
+c     Local variables
+
+        real(8)    :: car(3)
+
+c     Begin program
+
+        !Avoids issues at SP
+        car = XformToCar_ijk_vrtx (g_def,i,j,k,igrid,cnv,.false.)
+        cov = XformToCurv_ijk_vrtx(g_def,i,j,k,igrid,car,.false.)
+        
+cc        cov = matmul(cnv,g_def%gmetric%grid(igrid)%gsub_v(i,j,k,:,:))
+
+      end function XformToCov_ijk_vrtx
+
 c     XformToCov_ijk_face
 c     #################################################################
       function XformToCov_ijk_face(g_def,i,j,k,igrid,cnv,he)
@@ -1111,46 +1537,13 @@ c     Begin program
 
       end function XformToCov_ijk_face
 
-c     XformToCov_ijk_vrtx
-c     #################################################################
-      function XformToCov_ijk_vrtx(g_def,i,j,k,igrid,cnv)
-     .         result(cov)
-
-c     -----------------------------------------------------------------
-c     Transforms a curvilinear vector (c1,c2,c3) to Cartesian (cx,cy,cz)
-c     at grid coordinates (i,j,k). Curvilinear vector is covariant if
-c     covariant=.true., and contravariant otherwise.
-c     -----------------------------------------------------------------
-
-        implicit none
-
-c     Input variables
-
-        type(grid_mg_def),pointer :: g_def
-
-        integer    :: i,j,k,igrid
-        real(8)    :: cov(3),cnv(3)
-
-c     Local variables
-
-c     Begin program
-
-        call transformFromCurvToCurv(g_def,i,j,k,igrid,igrid,igrid
-     .                              ,cov(1),cov(2),cov(3)
-     .                              ,cnv(1),cnv(2),cnv(3)
-     .                              ,.false.,hex=1,hey=1,hez=1)
-
-      end function XformToCov_ijk_vrtx
-
 c     XformToCnv_ijk_face
 c     #################################################################
       function XformToCnv_ijk_face(g_def,i,j,k,igrid,cov,he)
      .         result(cnv)
 
 c     -----------------------------------------------------------------
-c     Transforms a curvilinear vector (c1,c2,c3) to Cartesian (cx,cy,cz)
-c     at grid coordinates (i,j,k). Curvilinear vector is covariant if
-c     covariant=.true., and contravariant otherwise.
+c     Transforms covariant vector into contravariant at a face.
 c     -----------------------------------------------------------------
 
         implicit none
@@ -1178,7 +1571,7 @@ c     #################################################################
       function XformToCnv_mesh(g_def,igrid,cov) result(cnv)
 
 c     -----------------------------------------------------------------
-c     Transforms a contravariant vector to a covariant representation
+c     Transforms a covariant vector to a contravariant representation
 c     everywhere on the mesh.
 c     -----------------------------------------------------------------
 
@@ -1256,6 +1649,65 @@ c     Begin program
         enddo
 
       end function XformToCov_mesh
+
+c     XformToCov_mesh_vrtx
+c     #################################################################
+      function XformToCov_mesh_vrtx(g_def,igrid,cnv) result(cov)
+
+c     -----------------------------------------------------------------
+c     Transforms a contravariant vector to a covariant representation
+c     everywhere on the mesh.
+c     -----------------------------------------------------------------
+
+        use oned_int
+     
+        implicit none
+
+c     Input variables
+
+        type(grid_mg_def),pointer :: g_def
+
+        integer :: igrid
+        real(8),INTENT(IN) :: cnv(0:,0:,0:,:)
+        real(8) :: cov(0:size(cnv,1)-1
+     .                ,0:size(cnv,2)-1
+     .                ,0:size(cnv,3)-1,3)
+
+c     Local variables
+
+        integer :: i,j,k,nx,ny,nz,ig,jg,kg
+        real(8) :: xx(4)
+
+c     Begin program
+
+        nx = size(cnv,1)-2
+        ny = size(cnv,2)-2
+        nz = size(cnv,3)-2
+
+        do k=0,nz
+          do j=0,ny
+            do i=0,nx
+              cov(i,j,k,:) = XformToCov_ijk_vrtx(g_def,i,j,k,igrid
+     .                                          ,cnv(i,j,k,:))
+            enddo
+          enddo
+        enddo
+
+        !Extrapolate 1st and 3rd covariant components at origin
+        if (isSP2(g_def,1,igrid)) then
+          do k=0,nz
+            do j=0,ny
+              call getMGmap(g_def,1,j,k,igrid,igrid,igrid,ig,jg,kg)
+              xx(1:4) = 0.5*(g_def%xx(1:4)+g_def%xx(2:5)) !Vertex positions
+              call IntDriver1d(4,xx,cov(1:4,j,k,1)
+     .                        ,1,(/0d0/),cov(0:0,j,k,1),3)
+              call IntDriver1d(4,xx,cov(1:4,j,k,3)
+     .                        ,1,(/0d0/),cov(0:0,j,k,3),3)
+            enddo
+          enddo
+        endif
+
+        end function XformToCov_mesh_vrtx
 
 c     vectorNorm_ijk
 c     ################################################################

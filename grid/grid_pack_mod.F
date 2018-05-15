@@ -133,89 +133,269 @@ c     -----------------------------------------------------------------
 
       contains
 
+      end subroutine find_pack_slope
+      
 c     find_eta
 c     #################################################################
-      function find_eta(xmin,xmax,x0,lambda) result(eta)
+      function find_eta(xmin,xmax,x0,slope) result(eta)
 
         implicit none
 
 c     Global variables
 
-        real(8) :: xmin,xmax,x0,lambda,eta
+        real(8) :: xmin,xmax,x0,slope,eta
 
 c     Local variables
 
-        integer,parameter :: nit=20
+        integer,parameter :: nit=50,neq=4
 
         integer :: i
-        real(8) :: ijac,dxi(nit),res(nit)
-        real(8) :: ll,dd,xbar,dx,eps
+        real(8) :: jac(neq,neq),ijac,dxi(nit,neq),res(nit,neq),xi(neq)
+        real(8) :: LL,Lm,Lp,alpha
+        
+        real(8) :: dd,xbar,dx,eps,a1,a2
+cc        real(8) :: lambda,ilambda,Tm,Tp,Cm,Cp,Ep,Em
+        real(8) :: erfv,exp1,exp2,ff,dff,dexp1d1,dexp1d2,dexp2d1
+     .            ,dexp2d2,derfv,derfv1,derfv2,erfv1,erfv2
 
 c     Begin program
 
         eps = 10*findRoundOff()
 
-        if (lambda == 0d0 .or. lambda == 1d0) then
+        if (slope == 0d0 .or. slope == 1d0) then
           eta = 0d0
           return
         endif
 
-        LL  = xmax-xmin
+        LL = xmax-xmin
+        Lp = xmax-x0
+        Lm = LL - Lp
 
-        if (lambda > 1d0) then  !Pack at edges
+        res = 0d0 ; dxi = 0d0
 
-cc          eta = LL**3*(1d0-1d0/lambda)/((xmax-x0)**3-(xmin-x0)**3)
-          eta = LL**pwr*(1d0-1d0/lambda)/((xmax-x0)**pwr-(xmin-x0)**pwr)
+        if (slope > 1d0 .or. Lp == 0d0 .or. Lm == 0d0) then
+          call prep_cubic
+        else
+          call prep_gaussian
+        endif
+          
+c       Convergence check
 
-        else                    !Pack at x0
-
-          xbar= 0.5*(xmax+xmin)
-          dx  = xbar - x0
-          dd  = (dx/LL)**2
-
-c         Initial guess
-
-          eta = 4d0*(1d0-lambda)
-
-c         Newton iteration
-
-          if (dx == 0d0) return
-
+        if (i >= nit) then
+          write (*,*)
+          write (*,*) 'Nonlinear it. in grid-packing routine find_eta'
+     .               ,' did not converge'
+          write (*,*)
+          write (*,*) 'Convergence history:'
           do i=1,nit
-            res(i)=(1+2*(eta+lambda))**2*(1-lambda-0.25*eta) -27.*dd*eta
-            ijac = 4*(1+2*(eta+lambda)) *(1-lambda-0.25*eta)
-     .         -0.25*(1+2*(eta+lambda))**2                   -27.*dd
-
-            dxi(i) = -res(i)/ijac
-            eta = abs(eta + dxi(i)) !Want to find positive root
-
-cc            write (*,*) abs(res(i)),dxi(i),ijac,eta
-
-            if (abs(res(i))<1d-10.or.(abs(dxi(i))<eps)) exit
+            write (*,*) 'Nonlinear it.',i,' residual'
+     .                 ,sqrt(sum(res(i,:)**2))
+     .                 ,'update',sqrt(sum(dxi(i,:)**2))
           enddo
-
-c         Convergence check
-
-          if (i >= nit) then
-            write (*,*)
-            write (*,*) 'Newton it. in grid-packing routine find_a'
-     .                 ,' did not converge'
-            write (*,*)
-            write (*,*) 'Convergence history:'
-            do i=1,nit
-              write (*,*) 'Newton it.',i,' residual',abs(res(i))
-     .                   ,'update',abs(dxi(i))
-            enddo
-            write (*,*)
-            write (*,*) 'Aborting...'
-            stop
-          endif
-
+          write (*,*)
+          write (*,*) 'Aborting...'
+          stop
         endif
 
-      end function find_eta
+      contains
 
-      end subroutine find_pack_slope
+c     prep_cubic
+c     ###############################################################
+      subroutine prep_cubic
+      
+      implicit none
+
+c     ---------------------------------------------------------------
+c     Prepares cubic polynomial for grid packing
+c     ---------------------------------------------------------------
+
+      if (slope > 1d0) then !Contraction
+        
+cc          eta = LL**3*(1d0-1d0/slope)/((xmax-x0)**3-(xmin-x0)**3)
+        eta = LL**pwr*(1d0-1d0/slope)/((xmax-x0)**pwr-(xmin-x0)**pwr)
+
+      else
+                
+        xbar= 0.5*(xmax+xmin)
+        dx  = xbar - x0
+        dd  = (dx/LL)**2
+
+        !Initial guess
+
+        eta = 4d0*(1d0-slope)
+
+        !Newton iteration
+
+        if (dx == 0d0) return
+
+        do i=1,nit
+          res(i,1)=(1+2*(eta+slope))**2*(1-slope-0.25*eta) -27.*dd*eta
+          ijac = 4*(1+2*(eta+slope)) *(1-slope-0.25*eta)
+     .       -0.25*(1+2*(eta+slope))**2                    -27.*dd
+
+          dxi(i,1) = -res(i,1)/ijac
+          eta = abs(eta + dxi(i,1)) !Want to find positive root
+
+cc        write (*,*) abs(res(i,1)),dxi(i,1),ijac,eta
+
+          if (abs(res(i,1))<1d-10.or.(abs(dxi(i,1))<eps)) exit
+        enddo
+
+      endif
+          
+      end subroutine prep_cubic
+
+c     prep_gaussian
+c     ###############################################################
+      subroutine prep_gaussian
+
+      implicit none
+
+c     ---------------------------------------------------------------
+c     Prepares Gaussian profile for grid packing
+c     ---------------------------------------------------------------
+
+      if (Lp == Lm) then
+        Lp = Lp*(1d0+1d-8)
+        Lm = Lm*(1d0-1d-8)
+      endif
+
+      !Initial condition (assume alpha ~ 0.5 + delta, delta << 1 and solve)
+      eta = 1d1
+      do i=1,5
+        eta =2*sqrt(abs(log(0.5*LL*slope/(2*eta*Lp/sqrt(pi)))))
+      enddo
+      alpha = 0.5*(1-log(Lm/Lp)/eta/eta)
+      a1 = sqrt(4/pi)*eta*Lm/LL
+      a2 = sqrt(4/pi)*eta*Lp/LL
+
+      !Newton iteration (variable order: a1,a2,alpha=Ep/L,eta=L/sqrt(sigma))
+      do i=1,nit
+        erfv1 = sqrt(pi/4.)*erf((1-alpha)*eta)
+        erfv2 = sqrt(pi/4.)*erf(   alpha *eta)
+        erfv  = sqrt(pi/4.)*erf(          eta)
+
+        derfv1 = exp(-((1-alpha)*eta)**2)
+        derfv2 = exp(-((  alpha)*eta)**2)
+        derfv  = exp(-eta**2)
+        
+        exp1    = exp(eta**2*(1-2*alpha))
+        dexp1d1 =-2*eta*eta*exp1         !wrt alpha
+        dexp1d2 = 2*eta*(1-2*alpha)*exp1 !wrt eta
+        
+        exp2    = exp(-(alpha*eta)**2)
+        dexp2d1 = -2*alpha*eta*eta*exp2  !wrt alpha
+        dexp2d2 = -2*eta*alpha*alpha*exp2!wrt eta
+
+        ff  = eta/erfv
+        dff = 1./erfv - eta*derfv/(erfv*erfv)
+        
+        !Residual
+        res(i,1) = Lm/LL*eta - a1*erfv1 - a2*erfv + a2*erfv2
+        res(i,2) = a1 + a2 - ff
+        res(i,3) = a1 - a2*alpha*exp1/(1-alpha)
+        res(i,4) = slope - a2*exp2/(1-alpha)
+
+        !Jacobian solution
+        jac(1,1) = -erfv1
+        jac(1,2) = +erfv2-erfv
+        jac(1,3) = a1*eta*derfv1 + a2*eta*derfv2
+        jac(1,4) = Lm/LL
+     .           - a1*(1-alpha)*derfv1
+     .           - a2*derfv
+     .           + a2*alpha*derfv2
+
+        jac(2,1) = 1.
+        jac(2,2) = 1.
+        jac(2,3) = 0d0
+        jac(2,4) = -dff
+
+        jac(3,1) = 1.
+        jac(3,2) = -alpha*exp1/(1-alpha)
+        jac(3,3) = -a2*(1-alpha)**(-2)*exp1
+     .             -a2*alpha/(1-alpha)*dexp1d1
+        jac(3,4) = -a2*alpha*dexp1d2/(1-alpha)
+
+        jac(4,1) = 0.
+        jac(4,2) = -exp2/(1-alpha)
+        jac(4,3) = -a2*(1-alpha)**(-2)*exp2 - a2*dexp2d1/(1-alpha)
+        jac(4,4) = -a2*dexp2d2/(1-alpha)
+
+        call blockSolve(neq,jac,1,res(i,:),dxi(i,:))
+
+        !Update solution
+        a1    = abs(   a1 - dxi(i,1))  !Enforce a1 > 0
+        a2    = abs(   a2 - dxi(i,2))  !Enforce a1 > 0
+        alpha = abs(alpha - dxi(i,3))  !Enforce alpha > 0
+        eta   = abs(  eta - dxi(i,4))  !Enforce eta >= 0d0
+
+cc        write (*,*) i,a1,a2,alpha,eta
+        
+        !Check convergence
+cc        write (*,*) i,dxi(i,:),res(i,:)
+
+        if (  sqrt(sum(res(i,:)**2))<1d-10
+     .   .or.(sqrt(sum(dxi(i,:)**2))<eps)) exit
+        
+      enddo
+
+      end subroutine prep_gaussian
+
+c$$$c     prep_tanh
+c$$$c     ###############################################################
+c$$$      subroutine prep_tanh
+c$$$
+c$$$      implicit none
+c$$$              
+c$$$          LL = xmax-xmin
+c$$$          Lp = xmax-x0
+c$$$          Lm = LL - Lp
+c$$$
+c$$$          if (Lp == Lm) then
+c$$$            Lp = Lp*(1d0+1d-8)
+c$$$            Lm = Lm*(1d0-1d-8)
+c$$$          endif
+c$$$
+c$$$          !Newton iteration
+c$$$          lambda = 1d0 ; Ep = Lp
+c$$$
+c$$$          do i=1,nit
+c$$$            Em = LL - Ep
+c$$$            ilambda = 1d0/lambda
+c$$$
+c$$$            Cp = 1d0/cosh(Ep*ilambda)
+c$$$            Cp = Cp*Cp
+c$$$
+c$$$            Cm = 1d0/cosh(Em*ilambda)
+c$$$            Cm = Cm*Cm
+c$$$
+c$$$            Tp = tanh(Ep*ilambda)
+c$$$            Tm = tanh(Em*ilambda)
+c$$$
+c$$$            !Var 1 is Ep, Var 2 is lambda
+c$$$            res(i,1) = (Ep + slope*lambda)*Tp - Lp
+c$$$            res(i,2) = (Em + slope*lambda)*Tm - Lm
+c$$$
+c$$$            jac(1,1) = Tp + (Ep+slope*lambda)*Cp*ilambda
+c$$$            jac(1,2) =slope*Tp-(Ep+slope*lambda)*Cp*Ep*(ilambda*ilambda)
+c$$$            jac(2,1) =-Tm - (Em+slope*lambda)*Cm*ilambda
+c$$$            jac(2,2) =slope*Tm-(Em+slope*lambda)*Cm*Em*(ilambda*ilambda)
+c$$$
+c$$$            call blockSolve(2,jac,1,res(i,:),dxi(i,:))
+c$$$
+c$$$            Ep = abs(Ep - dxi(i,1))
+c$$$            lambda = abs(lambda - dxi(i,2))
+c$$$
+c$$$cc            write (*,*) i,Ep,lambda,res(i,:),dxi(i,:)
+c$$$            if (  sqrt(sum(res(i,:)**2))<1d-10
+c$$$     .       .or.(sqrt(sum(dxi(i,:)**2))<eps)) exit
+c$$$          enddo
+c$$$
+c$$$          eta = Ep/lambda
+c$$$
+c$$$      end subroutine prep_tanh
+
+      end function find_eta
 
 c     scale_coord
 c     #################################################################
@@ -300,38 +480,33 @@ c     Packing
           endif
 
           xlog = x1-(lmax-lmin)/TT*bb*sin(TT*(x1-lmin)/(lmax-lmin))
-        else  !monotonic cubic polynomial
-          xlog = scl_coord(x1,eta(dim),lmin,lmax,gp(1),gp(2))
-c$$$          select case(dim)
-c$$$          case(1)
-c$$$            if (bbx == 0d0) bbx= find_eta(lmin,lmax,gp(1),gp(2))
-c$$$            xlog = scl_coord(x1,bbx,lmin,lmax,gp(1),gp(2))
-c$$$          case(2)
-c$$$            if (bby == 0d0) bby= find_eta(lmin,lmax,gp(1),gp(2))
-c$$$            xlog = scl_coord(x1,bby,lmin,lmax,gp(1),gp(2))
-c$$$          case(3)
-c$$$            if (bbz == 0d0) bbz= find_eta(lmin,lmax,gp(1),gp(2))
-c$$$            xlog = scl_coord(x1,bbz,lmin,lmax,gp(1),gp(2))
-c$$$          end select
+        else
+          if (gp(2)>1d0.or.(lmin==gp(1)).or.(lmax==gp(1))) then
+            xlog = cubic_scl   (dim,x1,eta(dim),lmin,lmax,gp(1),gp(2))
+          else
+            xlog = gaussian_scl(dim,x1,eta(dim),lmin,lmax,gp(1),gp(2))
+          endif
+cc          write (*,*) x1,xlog
         endif
 
       contains
 
-c     scl_coord
+c     cubic_scl
 c     #################################################################
-      function scl_coord(xi,eta,xmin,xmax,x0,lambda) result(x)
+      function cubic_scl(dim,xi,eta,xmin,xmax,x0,lambda) result(x)
 
 c     -----------------------------------------------------------------
-c     Packs coordinate according to x0 (location) and lambda (slope).
-c     Note:
+c     Packs coordinate according to cubic polynomial at x0 (location)
+c     with slope lambda.  Note:
 c       * lambda <> 1d0 --> dx0 ~ dxi*dlambda
 c       * lambda == 0d0 --> No packing
 c     -----------------------------------------------------------------
 
         implicit none
 
-c     Global variables
+c     Call variables
 
+        integer :: dim
         real(8),INTENT(IN) :: eta,xmin,xmax,x0,lambda,xi
         real(8) :: x
 
@@ -363,11 +538,18 @@ c     Begin program
      .                   *LL*sqrt(4d0*(1d0-lambda)-eta)/sqrt(12.*eta)
 
             !Linear extrapolation to ensure equal mesh spacing at ghost points
-            if (xi > xmax) then
-              dx = xi - xmax
-              x =  x0 + lambda*(xmax-dx-xi0) + bb*(xmax-dx-xi0)**3
-              x = 2*xmax - x
-            elseif (xi < xmin) then
+c$$$            if (xi > xmax) then
+c$$$              dx = xi - xmax
+c$$$              x =  x0 + lambda*(xmax-dx-xi0) + bb*(xmax-dx-xi0)**3
+c$$$              x = 2*xmax - x
+c$$$            elseif (xi < xmin) then
+c$$$              dx = xmin - xi
+c$$$              x =  x0 + lambda*(xmin+dx-xi0) + bb*(xmin+dx-xi0)**3
+c$$$              x = 2*xmin - x
+c$$$            else
+c$$$              x = x0 + lambda*(xi-xi0) + bb*(xi-xi0)**3
+c$$$            endif
+            if (xi < xmin.and.bcSP(dim=dim)) then
               dx = xmin - xi
               x =  x0 + lambda*(xmin+dx-xi0) + bb*(xmin+dx-xi0)**3
               x = 2*xmin - x
@@ -410,7 +592,7 @@ cc              write (*,*) abs(res(i)),dxi(i),x
             if (i > nit) then
               write (*,*)
               write (*,*)'Newton it. in grid-packing routine',
-     .                   ' scl_coord did not converge'
+     .                   ' cubic_scl did not converge'
               write (*,*)
               write (*,*) 'Convergence history:'
               do i=1,nit
@@ -435,7 +617,152 @@ cc            endif
 
 c     End program
 
-      end function scl_coord
+      end function cubic_scl
+
+c$$$c     tanh_scl
+c$$$c     #################################################################
+c$$$      function tanh_scl(dim,xi,eta,xmin,xmax,x0,x0p) result(x)
+c$$$
+c$$$c     -----------------------------------------------------------------
+c$$$c     Packs coordinate using |x|*tanh(x/lambda) prescription at location
+c$$$c     x0 with slope x0p. Note:      
+c$$$c       * x0p <> 1d0 --> dx0 ~ dxi*x0p
+c$$$c       * x0p == 0d0 --> No packing
+c$$$c     -----------------------------------------------------------------
+c$$$
+c$$$        implicit none
+c$$$
+c$$$c     Global variables
+c$$$
+c$$$        integer :: dim
+c$$$        real(8),INTENT(IN) :: xmin,xmax,x0,eta,xi,x0p
+c$$$        real(8) :: x
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$        real(8) :: bb,LL,Lp,Lm,Tp,Tm,lambda,xi0,Ep,dx
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$        if (x0p == 0d0 .or. eta == 0d0) then
+c$$$
+c$$$          x = xi
+c$$$
+c$$$        else
+c$$$
+c$$$          LL = xmax-xmin
+c$$$          Lp = xmax-x0
+c$$$          Lm = LL - Lp
+c$$$
+c$$$          if (Lp == Lm) then
+c$$$            Lp = Lp*(1d0+1d-8)
+c$$$            Lm = Lm*(1d0-1d-8)
+c$$$          endif
+c$$$
+c$$$          lambda = Lp/((eta+x0p)*tanh(eta))
+c$$$
+c$$$          Ep = eta*lambda
+c$$$
+c$$$          xi0 = xmax - Ep
+c$$$          bb  = x0p*lambda
+c$$$
+c$$$          if (xi < xmin.and.bcSP(dim=dim)) then
+c$$$            dx = xmin - xi
+c$$$            x = x0 + (abs(xmin+dx-xi0) + bb)*tanh((xmin+dx-xi0)/lambda)
+c$$$            x = 2*xmin - x
+c$$$          else
+c$$$            x = x0 + (abs(xi-xi0) + bb)*tanh((xi-xi0)/lambda)
+c$$$          endif
+c$$$
+c$$$        endif
+c$$$
+c$$$c     End program
+c$$$
+c$$$      end function tanh_scl
+
+c     gaussian_scl
+c     #################################################################
+      function gaussian_scl(dim,xi,eta,xmin,xmax,x0,x0p) result(x)
+
+c     -----------------------------------------------------------------
+c     Packs coordinate using two-gaussian prescription at location
+c     x0 with slope x0p. Gaussians at centered at boundaries, to
+c     ensure that no discontinuity is introduded at ghost cells. Note:      
+c       * x0p <> 1d0 --> dx0 ~ dxi*x0p
+c       * x0p == 0d0 --> No packing
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Global variables
+
+        integer :: dim
+        real(8),INTENT(IN) :: xmin,xmax,x0,eta,xi,x0p
+        real(8) :: x
+
+c     Local variables
+
+        integer :: i
+        
+        real(8) :: LL,Lp,Lm,ssigma,alpha,a1,a2,erfv,exp1,exp2,dexp1d1
+     .            ,dexp2d1,ff,res,ijac
+
+c     Begin program
+
+        if (x0p == 0d0 .or. eta == 0d0) then
+
+          x = xi
+
+        else
+
+          LL = xmax-xmin
+          Lp = xmax-x0
+          Lm = LL - Lp
+
+          if (Lp == Lm) then
+            Lp = Lp*(1d0+1d-8)
+            Lm = Lm*(1d0-1d-8)
+          endif
+
+          ssigma = LL/eta
+
+          !solve for alpha, a1, a2
+          alpha = 0.5*(1-log(Lm/Lp)/eta/eta) !Initial condition
+          do i=1,20
+            erfv    = sqrt(pi/4.)*erf(eta)
+
+            exp1    = exp(eta**2*(1-alpha)**2)
+            dexp1d1 =-2*(1-alpha)*eta*eta*exp1
+
+            exp2    = exp(eta**2*alpha**2)
+            dexp2d1 = 2*alpha*eta*eta*exp2
+            
+            ff  = eta/erfv
+
+            res = x0p*((1-alpha)*exp2 + alpha*exp1) - ff
+
+            ijac = x0p*(-exp2 + (1-alpha)*dexp2d1
+     .                  +exp1 +    alpha *dexp1d1)
+            ijac = 1d0/ijac
+            
+            alpha = alpha - ijac*res
+
+cc            write (*,*) i,"alpha",alpha,"dalpha=",ijac*res
+            if (abs(ijac*res) < 1d-12) exit
+          enddo
+
+          a2 = x0p*(1-alpha)*exp2
+          a1 = a2*alpha/(1-alpha)*exp((1-2*alpha)*eta**2)
+
+          !Find coordinate
+          x = xmin + 0.5*sqrt(pi)*ssigma*(a1*erf((xi-xmin)/ssigma)
+     .                            +a2*erf(eta)-a2*erf((xmax-xi)/ssigma))
+
+        endif
+
+c     End program
+
+      end function gaussian_scl
 
       end function scale_coord
 

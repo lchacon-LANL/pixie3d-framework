@@ -5,7 +5,7 @@ c ######################################################################
 
         use xdraw_io
 
-        use spline_field
+        use grid_splines
 
         use grid, ONLY: np,my_rank,pstop,messg,UNDEF_DP
 
@@ -502,7 +502,7 @@ cc        endif
 
 c     orbit_setup
 c     ######################################################################
-      subroutine orbit_setup(g_def,igrid
+      subroutine orbit_setup(g_def
      .                      ,bx,by,bz,bxcar,bycar,bzcar,jac,xmap,bcnd
      .                      ,tmax,smax,dtime
      .                      ,niter,atol,rtol,order,solen,picard
@@ -520,7 +520,7 @@ c     Call variables
 
         type(grid_mg_def) :: g_def
 
-        integer :: bcnd(6),igrid
+        integer :: bcnd(6)
         real(8) :: bx(:,:,:),by(:,:,:),bz(:,:,:)
         real(8) :: bxcar(:,:,:),bycar(:,:,:),bzcar(:,:,:)
         real(8) :: xmap(:,:,:,:),jac(:,:,:)
@@ -562,8 +562,7 @@ c     Begin program
 
 c     Do splines
 
-        call setupSplines(g_def,igrid
-     .                   ,orbit_conf%spline_conf%order,obcnd)
+        call setupSplines(g_def,orbit_conf%spline_conf%order,obcnd)
 
         call get_sp_domain_limits(xmin,xmax,ymin,ymax,zmin,zmax)
 

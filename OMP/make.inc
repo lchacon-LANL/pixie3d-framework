@@ -12,8 +12,7 @@ COMMONDIR = ..
 
 SUBDIRS = $(COMMONDIR)/math \
 	  $(COMMONDIR)/io \
-	  $(COMMONDIR)/interpolation/1d_int \
-	  $(COMMONDIR)/grid
+	  $(COMMONDIR)/interpolation/1d_int
 
 #Define dependencies
 
