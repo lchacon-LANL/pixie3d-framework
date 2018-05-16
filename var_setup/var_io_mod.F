@@ -95,13 +95,13 @@ c     Begin program
      .                   ,adios_varcount,adios_attrcount,ierr)
 
         !Inquire ADIOS group
-c$$$        if (ADIOS_VER == 1.31) then
-c$$$          call adios_inq_group(adios_gh,adios_varlist,adios_attrlist
-c$$$     .                        ,ts,lastts,ierr)
-c$$$        else
+        if (ADIOS_VER == 1.31) then
+          call adios_inq_group(adios_gh,adios_varlist,adios_attrlist
+     .                        ,ts,lastts,ierr)
+        else
           call adios_inq_group(adios_gh,adios_varlist,adios_attrlist
      .                        ,ierr)
-c$$$        endif
+        endif
 
         ! count /var/ variables
         inq_adios_var = (PRESENT(nx).or.PRESENT(ny).or.PRESENT(nz))
