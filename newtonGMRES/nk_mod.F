@@ -560,6 +560,8 @@ c     Initialize variables
      $            ,'Error in Newton input: ntit_max_acc > ntit_max_rej')
       endif
 
+      if (ntit_max_acc == 0) return
+
       ierr     = 0
       itk      = 0
 
