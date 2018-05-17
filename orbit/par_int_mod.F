@@ -2975,7 +2975,7 @@ c     Perform delta_T iteration
 
       if (.not.bwgt) then
         tnp = (delta_T - cn*tn - cnm*tnm)/cnp
-        deallocate(flds,integrals,chi_local,delta_T,rhs)
+        deallocate(flds,integrals,chi_local,delta_T,rhs,zeros)
         return
       endif
 
@@ -3036,7 +3036,7 @@ c     Update beta for next time step
 
 c     Free workspace
 
-      deallocate(flds,integrals,chi_local,delta_T,rhs)
+      deallocate(flds,integrals,chi_local,delta_T,rhs,zeros)
 
       end subroutine lag_update_bdf2
 
