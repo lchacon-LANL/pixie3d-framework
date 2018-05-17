@@ -278,18 +278,19 @@ c     Initialize spline domain arrays
 
 c     Define domain limits
 
-        call set_sp_domain_limits(xs,sbcnd(1),xsmin,xsmax)
-        call set_sp_domain_limits(ys,sbcnd(3),ysmin,ysmax)
-        call set_sp_domain_limits(zs,sbcnd(5),zsmin,zsmax)
+c$$$  THIS BREAKS THE PARALLEL TRANSPORT CODE!!!
+c$$$        call set_sp_domain_limits(xs,sbcnd(1),xsmin,xsmax)
+c$$$        call set_sp_domain_limits(ys,sbcnd(3),ysmin,ysmax)
+c$$$        call set_sp_domain_limits(zs,sbcnd(5),zsmin,zsmax)
 
-c$$$        xsmin = g_def%gxmin
-c$$$        xsmax = g_def%gxmax
-c$$$          
-c$$$        ysmin = g_def%gymin
-c$$$        ysmax = g_def%gymax
-c$$$          
-c$$$        zsmin = g_def%gzmin
-c$$$        zsmax = g_def%gzmax
+        xsmin = g_def%gxmin
+        xsmax = g_def%gxmax
+          
+        ysmin = g_def%gymin
+        ysmax = g_def%gymax
+          
+        zsmin = g_def%gzmin
+        zsmax = g_def%gzmax
 
 c     Prepare 3d spline interpolation
 
