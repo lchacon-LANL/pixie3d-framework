@@ -537,6 +537,19 @@ c     Local variables
 
 c     Begin program
 
+c     Set internal domain limits
+
+        xmin = g_def%gxmin
+        xmax = g_def%gxmax
+         
+        ymin = g_def%gymin
+        ymax = g_def%gymax
+         
+        zmin = g_def%gzmin
+        zmax = g_def%gzmax
+
+c     Set orbit parameters
+
         call orbit_params(
      .        tmax          =tmax
      .       ,smax          =smax         
@@ -560,11 +573,9 @@ c     Begin program
 
         obcnd = bcnd
 
-c     Do splines
+c     Setup splines
 
         call setupSplines(g_def,orbit_conf%spline_conf%order,obcnd)
-
-        call get_sp_domain_limits(xmin,xmax,ymin,ymax,zmin,zmax)
 
         if (    ode_conf%solen
      .      .or.orbit_conf%spline_conf%input_is_A) then

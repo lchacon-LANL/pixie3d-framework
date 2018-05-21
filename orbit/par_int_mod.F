@@ -2081,6 +2081,17 @@ cc          call contour(b0(1:nx,1:ny,1),nx,ny,0d0,xmax,0d0,ymax,1,110)
 cc          close(110)
 cccc          stop
 cc        endif
+c$$$       write (*,*) 'DIAG -- lag_3d_init, dumping plots'
+c$$$       open(unit=110,file='bfield.bin',form='unformatted'
+c$$$     .       ,status='replace')
+c$$$       call contour(bg(0:nx+1,0:ny+1,1,1),nx+2,ny+2,0d0,xmax,0d0,ymax,0
+c$$$     .      ,110)
+c$$$       call contour(bg(0:nx+1,0:ny+1,1,2),nx+2,ny+2,0d0,xmax,0d0,ymax,1
+c$$$     .      ,110)
+c$$$       call contour(bg(0:nx+1,0:ny+1,1,3),nx+2,ny+2,0d0,xmax,0d0,ymax,1
+c$$$     .      ,110)
+c$$$       close(110)
+c$$$       stop
 c diag ****
 
 c     Orbit initialization on global array
@@ -2223,6 +2234,10 @@ c     Read global arrays
           read (mupixie(ifl)) xx
           read (mupixie(ifl)) yy
           read (mupixie(ifl)) zz
+
+          !Shift angles for PIXIE3D convention
+          yy = yy - 0.5*(yy(0)+yy(1))
+          zz = zz - 0.5*(zz(0)+zz(1))
 
           if (nfiles > 1) then
             read (mupixie(ifl)) ilmg,ihpg,jlmg,jhpg,klmg,khpg

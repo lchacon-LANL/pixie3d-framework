@@ -21,7 +21,6 @@ c #####################################################################
         integer, parameter :: ORB_OK=0,ORB_ADJ_DT=-1,ORB_CAR_ST=-2  !Non fatal
      .                       ,ORB_SML_DT=1,ORB_OUT_DOM=2,ORB_NEG_J=4!Fatal
      .                       ,ORB_MAP_INV=5,ORB_SP_ERR=6            !Fatal
-     
 
         !Private variables
         integer,private :: nx,ny,nz,ag,sbcnd(6)
@@ -74,13 +73,15 @@ c     Begin program
 
         nn = size(x)
 
-        if (bc == PER) then  !Ghost cell is at x(1)
-cc          xmin = 5d-1*(x(1)+x(2))
-cc          xmax = 5d-1*(x(nn-1)+x(nn))
-          x = x - x(2)  !Set angle = 0 at x(2)
-          xmin = x(2)
-          xmax = x(nn)
-        else
+        if (bc == PER) then     !Compute face positions for periodic
+          if (nn == 3) then
+            xmin = x(1)
+            xmax = x(2)
+          else
+            xmin = 5d-1*(x(1)   +x(2))
+            xmax = 5d-1*(x(nn-1)+x(nn))
+          endif
+        else                 !Include ghost cells for interpolation
           xmin = x(1)
           xmax = x(nn)
         endif
@@ -89,35 +90,35 @@ c     End program
 
       end subroutine set_sp_domain_limits
 
-c     get_sp_domain_limits
-c     ##################################################################
-      subroutine get_sp_domain_limits(xmin,xmax,ymin,ymax,zmin,zmax)
-
-c     ------------------------------------------------------------------
-c     Get spline domain limits.
-c     ------------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-        real(8) :: xmin,xmax,ymin,ymax,zmin,zmax
-
-c     Local Variables
-
-c     Begin program
-
-        xmin = xsmin
-        ymin = ysmin
-        zmin = zsmin
-
-        xmax = xsmax
-        ymax = ysmax
-        zmax = zsmax
-
-c     End program
-
-      end subroutine get_sp_domain_limits
+c$$$c     get_sp_domain_limits
+c$$$c     ##################################################################
+c$$$      subroutine get_sp_domain_limits(xmin,xmax,ymin,ymax,zmin,zmax)
+c$$$
+c$$$c     ------------------------------------------------------------------
+c$$$c     Get spline domain limits.
+c$$$c     ------------------------------------------------------------------
+c$$$
+c$$$        implicit none
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$        real(8) :: xmin,xmax,ymin,ymax,zmin,zmax
+c$$$
+c$$$c     Local Variables
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$        xmin = xsmin
+c$$$        ymin = ysmin
+c$$$        zmin = zsmin
+c$$$
+c$$$        xmax = xsmax
+c$$$        ymax = ysmax
+c$$$        zmax = zsmax
+c$$$
+c$$$c     End program
+c$$$
+c$$$      end subroutine get_sp_domain_limits
 
 c     chk_pos
 c     ##################################################################
@@ -278,19 +279,9 @@ c     Initialize spline domain arrays
 
 c     Define domain limits
 
-c$$$  THIS BREAKS THE PARALLEL TRANSPORT CODE!!!
-c$$$        call set_sp_domain_limits(xs,sbcnd(1),xsmin,xsmax)
-c$$$        call set_sp_domain_limits(ys,sbcnd(3),ysmin,ysmax)
-c$$$        call set_sp_domain_limits(zs,sbcnd(5),zsmin,zsmax)
-
-        xsmin = g_def%gxmin
-        xsmax = g_def%gxmax
-          
-        ysmin = g_def%gymin
-        ysmax = g_def%gymax
-          
-        zsmin = g_def%gzmin
-        zsmax = g_def%gzmax
+        call set_sp_domain_limits(xs,sbcnd(1),xsmin,xsmax)
+        call set_sp_domain_limits(ys,sbcnd(3),ysmin,ysmax)
+        call set_sp_domain_limits(zs,sbcnd(5),zsmin,zsmax)
 
 c     Prepare 3d spline interpolation
 
