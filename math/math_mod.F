@@ -13,7 +13,7 @@
       real(8),parameter :: pi=acos(-1d0)
 
       INTERFACE det
-        module procedure determ3
+        module procedure determ3_dp,determ3_sp
       END INTERFACE
 
       INTERFACE fmed
@@ -250,9 +250,9 @@ c     Begin program
 
       end function chkRoundOff_sp
 
-c     determ3
+c     determ3_dp
 c     #################################################################
-      function determ3(tensor)
+      function determ3_dp(tensor) result(determ3)
 
       real(8) :: tensor(3,3)
 
@@ -265,7 +265,24 @@ c     #################################################################
      .         -tensor(1,1)*tensor(2,3)*tensor(3,2)
      .         -tensor(3,3)*tensor(1,2)*tensor(2,1)
 
-      end function determ3
+      end function determ3_dp
+
+c     determ3_sp
+c     #################################################################
+      function determ3_sp(tensor) result(determ3)
+
+      real(4) :: tensor(3,3)
+
+      real(4) :: determ3
+
+      determ3 = tensor(1,1)*tensor(2,2)*tensor(3,3)
+     .         +tensor(3,2)*tensor(2,1)*tensor(1,3)
+     .         +tensor(1,2)*tensor(2,3)*tensor(3,1)
+     .         -tensor(1,3)*tensor(2,2)*tensor(3,1)
+     .         -tensor(1,1)*tensor(2,3)*tensor(3,2)
+     .         -tensor(3,3)*tensor(1,2)*tensor(2,1)
+
+      end function determ3_sp
 
 c     atanh
 c     #################################################################

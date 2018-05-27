@@ -21,8 +21,11 @@ SUBDIRS = $(COMMONDIR)/math\
 
 #PIC config
 
+#Precision
+override CPPFLAGS += $(PREPROC)_prec=8
+
 #Size of particle groups
-PCLE_GROUPING=4
+PCLE_GROUPING=8
 
 override CPPFLAGS += $(PREPROC)_Npg=$(PCLE_GROUPING)
 
