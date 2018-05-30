@@ -1144,11 +1144,12 @@ c     Fill GLOBAL map
 c     Fill LOCAL map and related metrics
 
         call defineGridMetric(g_def,igr=igrid
-     .           ,xcar=ext_map(ilomg:ihipg,jlomg:jhipg,klomg:khipg,:))
+     .           ,xcar=ext_map(ilomg:ihipg,jlomg:jhipg,klomg:khipg,:)
+     .           ,ierr=ierr)
 
         deallocate(ext_map)
 
-        call createMGMetricHierarchy(g_def)
+        if (ierr == 0) call createMGMetricHierarchy(g_def)
         
       end subroutine readExtMap
 
