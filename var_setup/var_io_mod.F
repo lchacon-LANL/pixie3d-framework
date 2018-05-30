@@ -1148,8 +1148,8 @@ c     Fill LOCAL map and related metrics
 
         deallocate(ext_map)
 
-cc        gmetric => g_def%gmetric
-
+        call createMGMetricHierarchy(g_def)
+        
       end subroutine readExtMap
 
 c     writeExtMap
