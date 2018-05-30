@@ -1141,9 +1141,9 @@ c     Fill GLOBAL map
 
         call closeFiles(mumap)
 
-c     Fill LOCAL map and related metrics
+c     Fill LOCAL map and related metrics at ALL grid levels
 
-        call defineGridMetric(g_def,igr=igrid
+        call defineGridMetric(g_def
      .           ,xcar=ext_map(ilomg:ihipg,jlomg:jhipg,klomg:khipg,:)
      .           ,ierr=ierr)
 
