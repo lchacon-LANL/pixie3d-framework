@@ -457,6 +457,7 @@ c     Check for errors
         return
       elseif (nfiles == np) then
         posix_read = .true.  !One file per processor
+        nfiles = 1
       else
         posix_read = .false. !Async file reading
       endif
