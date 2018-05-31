@@ -256,7 +256,7 @@ c Create equilibrium u_0
 
 c Write geometry when applicable
 
-      if (coords == 'ext') call writeExtMap(gv%gparams)
+cc      if (coords == 'ext') call writeExtMap(gv%gparams)
 
 c Perturb equilibrium
 
@@ -326,7 +326,7 @@ c Begin program
 
 c Read geometry when applicable
 
-      if (coords == 'ext') call readExtMap(gv%gparams)
+cc      if (coords == 'ext') call readExtMap(gv%gparams)
 
 c Read restart file
 
