@@ -328,7 +328,7 @@ c Open graphics files
 
 c Read geometry (if appropriate)
 
-      if (coords == 'ext') call readExtMap(gv%gparams)
+cc      if (coords == 'ext') call readExtMap(gv%gparams)
 
 c Read equilibrium u_0 (Do NOT postprocess for BC)
 
