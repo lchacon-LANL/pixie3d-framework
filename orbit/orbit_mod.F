@@ -1803,7 +1803,7 @@ cc           dx = matmul(JJ,res)
      .             ,'; error history=',error(1:min(iter,niter))
       endif
 
-      if (iter > niter .and. iterr == 0) iterr = flag
+      if (iter > niter .and. iterr == ORB_OK) iterr = flag
 
 c     End program
 
@@ -1948,13 +1948,12 @@ c     Begin program
 
         call evalBcar(x1,y1,z1,vx,vy,vz,LSODE_IERR)
         if (LSODE_IERR /= ORB_OK) return
-        bnorm = vx**2+vy**2+vz**2
-        if (.not.bwgt) bnorm = sqrt(bnorm)
       else
         jac = 1d0
-        bnorm = vx**2+vy**2+vz**2
-        if (.not.bwgt) bnorm = sqrt(bnorm)
       endif
+
+      bnorm = vx*vx+vy*vy+vz*vz
+      if (.not.bwgt) bnorm = sqrt(bnorm)
 
       ydot = ydot/(bnorm*jac)
 
@@ -2036,14 +2035,14 @@ c     Begin program
         call evalBcar(x1,y1,z1,vx,vy,vz,LSODE_IERR)
         if (LSODE_IERR /= ORB_OK) return
 
-        bnorm = vx**2+vy**2+vz**2
+        bnorm = vx*vx+vy*vy+vz*vz
         if (.not.bwgt) bnorm = sqrt(bnorm)
 
         ydot(5) = ydot(4)*bnorm
       else
         ydot(4) = 1d0
 
-        bnorm = vx**2+vy**2+vz**2
+        bnorm = vx*vx+vy*vy+vz*vz
         if (.not.bwgt) bnorm = sqrt(bnorm)
 
         ydot(5) = bnorm

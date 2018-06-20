@@ -41,144 +41,6 @@ cc     .            ,forward=.true. !Whether to go forward or backward in field 
 
       contains
 
-ccc     read_poinc_file
-ccc     #################################################################
-cc      subroutine read_poinc_file(file)
-cc
-cc        implicit none
-cc
-ccc     -----------------------------------------------------------------
-ccc     Read poincare file for grid and field data
-ccc     -----------------------------------------------------------------
-cc
-ccc     Call variables
-cc
-cc        character(*) :: file
-cc
-ccc     Local variables
-cc
-cc        integer :: nx,ny,nz,i,j,k
-cc
-cc        integer :: upixie=12345,ierr
-cc
-cc        real(8),allocatable,dimension(:)       :: xx,yy,zz
-cc        real(8),allocatable,dimension(:,:,:)   :: bx,by,bz,jac
-cc        real(8),allocatable,dimension(:,:,:)   :: bxcar,bycar,bzcar
-cc        real(8),allocatable,dimension(:,:,:,:) :: xmap
-cc
-ccc     Begin program
-cc
-cc        write (*,*)
-cc        write (*,*) '*****************************************'
-cc        write (*,*) 'Opening file ',trim(file)
-cc        write (*,*) '*****************************************'
-cc        write (*,*)
-cc
-cc        open(unit=upixie,file=trim(file),status='unknown'
-cc     .      ,form='unformatted')
-cc
-cc        read (upixie) nxg,nyg,nzg,bcnd,tor
-cc
-cc        !Add ghost cells
-cc        nx = nxg+2
-cc        ny = nyg+2
-cc        nz = nzg+2
-cc
-cc        allocate(xx(nx),yy(ny),zz(nz))
-cc      
-cc        allocate(bx(nx,ny,nz),by(nx,ny,nz),bz(nx,ny,nz))
-cc
-cc        allocate(jac  (nx,ny,nz)
-cc     .          ,xmap (nx,ny,nz,3)
-cc     .          ,bxcar(nx,ny,nz)
-cc     .          ,bycar(nx,ny,nz)
-cc     .          ,bzcar(nx,ny,nz))
-cc
-cc        read (upixie) xx
-cc        read (upixie) yy
-cc        read (upixie) zz
-cc
-cc        read (upixie,iostat=ierr) bx
-cc        if (ierr /= 0) goto 100
-cc        read (upixie,iostat=ierr) by
-cc        if (ierr /= 0) goto 100
-cc        read (upixie,iostat=ierr) bz
-cc        if (ierr /= 0) goto 100
-cc
-cc        read (upixie,iostat=ierr) bxcar
-cc
-cc        if (ierr /= 0) then  !bxcar not available: assume cylindrical coords
-cc          do k=1,nz
-cc            do j=1,ny
-cc              do i=1,nx
-cc                bxcar(i,j,k) = bx(i,j,k)*cos(yy(j))
-cc     .                       - by(i,j,k)*sin(yy(j))
-cc                bycar(i,j,k) = bx(i,j,k)*sin(yy(j))
-cc     .                       + by(i,j,k)*cos(yy(j))
-cc                bzcar(i,j,k) = bz(i,j,k)
-cc
-cc                bx(i,j,k)    = xx(i)*bx(i,j,k)
-cc                bz(i,j,k)    = xx(i)*bz(i,j,k)
-cc
-cc                jac(i,j,k)   = xx(i)
-cc                xmap(i,j,k,1)= xx(i)*cos(yy(j))
-cc                xmap(i,j,k,2)= xx(i)*sin(yy(j))
-cc                xmap(i,j,k,3)= zz(k)
-cc              enddo
-cc            enddo
-cc          enddo
-cc        else
-cc          read (upixie,iostat=ierr) bycar
-cc          if (ierr /= 0) goto 100
-cc          read (upixie,iostat=ierr) bzcar
-cc          if (ierr /= 0) goto 100
-cc          read (upixie,iostat=ierr) jac
-cc          if (ierr /= 0) goto 100
-cc          read (upixie,iostat=ierr) xmap
-cc          if (ierr /= 0) goto 100
-cc        endif
-cc
-cc        close(upixie)
-cc
-cc        !Setup orbit
-cc
-cccc        call sp_domain_limits(xx,bcnd(1),xmin,xmax)
-cccc        call sp_domain_limits(yy,bcnd(3),ymin,ymax)
-cccc        call sp_domain_limits(zz,bcnd(5),zmin,zmax)
-cc        call poinc_domain_limits(xx,bcnd(1),pxmin,pxmax)
-cc        call poinc_domain_limits(yy,bcnd(3),pymin,pymax)
-cc        call poinc_domain_limits(zz,bcnd(5),pzmin,pzmax)
-cc
-cc        call orbit_setup(nx,ny,nz,xx,yy,zz
-cc     .                  ,bx,by,bz,bxcar,bycar,bzcar
-cc     .                  ,jac,xmap,bcnd
-cc     .                  ,tmax=tmax
-cc     .                  ,smax=smax
-cc     .                  ,dtime=dtime
-cc     .                  ,niter=niter
-cc     .                  ,atol=atol
-cc     .                  ,rtol=rtol
-cc     .                  ,order=odeorder
-cc     .                  ,solen=solen
-cc     .                  ,spline_order=sporder
-cc     .                  ,gauge=a_gauge
-cc     .                  ,lsode_neq=5
-cccc     .                  ,lsode_dt_lim=.true.
-cc     .                  )
-cc
-ccc       Deallocate memory
-cc
-cc        deallocate(xx,yy,zz)
-cc        deallocate(bx,by,bz)
-cc        deallocate(jac,xmap,bxcar,bycar,bzcar)
-cc
-cc        return
-cc
-cc 100    write (*,*) 'Problem reading poincare file; aborting'
-cc        stop
-cc
-cc      end subroutine read_poinc_file
-
 c     read_poinc_files
 c     ##############################################################
       subroutine read_poinc_files(file)
@@ -281,8 +143,7 @@ c     Call variables
 
 c     Local variables
 
-        integer :: ilmg,ihpg,jlmg,jhpg,klmg,khpg,nx,ny,nz
-     .            ,i,j,k
+        integer :: ilmg,ihpg,jlmg,jhpg,klmg,khpg,nx,ny,nz,i,j,k
         real(8),pointer,dimension(:,:,:)   :: jac
         real(8),pointer,dimension(:,:,:,:) :: bb,bcar,car
 
@@ -443,8 +304,6 @@ c     ------------------------------------------------------------------
         implicit none
 
 c     Call variables
-
-cc        integer :: nfiles
 
         character(*) :: file
 
