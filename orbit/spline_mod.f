@@ -155,8 +155,8 @@ c     Begin program
       ierror = ORB_OK
 
       if (x > xsmax) then
-        if (sbcnd(2) == PER) then   !Periodic BC
-          if (per_bc) x = xsmin + mod(x-xsmin,(xsmax-xsmin))
+        if (sbcnd(2) == PER.and.per_bc) then   !Periodic BC
+          x = xsmin + mod(x-xsmin,(xsmax-xsmin))
         else
           ierror = ORB_OUT_DOM
         endif
@@ -168,40 +168,40 @@ c     Begin program
       endif
 
       if (x < xsmin) then
-        if (sbcnd(1) == PER) then   !Periodic BC
-          if (per_bc) x = xsmax - mod(xsmin-x,xsmax-xsmin)
+        if (sbcnd(1) == PER.and.per_bc) then   !Periodic BC
+          x = xsmax - mod(xsmin-x,xsmax-xsmin)
         else
           ierror = ORB_OUT_DOM
         endif
       endif
 
       if (y > ysmax) then
-        if (sbcnd(4) == PER) then   !Periodic BC
-          if (per_bc) y = ysmin + mod(y-ysmin,(ysmax-ysmin))
+        if (sbcnd(4) == PER.and.per_bc) then   !Periodic BC
+          y = ysmin + mod(y-ysmin,(ysmax-ysmin))
         else
           ierror = ORB_OUT_DOM
         endif
       endif
 
       if (y < ysmin) then
-        if (sbcnd(3) == PER) then   !Periodic BC
-          if (per_bc) y = ysmax - mod(ysmin-y,ysmax-ysmin)
+        if (sbcnd(3) == PER.and.per_bc) then   !Periodic BC
+          y = ysmax - mod(ysmin-y,ysmax-ysmin)
         else
           ierror = ORB_OUT_DOM
         endif
       endif
 
       if (z > zsmax) then
-        if (sbcnd(6) == PER) then   !Periodic BC
-          if (per_bc) z = zsmin + mod(z-zsmin,(zsmax-zsmin))
+        if (sbcnd(6) == PER.and.per_bc) then   !Periodic BC
+          z = zsmin + mod(z-zsmin,(zsmax-zsmin))
         else
           ierror = ORB_OUT_DOM
         endif
       endif
 
       if (z < zsmin) then
-        if (sbcnd(5) == PER) then   !Periodic BC
-          if (per_bc) z = zsmax - mod(zsmin-z,zsmax-zsmin)
+        if (sbcnd(5) == PER.and.per_bc) then   !Periodic BC
+          z = zsmax - mod(zsmin-z,zsmax-zsmin)
         else
           ierror = ORB_OUT_DOM
         endif
