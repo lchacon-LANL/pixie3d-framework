@@ -14,4 +14,4 @@ SUBDIRS = $(COMMONDIR)/math
 
 #Define dependencies
 
-xdraw_io_mod.o: graphics_io_mod.o
+xdraw_io_mod.o: io_mod.o graphics_io_mod.o

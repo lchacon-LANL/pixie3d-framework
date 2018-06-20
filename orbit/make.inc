@@ -23,4 +23,5 @@ SUBDIRS = $(COMMONDIR)/math\
 
 spline_mod.o: lyapn_mod.o
 orbit_mod.o: spline_mod.o
-par_int_mod.o: orbit_mod.o poincare_io_mod.o
+poincare_io_mod.o: orbit_mod.o
+par_int_mod.o: poincare_io_mod.o

@@ -300,7 +300,7 @@ c     Begin program
 
         write (*,*)
         write (*,*) '***********************************************'
-        write (*,*) 'Opening file ',trim(poincfile),'...(read files)'
+        write (*,*) 'Opening file ',trim(poincfile),'...(sync)'
         write (*,*) '***********************************************'
         write (*,*)
 
@@ -324,6 +324,10 @@ c     Read poincare position arrays
         read (upixie) xx
         read (upixie) yy
         read (upixie) zz
+
+        !Shift angles for PIXIE3D convention
+        yy = yy - 0.5*(yy(0)+yy(1))
+        zz = zz - 0.5*(zz(0)+zz(1))
 
         call poinc_domain_limits(xx,bcnd(1),pxmin,pxmax)
         call poinc_domain_limits(yy,bcnd(3),pymin,pymax)
@@ -537,6 +541,10 @@ c     Read global arrays
           read (mupixie(ifl)) yy
           read (mupixie(ifl)) zz
 
+          !Shift angles for PIXIE3D convention
+          yy = yy - 0.5*(yy(0)+yy(1))
+          zz = zz - 0.5*(zz(0)+zz(1))
+
           if (nfiles > 1) then
             read (mupixie(ifl)) ilmg,ihpg,jlmg,jhpg,klmg,khpg
           else
@@ -653,44 +661,18 @@ c     Begin program
 
         nn = size(x)
 
-!CONSISTENT W T3D
-        if (bc == PER) then   !Ghost cell is at x(1)
-cc          x = x - x(2)  !Set angle = 0 at x(2)
-cc          if (x(2) /= 0d0) then !PIXIE3D data, not SPECYL
-cc            x = x - 0.5*(x(1)+x(2)) !Set angle = 0 at face
-cc          endif
-          xmin = 0d0 ; xmax = x(nn)-x(2)
-cc          xmin = -0.5*(x(2)-x(1)) ; xmax = x(nn)-xmin
+        if (bc == PER) then !Redefine periodic limits consistently with PIXIE3D
+          xmin = 0d0 ; xmax = x(nn)-x(2) 
         else
           xmin = 5d-1*(x(1   )+x(2 ))
           xmax = 5d-1*(x(nn-1)+x(nn))
         endif
 
-!OLD
-c$$$          if (bc == PER) then   !Ghost cell is at x(1)
-c$$$            x = x - 0.5*(x(1)+x(2)) !Set angle = 0 at face
-c$$$          endif
-c$$$
-c$$$          xmin = 5d-1*(x(1)+x(2))
-c$$$          xmax = 5d-1*(x(nn-1)+x(nn))
-
-!EXPERIMENTAL
-c$$$        if (.not.specyl_read) then
-c$$$          if (bc == PER) then   !Ghost cell is at x(1)
-c$$$            x = x - 0.5*(x(1)+x(2)) !Set angle = 0 at face
-c$$$          endif
-c$$$
-c$$$          xmin = 5d-1*(x(1)+x(2))
-c$$$          xmax = 5d-1*(x(nn-1)+x(nn))
-c$$$        else
-c$$$          call set_sp_domain_limits(x,bc,xmin,xmax)
-c$$$        endif
-
 c     End program
 
       end subroutine poinc_domain_limits
 
-c     get_poinc_domain_config
+c     get_poinc_domain_ptys
 c     ##################################################################
       subroutine get_poinc_domain_ptys(xmin,xmax,ymin,ymax,zmin,zmax
      .                                ,bcnds,nx_g,ny_g,nz_g,toroidal)
