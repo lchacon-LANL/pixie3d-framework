@@ -1172,7 +1172,7 @@ ifeq ($(findstring marconi_work,$(WORK)),marconi_work)
 # togliere per casi VMEC così pixplot produce sia cnv sia cov
 
  ifdef BOPT
-   PETSC_DIR = /marconi_work/FUA11_PIXIE3D/petsc-3.0.0-p7
+   PETSC_DIR = /marconi_work/FUA32_PIXIE3D/petsc-3.0.0-p7
 
    ifeq ($(BOPT),O)
 # ifort/intelmpi
