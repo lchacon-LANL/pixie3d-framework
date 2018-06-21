@@ -601,7 +601,8 @@ c$$$        th = atan2(y,x) + aa*z
 c$$$        if (rr < 0d0) th = th + pi
 c$$$        zz = z
       case default
-        call pstop('find_polar_coords',"Coordinates not implemented")
+        call pstop('find_polar_coords'
+     .       ,"Coordinates "//coords//" not implemented")
       end select
       
 c     End program
