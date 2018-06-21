@@ -313,8 +313,8 @@ c     Prepare 3d spline interpolation
         call set_omp_thread_id()
 !$omp end parallel                                                             
 
-		dime = ky*kz + 3*max(kx,ky,kz) + kz
-		allocate(worke(dime*thr_tot),stat=alloc_stat)
+        dime = ky*kz + 3*max(kx,ky,kz) + kz
+        allocate(worke(dime*thr_tot),stat=alloc_stat)
 
 c     End program
 
@@ -427,12 +427,12 @@ c     Call variables
 
 c     Local variables
 
-      integer    :: i,j,k,ii,jj,ig,jg,kg,ivar,nxl,nyl,nzl
-      real(8)    :: cm,c0,cp,dxx,dyy,dzz,dvol,cov(3)
-      real(8)    :: a(0:nx-1,0:ny-1,0:nz-1,3)
-     .             ,b(0:nx-1,0:ny-1,0:nz-1,3)
+      integer :: i,j,k,ii,jj,ig,jg,kg,ivar,nxl,nyl,nzl
+      real(8) :: cm,c0,cp,dxx,dyy,dzz,dvol,cov(3)
+      real(8) :: a(0:nx-1,0:ny-1,0:nz-1,3)
+     .          ,b(0:nx-1,0:ny-1,0:nz-1,3)
 
-      logical    :: spoint
+      logical :: spoint
 
 c     Begin program
 
@@ -518,11 +518,11 @@ cc      write (*,*) 'DIAG -- getA_on_mesh',nx,ny,nz
 cc      open(unit=110,file='vecpot.bin',form='unformatted'
 cc     .      ,status='replace')
 cc      call contour(a(1:nxl+1,2,1:nzl+1,1)
-cc     .            ,nx-1,nz-1,0d0,xmax,0d0,zmax,0,110)
+cc     .            ,nx-1,nz-1,0d0,1d0,0d0,1d0,0,110)
 cc      call contour(a(1:nxl+1,2,1:nzl+1,2)
-cc     .            ,nx-1,nz-1,0d0,xmax,0d0,zmax,1,110)
+cc     .            ,nx-1,nz-1,0d0,1d0,0d0,1d0,1,110)
 cc      call contour(a(1:nxl+1,2,1:nzl+1,3)
-cc     .            ,nx-1,nz-1,0d0,xmax,0d0,zmax,1,110)
+cc     .            ,nx-1,nz-1,0d0,1d0,0d0,1d0,1,110)
 cc
 cccc      call contour(a(1:nxl+1,1:nyl+1,1,1)
 cccc     .            ,nx-1,ny-1,0d0,xmax,0d0,ymax,0,110)
@@ -708,8 +708,8 @@ c     Begin program
 
           dzz = zz(kp)-zz(km)
 
-          aa(i,:,kp,2)=aa(i,:,km,2) - dzz*5d-1*(bb(i,:,km,1)
-     .                                         +bb(i,:,kp,1))
+          aa(i,:,kp,2) = aa(i,:,km,2) - dzz*5d-1*(bb(i,:,km,1)
+     .                                           +bb(i,:,kp,1))
         enddo
 
         do i=imin,imax,istep
@@ -726,6 +726,7 @@ c     Begin program
 
       end subroutine line_int_xz
 
+c     line_int_yz
 c     #############################################################
       subroutine line_int_yz(jlo,jhi,klo,khi,bb,aa)
 
@@ -773,8 +774,8 @@ c     Begin program
 
           dzz = zz(kp)-zz(km)
 
-          aa(:,j,kp,1)=aa(:,j,km,1) + dzz*5d-1*(bb(:,j,km,2)
-     .                                         +bb(:,j,kp,2))
+          aa(:,j,kp,1) = aa(:,j,km,1) + dzz*5d-1*(bb(:,j,km,2)
+     .                                           +bb(:,j,kp,2))
         enddo
 
         do j=jmin,jmax,jstep

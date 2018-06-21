@@ -1601,15 +1601,17 @@ c         Begin second half-step split
 
         endif
 
+c       Find center-point
+
+        xh = 0.5*(xold+x)
+        yh = 0.5*(yold+y)
+        zh = 0.5*(zold+z)
+
 c       Find jacobian at mid-point (for time/arc-length integral)
 
         if (cartesian) then
           jach = 1d0
         else
-          xh = 0.5*(xold+x)
-          yh = 0.5*(yold+y)
-          zh = 0.5*(zold+z)
-
           jach = evalJ(xh,yh,zh,ierror)
           if (ierror /= ORB_OK) return
         endif
@@ -1685,17 +1687,17 @@ c     #########################################################################
       implicit none
 
       integer :: ierr
-      real(8),intent(IN) :: x,y,z,dt
+      real(8) :: x,y,z,dt
 
-      real(8) :: vx,vy,vz
+      real(8) :: bx,by,bz
 
       !Update time
       time=time+dt  !Include Jacobian factor to advance time
 
       !Update arc length
-      call evalBcar(x,y,z,vx,vy,vz,ierr)
+      call evalBcar(x,y,z,bx,by,bz,ierr)
 
-      ds = dt*sqrt(vx**2+vy**2+vz**2)
+      ds = dt*sqrt(bx*bx+by*by+bz*bz)
 
       ss = ss + ds
 
