@@ -231,8 +231,13 @@ c     Fill local arrays
 
         read (upixie,iostat=ierr) bcar(:,:,:,1)
 
-        if (ierr /= 0) then  !bxcar not available: assume cylindrical coords
+        if (ierr /= 0) then     !bxcar not available: assume cylindrical coords
           specyl_read = .true.
+          
+          !Shift angles for PIXIE3D convention
+          yy = yy - 0.5*(yy(0)+yy(1))
+          zz = zz - 0.5*(zz(0)+zz(1))
+
           do k=0,nz+1
             do j=0,ny+1
               do i=0,nx+1
@@ -400,10 +405,6 @@ c     Read global arrays
           read (mupixie(ifl)) yy
           read (mupixie(ifl)) zz
 
-          !Shift angles for PIXIE3D convention
-          yy = yy - 0.5*(yy(0)+yy(1))
-          zz = zz - 0.5*(zz(0)+zz(1))
-
           if (nfiles > 1) then
             read (mupixie(ifl)) ilmg,ihpg,jlmg,jhpg,klmg,khpg
           else
@@ -432,6 +433,11 @@ c     Read global arrays
 
           if (ierr /= 0) then  !bxcar not available: assume cylindrical coords
             specyl_read = .true.
+
+            !Shift angles for PIXIE3D convention
+            yy = yy - 0.5*(yy(0)+yy(1))
+            zz = zz - 0.5*(zz(0)+zz(1))
+
             do k=klmg,khpg
               do j=jlmg,jhpg
                 do i=ilmg,ihpg
