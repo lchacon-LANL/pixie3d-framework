@@ -46,7 +46,7 @@ c #####################################################################
 
 c     set_sp_domain_limits
 c     ##################################################################
-      subroutine set_sp_domain_limits(x,bc,xmin,xmax)
+      subroutine set_sp_domain_limits(x,bc,xmin,xmax,solen)
 
 c     ------------------------------------------------------------------
 c     Set domain limits according to dimension vector x and boundary
@@ -59,6 +59,7 @@ c     Call variables
 
         integer :: bc
         real(8) :: x(:),xmin,xmax
+        logical :: solen
 
 c     Local Variables
 
@@ -68,13 +69,17 @@ c     Begin program
 
         nn = size(x)
 
-        if (bc == PER) then  !Ghost cell is at x(1)
-cc          xmin = 5d-1*(x(1)+x(2))
-cc          xmax = 5d-1*(x(nn-1)+x(nn))
-          x = x - x(2)          !Set angle = 0 at x(2)
-          xmin = x(2)
-          xmax = x(nn)
-        else
+        if (bc == PER) then     !Compute face positions for periodic
+          if (nn == 3) then
+            xmin = x(1)
+            xmax = x(2)
+          else
+            xmin = 5d-1*(x(1)   +x(2))
+            xmax = 5d-1*(x(nn-1)+x(nn))
+          endif
+          !Hack for VP version to prevent noise in Poincare lines
+          if (solen) x = x - x(2) !Set angle = 0 at x(2)
+        else                    !Include ghost cells for interpolation
           xmin = x(1)
           xmax = x(nn)
         endif
@@ -239,7 +244,7 @@ c     End program
 
 c     setupSplines
 c     #################################################################
-      subroutine setupSplines(nnx,nny,nnz,xx,yy,zz,order,bcnd)
+      subroutine setupSplines(nnx,nny,nnz,xx,yy,zz,order,bcnd,solen)
 c     -----------------------------------------------------------------
 c     This routine sets up 3D splines, including allocation of memory
 c     space.
@@ -253,6 +258,8 @@ c     Call variables
         real(8) :: xx(nnx),yy(nny),zz(nnz)
         integer :: bcnd(6)
 
+        logical :: solen
+        
 c     Local variables
 
         integer :: alloc_stat,i!,get_omp_numthreads
@@ -287,9 +294,9 @@ c     Define spline domain limits
           zsmin = grid_params%gzmin
           zsmax = grid_params%gzmax
         else
-          call set_sp_domain_limits(xs,sbcnd(1),xsmin,xsmax)
-          call set_sp_domain_limits(ys,sbcnd(3),ysmin,ysmax)
-          call set_sp_domain_limits(zs,sbcnd(5),zsmin,zsmax)
+          call set_sp_domain_limits(xs,sbcnd(1),xsmin,xsmax,solen)
+          call set_sp_domain_limits(ys,sbcnd(3),ysmin,ysmax,solen)
+          call set_sp_domain_limits(zs,sbcnd(5),zsmin,zsmax,solen)
         endif
 
 c     Prepare 3d spline interpolation
