@@ -319,12 +319,16 @@ c Allocate global variable
 
 c Open graphics files
 
-#if defined(petsc)
-      urecord = openRestartFileForRead()
+      if (np > 1) then
+        urecord = openRestartFileForRead()
+      else
+#if defined(adios)
+        urecord = openRestartFileForRead()
 #else
-      call openRecordFiles(urecord,recordfile
-     .                    ,ilog,ihig,jlog,jhig,klog,khig)
+        call openRecordFiles(urecord,recordfile
+     .                      ,ilog,ihig,jlog,jhig,klog,khig)
 #endif
+      endif
 
 c Read geometry (if appropriate)
 
