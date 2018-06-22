@@ -186,10 +186,6 @@ c     Read poincare position arrays
         read (upixie) yy
         read (upixie) zz
 
-        !Shift angles for PIXIE3D convention
-        yy = yy - 0.5*(yy(0)+yy(1))
-        zz = zz - 0.5*(zz(0)+zz(1))
-
         call poinc_domain_limits(xx,bcnd(1),pxmin,pxmax)
         call poinc_domain_limits(yy,bcnd(3),pymin,pymax)
         call poinc_domain_limits(zz,bcnd(5),pzmin,pzmax)
