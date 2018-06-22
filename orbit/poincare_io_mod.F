@@ -345,14 +345,6 @@ c     Setup files
 
 c     Read setup info
 
-#if defined(use_mpi)
-        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
-#endif
-        if (my_rank == 0) then
-          write (*,*)
-          write (*,*) '*****************************************'
-        endif
-
         do ifl=1,nfiles
 
           write (*,'(a,i4,3a)') ' Proc ',my_rank,' opening file '
@@ -371,11 +363,11 @@ cc          call pstop('get_global_data_from_file'
 cc     .              ,'Coordinates are not toroidal')
 cc        endif
 
-        if (sum(bcnd-bcond) /= 0) then
-          call closeFiles(mupixie)
-          call pstop('get_global_data_from_file'
-     .              ,'BC conf. does not agree')
-        endif
+cc        if (sum(bcnd-bcond) /= 0) then
+cc          call closeFiles(mupixie)
+cc          call pstop('get_global_data_from_file'
+cc     .              ,'BC conf. does not agree')
+cc        endif
 
 cc        if (nxd /= nxg .or. nyd /= nyg .or. nzd /= nzg) then
 cc          call closeFiles(mupixie)
