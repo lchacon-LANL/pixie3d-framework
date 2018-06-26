@@ -252,35 +252,35 @@ c     Begin program
 
 c     determ3_dp
 c     #################################################################
-      function determ3_dp(tensor) result(determ3)
+      function determ3_dp(tensor)
 
       real(8) :: tensor(3,3)
 
-      real(8) :: determ3
+      real(8) :: determ3_dp
 
-      determ3 = tensor(1,1)*tensor(2,2)*tensor(3,3)
-     .         +tensor(3,2)*tensor(2,1)*tensor(1,3)
-     .         +tensor(1,2)*tensor(2,3)*tensor(3,1)
-     .         -tensor(1,3)*tensor(2,2)*tensor(3,1)
-     .         -tensor(1,1)*tensor(2,3)*tensor(3,2)
-     .         -tensor(3,3)*tensor(1,2)*tensor(2,1)
+      determ3_dp = tensor(1,1)*tensor(2,2)*tensor(3,3)
+     .            +tensor(3,2)*tensor(2,1)*tensor(1,3)
+     .            +tensor(1,2)*tensor(2,3)*tensor(3,1)
+     .            -tensor(1,3)*tensor(2,2)*tensor(3,1)
+     .            -tensor(1,1)*tensor(2,3)*tensor(3,2)
+     .            -tensor(3,3)*tensor(1,2)*tensor(2,1)
 
       end function determ3_dp
 
 c     determ3_sp
 c     #################################################################
-      function determ3_sp(tensor) result(determ3)
+      function determ3_sp(tensor)
 
       real(4) :: tensor(3,3)
 
-      real(4) :: determ3
+      real(4) :: determ3_sp
 
-      determ3 = tensor(1,1)*tensor(2,2)*tensor(3,3)
-     .         +tensor(3,2)*tensor(2,1)*tensor(1,3)
-     .         +tensor(1,2)*tensor(2,3)*tensor(3,1)
-     .         -tensor(1,3)*tensor(2,2)*tensor(3,1)
-     .         -tensor(1,1)*tensor(2,3)*tensor(3,2)
-     .         -tensor(3,3)*tensor(1,2)*tensor(2,1)
+      determ3_sp = tensor(1,1)*tensor(2,2)*tensor(3,3)
+     .            +tensor(3,2)*tensor(2,1)*tensor(1,3)
+     .            +tensor(1,2)*tensor(2,3)*tensor(3,1)
+     .            -tensor(1,3)*tensor(2,2)*tensor(3,1)
+     .            -tensor(1,1)*tensor(2,3)*tensor(3,2)
+     .            -tensor(3,3)*tensor(1,2)*tensor(2,1)
 
       end function determ3_sp
 
