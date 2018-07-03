@@ -4039,7 +4039,7 @@ cc      use pic_io
      .               ,add_profile_stage
 #endif
 
-      use ts_io, ONLY:time,dt,ts_chk_dump
+      use ts_io, ONLY:time,dt,ts_chk_dump,itime
 
       use var_io, ONLY: tst_flg
 

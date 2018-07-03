@@ -2,7 +2,7 @@
 
 #if !defined(plotting)
 c pic_mover
-c ######################################################################    
+c #####################################################################    
       module pic_mover
 
       use pic_map
@@ -1944,7 +1944,8 @@ c     Update moments
 
       momsn = moms
 
-      if (init) return
+cc      if (init) return
+      if (.not.init) then
 
 c     Update particle info
 
@@ -2065,9 +2066,11 @@ c     Update particle info
 
       end select
 
+      endif
+
 c     Dump particles for restart
 
-      if (TS_chk_dump().and.(.not.tst_flg)) then
+      if ((TS_chk_dump().or.itime==0).and.(.not.tst_flg)) then
         ierr = pic_dump_pcles(time)
       endif
 

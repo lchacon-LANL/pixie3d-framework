@@ -24,11 +24,13 @@ c$$$!$OMP.REDUCTION(+:v_tot,vx2,vt2)
                rx = r4(1,ipc) 
                where (rx==0d0) rx = rx + 1d-16 !end with 1
                where (rx==1d0) rx = rx - 1d-16
+               rx = 0.5
                xp = hx*rx 
 
                rx = r4(2,ipc)
                where (rx==0d0) rx = rx + 1d-16 !end with 1
                where (rx==1d0) rx = rx - 1d-16
+               rx = 0.5
                yp = hy*rx 
 
                rx1= dinvnorm((r4(3,ipc)+1d0)*0.5d0)  
