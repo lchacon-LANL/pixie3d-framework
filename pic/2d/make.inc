@@ -25,7 +25,7 @@ SUBDIRS = $(COMMONDIR)/math\
 override CPPFLAGS += $(PREPROC)_prec=8
 
 #Size of particle groups
-PCLE_GROUPING=8
+PCLE_GROUPING=1
 
 override CPPFLAGS += $(PREPROC)_Npg=$(PCLE_GROUPING)
 

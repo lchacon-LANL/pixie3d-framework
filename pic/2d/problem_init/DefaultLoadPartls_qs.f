@@ -24,18 +24,31 @@ c$$$!$OMP.REDUCTION(+:v_tot,vx2,vt2)
                rx = r4(1,ipc) 
                where (rx==0d0) rx = rx + 1d-16 !end with 1
                where (rx==1d0) rx = rx - 1d-16
+c diag***
                rx = 0.5
+c diag***
                xp = hx*rx 
 
                rx = r4(2,ipc)
                where (rx==0d0) rx = rx + 1d-16 !end with 1
                where (rx==1d0) rx = rx - 1d-16
+c diag***
                rx = 0.5
+c diag***
                yp = hy*rx 
 
-               rx1= dinvnorm((r4(3,ipc)+1d0)*0.5d0)  
-               rx2= dinvnorm((r4(4,ipc)+1d0)*0.5d0)
-               rx3= dinvnorm((r4(5,ipc)+1d0)*0.5d0)
+c diag***
+               call random_number(rx1(1))
+               rx1(1) = dinvnorm(rx1(1))  ; rx1 = rx1(1)
+               call random_number(rx2(1))
+               rx2(1) = dinvnorm(rx2(1))  ; rx2 = rx2(1)               
+               call random_number(rx3(1))
+               rx3(1) = dinvnorm(rx3(1))  ; rx3 = rx3(1) 
+c diag***
+
+c$$$               rx1= dinvnorm((r4(3,ipc)+1d0)*0.5d0)  
+c$$$               rx2= dinvnorm((r4(4,ipc)+1d0)*0.5d0)
+c$$$               rx3= dinvnorm((r4(5,ipc)+1d0)*0.5d0)
 
                !Particle group index
                ip = ipc0+ipc
