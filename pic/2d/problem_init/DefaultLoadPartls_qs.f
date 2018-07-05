@@ -38,17 +38,17 @@ c diag***
                yp = hy*rx 
 
 c diag***
-               call random_number(rx1(1))
-               rx1(1) = dinvnorm(rx1(1))  ; rx1 = rx1(1)
-               call random_number(rx2(1))
-               rx2(1) = dinvnorm(rx2(1))  ; rx2 = rx2(1)               
-               call random_number(rx3(1))
-               rx3(1) = dinvnorm(rx3(1))  ; rx3 = rx3(1) 
+c$$$               call random_number(rx)
+c$$$               rx1 = dinvnorm(rx)
+c$$$               call random_number(rx)
+c$$$               rx2 = dinvnorm(rx)
+c$$$               call random_number(rx)
+c$$$               rx3 = dinvnorm(rx)
 c diag***
 
-c$$$               rx1= dinvnorm((r4(3,ipc)+1d0)*0.5d0)  
-c$$$               rx2= dinvnorm((r4(4,ipc)+1d0)*0.5d0)
-c$$$               rx3= dinvnorm((r4(5,ipc)+1d0)*0.5d0)
+               rx1= dinvnorm((r4(3,ipc)+1d0)*0.5d0)  
+               rx2= dinvnorm((r4(4,ipc)+1d0)*0.5d0)
+               rx3= dinvnorm((r4(5,ipc)+1d0)*0.5d0)
 
                !Particle group index
                ip = ipc0+ipc
