@@ -21,7 +21,7 @@ c$$$!$OMP DO
 c$$$!$OMP.REDUCTION(+:v_tot,vx2,vt2)
              do ipc = 1, npc_int(ii,is)
 
-               rx = r4(1,ipc) 
+               rx = r4(4,ipc) 
                where (rx==0d0) rx = rx + 1d-16 !end with 1
                where (rx==1d0) rx = rx - 1d-16
 c diag***
@@ -29,7 +29,7 @@ c diag***
 c diag***
                xp = hx*rx 
 
-               rx = r4(2,ipc)
+               rx = r4(5,ipc)
                where (rx==0d0) rx = rx + 1d-16 !end with 1
                where (rx==1d0) rx = rx - 1d-16
 c diag***
@@ -46,9 +46,9 @@ c$$$               call random_number(rx)
 c$$$               rx3 = dinvnorm(rx)
 c diag***
 
-               rx1= dinvnorm((r4(3,ipc)+1d0)*0.5d0)  
-               rx2= dinvnorm((r4(4,ipc)+1d0)*0.5d0)
-               rx3= dinvnorm((r4(5,ipc)+1d0)*0.5d0)
+               rx1= dinvnorm((r4(1,ipc)+1d0)*0.5d0)  
+               rx2= dinvnorm((r4(2,ipc)+1d0)*0.5d0)
+               rx3= dinvnorm((r4(3,ipc)+1d0)*0.5d0)
 
                !Particle group index
                ip = ipc0+ipc
