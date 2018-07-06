@@ -186,7 +186,7 @@ c     Local variables
 
       real(8) :: f0,fkm,fk,fkp,fm,flimit,theta,dampm
 
-      logical :: vol_wgt,convergence,failure,left_pc
+      logical :: vol_wgt,convergence,failure,left_pc,is_ieee_exception
 
 c     Begin program
 
@@ -378,8 +378,12 @@ c     Check Anderson convergence/failure
         if (out.ge.3) then
           call dumpResidualNorms(neq,-rk,vol_wgt)
         endif
-
+        
         convergence = (fkp <= flimit.or.(dxnorm<=stol.and.(.not.init)))
+
+        is_ieee_exception = is_NAN(fkp).or.is_INF(fkp)
+        convergence = convergence.and.(.not.is_ieee_exception)
+        
         failure     = (check > check_lim .or. jit == ntit_max_rej)
      .               .and.(.not.convergence)
 
@@ -515,7 +519,7 @@ c     Local variables
 
       real(8) :: f0,fkm,fk,fkp,fm,flimit,etak,etakm,theta,dampm
 
-      logical :: convergence,failure,vol_wgt
+      logical :: convergence,failure,vol_wgt,is_ieee_exception
 
 c     Begin program
 
@@ -889,6 +893,10 @@ c     Check Anderson convergence/failure
         endif
 
         convergence = (fkp <= flimit.or.(dxnorm<=stol.and.(.not.init)))
+
+        is_ieee_exception = is_NAN(fkp).or.is_INF(fkp)
+        convergence = convergence.and.(.not.is_ieee_exception)
+
         failure     = (check > check_lim .or. jit == ntit_max_rej)
      .               .and.(.not.convergence)
 
