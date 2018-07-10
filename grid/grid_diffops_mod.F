@@ -8069,7 +8069,7 @@ c     End program
 
 c     flx_nc_advec_mesh
 c     ###############################################################
-      function flx_nc_advec_mesh(g_def,igrid,v,arr,method,bcs,vol)
+      function flx_nc_advec_mesh(g_def,igrid,v,arr,method,bcs,vol,rvrs)
      $         result(advec)
       implicit none
 c     ---------------------------------------------------------------
@@ -8091,16 +8091,16 @@ c     Call variables
      $                ,0:size(v,2)-1
      $                ,0:size(v,3)-1)
 
-      logical,optional :: vol
+      logical,optional :: vol,rvrs
 
 c     Local variables
 
       integer :: i,j,k,nx,ny,nz,ig,jg,kg,bcnd(6,3),ivar
 
-      real(8) :: dxx,dyy,dzz
+      real(8) :: dxx,dyy,dzz,sgn
       real(8) :: flxip,flxim,flxjp,flxjm,flxkp,flxkm
       real(8),pointer,dimension(:,:,:,:) :: darr
-      logical :: vw
+      logical :: vw,rev_sgn
 
 c     Debug
 
@@ -8121,6 +8121,15 @@ c     Begin program
         vw = .false.
       endif
 
+      if (PRESENT(rvrs)) then
+        rev_sgn = rvrs
+      else
+        rev_sgn = .false.
+      endif
+
+      sgn = 1d0
+      if (rev_sgn) sgn=-1d0  !Takes (-v) instead of v
+
 c     Compute difference arrays and communicate BCs
 
       darr = 0d0
@@ -8129,85 +8138,60 @@ c     Compute difference arrays and communicate BCs
       darr(:,1:ny,:,2) = arr(:,2:ny+1,:)-arr(:,0:ny-1,:)
       darr(:,:,1:nz,3) = arr(:,:,2:nz+1)-arr(:,:,0:nz-1)
 
-c$$$      bcnd(:,1) = bcs
-c$$$c$$$      bcnd(:,1) = (/bcs(1),bcs(2),DEF,DEF,DEF,DEF/)
-c$$$c$$$      bcnd(:,1) = (/bcond(1),bcond(2),DEF,DEF,DEF,DEF/)
-c$$$      !Change parity (darr is gradient)
-c$$$      where (bcnd(1:2,1) == NEU) bcnd(1:2,1) = DIR
-c$$$      where (bcnd(1:2,1) == DIR) bcnd(1:2,1) = NEU
-c$$$
-c$$$      bcnd(:,2) = bcs
-c$$$c$$$      bcnd(:,2) = (/DEF,DEF,bcs(3),bcs(4),DEF,DEF/)
-c$$$c$$$      bcnd(:,2) = (/DEF,DEF,bcond(3),bcond(4),DEF,DEF/)
-c$$$      !Change parity (darr is gradient)
-c$$$      where (bcnd(3:4,2) == DIR) bcnd(3:4,2) = NEU
-c$$$      where (bcnd(3:4,2) == NEU) bcnd(3:4,2) = DIR
-c$$$
-c$$$      bcnd(:,3) = bcs
-c$$$c$$$      bcnd(:,3) = (/DEF,DEF,DEF,DEF,bcs(5),bcs(6)/)
-c$$$c$$$      bcnd(:,3) = (/DEF,DEF,DEF,DEF,bcond(5),bcond(6)/)
-c$$$      !Change parity (darr is gradient)
-c$$$      where (bcnd(5:6,3) == DIR) bcnd(5:6,3) = NEU
-c$$$      where (bcnd(5:6,3) == NEU) bcnd(5:6,3) = DIR
-c$$$
-c$$$      do ivar=1,3
-c$$$        call setMGBC(0,1,nx,ny,nz,igrid,darr(:,:,:,ivar)
-c$$$     $              ,bcnd(:,ivar),icomp=(/1/),iorder=1)
-c$$$      enddo
+      bcnd(:,1) = abs(bcs)
+c$$$      bcnd(:,1) = (/bcs(1),bcs(2),DEF,DEF,DEF,DEF/)
+      !Change parity (darr is gradient)
+      where     (bcnd(1:2,1) == NEU)
+        bcnd(1:2,1) = DIR
+      elsewhere (bcnd(1:2,1) == DIR)
+        bcnd(1:2,1) = NEU
+      end where
+      
+      bcnd(:,2) = abs(bcs)
+c$$$      bcnd(:,2) = (/DEF,DEF,bcs(3),bcs(4),DEF,DEF/)
+      !Change parity (darr is gradient)
+      where     (bcnd(3:4,2) == DIR)
+        bcnd(3:4,2) = NEU
+      elsewhere (bcnd(3:4,2) == NEU)
+        bcnd(3:4,2) = DIR
+      end where
 
-      !Setup BCs (do nothing for known BC values)
-      bcnd(:,1) = (/bcs(1),bcs(2),DEF,DEF,DEF,DEF/)
-      bcnd(:,2) = (/DEF,DEF,bcs(3),bcs(4),DEF,DEF/)
-      bcnd(:,3) = (/DEF,DEF,DEF,DEF,bcs(5),bcs(6)/)
+      bcnd(:,3) = abs(bcs)
+c$$$      bcnd(:,3) = (/DEF,DEF,DEF,DEF,bcs(5),bcs(6)/)
+      !Change parity (darr is gradient)
+      where     (bcnd(5:6,3) == DIR)
+        bcnd(5:6,3) = NEU
+      elsewhere (bcnd(5:6,3) == NEU)
+        bcnd(5:6,3) = DIR
+      end where
+      
+      do ivar=1,3
+        call setMGBC(g_def,0,1,nx,ny,nz,igrid,darr(:,:,:,ivar)
+     $              ,bcnd(:,ivar),icomp=(/1/),iorder=1)
+      enddo
 
-      !Check for special boundaries
-      where (bcond == SP ) bcnd(:,1) = SP
-      where (bcond == SP ) bcnd(:,2) = SP
-      where (bcond == SP ) bcnd(:,3) = SP
-      where (bcond == PER) bcnd(:,1) = PER
-      where (bcond == PER) bcnd(:,2) = PER
-      where (bcond == PER) bcnd(:,3) = PER
-cc      where (bcnd /= DEF .and. bcnd /= PER .and. bcnd /= SP) bcnd = EXT
-      where (bcnd /= PER .and. bcnd /= SP) bcnd = EXT
-
-      call setMGBC(g_def,0,3,nx,ny,nz,igrid,darr,bcnd,icomp=(/1/)
-     .            ,is_cnv=.false.,is_vec=.true.,iorder=1)
+c$$$      !Check for special boundaries
+c$$$      where (bcond == SP ) bcnd(:,1) = SP
+c$$$      where (bcond == SP ) bcnd(:,2) = SP
+c$$$      where (bcond == SP ) bcnd(:,3) = SP
+c$$$      where (bcond == PER) bcnd(:,1) = PER
+c$$$      where (bcond == PER) bcnd(:,2) = PER
+c$$$      where (bcond == PER) bcnd(:,3) = PER
+c$$$cc      where (bcnd /= DEF .and. bcnd /= PER .and. bcnd /= SP) bcnd = EXT
+c$$$      where (bcnd /= PER .and. bcnd /= SP) bcnd = EXT
+c$$$
+c$$$      call setMGBC(g_def,0,3,nx,ny,nz,igrid,darr,bcnd,icomp=(/1/)
+c$$$     .            ,is_cnv=.false.,is_vec=.true.,iorder=1)
       
 c diag *****
-c$$$      if (my_rank == 0) then
-c$$$        write (*,*) 'comp 1',darr(:,1,1,1)
-c$$$        write (*,*) 'comp 2',darr(:,1,1,1)
-c$$$        write (*,*) 'comp 3',darr(:,1,1,1)
-c$$$      endif
-c$$$
-c$$$      debugfile = 'debug_p'//trim(int2char(my_rank))//'.bin'
-c$$$      open(unit=110,file=debugfile,form='unformatted'
+c$$$      open(unit=110,file='debug.bin',form='unformatted'
 c$$$     .    ,status='replace')
-c$$$
-c$$$      k   = 1
-c$$$
-c$$$      allocate(debug2(0:nx+1,0:ny+1,0:nz+1))
-c$$$
-c$$$      debug2 = arr
-c$$$      call contour(debug2(0:nx+1,0:ny+1,k),nx+2,ny+2,0d0
-c$$$     .     ,xmax,0d0,ymax,0,110)
-c$$$      debug2 = darr(:,:,:,1)
-c$$$      call contour(debug2(0:nx+1,0:ny+1,k),nx+2,ny+2,0d0
-c$$$     .     ,xmax,0d0,ymax,1,110)
-c$$$      debug2 = darr(:,:,:,2)
-c$$$      call contour(debug2(0:nx+1,0:ny+1,k),nx+2,ny+2,0d0
-c$$$     .     ,xmax,0d0,ymax,1,110)
-c$$$      debug2 = darr(:,:,:,3)
-c$$$      call contour(debug2(0:nx+1,0:ny+1,k),nx+2,ny+2,0d0
-c$$$     .     ,xmax,0d0,ymax,1,110)
-c$$$
-c$$$      deallocate(debug2)
+c$$$      call contour(darr(:,:,1,1),nx+2,ny+2,0d0,1d0,0d0,1d0,0,110)
+c$$$      call contour(darr(:,:,1,2),nx+2,ny+2,0d0,1d0,0d0,1d0,1,110)
+c$$$      call contour(darr(:,:,1,3),nx+2,ny+2,0d0,1d0,0d0,1d0,1,110)
 c$$$      close(110)
-c$$$
-c$$$cc      call pstop('flx_nc_advec_mesh','DIAG')
-c$$$cc      stop
-c$$$cc      pause
 c diag *****
+      
 c     Compute advection
 
       advec =0d0
@@ -8225,25 +8209,25 @@ c     Compute advection
 
             !Find fluxes
             flxip = scl_nc_advc_flx_x_new(g_def,i  ,j,k,nx,ny,nz,igrid
-     $                                   ,v(i,j,k,1),arr,darr(:,:,:,1)
-     .                                   ,method)
+     $                                   ,sgn*v(i,j,k,1),arr
+     .                                   ,darr(:,:,:,1),method)
             flxim = scl_nc_advc_flx_x_new(g_def,i-1,j,k,nx,ny,nz,igrid
-     $                                   ,v(i,j,k,1),arr,darr(:,:,:,1)
-     .                                   ,method)
+     $                                   ,sgn*v(i,j,k,1),arr
+     .                                   ,darr(:,:,:,1),method)
 
             flxjp = scl_nc_advc_flx_y_new(g_def,i,j  ,k,nx,ny,nz,igrid
-     $                                   ,v(i,j,k,2),arr,darr(:,:,:,2)
-     .                                   ,method)
+     $                                   ,sgn*v(i,j,k,2),arr
+     .                                   ,darr(:,:,:,2),method)
             flxjm = scl_nc_advc_flx_y_new(g_def,i,j-1,k,nx,ny,nz,igrid
-     $                                   ,v(i,j,k,2),arr,darr(:,:,:,2)
-     .                                   ,method)
+     $                                   ,sgn*v(i,j,k,2),arr
+     .                                   ,darr(:,:,:,2),method)
 
             flxkp = scl_nc_advc_flx_z_new(g_def,i,j,k  ,nx,ny,nz,igrid
-     $                                   ,v(i,j,k,3),arr,darr(:,:,:,3)
-     .                                   ,method)
+     $                                   ,sgn*v(i,j,k,3),arr
+     .                                   ,darr(:,:,:,3),method)
             flxkm = scl_nc_advc_flx_z_new(g_def,i,j,k-1,nx,ny,nz,igrid
-     $                                   ,v(i,j,k,3),arr,darr(:,:,:,3)
-     .                                   ,method)
+     $                                   ,sgn*v(i,j,k,3),arr
+     .                                   ,darr(:,:,:,3),method)
 
             !Find advective term
 
