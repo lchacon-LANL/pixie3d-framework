@@ -7765,41 +7765,45 @@ c     Begin program
 
 c     Compute difference arrays and communicate BCs
 
-      darr(1:nx,:,:,1) = arr(2:nx+1,:,:)-arr(0:nx-1,:,:)
-      darr(:,1:ny,:,2) = arr(:,2:ny+1,:)-arr(:,0:ny-1,:)
-      darr(:,:,1:nz,3) = arr(:,:,2:nz+1)-arr(:,:,0:nz-1)
+      if (method > ZIP) then
+        darr(1:nx,:,:,1) = arr(2:nx+1,:,:)-arr(0:nx-1,:,:)
+        darr(:,1:ny,:,2) = arr(:,2:ny+1,:)-arr(:,0:ny-1,:)
+        darr(:,:,1:nz,3) = arr(:,:,2:nz+1)-arr(:,:,0:nz-1)
 
-      bcnd(:,1) = abs(bcs)
+        bcnd(:,1) = abs(bcs)
 c$$$      bcnd(:,1) = (/bcs(1),bcs(2),DEF,DEF,DEF,DEF/)
-      !Change parity (darr is gradient)
-      where     (bcnd(1:2,1) == NEU)
-        bcnd(1:2,1) = DIR
-      elsewhere (bcnd(1:2,1) == DIR)
-        bcnd(1:2,1) = NEU
-      end where
+        !Change parity (darr is gradient)
+        where     (bcnd(1:2,1) == NEU)
+          bcnd(1:2,1) = DIR
+        elsewhere (bcnd(1:2,1) == DIR)
+          bcnd(1:2,1) = NEU
+        end where
       
-      bcnd(:,2) = abs(bcs)
+        bcnd(:,2) = abs(bcs)
 c$$$      bcnd(:,2) = (/DEF,DEF,bcs(3),bcs(4),DEF,DEF/)
-      !Change parity (darr is gradient)
-      where     (bcnd(3:4,2) == DIR)
-        bcnd(3:4,2) = NEU
-      elsewhere (bcnd(3:4,2) == NEU)
-        bcnd(3:4,2) = DIR
-      end where
+        !Change parity (darr is gradient)
+        where     (bcnd(3:4,2) == DIR)
+          bcnd(3:4,2) = NEU
+        elsewhere (bcnd(3:4,2) == NEU)
+          bcnd(3:4,2) = DIR
+        end where
 
-      bcnd(:,3) = abs(bcs)
+        bcnd(:,3) = abs(bcs)
 c$$$      bcnd(:,3) = (/DEF,DEF,DEF,DEF,bcs(5),bcs(6)/)
-      !Change parity (darr is gradient)
-      where     (bcnd(5:6,3) == DIR)
-        bcnd(5:6,3) = NEU
-      elsewhere (bcnd(5:6,3) == NEU)
-        bcnd(5:6,3) = DIR
-      end where
+        !Change parity (darr is gradient)
+        where     (bcnd(5:6,3) == DIR)
+          bcnd(5:6,3) = NEU
+        elsewhere (bcnd(5:6,3) == NEU)
+          bcnd(5:6,3) = DIR
+        end where
 
-      do ivar=1,3
-        call setMGBC(g_def,0,1,nx,ny,nz,igrid,darr(:,:,:,ivar)
+        do ivar=1,3
+          call setMGBC(g_def,0,1,nx,ny,nz,igrid,darr(:,:,:,ivar)
      $              ,bcnd(:,ivar),icomp=(/1/),iorder=1)
-      enddo
+        enddo
+      else
+        darr = 0d0
+      endif
 
 c$$$      open(unit=110,file='debug.bin',form='unformatted'
 c$$$     .    ,status='replace')
@@ -8132,43 +8136,45 @@ c     Begin program
 
 c     Compute difference arrays and communicate BCs
 
-      darr = 0d0
+      if (method > ZIP) then
+        darr(1:nx,:,:,1) = arr(2:nx+1,:,:)-arr(0:nx-1,:,:)
+        darr(:,1:ny,:,2) = arr(:,2:ny+1,:)-arr(:,0:ny-1,:)
+        darr(:,:,1:nz,3) = arr(:,:,2:nz+1)-arr(:,:,0:nz-1)
 
-      darr(1:nx,:,:,1) = arr(2:nx+1,:,:)-arr(0:nx-1,:,:)
-      darr(:,1:ny,:,2) = arr(:,2:ny+1,:)-arr(:,0:ny-1,:)
-      darr(:,:,1:nz,3) = arr(:,:,2:nz+1)-arr(:,:,0:nz-1)
-
-      bcnd(:,1) = abs(bcs)
+        bcnd(:,1) = abs(bcs)
 c$$$      bcnd(:,1) = (/bcs(1),bcs(2),DEF,DEF,DEF,DEF/)
-      !Change parity (darr is gradient)
-      where     (bcnd(1:2,1) == NEU)
-        bcnd(1:2,1) = DIR
-      elsewhere (bcnd(1:2,1) == DIR)
-        bcnd(1:2,1) = NEU
-      end where
+        !Change parity (darr is gradient)
+        where     (bcnd(1:2,1) == NEU)
+          bcnd(1:2,1) = DIR
+        elsewhere (bcnd(1:2,1) == DIR)
+          bcnd(1:2,1) = NEU
+        end where
       
-      bcnd(:,2) = abs(bcs)
+        bcnd(:,2) = abs(bcs)
 c$$$      bcnd(:,2) = (/DEF,DEF,bcs(3),bcs(4),DEF,DEF/)
-      !Change parity (darr is gradient)
-      where     (bcnd(3:4,2) == DIR)
-        bcnd(3:4,2) = NEU
-      elsewhere (bcnd(3:4,2) == NEU)
-        bcnd(3:4,2) = DIR
-      end where
+        !Change parity (darr is gradient)
+        where     (bcnd(3:4,2) == DIR)
+          bcnd(3:4,2) = NEU
+        elsewhere (bcnd(3:4,2) == NEU)
+          bcnd(3:4,2) = DIR
+        end where
 
-      bcnd(:,3) = abs(bcs)
+        bcnd(:,3) = abs(bcs)
 c$$$      bcnd(:,3) = (/DEF,DEF,DEF,DEF,bcs(5),bcs(6)/)
-      !Change parity (darr is gradient)
-      where     (bcnd(5:6,3) == DIR)
-        bcnd(5:6,3) = NEU
-      elsewhere (bcnd(5:6,3) == NEU)
-        bcnd(5:6,3) = DIR
-      end where
+        !Change parity (darr is gradient)
+        where     (bcnd(5:6,3) == DIR)
+          bcnd(5:6,3) = NEU
+        elsewhere (bcnd(5:6,3) == NEU)
+          bcnd(5:6,3) = DIR
+        end where
       
-      do ivar=1,3
-        call setMGBC(g_def,0,1,nx,ny,nz,igrid,darr(:,:,:,ivar)
+        do ivar=1,3
+          call setMGBC(g_def,0,1,nx,ny,nz,igrid,darr(:,:,:,ivar)
      $              ,bcnd(:,ivar),icomp=(/1/),iorder=1)
-      enddo
+        enddo
+      else
+        darr = 0d0
+      endif
 
 c$$$      !Check for special boundaries
 c$$$      where (bcond == SP ) bcnd(:,1) = SP
