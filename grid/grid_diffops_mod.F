@@ -7921,9 +7921,9 @@ c     Figure out advective method
      .      .or.(isBdry(g_def,i+1,igr,1).and.bcond(1)/=PER)
 
       if (at_bdry.and.method > ZIP) then
-         meth = UPWD  !Revert to upwinding
+        meth = UPWD             !Revert to upwinding
       else
-         meth = method
+        meth = method
       endif
 
 c     Find advected quantity at faces
@@ -7986,9 +7986,9 @@ c     Figure out advective method
      .      .or.(isBdry(g_def,j+1,igr,3).and.bcond(3)/=PER)
 
       if (at_bdry.and.method > ZIP) then
-         meth = UPWD  !Revert to upwinding
+        meth = UPWD             !Revert to upwinding
       else
-         meth = method
+        meth = method
       endif
 
 c     Find advected quantity at faces
@@ -8051,9 +8051,9 @@ c     Figure out advective method
      .      .or.(isBdry(g_def,k+1,igr,5).and.bcond(5)/=PER)
 
       if (at_bdry.and.method > ZIP) then
-         meth = UPWD  !Revert to upwinding
+        meth = UPWD             !Revert to upwinding
       else
-         meth = method
+        meth = method
       endif
 
 c     Find advected quantity at faces
@@ -9222,13 +9222,13 @@ c     ---------------------------------------------------------------
 
 c     Call variables
 
-      real(8)    :: x2,x3,q2,q3,dcx2,dcq2,dcx3,dcq3,vel,inter
-      integer    :: advc
+      real(8) :: x2,x3,q2,q3,dcx2,dcq2,dcx3,dcq3,vel,inter
+      integer :: advc
 
 c     Local variables
 
-      real(8)    :: qt1,qt2,qt3,qt4,slp1,slp2,a,b,c,xp1,xp2,curv
-     $             ,dq1,dq2,dq3,dx1,dx2,dx3
+      real(8) :: qt1,qt2,qt3,qt4,slp1,slp2,a,b,c,xp1,xp2,curv
+     $          ,dq1,dq2,dq3,dx1,dx2,dx3
 
 c     Begin program
 
@@ -9273,7 +9273,7 @@ cc          curv = 2d0*((q4-q3)/(x4-x3)-(q3-q2)/(x3-x2))/(x4-x2)
         endif
 
 cc        inter = 0.5*(q3+q2) - 0.125*curv*(x3-x2)**2
-        inter = 0.5*(q3+q2) - 0.125*curv*(dx2)**2
+        inter = 0.5*(q3+q2) - 0.125*curv*dx2*dx2
 
       case(SMART)
 
@@ -9287,7 +9287,7 @@ c$$$          qt1 = 0.5*(q3+q2) - 0.125*curv*(x3-x2)**2
 c$$$          qt2 = slp1*q2 + (1.-slp1)*q1
 c$$$          qt3 = slp2*q2 + (1.-slp2)*q3
           curv = 2d0*(dq2/dx2-dq1/dx1)/(dx2+dx1)
-          qt1 = 0.5*(q3+q2) - 0.125*curv*(dx2)**2
+          qt1 = 0.5*(q3+q2) - 0.125*curv*dx2*dx2
           qt2 = q2 + (slp1-1.)*dq1
           qt3 = q2 - (slp2-1.)*dq2
           qt4 = fmed(q2,qt2,qt3)
@@ -9298,7 +9298,7 @@ c$$$          qt1 = 0.5d0*(q3+q2) - 0.125*curv*(x3-x2)**2
 c$$$          qt2 = slp1*q3 + (1.-slp1)*q4
 c$$$          qt3 = slp2*q3 + (1.-slp2)*q2
           curv = 2d0*(dq3/dx3-dq2/dx2)/(dx3+dx2)
-          qt1 = 0.5d0*(q3+q2) - 0.125*curv*(dx2)**2
+          qt1 = 0.5d0*(q3+q2) - 0.125*curv*dx2*dx2
           qt2 = q3 - (slp1-1.)*dq3
           qt3 = q3 + (slp2-1.)*dq2
           qt4 = fmed(q3,qt2,qt3)
@@ -9322,7 +9322,7 @@ cc          qt1  = (q2-q1)/(q3-q1)
 cc            inter = q1 + qt2*(q3-q1)
             inter = q3 + (qt2-1.)*(dq2+dq1)
           elseif (qt1.ge.xp2.and.qt1.lt.1d0) then
-            a = (0.25d0*xp2-.5d0)/(xp2-1d0)**3
+            a = (0.25d0*xp2-.5d0)*(xp2-1d0)**(-3)
             b = 0.125d0*(-4d0*xp2**2+7d0*xp2+1d0)*(xp2-1d0)**(-3)
             c = 1d0 - (-.5d0*xp2**2-0.375d0+1.125d0*xp2)*(xp2-1d0)**(-3)
             qt2 = (qt1 - 1d0)*(a*qt1**2 + b*qt1 + c) + 1d0
@@ -9330,7 +9330,7 @@ cc            inter = q1 + qt2*(q3-q1)
             inter = q3 + (qt2-1.)*(dq2+dq1)
           elseif (qt1.ge.xp1.and.qt1.lt.xp2) then
 cc            inter = 0.375d0*q3 + 0.75d0*q2 - 0.125d0*q1
-            inter = (3*q3 + 5*q2 + dq1)/8.
+            inter = 0.125d0*(3*q3 + 5*q2 + dq1)
           else
             inter = q2
           endif
@@ -9353,7 +9353,7 @@ cc            inter = q4 + qt2*(q2-q4)
             inter = q2 - (qt2-1.)*(dq3+dq2)
           elseif (qt1.ge.xp1.and.qt1.lt.xp2) then
 cc            inter = 0.375d0*q2 + 0.75d0*q3- 0.125d0*q4
-            inter = (3*q2 + 5*q3 - dq3)/8.
+            inter = 0.125d0*(3*q2 + 5*q3 - dq3)
           else
             inter = q3
           endif
@@ -9475,7 +9475,7 @@ cc          curv = 2d0*((q4-q3)/(x4-x3)-(q3-q2)/(x3-x2))/(x4-x2)
           curv = 2d0*(dq3/dx3-dq2/dx2)/(dx3+dx2)
         endif
 
-        inter = 0.5*(q3+q2) - 0.125*curv*(dx2)**2
+        inter = 0.5*(q3+q2) - 0.125*curv*dx2*dx2
 
       case(SMART)
 
@@ -9490,7 +9490,7 @@ c$$$          qt1 = 0.5*(q3+q2) - 0.125*curv*(x3-x2)**2
 c$$$          qt2 = slp1*q2 + (1.-slp1)*q1
 c$$$          qt3 = slp2*q2 + (1.-slp2)*q3
           curv = 2d0*(dq2/dx2-dq1/dx1)/(dx2+dx1)
-          qt1 = 0.5*(q3+q2) - 0.125*curv*(dx2)**2
+          qt1 = 0.5*(q3+q2) - 0.125*curv*dx2*dx2
           qt2 = q2 + (slp1-1.)*dq1
           qt3 = q2 - (slp2-1.)*dq2
           qt4 = fmed(q2,qt2,qt3)
@@ -9501,7 +9501,7 @@ c$$$          qt1 = 0.5d0*(q3+q2) - 0.125*curv*(x3-x2)**2
 c$$$          qt2 = slp1*q3 + (1.-slp1)*q4
 c$$$          qt3 = slp2*q3 + (1.-slp2)*q2
           curv = 2d0*(dq3/dx3-dq2/dx2)/(dx3+dx2)
-          qt1 = 0.5d0*(q3+q2) - 0.125*curv*(dx2)**2
+          qt1 = 0.5d0*(q3+q2) - 0.125*curv*dx2*dx2
           qt2 = q3 - (slp1-1.)*dq3
           qt3 = q3 + (slp2-1.)*dq2
           qt4 = fmed(q3,qt2,qt3)
@@ -9525,7 +9525,7 @@ cc          qt1  = (q2-q1)/(q3-q1)
 cc            inter = q1 + qt2*(q3-q1)
             inter = q3 + (qt2-1.)*(dq2+dq1)
           elsewhere (qt1.ge.xp2.and.qt1.lt.1d0)
-            a = (0.25d0*xp2-.5d0)/(xp2-1d0)**3
+            a = (0.25d0*xp2-.5d0)*(xp2-1d0)**(-3)
             b = 0.125d0*(-4d0*xp2**2+7d0*xp2+1d0)*(xp2-1d0)**(-3)
             c = 1d0 - (-.5d0*xp2**2-0.375d0+1.125d0*xp2)*(xp2-1d0)**(-3)
             qt2 = (qt1 - 1d0)*(a*qt1**2 + b*qt1 + c) + 1d0
@@ -9533,7 +9533,7 @@ cc            inter = q1 + qt2*(q3-q1)
             inter = q3 + (qt2-1.)*(dq2+dq1)
           elsewhere (qt1.ge.xp1.and.qt1.lt.xp2)
 cc            inter = 0.375d0*q3 + 0.75d0*q2 - 0.125d0*q1
-            inter = (3*q3 + 5*q2 + dq1)/8.
+            inter = 0.125*(3*q3 + 5*q2 + dq1)
           elsewhere
             inter = q2
           end where
@@ -9556,7 +9556,7 @@ cc            inter = q4 + qt2*(q2-q4)
             inter = q2 - (qt2-1.)*(dq3+dq2)
           elsewhere (qt1.ge.xp1.and.qt1.lt.xp2)
 cc            inter = 0.375d0*q2 + 0.75d0*q3- 0.125d0*q4
-            inter = (3*q2 + 5*q3 - dq3)/8.
+            inter = 0.125*(3*q2 + 5*q3 - dq3)
           elsewhere
             inter = q3
           end where
@@ -9670,7 +9670,7 @@ cc          curv = 2d0*((q4-q3)/(x4-x3)-(q3-q2)/(x3-x2))/(x4-x2)
           curv = 2d0*(dq3/dx3-dq2/dx2)/(dx3+dx2)
         endif
 
-        inter = 0.5*(q3+q2) - 0.125*curv*(dx2)**2
+        inter = 0.5*(q3+q2) - 0.125*curv*dx2*dx2
 
       case(SMART)
 
@@ -9685,7 +9685,7 @@ c$$$          qt1 = 0.5*(q3+q2) - 0.125*curv*(x3-x2)**2
 c$$$          qt2 = slp1*q2 + (1.-slp1)*q1
 c$$$          qt3 = slp2*q2 + (1.-slp2)*q3
           curv = 2d0*(dq2/dx2-dq1/dx1)/(dx2+dx1)
-          qt1 = 0.5*(q3+q2) - 0.125*curv*(dx2)**2
+          qt1 = 0.5*(q3+q2) - 0.125*curv*dx2*dx2
           qt2 = q2 + (slp1-1.)*dq1
           qt3 = q2 - (slp2-1.)*dq2
           qt4 = fmed(q2,qt2,qt3)
@@ -9696,7 +9696,7 @@ c$$$          qt1 = 0.5d0*(q3+q2) - 0.125*curv*(x3-x2)**2
 c$$$          qt2 = slp1*q3 + (1.-slp1)*q4
 c$$$          qt3 = slp2*q3 + (1.-slp2)*q2
           curv = 2d0*(dq3/dx3-dq2/dx2)/(dx3+dx2)
-          qt1 = 0.5d0*(q3+q2) - 0.125*curv*(dx2)**2
+          qt1 = 0.5d0*(q3+q2) - 0.125*curv*dx2*dx2
           qt2 = q3 - (slp1-1.)*dq3
           qt3 = q3 + (slp2-1.)*dq2
           qt4 = fmed(q3,qt2,qt3)
@@ -9720,7 +9720,7 @@ cc          qt1  = (q2-q1)/(q3-q1)
 cc            inter = q1 + qt2*(q3-q1)
             inter = q3 + (qt2-1.)*(dq2+dq1)
           elsewhere (qt1.ge.xp2.and.qt1.lt.1d0)
-            a = (0.25d0*xp2-.5d0)/(xp2-1d0)**3
+            a = (0.25d0*xp2-.5d0)*(xp2-1d0)**(-3)
             b = 0.125d0*(-4d0*xp2**2+7d0*xp2+1d0)*(xp2-1d0)**(-3)
             c = 1d0 - (-.5d0*xp2**2-0.375d0+1.125d0*xp2)*(xp2-1d0)**(-3)
             qt2 = (qt1 - 1d0)*(a*qt1**2 + b*qt1 + c) + 1d0
@@ -9728,7 +9728,7 @@ cc            inter = q1 + qt2*(q3-q1)
             inter = q3 + (qt2-1.)*(dq2+dq1)
           elsewhere (qt1.ge.xp1.and.qt1.lt.xp2)
 cc            inter = 0.375d0*q3 + 0.75d0*q2 - 0.125d0*q1
-            inter = (3*q3 + 5*q2 + dq1)/8.
+            inter = 0.125*(3*q3 + 5*q2 + dq1)
           elsewhere
             inter = q2
           end where
@@ -9751,7 +9751,7 @@ cc            inter = q4 + qt2*(q2-q4)
             inter = q2 - (qt2-1.)*(dq3+dq2)
           elsewhere (qt1.ge.xp1.and.qt1.lt.xp2)
 cc            inter = 0.375d0*q2 + 0.75d0*q3- 0.125d0*q4
-            inter = (3*q2 + 5*q3 - dq3)/8.
+            inter = 0.125*(3*q2 + 5*q3 - dq3)
           elsewhere
             inter = q3
           end where
