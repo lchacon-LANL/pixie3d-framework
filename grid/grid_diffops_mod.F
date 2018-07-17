@@ -7449,7 +7449,7 @@ c     Local variables
 
       real(8) :: jacip,jacim,jac,qip,vxp
 
-      logical :: spoint,zv,at_bdry
+      logical :: spoint,zv,at_bdry,zero_flx
 
 c     Begin program
 
@@ -7487,16 +7487,19 @@ c     Find X ZIP flux (used even if method /= ZIP)
       at_bdry = (isBdry(g_def,i ,igr,2).and.bcond(2)/=PER)
      .      .or.(isBdry(g_def,ip,igr,1).and.bcond(1)/=PER)
 
-c$$$      if ((v(ip,j,k) == -v(i,j,k)).and.at_bdry) then      !Impenetrable-wall bdry
-c$$$        flxip = 0d0
-c$$$      elseif(isSP2(g_def,i+1,igr,ibc=1).and.spoint) then  !SP boundary
-      if(isSP2(g_def,i+1,igr,ibc=1).and.spoint) then !SP boundary
-        flxip = 0d0
-      elseif(at_bdry) then                                !Other boundaries
-        flxip = 0.5*(v(ip,j,k)*arr(i,j,k)+v(i,j,k)*arr(ip,j,k))
-      else                                                !Not at boundary
+      spoint = isSP2(g_def,i+1,igr,ibc=1).and.spoint
+      zero_flx = ((v(ip,j,k) == -v(i,j,k)).and.at_bdry)
+     .          .and.(.not.isSP2(g_def,i+1,igr,ibc=1))
+
+      if (.not.at_bdry) then    !Not at boundary
         flxip = 0.25*(v(ip,j,k)*arr(i ,j,k)/jacip
      .              + v(i ,j,k)*arr(ip,j,k)/jac  )*(jac+jacip)
+      else
+        if (zero_flx.or.spoint) then
+          flxip = 0d0    !Shut off flux for vn=0 BC
+        else
+          flxip = 0.5*(v(ip,j,k)*arr(i,j,k)+v(i,j,k)*arr(ip,j,k))
+        endif
       endif
 
 c     Other advective methods
@@ -7505,7 +7508,7 @@ c     Other advective methods
 
         !Find velocities at faces from ZIP fluxes
         if (zv
-     .     .and.(arr(ip,j,k)*arr(i,j,k)>0d0)
+     .     .and.(    arr(ip,j,k)*arr(i,j,k) >0d0)
      .     .and.(abs(arr(ip,j,k)+arr(i,j,k))>zip_threshold)) then
           vxp =2.*flxip/(arr(ip,j,k)+arr(i,j,k))
         else
@@ -7557,7 +7560,7 @@ c     Local variables
 
       real(8) :: jac,qjp,vyp
 
-      logical :: zv,at_bdry
+      logical :: zv,at_bdry,zero_flx
 
 c     Begin program
 
@@ -7583,11 +7586,13 @@ c     Find X ZIP flux (used even if method /= ZIP)
       at_bdry = (isBdry(g_def,j ,igr,4).and.bcond(4)/=PER)
      .      .or.(isBdry(g_def,jp,igr,3).and.bcond(3)/=PER)
 
-c$$$      if ((v(i,j,k) == -v(i,jp,k)).and.at_bdry) then
-c$$$        flxjp = 0d0             !Shut off flux for vn=0 BC
-c$$$      else
+      zero_flx = (v(i,j,k) == -v(i,jp,k)).and.at_bdry
+
+      if (zero_flx) then
+        flxjp = 0d0             !Shut off flux for vn=0 BC
+      else
         flxjp = 0.5*(v(i,jp,k)*arr(i,j,k) + v(i,j,k)*arr(i,jp,k))
-c$$$      endif
+      endif
 
 c     Other advective methods
 
@@ -7647,7 +7652,7 @@ c     Local variables
 
       real(8) :: jac,qkp,vzp
 
-      logical :: zv,at_bdry
+      logical :: zv,at_bdry,zero_flx
 
 c     Begin program
 
@@ -7673,11 +7678,13 @@ c     Find X ZIP flux (used even if method /= ZIP)
       at_bdry = (isBdry(g_def,k ,igr,6).and.bcond(6)/=PER)
      .      .or.(isBdry(g_def,kp,igr,5).and.bcond(5)/=PER)
 
-c$$$      if ((v(i,j,k) == -v(i,j,kp)).and.at_bdry) then
-c$$$        flxkp = 0d0             !Shut off flux for vn=0 BC
-c$$$      else
+      zero_flx = (v(i,j,k) == -v(i,j,kp)).and.at_bdry
+
+      if (zero_flx) then
+        flxkp = 0d0             !Shut off flux for vn=0 BC
+      else
         flxkp = 0.5*(v(i,j,kp)*arr(i,j,k) + v(i,j,k)*arr(i,j,kp))
-c$$$      endif
+      endif
 
 c     Other advective methods
 
