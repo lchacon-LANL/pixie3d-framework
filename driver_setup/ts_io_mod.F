@@ -4,7 +4,7 @@ c ######################################################################
 
         use ts_base
 
-        use graphics_io, ONLY: no_graphics_io
+        use graphics_io, ONLY: no_graphics_io,nplot,ndplot,tmplot,dplot
 
       contains
 
@@ -144,12 +144,14 @@ cc          if(itime-init_grid_offset > 0) tmrst=tmrst-dstep
           call writeRecordFile(recordfile,itime,time,dt,gammat,varray)
         endif
 
+#if defined(MK)
         if (relax_init_grid) then
           relax_init_grid = .false.
 cc          if (source) call get_src(varray,.true.) !Update source with interpolated equilibrium
           call equateDerivedType (u_n,varray)     !Save interpolated (unperturbed) equilibrium
           call perturbEquilibrium(varray)         !Perturb interpolated equilibrium
         endif
+#endif
 
 c     End program
       
@@ -229,5 +231,36 @@ c     End program
  310  format (i5,3x,f7.1,4x,f7.1,4x,f7.1)
 
       end subroutine TS_final_io
-      
+
+c     TS_chk_plot_dump
+c     ###############################################################
+      function TS_chk_plot_dump(reset) result(dump)
+
+c     ---------------------------------------------------------------
+c     Check for end of time loop
+c     ---------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      logical :: dump,reset
+
+c     Local variables
+
+c     Begin program
+
+      dump = ( nplot        == ndplot       .and. nplot > 0)
+     .   .or.((time-tmplot) >= dplot-0.9*dt .and. dplot > 0d0)
+     .   .or.(time         == 0d0)
+
+      if (reset.and.dump) then
+        nplot = 0
+        if (itime.gt.0) tmplot = time
+      endif
+
+c     End program
+
+      end function TS_chk_plot_dump
+
       end module ts_io
