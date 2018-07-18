@@ -6,6 +6,8 @@ ARCH ?= $(shell uname -s)
 
 M_ARCH ?= native
 
+MACHINE ?= $(HOST)
+
 CPPFLAGS += $(PREPROC)$(ARCH)
 
 ############
@@ -68,6 +70,8 @@ endif
 
 ifeq ($(HOST),jetta)
 
+  override MACHINE = jetta
+
   FC = gfortran
 
   OMP_NUM_THREADS = 32
@@ -98,7 +102,7 @@ ifeq ($(HOST),jetta)
 
       #Determined via modules
       HDF5_LIBS =-L$(PHDF5_LIB) -lhdf5hl_fortran -lhdf5_fortran -lhdf5_hl -lhdf5 -lz -lm 
-      HDF5_MOD  = $(PHDF5_LIB)
+      HDF5_MOD  = $(PHDF5_INC)
       HDF5_INC  = $(PHDF5_INC)
 
       ifeq ($(PIT),t)
@@ -107,8 +111,12 @@ ifeq ($(HOST),jetta)
         ADIOS = t
       endif
 
-      #Determined via modules
-      ADIOS_LIBS = -I$(ADIOS_INC) -L$(ADIOS_LIB) -ladiosf -ladiosreadf -lmxml
+      ADIOS_BUFFER_MB = 10
+      ADIOS_METHOD = MPI
+
+      ADIOS_HOME = /nh/u/lchacon/lib/adios-1.10.0
+      ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1
+      ADIOS_VER  = 1.10.0
 
       SPRNG = t
 
@@ -121,7 +129,7 @@ ifeq ($(HOST),jetta)
 
       #Determined via modules
       HDF5_LIBS =-L$(SHDF5_LIB) -lhdf5hl_fortran -lhdf5_fortran -lhdf5_hl -lhdf5 -lz -lm -ldl
-      HDF5_MOD  = $(SHDF5_LIB)
+      HDF5_MOD  = $(SHDF5_INC)
       HDF5_INC  = $(SHDF5_INC)
 
       ADIOS = f
@@ -132,7 +140,7 @@ ifeq ($(HOST),jetta)
       SPRNG_INC = $(SPRNG_SER_HOME)/include
     endif
 
-    NETCDF=f
+    NETCDF=t
     NETCDF_LIBS = -lnetcdff -lnetcdf
     NETCDF_INC  = -I/usr/include
 
@@ -282,9 +290,9 @@ ifeq ($(findstring quevedo,$(HOST)),quevedo)
     PETSC_DIR =$(HOME)/Software/petsc-3.0.0-p7
 
     ifeq ($(BOPT),O)
-      PETSC_ARCH = macosx_openmpi_O
+      PETSC_ARCH = macosx_gcc6.3.0_openmpi1.10.3_O
     else
-      PETSC_ARCH = macosx_openmpi_g
+      PETSC_ARCH = macosx_gcc6.3.0_openmpi1.10.3_g
     endif
 
     HDF5 = t
@@ -296,9 +304,9 @@ ifeq ($(findstring quevedo,$(HOST)),quevedo)
 
     ADIOS = t
 
-    ADIOS_HOME = $(HOME)/lib/adios-1.3.1
-    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L$(HOME)/lib/mxml-2.7/lib -lmxml
-    ADIOS_VER  = 1.31
+    ADIOS_HOME = $(HOME)/lib/adios-1.10.0
+    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1
+    ADIOS_VER  = 1.10.0
 
 #    LIBS += -L/opt/local/lib -latlas
   else
@@ -383,9 +391,11 @@ ifeq ($(findstring Marias,$(HOST)),Marias)
 
   FC=gfortran
 
-  NETCDF=f
-  NETCDF_LIBS = -lnetcdff -lnetcdf
-  NETCDF_INC  = -I/usr/include/netcdf
+  MACHINE=Macbook-Air
+
+  NETCDF=t
+  NETCDF_LIBS = -L/opt/local/lib -lnetcdff -lnetcdf
+  NETCDF_INC  = -I/opt/local/include
 
 #  ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
 
@@ -397,9 +407,9 @@ ifeq ($(findstring Marias,$(HOST)),Marias)
     PETSC_DIR =$(WORKDIR)/lib/petsc-3.0.0-p7
 
     ifeq ($(BOPT),O)
-      PETSC_ARCH = macosx_openmpi_O
+      PETSC_ARCH = macosx_openmpi_gcc6_O
     else
-      PETSC_ARCH = macosx_openmpi_g
+      PETSC_ARCH = macosx_openmpi_gcc6_g
     endif
 
     HDF5 = t
@@ -409,19 +419,20 @@ ifeq ($(findstring Marias,$(HOST)),Marias)
     HDF5_MOD  = $(HDF5_HOME)/include
     HDF5_INC  = $(HDF5_MOD)
 
-#    ADIOS = f
-    ADIOS = t
+    ADIOS = $(HDF5)
 
-    ADIOS_HOME = $(WORKDIR)/lib/adios-1.3.1
-    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L$(WORKDIR)/lib/mxml-2.7/lib -lmxml
-    ADIOS_VER  = 1.31
+    ADIOS_HOME = $(WORKDIR)/lib/adios-1.10.0
+    ADIOS_LIBS = -L$(ADIOS_HOME)/lib -ladiosf_v1
+    ADIOS_INC  = $(ADIOS_HOME)/include
+    ADIOS_VER  = 1.10.0
 
+    LIBS += -L/opt/local/lib -latlas
   else
-    LIBS += -L/usr/lib -llapack -lblas
+    LIBS += -L/opt/local/lib -llapack -lblas -latlas
 
     HDF5 = t
 
-    HDF5_HOME = $(WORKDIR)/lib/hdf5-1.8.7/gcc5/serial
+    HDF5_HOME = $(WORKDIR)/lib/hdf5-1.8.7/gcc6/serial
     HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
     HDF5_MOD  =$(HDF5_HOME)/include
     HDF5_INC  =$(HDF5_HOME)/include
@@ -628,22 +639,33 @@ endif
 ########
 
 ifeq ($(findstring sith,$(HOST)),sith)
-  FC = pgf95
+   FC = gfortran
 
-  BOPT = O
-  PETSC_DIR ?= /sw/sith/petsc/3.0.0/centos5.5_pgi10.9_opt/petsc-3.0.0-p10
-  PETSC_ARCH ?= sith-opt
+# BOPT = O
+#PETSC_DIR = /sw/sith/petsc/3.0.0/rhel6_pgi13.4_debug/petsc-3.0.0-p10
+ #/sw/sith/petsc/3.0.0/centos5.5_pgi10.9_opt/petsc-3.0.0-p10
+  PETSC_DIR = /sw/sith/petsc/3.0.0/rhel6_gnu4.8.2_opt/petsc-3.0.0-p10
+   PETSC_ARCH = sith-opt
 
-  HDF5 = t
-  #HDF5_DIR = /sw/sith/hdf5/1.8.5/centos5.5_pgi10.9_ompi1.4.2
-  HDF5_HOME = $(HDF5_DIR)
-  HDF5_LIBS = $(HDF5_FLIB)
-  HDF5_MOD  = $(HDF5_HOME)/lib -I$(HDF5_DIR)/include
+   HDF5 = t
+ #HDF5_DIR = /sw/sith/hdf5/1.8.5/centos5.5_pgi10.9_ompi1.4.2
+#HDF5_DIR = /sw/sith/hdf5/1.8.10/rhel6_pgi12.8
+#HDF5_DIR = /sw/sith/hdf5/1.8.10/rhel6_gnu4.8.2_ompi1.8.3
+   HDF5_HOME = $(HDF5_DIR)
+   HDF5_LIBS = $(HDF5_FLIB)
+   HDF5_MOD  = $(HDF5_HOME)/lib #-I$(HDF5_DIR)/include
+   HDF5_INC  = $(HDF5_DIR)/include
 
-  ADIOS = t
-  ADIOS_HOME = $(ADIOS_DIR)
-  ADIOS_LIBS = $(ADIOS_INC) $(ADIOS_FLIB) 
-  ADIOS_VER  = 1.3
+   ADIOS = t
+#ADIOS_HOME = $(ADIOS_DIR)
+#  ADIOS_INC=-I/lustre/atlas2/csc143/proj-shared/tian/adios-1.3.1-install/include -I/sw/redhat6/mxml/2.9/rhel6_gnu4.7.1/includ
+#   ADIOS_FLIB=-L/lustre/atlas2/csc143/proj-shared/tian/adios-1.3.1-install/lib -ladiosf -L/sw/redhat6/mxml/2.9/rhel6_gnu4.7.1/lib -lmxml -lm -lmxml -lpthread -libverbs
+
+  ADIOS_HOME = /lustre/atlas2/csc143/proj-shared/tian/adios-1.10.0-install
+  ADIOS_INC=-I/lustre/atlas2/csc143/proj-shared/tian/adios-1.10.0-install/include -I/sw/redhat6/dataspaces/1.6.0/rhel6.6_gnu4.8.2/include -DZLIB -DBZIP2 -I/sw/sith/bzip2/1.0.6/rhel6_gnu4.7.1/include
+  ADIOS_FLIB=-L/lustre/atlas2/csc143/proj-shared/tian/adios-1.10.0-install/lib -ladiosf_v1 -L/sw/redhat6/dataspaces/1.6.0/rhel6.6_gnu4.8.2/lib -L/sw/sith/bzip2/1.0.6/rhel6_gnu4.7.1/lib64 -ldspaces -ldscommon -ldart -lrdmacm -libverbs -llustreapi -lz -lbz2 -lm -lrt
+   ADIOS_LIBS = $(ADIOS_INC) $(ADIOS_FLIB)
+   ADIOS_VER  = 1.10
 endif
 
 ###########
@@ -840,7 +862,7 @@ ifeq ($(findstring helios,$(HOST)),helios)
     LIBS += -mkl
   endif
 
-  MACHINE = helios
+  override MACHINE = helios
 endif
 
 ################
@@ -906,114 +928,101 @@ ifeq ($(HOST),t1243000)
 
 endif
 
-###################
-# Adam on mustang #
-###################
+##################
+# Wolf turquoise #
+##################
 
-ifeq ($(findstring mu-fe,$(HOST)),mu-fe)
+ifeq ($(findstring wf,$(HOST)),wf)
 
-  FC=gfortran
+  override MACHINE = wolf
 
-  NETCDF=f
-  NETCDF_LIBS = -lnetcdff -lnetcdf
-  NETCDF_INC  = -I/usr/include/netcdf
+  ifeq ($(findstring gfortran,$(FC)),gfortran)
 
-#  ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
+    NETCDF=t
+    NETCDF_LIBS = -lnetcdff -lnetcdf
+    NETCDF_INC  = -I/usr/include
 
-  ifdef BOPT
-    PETSC_DIR =/usr/projects/magnetic/stanier/soft/petsc-3.0.0-p7
+    ifdef BOPT
+     PETSC_DIR =/turquoise/usr/projects/magreconn/soft/petsc-3.0.0-p7
 
-    ifeq ($(BOPT),O)
-      PETSC_ARCH = turquoise_ompi165_gcc472_o
+     ifeq ($(BOPT),O)
+      PETSC_ARCH = linux64_wolf_openmpi-1.10.5_gcc-5.3.0
+     else
+      PETSC_ARCH = linux64_wolf_openmpi-1.10.5_gcc-5.3.0_dgb
+     endif
+
+     HDF5 = t
+
+     HDF5_HOME = /usr/projects/hpcsoft/toss2/wolf/hdf5/1.8.16_gcc-5.3.0_openmpi-1.10.5
+     HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+     HDF5_MOD  = $(HDF5_HOME)/include
+     HDF5_INC  = $(HDF5_MOD)
+
+     ADIOS = t
+
+     ADIOS_BUFFER_MB = 1000
+     ADIOS_METHOD = MPI_LUSTRE
+
+     ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.10.0/lib-wolf-gcc-5.3.0_openmpi-1.10.5
+     ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -llustreapi
+     ADIOS_VER  = 1.10.0
+
+     SPRNG = t
+
+     SPRNG_PAR_HOME = /turquoise/usr/projects/magreconn/soft/sprng5
+     SPRNG_LIBS = $(SPRNG_PAR_HOME)/lib/wolf-gcc5.3.0-openmpi1.10.5/lib -lsprng -lstdc++ -lm
+     SPRNG_INC  = $(SPRNG_PAR_HOME)/include
     else
-#      PETSC_ARCH = turquoise_openmpi_g
-# NOT INSTALLED DEBUG.
+     HDF5 = f
+     ADIOS = f
+     LIBS += -llapack -lblas
     endif
+  endif
 
-    HDF5 = t
+  ifeq ($(findstring ifort,$(FC)),ifort)
 
-    HDF5_HOME = /usr/projects/magnetic/stanier/soft/
-    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
-    HDF5_MOD  = $(HDF5_HOME)/include
-    HDF5_INC  = $(HDF5_MOD)
+    NETCDF=f
 
-    ADIOS = t
+    ifdef BOPT
+       PETSC_DIR =/turquoise/usr/projects/magreconn/soft/petsc-3.0.0-p7
 
-    ADIOS_HOME = /usr/projects/magnetic/stanier/soft/adios-1.3.1
-    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L/usr/projects/magnetic/stanier/soft/mxml-2.5/lib -lmxml
-    ADIOS_VER  = 1.31
+       ifeq ($(BOPT),O)
+        PETSC_ARCH = linux64_wolf_intel17.0.1_openmpi1.10.5
+       else
+        PETSC_ARCH = linux64_wolf_intel17.0.1_openmpi1.10.5_dbg
+       endif
 
-  else
-#    LIBS += -llapack -lblas
+       HDF5 = t
 
-#    HDF5 = t
+       HDF5_HOME = /usr/projects/hpcsoft/toss2/wolf/hdf5/1.8.16_intel-17.0.1_openmpi-1.10.5
+       HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+       HDF5_MOD  = $(HDF5_HOME)/include
+       HDF5_INC  = $(HDF5_MOD)
 
-#    HDF5_HOME = $(HOME)/Software/shdf5-1.8.11
-#    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
-#    HDF5_MOD  =$(HDF5_HOME)/include
-#    HDF5_INC  =$(HDF5_HOME)/include
+       ADIOS = t
 
-#    ADIOS = f
+       ADIOS_BUFFER_MB = 1000
+       ADIOS_METHOD = MPI_LUSTRE
+
+       ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.10.0/lib-wolf-intel-17.0.1_openmpi-1.10.5
+       ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -llustreapi
+       ADIOS_VER  = 1.10.0
+
+       SPRNG = t
+
+       SPRNG_PAR_HOME = /turquoise/usr/projects/magreconn/soft/sprng5
+       SPRNG_LIBS = $(SPRNG_PAR_HOME)/lib/wolf-intel17.0.1-openmpi1.10.5/lib -lsprng -lstdc++ -lm
+       SPRNG_INC  = $(SPRNG_PAR_HOME)/include
+
+    else
+      HDF5 = f
+      ADIOS = f
+      LIBS += -llapack -lblas
+    endif
 
   endif
 
 endif
-
-################################
-# Taitano on mustang turquoise #
-################################
-
-ifeq ($(findstring mu,$(HOST)),mu)
-#ifeq ($(HOST),mu-fe2.lanl.gov)
-#ifeq ($(HOST),mu1599.localdomain)
-
-  FC=gfortran
-
-  NETCDF=f
-  NETCDF_LIBS = -lnetcdff -lnetcdf
-  NETCDF_INC  = -I/usr/include/netcdf
-
-#  ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
-
-  ifdef BOPT
-    PETSC_DIR =/turquoise/usr/projects/icfifp/Applications/petsc-3.0.0-p7
-
-    ifeq ($(BOPT),O)
-      PETSC_ARCH = linux-gnu-c-opt
-    else
-#      PETSC_ARCH = turquoise_openmpi_g
-# NOT INSTALLED DEBUG.
-    endif
-
-    HDF5 = t
-
-    HDF5_HOME = /turquoise/usr/projects/icfifp/Applications/hdf5-1.8.11/
-    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
-    HDF5_MOD  = $(HDF5_HOME)/include
-    HDF5_INC  = $(HDF5_MOD)
-
-    ADIOS = t
-
-    ADIOS_HOME = /turquoise/usr/projects/icfifp/Applications/adios-1.3.1/
-    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L/turquoise/usr/projects/icfifp/Applications/mxml-2.5/lib/ -lmxml
-    ADIOS_VER  = 1.31
-
-  else
-#    LIBS += -llapack -lblas
-
-#    HDF5 = t
-
-#    HDF5_HOME = $(HOME)/Software/shdf5-1.8.11
-#    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
-#    HDF5_MOD  =$(HDF5_HOME)/include
-#    HDF5_INC  =$(HDF5_HOME)/include
-
-#    ADIOS = f
-
-  endif
-
-endif
-
 
 ##########
 # Darwin #
@@ -1021,8 +1030,132 @@ endif
 
 ifeq ($(findstring cn,$(HOST)),cn)
   FC = ifort
-  M_ARCH = core-avx2
+#  M_ARCH = core-avx2
   LIBS += -llapack -lblas
+endif
+
+ifeq ($(findstring darwin,$(HOST)),darwin)
+  FC = ifort
+#  M_ARCH = core-avx2
+  LIBS += -llapack -lblas
+endif
+
+#####################
+# Grizzly turquoise #
+#####################
+
+ifeq ($(findstring gr,$(HOST)),gr)
+
+  override MACHINE = grizzly
+
+  ifeq ($(findstring gfortran,$(FC)),gfortran)
+
+    NETCDF=f
+
+    ifdef BOPT
+     PETSC_DIR =/turquoise/usr/projects/magreconn/soft/petsc-3.0.0-p7
+
+     ifeq ($(BOPT),O)
+      PETSC_ARCH = linux64_grizzly_openmpi-1.10.5_gcc-5.3.0
+     else
+      PETSC_ARCH = linux64_grizzly_openmpi-1.10.5_gcc-5.3.0_dbg
+     endif
+
+     HDF5 = t
+
+     HDF5_HOME = /usr/projects/hpcsoft/toss3/grizzly/hdf5/1.8.16_gcc-5.3.0_openmpi-1.10.5
+     HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+     HDF5_MOD  = $(HDF5_HOME)/include
+     HDF5_INC  = $(HDF5_MOD)
+
+     ADIOS = t
+
+     ADIOS_BUFFER_MB = 1000
+     ADIOS_METHOD = MPI_LUSTRE
+
+     ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.10.0/lib-grizzly-gcc-5.3.0_openmpi-1.10.5
+     ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -llustreapi
+     ADIOS_VER  = 1.10.0
+
+     SPRNG = t
+
+     SPRNG_PAR_HOME = /turquoise/usr/projects/magreconn/soft/sprng5
+     SPRNG_LIBS = $(SPRNG_PAR_HOME)/lib/grizzly-gcc5.3.0-openmpi1.10.5/lib -lsprng -lstdc++ -lm
+     SPRNG_INC  = $(SPRNG_PAR_HOME)/include
+
+    endif
+
+  endif
+
+  ifeq ($(findstring ifort,$(FC)),ifort)
+
+    NETCDF=f
+
+    ifeq ($(MPI_NAME),openmpi)
+     ifdef BOPT
+      PETSC_DIR =/turquoise/usr/projects/magreconn/soft/petsc-3.0.0-p7
+
+      ifeq ($(BOPT),O)
+       PETSC_ARCH = linux64_grizzly_intel17.0.1_openmpi1.10.5
+      else
+       PETSC_ARCH = linux64_grizzly_intel17.0.1_openmpi1.10.5_dbg
+      endif
+
+      HDF5 = t
+
+      HDF5_HOME = /usr/projects/hpcsoft/toss3/grizzly/hdf5/1.8.16_intel-17.0.1_openmpi-1.10.5
+      HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+      HDF5_MOD  = $(HDF5_HOME)/include
+      HDF5_INC  = $(HDF5_MOD)
+
+      ADIOS = t
+
+      ADIOS_BUFFER_MB = 1000
+      ADIOS_METHOD = MPI_LUSTRE
+
+      ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.10.0/lib-grizzly-intel-17.0.1_openmpi-1.10.5
+      ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -llustreapi
+      ADIOS_VER  = 1.10.0
+
+      SPRNG = t
+
+      SPRNG_PAR_HOME = /turquoise/usr/projects/magreconn/soft/sprng5
+      SPRNG_LIBS = $(SPRNG_PAR_HOME)/lib/grizzly-intel17.0.1-openmpi1.10.5/lib -lsprng -lstdc++ -lm
+      SPRNG_INC  = $(SPRNG_PAR_HOME)/include
+
+     endif
+    endif
+
+    ifeq ($(MPI_NAME),intel-mpi)
+     ifdef BOPT
+      PETSC_DIR =/turquoise/usr/projects/magreconn/soft/petsc-3.0.0-p7
+
+      ifeq ($(BOPT),O)
+       PETSC_ARCH = linux64_grizzly_intel17.0.1_intelmpi2017.1
+      else
+       PETSC_ARCH = linux64_grizzly_intel17.0.1_intelmpi2017.1_dbg
+      endif
+
+      HDF5 = f
+
+#      HDF5_HOME = /usr/projects/hpcsoft/toss3/grizzly/hdf5/1.8.16_gcc-5.3.0_openmpi-1.10.3
+#      HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+#      HDF5_MOD  = $(HDF5_HOME)/include
+#      HDF5_INC  = $(HDF5_MOD)
+
+      ADIOS = f
+
+      ADIOS_BUFFER_MB = 1000
+      ADIOS_METHOD = MPI_LUSTRE
+
+      ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.10.0/lib-grizzly-intel-17.0.1_intelmpi-2017.1
+      ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -llustreapi
+      ADIOS_VER  = 1.10.0
+     endif
+   endif
+
+  endif
+
 endif
 
 ####################
@@ -1031,39 +1164,78 @@ endif
 
 ifeq ($(findstring marconi_work,$(WORK)),marconi_work)
 
+#  FC = ifort
+ FC = gfortran
+ OPTIMIZATION = -O3
 
-  CPPFLAGS += $(PREPROC)RFX
+#  CPPFLAGS += $(PREPROC)RFX
+# togliere per casi VMEC così pixplot produce sia cnv sia cov
 
-  ifdef BOPT
-    PETSC_DIR = /marconi_work/FUA11_PIXIE3D/.veranda/petsc-3.0.0-p7
+ ifdef BOPT
+   PETSC_DIR = /marconi_work/FUA32_PIXIE3D/petsc-3.0.0-p7
 
-    ifeq ($(BOPT),O)
-      PETSC_ARCH = linux64_intelmpi
-    else
-      PETSC_ARCH = linux64_intelmpi_g
-    endif
+   ifeq ($(BOPT),O)
+# ifort/intelmpi
+#      PETSC_ARCH = linux64_intelmpi
+# gfortran/openmpi
+     PETSC_ARCH = linux64_openmpi_gnu
+# ifort/openmpi
+#      PETSC_ARCH = linux64_openmpi_ifort
+   else
+     PETSC_ARCH = linux64_intelmpi_g
+   endif
 
-    HDF5 = f
-    #HDF5_DIR = /sw/xt5/hdf5/1.6.7/cnl2.1_pgi7.2.3_par
-    #HDF5_HOME = $(CRAY_HDF5_DIR)
-    #HDF5_LIBS = $(HDF5_FLIB)
-    #HDF5_MOD  = $(HDF5_HOME)/lib
+   HDF5 = f
+   #HDF5_DIR = /sw/xt5/hdf5/1.6.7/cnl2.1_pgi7.2.3_par
+   #HDF5_HOME = $(CRAY_HDF5_DIR)
+   #HDF5_LIBS = $(HDF5_FLIB)
+   #HDF5_MOD  = $(HDF5_HOME)/lib
 
-    ADIOS = f
-    #ADIOS = t
-    #ADIOS_HOME = /marconi_work/FUA11_PIXIE3D/adios-1.3.1/linux64_intelmpi
-    #ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L/marconi_work/FUA11_PIXIE3D/mxml-2.10/linux64_intelmpi/lib -lmxml
-    #ADIOS_VER  = 1.31
+   #ADIOS = f
 
-  else
-    HDF5 = f
-    ADIOS = f
-#!# uncomment for gnu compilers
-    LAPACK_LIB=/cineca/prod/opt/libraries/lapack/3.6.1/gnu--6.1.0/lib
-    BLAS_LIB=/cineca/prod/opt/libraries/blas/3.6.0/gnu--6.1.0/lib
+   #ADIOS = t
+   #ADIOS_HOME = /marconi_work/FUA11_PIXIE3D/adios-1.3.1/linux64_intelmpi
+   #ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L/marconi_work/FUA11_PIXIE3D/mxml-2.10/linux64_intelmpi/lib -lmxml
+   #ADIOS_VER  = 1.31
 
-    LIBS += -L$(LAPACK_LIB) -llapack -L$(BLAS_LIB) -lblas
-  endif
+   #ADIOS = t
+   #ADIOS_HOME = /marconi_work/FUA11_PIXIE3D/adios-1.10.0/linux64_intelmpi
+   #ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -L/marconi_work/FUA11_PIXIE3D/mxml-2.10/linux64_intelmpi/lib -lmxml
+   #ADIOS_VER  = 1.10
 
-  MACHINE = marconi
+   #ADIOS = t
+   #ADIOS_HOME = /marconi_work/FUA11_PIXIE3D/adios-1.3.1/linux64_openmpi_gnu
+   #ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L/marconi_work/FUA11_PIXIE3D/mxml-2.10/linux64_openmpi_gnu/lib -lmxml
+   #ADIOS_VER  = 1.31
+
+
+   ADIOS = t
+   ADIOS_HOME = /marconi_work/FUA11_PIXIE3D/adios-1.10.0/linux64_openmpi_gnu
+   ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -L/marconi_work/FUA11_PIXIE3D/mxml-2.10/linux64_openmpi_gnu/lib -lmxml
+   ADIOS_VER  = 1.10
+
+   #ADIOS = t
+   #ADIOS_HOME = /marconi_work/FUA11_PIXIE3D/adios-1.10.0/linux64_openmpi_ifort
+   #ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -L/marconi_work/FUA11_PIXIE3D/mxml-2.10/linux64_openmpi_ifort/lib -lmxml
+   #ADIOS_VER  = 1.10
+
+   NETCDF=t
+   NETCDF_LIBS = -lnetcdff -lnetcdf
+   NETCDF_INC  = -I/usr/include
+
+ else
+   HDF5 = f
+   ADIOS = f
+   LIBS += -L$(LAPACK_LIB) -llapack -L$(BLAS_LIB) -lblas
+ endif
+
+   NETCDF=t
+#    NETCDF_LIBS = -lnetcdff -lnetcdf
+   NETCDF_LIBS = -L/cineca/prod/opt/libraries/netcdf/4.4.1/gnu--6.1.0/lib -lnetcdf -L/cineca/prod/opt/libraries/netcdff/4.4.4/gnu--6.1.0/lib -lnetcdff
+#    NETCDF_INC = -I/cineca/prod/opt/libraries/netcdff/4.4.4/gnu--6.1.0/include
+   NETCDF_INC = -I/cineca/prod/opt/libraries/netcdf/4.4.1/gnu--6.1.0/include -I/cineca/prod/opt/libraries/netcdff/4.4.4/gnu--6.1.0/include
+#    NETCDF_LIBS = -L/cineca/prod/opt/libraries/netcdf/4.4.1/intel--pe-xe-2017--binary/lib -lnetcdff -lnetcdf
+#    NETCDF_INC = -I/cineca/prod/opt/libraries/netcdf/4.4.1/intel--pe-xe-2017--binary/include
+
+ MACHINE = marconi
 endif
