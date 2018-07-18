@@ -18,8 +18,8 @@
 !$OMP THREADPRIVATE(lyap,connect,ridge)
        logical :: auto_corr=.false., ac_rtrn
 !$OMP THREADPRIVATE(auto_corr,ac_rtrn)
-       integer :: intersect_x, intersect_y, intersect_z
-!$OMP THREADPRIVATE(intersect_x,intersect_y,intersect_z)
+       integer :: intersect_x, intersect_y, intersect_z, ilup=0
+!$OMP THREADPRIVATE(intersect_x,intersect_y,intersect_z, ilup)
        integer :: intersect_tor
 !$OMP THREADPRIVATE(intersect_tor)
        integer :: max_inter_y,max_inter_x,max_inter_z

@@ -8,10 +8,8 @@ c ######################################################################
 
       use grid, ONLY: pstop
 
-      integer :: thr_tot=-1,thr_num=-1,ilup=0
-!$OMP THREADPRIVATE(thr_tot,thr_num,ilup)
-      integer :: itot
-!$OMP THREADPRIVATE(itot)
+      integer :: thr_tot=-1,thr_num=-1
+!$OMP THREADPRIVATE(thr_tot,thr_num)
   
       contains
 
@@ -59,14 +57,19 @@ c     ###############################################################
 
 c     Call variables
 
-        integer :: thrnum,thrtot
+        integer,INTENT(OUT) :: thrnum,thrtot
 
 c     Local variables
 
 c     Begin program
 
-        thrtot = thr_tot
-        thrnum = thr_num
+#ifdef _OPENMP
+        thrtot = omp_get_num_threads()
+        thrnum = omp_get_thread_num()
+#else
+        thrtot = 1
+        thrnum = 0
+#endif
 
       end subroutine get_omp_thread_id
 

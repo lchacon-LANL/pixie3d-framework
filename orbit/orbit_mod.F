@@ -614,7 +614,7 @@ c     Finalize B diagnostics
 
 c     orbit_find
 c     ######################################################################
-      subroutine orbit_find(iout,x0,y0,z0,fwd,line_int,lsode_f!,ss_order
+      subroutine orbit_find(iout,x0,y0,z0,fwd,line_int,lsode_f
      .                     ,t_max,s_max,ierror,lsode_sum)
 
 c     ----------------------------------------------------------------------
@@ -644,7 +644,6 @@ c     Call variables
         real(8),intent(IN) :: x0,y0,z0
         logical :: fwd
 
-cc        integer,optional,INTENT(IN) :: ss_order
         real(8),optional,INTENT(IN) :: t_max,s_max
 
         integer,optional,INTENT(OUT) :: ierror
@@ -679,15 +678,12 @@ c     Local variables
 !#!     Marco, to deal with connection length in the backward case
         logical :: cnc_back
 
+        integer,save :: thrtot,thrnum
+!$OMP THREADPRIVATE(thrtot,thrnum)
+
 c     Begin program
 
-        thr_tot = 1
-
-#ifdef _OPENMP
-!$omp parallel
-        thr_tot = omp_get_num_threads()
-!$omp end parallel                                                             
-#endif
+        call get_omp_thread_id(thrnum,thrtot)
 
         iiout = iout
 
@@ -749,33 +745,33 @@ c     Daniele,23/03/2009: dump the initial point of the orbit
 
           if(lssx .and. x0 == xss0) then
            if (.not. ridge .and. .not. auto_corr) then
-            write(nunitx(thr_num)) real(y0),real(z0)
+            write(nunitx(thrnum)) real(y0),real(z0)
            endif
           endif
 
           if(lssy .and. y0 == yss0) then
            if (.not. ridge .and. .not. auto_corr) then
             if (flux) then
-              write(nunity(thr_num)) real(0.5*x0**2),real(z0)
+              write(nunity(thrnum)) real(0.5*x0**2),real(z0)
             else
-              write(nunity(thr_num)) real(x0),real(z0)
+              write(nunity(thrnum)) real(x0),real(z0)
             endif
            else if (ridge) then
 !#! Marco, write initial position in the y=yss0 plane,ridgeridge
-            call ridge_write(x0,z0,thr_num)
+            call ridge_write(x0,z0,thrnum)
            endif
           endif
 
           if(lssz .and. z0 == zss0) then
            if (.not. ridge .and. .not. auto_corr) then
             if (flux) then
-              write(nunitz(thr_num)) real(0.5*x0**2),real(y0) !In flux
+              write(nunitz(thrnum)) real(0.5*x0**2),real(y0) !In flux
             else
-              write(nunitz(thr_num)) real(x0),real(y0)        !In radius
+              write(nunitz(thrnum)) real(x0),real(y0)        !In radius
             endif
            else if (ridge) then
 !#! Marco, write initial position in the z=zss0 plane
-            call ridge_write(x0,y0,thr_num)
+            call ridge_write(x0,y0,thrnum)
            endif
           endif
 
@@ -869,8 +865,8 @@ c     Daniele,23/03/2009: dump the initial point of the orbit
             exit_loop = exit_loop.or.(abs(ss) >= smax)
 !#!Marco, qui per smax in connect
             if (exit_loop .and. connect) then
-              write(*,*) 'over thr ',thr_num,big_n
-              call connect_write(x0,y0,z0,big_n,thr_num)
+              write(*,*) 'over thr ',thrnum,big_n
+              call connect_write(x0,y0,z0,big_n,thrnum)
             endif
 
             if (abs(ss) > smax) then !4th order interpolation of orbit end points
@@ -947,10 +943,10 @@ cc            endif
 c     Write orbit separator in XDRAW file
 
        if ((.not. ridge) .and. (.not. auto_corr) .and. chk_ss) then
-          if (lssx) write(nunitx(thr_num))
-          if (lssy) write(nunity(thr_num))
-          if (lssz) write(nunitz(thr_num))
-          if (rzss) write(nunitrz(thr_num))
+          if (lssx) write(nunitx(thrnum))
+          if (lssy) write(nunity(thrnum))
+          if (lssz) write(nunitz(thrnum))
+          if (rzss) write(nunitrz(thrnum))
        endif
 
 c     End orbit
@@ -2143,8 +2139,9 @@ c     -----------------------------------------------------------------
           write (*,*) 'Negative Jacobian. Terminating'
           stop
         case(ORB_MAP_INV)
-          write (*,*) 'Could not invert map. Terminating'
-          stop
+          write (*,*) 'Could not invert map. Terminating this orbit...'
+cc          stop
+          exitloop = .true.
         case(ORB_SP_ERR)
           if (iiout > 0)
      .      write (*,*) 'Error around SP. Skipping orbit'
@@ -2518,7 +2515,7 @@ c     Call variables
 
 c     Local variables
 
-        integer :: cpos,nfiles,ifile,ith,iproc,ierr,ic
+        integer :: cpos,nfiles,ifile,ith,iproc,ierr,ic,thrtot
 
         character(50) :: drawin,dummy
 
@@ -2526,12 +2523,12 @@ c     Local variables
 
 c     Begin program
 
-        thr_tot = 1
+        thrtot = 1
 
 #ifdef _OPENMP
-!$omp parallel
-        thr_tot = omp_get_num_threads()
-!$omp end parallel                                                             
+!$OMP PARALLEL
+        thrtot = omp_get_num_threads()
+!$OMP END PARALLEL
 #endif
 
         ss_io = .true.   !Turn on SS XDRAW IO
@@ -2546,13 +2543,13 @@ c     Define surface of section files (one per OMP thread and MPI job)
 
         cpos = index(trim(file),'.bin') - 1
 
-        nfiles = np*thr_tot
+        nfiles = np*thrtot
         allocate(ssx(0:nfiles-1),ssy (0:nfiles-1)
      .          ,ssz(0:nfiles-1),ssrz(0:nfiles-1))
 
-        do ith=0,thr_tot-1
+        do ith=0,thrtot-1
           do iproc=0,np-1
-            ifile = ith+thr_tot*iproc
+            ifile = ith+thrtot*iproc
             ssx(ifile) = 'ssx'//trim(file)//'_proc'//int2char(ifile)
             ssy(ifile) = 'ssy'//trim(file)//'_proc'//int2char(ifile)
             ssz(ifile) = 'ssz'//trim(file)//'_proc'//int2char(ifile)
@@ -2604,12 +2601,12 @@ cc            ierr = rm_files(dummy)
 
 c     Open output files (one per thread and MPI process)
 
-        allocate(nunitx(0:thr_tot-1),nunity (0:thr_tot-1))
-        allocate(nunitz(0:thr_tot-1),nunitrz(0:thr_tot-1))
+        allocate(nunitx(0:thrtot-1),nunity (0:thrtot-1))
+        allocate(nunitz(0:thrtot-1),nunitrz(0:thrtot-1))
 
         if (lssx) then
-          do ic = 0, thr_tot - 1
-            ifile = ic + thr_tot*my_rank 
+          do ic = 0, thrtot - 1
+            ifile = ic + thrtot*my_rank 
             nunitx(ic) = 6027+ic
             open(unit=nunitx(ic),file=trim(ssx(ifile))
      .           ,form='unformatted')
@@ -2617,8 +2614,8 @@ c     Open output files (one per thread and MPI process)
         endif
 
         if (lssy) then
-          do ic = 0, thr_tot - 1
-            ifile = ic + thr_tot*my_rank 
+          do ic = 0, thrtot - 1
+            ifile = ic + thrtot*my_rank 
             nunity(ic) = 7027+ic
             open(unit=nunity(ic),file=trim(ssy(ifile))
      .           ,form='unformatted')
@@ -2626,8 +2623,8 @@ c     Open output files (one per thread and MPI process)
         endif
 
         if (lssz) then
-          do ic = 0, thr_tot - 1
-            ifile = ic + thr_tot*my_rank 
+          do ic = 0, thrtot - 1
+            ifile = ic + thrtot*my_rank 
             nunitz(ic) = 8027+ic
             open(unit=nunitz(ic),file=trim(ssz(ifile))
      .           ,form='unformatted')
@@ -2635,8 +2632,8 @@ c     Open output files (one per thread and MPI process)
         endif
 
         if (rzss) then
-          do ic = 0, thr_tot - 1
-            ifile = ic + thr_tot*my_rank 
+          do ic = 0, thrtot - 1
+            ifile = ic + thrtot*my_rank 
             nunitrz(ic) = 9027+ic
             open(unit=nunitrz(ic),file=trim(ssrz(ifile))
      .           ,form='unformatted')
@@ -2661,11 +2658,19 @@ c     Call variables
 
 c     Local variables
 
-        integer :: ith
+        integer :: ith,thrtot
 
 c     Begin program
 
-        do ith=0,thr_tot-1
+        thrtot = 1
+
+#ifdef _OPENMP
+!$OMP PARALLEL
+        thrtot = omp_get_num_threads()
+!$OMP END PARALLEL
+#endif
+
+        do ith=0,thrtot-1
           if (lssx) close(nunitx(ith))
           if (lssy) close(nunity(ith))
           if (lssz) close(nunitz(ith))
