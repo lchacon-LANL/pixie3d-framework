@@ -41,6 +41,54 @@
 
       contains
 
+c     is_NAN
+c     #################################################################
+      function is_NAN(a)
+
+c     -----------------------------------------------------------------
+c     Perform cross product of vectors vec1 and vec2: vec3 = vec1 x vec2,
+c     where the vectors are in Cartesian coordinates.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        logical :: is_NAN
+        real(8) :: a
+
+c     Local variables
+
+c     Begin program
+
+        is_NAN = (a /= a)
+
+      end function is_NAN
+
+c     is_INF
+c     #################################################################
+      function is_INF(a)
+
+c     -----------------------------------------------------------------
+c     Perform cross product of vectors vec1 and vec2: vec3 = vec1 x vec2,
+c     where the vectors are in Cartesian coordinates.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        logical :: is_INF
+        real(8) :: a
+
+c     Local variables
+
+c     Begin program
+
+        is_INF = (abs(a) > HUGE(a))
+
+      end function is_INF
+      
 c     cross_product
 c     #################################################################
       function cross_product(vec1,vec2) result(vec3)
@@ -252,35 +300,35 @@ c     Begin program
 
 c     determ3_dp
 c     #################################################################
-      function determ3_dp(tensor) result(determ3)
+      function determ3_dp(tensor)
 
       real(8) :: tensor(3,3)
 
-      real(8) :: determ3
+      real(8) :: determ3_dp
 
-      determ3 = tensor(1,1)*tensor(2,2)*tensor(3,3)
-     .         +tensor(3,2)*tensor(2,1)*tensor(1,3)
-     .         +tensor(1,2)*tensor(2,3)*tensor(3,1)
-     .         -tensor(1,3)*tensor(2,2)*tensor(3,1)
-     .         -tensor(1,1)*tensor(2,3)*tensor(3,2)
-     .         -tensor(3,3)*tensor(1,2)*tensor(2,1)
+      determ3_dp = tensor(1,1)*tensor(2,2)*tensor(3,3)
+     .            +tensor(3,2)*tensor(2,1)*tensor(1,3)
+     .            +tensor(1,2)*tensor(2,3)*tensor(3,1)
+     .            -tensor(1,3)*tensor(2,2)*tensor(3,1)
+     .            -tensor(1,1)*tensor(2,3)*tensor(3,2)
+     .            -tensor(3,3)*tensor(1,2)*tensor(2,1)
 
       end function determ3_dp
 
 c     determ3_sp
 c     #################################################################
-      function determ3_sp(tensor) result(determ3)
+      function determ3_sp(tensor)
 
       real(4) :: tensor(3,3)
 
-      real(4) :: determ3
+      real(4) :: determ3_sp
 
-      determ3 = tensor(1,1)*tensor(2,2)*tensor(3,3)
-     .         +tensor(3,2)*tensor(2,1)*tensor(1,3)
-     .         +tensor(1,2)*tensor(2,3)*tensor(3,1)
-     .         -tensor(1,3)*tensor(2,2)*tensor(3,1)
-     .         -tensor(1,1)*tensor(2,3)*tensor(3,2)
-     .         -tensor(3,3)*tensor(1,2)*tensor(2,1)
+      determ3_sp = tensor(1,1)*tensor(2,2)*tensor(3,3)
+     .            +tensor(3,2)*tensor(2,1)*tensor(1,3)
+     .            +tensor(1,2)*tensor(2,3)*tensor(3,1)
+     .            -tensor(1,3)*tensor(2,2)*tensor(3,1)
+     .            -tensor(1,1)*tensor(2,3)*tensor(3,2)
+     .            -tensor(3,3)*tensor(1,2)*tensor(2,1)
 
       end function determ3_sp
 

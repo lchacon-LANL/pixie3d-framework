@@ -209,6 +209,8 @@ c     ---------------------------------------------------------------
 c     Prepares cubic polynomial for grid packing
 c     ---------------------------------------------------------------
 
+      i = 0
+
       if (slope > 1d0) then !Contraction
         
 cc          eta = LL**3*(1d0-1d0/slope)/((xmax-x0)**3-(xmin-x0)**3)

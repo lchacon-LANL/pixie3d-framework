@@ -555,7 +555,7 @@ c     Call variables
 c     Local variables
 
       integer :: ig,jg,kg
-      real(8) :: x1,x2,x3,x,y,z,gp(ngparams),mm,kk,aa
+      real(8) :: x1,x2,x3,x,y,z,gp(ngparams),mm,kk,aa,bb,R0,R2
 
 c     Begin program
 
@@ -568,11 +568,26 @@ c     Begin program
 
       select case (coords)
       case('cyl','hel')
-        !Transform to cylindrical radius (may be mapped)
+
         rr = sign(1d0,x1)*sqrt(x**2+y**2)
         th = atan2(y,x)
         if (rr < 0d0) th = th + pi
         zz = z
+
+      case('tor')
+
+        R0 = g_def%params(1) !Major radius
+        aa = g_def%params(2) !Horizontal radius
+        bb = g_def%params(3) !Vertical   radius
+
+        R2 = ((sqrt(x*x+y*y)-R0)/aa)**2          !In-plane radius
+        
+        rr = sign(1d0,x1)*sqrt(R2+z*z/(bb*bb))   !Poloidal radius
+        zz =-atan2(y,x)                          !Toroidal angle
+        th = atan2(z/bb,sqrt(R2))                !Poloidal angle
+        
+        if (rr < 0d0) th = th + pi
+
 c$$$      case('hel')
 c$$$        gp = g_def%params
 c$$$
@@ -586,7 +601,8 @@ c$$$        th = atan2(y,x) + aa*z
 c$$$        if (rr < 0d0) th = th + pi
 c$$$        zz = z
       case default
-        call pstop('find_polar_coords',"Coordinates not implemented")
+        call pstop('find_polar_coords'
+     .       ,"Coordinates "//coords//" not implemented")
       end select
       
 c     End program

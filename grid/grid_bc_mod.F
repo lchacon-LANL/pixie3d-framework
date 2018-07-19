@@ -1056,6 +1056,45 @@ c     End program
 
       end subroutine set_vec_symm_bc
 
+c     imposeBConScalar_ez
+c     #################################################################
+      subroutine imposeBConScalar_ez(gbc_def,igr,array,bcnd,iorder)
+c     -----------------------------------------------------------------
+c     Imposes BC on scalar quantities.
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: gbc_def
+
+      integer    :: igr,bcnd(6)
+      real(8)    :: array (0:,0:,0:)
+      integer   ,optional,intent(IN) :: iorder
+
+c     Local variables
+
+      integer :: nx,ny,nz
+      real(8) :: array0(0:size(array,1)-1
+     .                 ,0:size(array,2)-1
+     .                 ,0:size(array,3)-1)
+
+c     Begin program
+
+      nx = gbc_def%nxv(igr)
+      ny = gbc_def%nyv(igr)
+      nz = gbc_def%nzv(igr)
+
+      array0 = 0d0
+
+      call imposeBConScalar(gbc_def,0,nx,ny,nz,array,array0,bcnd
+     .                     ,igr,igr,igr,iorder=iorder)
+
+c     End program
+
+      end subroutine imposeBConScalar_ez
+
 c     imposeBConScalar
 c     #################################################################
       subroutine imposeBConScalar(gbc_def,ieq,nx,ny,nz,array,array0,bcnd
@@ -1069,12 +1108,12 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
+      type(grid_mg_def),pointer :: gbc_def
+
       integer    :: ieq,bcnd(6),nx,ny,nz,iigx,iigy,iigz
       real(8)    :: array (0:,0:,0:)
      .             ,array0(0:,0:,0:)
       integer   ,optional,intent(IN) :: i1,i2,j1,j2,k1,k2,iorder
-
-      type(grid_mg_def),pointer :: gbc_def
 
 c     Local variables
 

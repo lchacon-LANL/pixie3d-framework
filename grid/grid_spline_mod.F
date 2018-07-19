@@ -1497,8 +1497,8 @@ c     Local variables
       real(8),parameter :: tol=1d-12
 
       integer :: iter
-      real(8) :: JJ(size,size),res(size,icol)
-     .          ,dxi(size,icol),error(maxit),damp(maxit)
+      real(8) :: JJ(size,size),res(size,icol),dxi(size,icol)
+     .          ,error(maxit),damp(maxit),updt(maxit)
 
       logical :: prnt
 
@@ -1559,7 +1559,9 @@ c     Perform iteration
 
         if (prnt) write (*,*) 'evalXi -- dxi=',dxi
 
-        !Linesearch
+        updt(iter) = sqrt(sum(dxi*dxi))
+        
+c$$$        !Linesearch
 c$$$        if (iter > 1) then
 c$$$          call linesearch(x1,x2,x3,dxi(:,1),error(iter),damp(iter)
 c$$$     .                   ,ierror)
@@ -1590,8 +1592,10 @@ c$$$        endif
         write (*,*) 'evalXi -- domain=',xsmin,xsmax
      .                                 ,ysmin,ysmax
      .                                 ,zsmin,zsmax
-        write (*,*) 'evalXi -- Convergence history: '
+        write (*,*) 'evalXi -- Residual history: '
      .              ,error(1:min(iter,maxit))
+        write (*,*) 'evalXi -- Update history: '
+     .              ,updt (1:min(iter,maxit))
         write (*,*) 'evalXi -- Damp parameter history: '
      .              ,damp (1:min(iter,maxit))
         stop
