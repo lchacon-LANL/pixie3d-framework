@@ -1186,12 +1186,20 @@ ifeq ($(findstring marconi_work,$(WORK)),marconi_work)
    endif
 
    HDF5 = f
-   #HDF5_DIR = /sw/xt5/hdf5/1.6.7/cnl2.1_pgi7.2.3_par
-   #HDF5_HOME = $(CRAY_HDF5_DIR)
-   #HDF5_LIBS = $(HDF5_FLIB)
-   #HDF5_MOD  = $(HDF5_HOME)/lib
 
-   #ADIOS = f
+#   HDF5 = t
+#   HDF5_HOME = /cineca/prod/opt/libraries/hdf5/1.8.17/intelmpi--2017--binary
+#   HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+#   HDF5_MOD  = $(HDF5_HOME)/include
+#   HDF5_INC  = $(HDF5_MOD)
+
+#   HDF5 = t
+#   HDF5_HOME = /cineca/prod/opt/libraries/hdf5/1.8.18/openmpi--1-10.3--gnu--6.1.0
+#   HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+#   HDF5_MOD  = $(HDF5_HOME)/include
+#   HDF5_INC  = $(HDF5_MOD)
+
+   ADIOS = f
 
    #ADIOS = t
    #ADIOS_HOME = /marconi_work/FUA11_PIXIE3D/adios-1.3.1/linux64_intelmpi
@@ -1209,10 +1217,10 @@ ifeq ($(findstring marconi_work,$(WORK)),marconi_work)
    #ADIOS_VER  = 1.31
 
 
-   ADIOS = t
-   ADIOS_HOME = /marconi_work/FUA11_PIXIE3D/adios-1.10.0/linux64_openmpi_gnu
-   ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -L/marconi_work/FUA11_PIXIE3D/mxml-2.10/linux64_openmpi_gnu/lib -lmxml
-   ADIOS_VER  = 1.10
+   #ADIOS = t
+   #ADIOS_HOME = /marconi_work/FUA11_PIXIE3D/adios-1.10.0/linux64_openmpi_gnu
+   #ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -L/marconi_work/FUA11_PIXIE3D/mxml-2.10/linux64_openmpi_gnu/lib -lmxml
+   #ADIOS_VER  = 1.10
 
    #ADIOS = t
    #ADIOS_HOME = /marconi_work/FUA11_PIXIE3D/adios-1.10.0/linux64_openmpi_ifort
@@ -1229,11 +1237,13 @@ ifeq ($(findstring marconi_work,$(WORK)),marconi_work)
    LIBS += -L$(LAPACK_LIB) -llapack -L$(BLAS_LIB) -lblas
  endif
 
-   NETCDF=t
-#    NETCDF_LIBS = -lnetcdff -lnetcdf
-   NETCDF_LIBS = -L/cineca/prod/opt/libraries/netcdf/4.4.1/gnu--6.1.0/lib -lnetcdf -L/cineca/prod/opt/libraries/netcdff/4.4.4/gnu--6.1.0/lib -lnetcdff
-#    NETCDF_INC = -I/cineca/prod/opt/libraries/netcdff/4.4.4/gnu--6.1.0/include
-   NETCDF_INC = -I/cineca/prod/opt/libraries/netcdf/4.4.1/gnu--6.1.0/include -I/cineca/prod/opt/libraries/netcdff/4.4.4/gnu--6.1.0/include
+   NETCDF=f
+
+#   NETCDF=t
+#   NETCDF_LIBS = -L/cineca/prod/opt/libraries/netcdf/4.4.1/gnu--6.1.0/lib -lnetcdf -L/cineca/prod/opt/libraries/netcdff/4.4.4/gnu--6.1.0/lib -lnetcdff
+#   NETCDF_INC = -I/cineca/prod/opt/libraries/netcdf/4.4.1/gnu--6.1.0/include -I/cineca/prod/opt/libraries/netcdff/4.4.4/gnu--6.1.0/include
+
+#   NETCDF=t
 #    NETCDF_LIBS = -L/cineca/prod/opt/libraries/netcdf/4.4.1/intel--pe-xe-2017--binary/lib -lnetcdff -lnetcdf
 #    NETCDF_INC = -I/cineca/prod/opt/libraries/netcdf/4.4.1/intel--pe-xe-2017--binary/include
 
