@@ -2870,14 +2870,14 @@ c     ######################################################################
 
 c     find_pcle_weights
 c     ######################################################################
-      subroutine find_pcle_weights(mments,mments_given)
+      subroutine find_pcle_weights(mments,dens_given)
 
       implicit none
 
 c     Call variables
 
       real(8), intent(in) :: mments(0:,0:,:,0:)
-      real(8), intent(in),optional :: mments_given(0:,0:,:,0:)
+      real(8), intent(in),optional :: dens_given(0:,0:,:)
 
       integer :: bcs(6,n_sp),igl,jgl,kgl,i,j,k,ii,ip,isp,numspcs
      .          ,numpcles
@@ -2897,7 +2897,7 @@ c     Build LOCAL rhs taking Jacobian into account
 
       rr  = 0d0
 
-      if(present(mments_given)) then
+      if(present(dens_given)) then
         do k=1,nzl
           do j=1,nyl
             do i=1,nxl
@@ -2905,7 +2905,7 @@ c     Build LOCAL rhs taking Jacobian into account
               call fromLocalToGlobalLimits(gpicdef,1,i,j,k
      .                                    ,igl,jgl,kgl)
               !solve for delta weight
-              rr(ii,:) = mments_given(i,j,:,0) -mments(i,j,:,0)
+              rr(ii,:) = dens_given(i,j,:) -mments(i,j,:,0)
             enddo
           enddo
         enddo
