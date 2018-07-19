@@ -1327,12 +1327,12 @@ c     Postprocessing to find logical coordinates
         call evalXi(iiout,YY(1),YY(2),YY(3),x,y,z,iterr)
 
         if (iterr /= 0) then
-          iterr = 6  !Error around SP
+          iterr = ORB_SP_ERR  !Error around SP
           return
         endif
 
         if (x >= rmin) then
-          iterr = -2   !End of Cartesian step
+          iterr = ORB_CAR_ST   !End of Cartesian step
           ISTATE = 1   !Instruct LSODE to start anew for next time step
           cartesian = .false.
           sing_point= .false.
@@ -1509,12 +1509,12 @@ c     Postprocessing to find logical coordinates
         call evalXi(iiout,YY(1),YY(2),YY(3),x,y,z,iterr)
 
         if (iterr /= 0) then
-          iterr = 6 !Error around SP
+          iterr = ORB_SP_ERR !Error around SP
           return
         endif
 
         if (x >= rmin) then
-          iterr = -2   !End of Cartesian integration
+          iterr = ORB_CAR_ST   !End of Cartesian integration
           ISTATE = 1   !Instruct LSODE to start anew for next time step
           cartesian = .false.
           sing_point= .false.
@@ -1616,7 +1616,7 @@ c       Check for errors
 
         if (iterr /= ORB_OK .and. iterr /= ORB_CAR_ST) then
 
-          if (iterr == 1 .or. iterr == 2 .or. iterr == 3) then  !Convergence failure in VP step "iterr"
+          if (iterr == 1 .or. iterr == 2 .or. iterr == 3) then  !Convergence failure in VP stage "iterr"
 
             if (iiout >= 2) then
               write (*,*) 'VP -- Step',iterr
@@ -1924,7 +1924,10 @@ c     Begin program
       if (sing_point) then
         x1 = xold ; y1 = yold ; z1 = zold
         call evalXi(iiout,y(1),y(2),y(3),x1,y1,z1,LSODE_IERR)
-        if (LSODE_IERR /= ORB_OK) return
+        if (LSODE_IERR /= ORB_OK) then
+          LSODE_IERR = ORB_SP_ERR
+          return
+        endif
       else
         x1 = y(1)
         y1 = y(2)
@@ -2010,7 +2013,10 @@ c     Begin program
       if (sing_point) then
         x1 = xold ; y1 = yold ; z1 = zold
         call evalXi(iiout,y(1),y(2),y(3),x1,y1,z1,LSODE_IERR)
-        if (LSODE_IERR /= ORB_OK) return
+        if (LSODE_IERR /= ORB_OK) then
+          LSODE_IERR = ORB_SP_ERR
+          return
+        endif
       else
         x1 = y(1)
         y1 = y(2)
@@ -2139,8 +2145,8 @@ c     -----------------------------------------------------------------
           write (*,*) 'Negative Jacobian. Terminating'
           stop
         case(ORB_MAP_INV)
-          write (*,*) 'Could not invert map. Terminating this orbit...'
-cc          stop
+          if (iiout > 0)
+     .      write (*,*) 'Could not invert map. Skipping orbit'
           exitloop = .true.
         case(ORB_SP_ERR)
           if (iiout > 0)

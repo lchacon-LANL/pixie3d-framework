@@ -1445,8 +1445,8 @@ c     Local variables
       real(8),parameter :: tol=1d-11
 
       integer :: iter
-      real(8) :: JJ(size,size),res(size,icol)
-     .          ,dxi(size,icol),error(maxit)
+      real(8) :: JJ(size,size),res(size,icol),xi(size)
+     .          ,dxi(size,icol,maxit),error(maxit),damp(maxit)
 
       logical :: prnt
 
@@ -1469,6 +1469,8 @@ c     Begin program
       endif
 
       ierror = ORB_OK
+
+      damp = 1d0
 
       do iter=1,maxit
 
@@ -1497,14 +1499,21 @@ c     Begin program
         if (prnt) write (*,*) 'evalXi -- J(3,:)=',JJ(3,:)
 
         !Find update dxi = JJ^-1(res)
-        call blockSolve(size,JJ,icol,res,dxi)
+        call blockSolve(size,JJ,icol,res,dxi(:,:,iter))
 
-        if (prnt) write (*,*) 'evalXi -- dxi=',dxi
+        if (prnt) write (*,*) 'evalXi -- dxi=',dxi(:,:,iter)
 
         !Update solution
-        x1 = x1 + dxi(1,1)
-        x2 = x2 + dxi(2,1)
-        x3 = x3 + dxi(3,1)
+        xi = (/x1,x2,x3/)
+        call linesearch(size,xi,dxi(:,icol,iter),error(iter),damp(iter))
+        x1 = xi(1) ; x2 = xi(2) ; x3 = xi(3)
+
+        if (prnt) write (*,*) 'evalXi -- damp=',damp(iter)
+c$$$        x1 = x1 + dxi(1,1,iter)
+c$$$        x2 = x2 + dxi(2,1,iter)
+c$$$        x3 = x3 + dxi(3,1,iter)
+
+        if (damp(iter) < 1d-10) exit
 
         !Singular point BC
         call chk_pos(x1,x2,x3,ierr=ierror,no_per_bc=.true.)
@@ -1515,17 +1524,21 @@ c     Begin program
 
       enddo
 
-      if (iter > maxit) ierror = ORB_MAP_INV
+      if (iter > maxit.or.damp(iter) < 1d-10) ierror = ORB_MAP_INV
 
-      if (ilevel == 1 .or. iter > maxit) then
+      if (ilevel == 1.or.ierror == ORB_MAP_INV) then
         write (*,*)
         write (*,*) 'evalXi -- x =',x,y,z
         write (*,*) 'evalXi -- xi=',x1,x2,x3
         write (*,*) 'evalXi -- domain=',xsmin,xsmax
      .                                 ,ysmin,ysmax
      .                                 ,zsmin,zsmax
-        write (*,*) 'evalXi -- Convergence history: '
+        write (*,*) 'evalXi -- Newton convergence history: '
      .              ,error(1:min(iter,maxit))
+        write (*,*) 'evalXi -- Newton update history: '
+     .              ,sqrt(sum(dxi(:,icol,1:min(iter,maxit)),1)**2)
+        write (*,*) 'evalXi -- Newton damping history: '
+     .              ,damp (1:min(iter,maxit))
       endif
 
       contains
@@ -1646,6 +1659,112 @@ c     ###################################################################
 !     .                ,work(1+thr_num*dim:(thr_num+1)*dim))
 
       end function formJacobian
+
+c     linesearch
+c     ###############################################################
+      subroutine linesearch (ntot,x,ddx,fk,damp)
+      implicit none       !For safe fortran
+c     ---------------------------------------------------------------
+c     If global is true, uses linesearch backtracking to ensure
+c     sufficient reduction in the Newton residual norm.
+c     In call:
+c       - ntot (input): vector dimension
+c       - x (input/output): current Newton state, next Newton state
+c       - ddx (input): Newton update
+c       - fk (input): current Newton residual
+c
+c     Taken from C. T. Kelley's "Iterative methods for Linear and
+c     Nonlinear Equations", Sec. 8.3.
+c     ---------------------------------------------------------------
+
+c     Call variables
+
+      integer    :: ntot
+      real(8)    :: x(ntot),ddx(ntot),fk,damp
+
+c     Local variables
+
+      integer    :: idamp
+      real(8)    :: dampm,theta,etak0,dxnorm,fkp,fm,df,ddf
+      real(8)    :: b(ntot),dummy(ntot)
+      real(8)    :: alpha,sigma0,sigma1
+
+c     Begin program
+
+c     Initialize parameters
+
+      damp = 1d0    !Damping
+
+      sigma0 = 0.1  !Lower limit in damping parameter decrease
+      sigma1 = 0.5  !Damping parameter decrease for linesearch backtracking
+
+      alpha = 1d-1  !Residual reduction parameter
+
+c     Start quadratic linesearch backtracking
+
+      do idamp = 1,100
+
+        !Find residual norm |F(xk+dxk)| --> fkp
+        dummy = x + damp*ddx
+cc        call evaluateNewtonResidual(ntot,dummy,b)
+        b = formResidual(dummy(1),dummy(2),dummy(3),ierror)
+        fkp = sqrt(sum(b**2))
+
+        !Check residual minimation condition
+        if (fkp.lt.(1.-alpha*damp)*fk) then
+
+          exit  !All is well
+
+        else
+          !New damping parameter
+          dampm = sigma1*damp
+
+          !Evaluate residual norm |F(xk+lambda*dxk)| --> fm
+          dummy = x + dampm*ddx
+cc          call evaluateNewtonResidual(ntot,dummy,b)
+          b = formResidual(dummy(1),dummy(2),dummy(3),ierror)
+          fm = sqrt(sum(b**2))
+
+          !Check convergence
+          if (fm.lt.(1.-alpha*dampm)*fk) then   !Good enough
+
+            damp = dampm
+            exit
+
+          else  !Quadratic minimization in lambda
+
+            !Find out curvature of parabola
+            ddf = 2./(damp-dampm)*((fkp-fk)/damp-(fm-fk)/dampm)
+
+            if (ddf > 0) then !Parabola has a minimum
+
+              df = 1./(damp-dampm)*(-dampm/damp*(fkp-fk)
+     .                              +damp/dampm*(fm -fk))
+              theta = -df/ddf
+
+              damp = fmed(sigma0*damp,sigma1*damp,theta)  !Takes middle value
+
+            else  !Try again
+
+              damp = dampm
+
+            endif
+
+          endif
+cc          if (damp < 1d-2) then
+cc            damp = 1d0
+cc            exit
+cc          endif
+cc          write (*,*) 'Residuals',fk,fm,fkp
+cc          write (*,*) 'Damping parameters',dampm,damp
+        endif
+      enddo
+
+      x = dummy
+
+c     End program
+
+      end subroutine linesearch
 
       end subroutine evalXi
 
