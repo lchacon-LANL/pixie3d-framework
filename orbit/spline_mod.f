@@ -1461,8 +1461,8 @@ c     Begin program
       endif
 
       prnt = (my_rank == 0).and.(ilevel > 1)
-
-      if (ilevel > 1) then
+cc      prnt = .true.
+      if (prnt) then
         write (*,*)
         write (*,*) 'evalXi -- x =',x,y,z
         write (*,*) 'evalXi -- xi=',x1,x2,x3
@@ -1470,10 +1470,10 @@ c     Begin program
 
       ierror = ORB_OK
 
-      damp = 1d0
-
       do iter=1,maxit
 
+        damp(iter) = 1d0
+        
         if (prnt) write (*,*) '>>>>Iteration=',iter
 
         !Form residual and check convergence
@@ -1524,7 +1524,7 @@ c$$$        x3 = x3 + dxi(3,1,iter)
 
       enddo
 
-      if (iter > maxit.or.damp(iter) < 1d-10) ierror = ORB_MAP_INV
+      if (iter>maxit.or.damp(iter)<1d-10) ierror = ORB_MAP_INV
 
       if (ilevel == 1.or.ierror == ORB_MAP_INV) then
         write (*,*)

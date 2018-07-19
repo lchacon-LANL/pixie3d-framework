@@ -21,7 +21,7 @@ c     ###############################################################
 
 c     Call variables
 
-        integer,optional :: thrnum,thrtot
+        integer,optional,INTENT(IN) :: thrnum,thrtot
 
 c     Local variables
 
@@ -70,6 +70,8 @@ c     Begin program
         thrtot = 1
         thrnum = 0
 #endif
+
+        call set_omp_thread_id()
 
       end subroutine get_omp_thread_id
 
