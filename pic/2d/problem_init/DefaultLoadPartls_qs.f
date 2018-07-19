@@ -37,15 +37,6 @@ c$$$               rx = 0.5
 c diag***
                yp = hy*rx 
 
-c diag***
-c$$$               call random_number(rx)
-c$$$               rx1 = dinvnorm(rx)
-c$$$               call random_number(rx)
-c$$$               rx2 = dinvnorm(rx)
-c$$$               call random_number(rx)
-c$$$               rx3 = dinvnorm(rx)
-c diag***
-
                rx1= dinvnorm((r4(1,ipc)+1d0)*0.5d0)  
                rx2= dinvnorm((r4(2,ipc)+1d0)*0.5d0)
                rx3= dinvnorm((r4(3,ipc)+1d0)*0.5d0)
@@ -129,5 +120,3 @@ cc         print *,is,v_tot,vx2,vt2
 
          deallocate(r4)
        end do                   !species
-
-cc       stop
