@@ -2794,6 +2794,8 @@ c ######################################################################
 
       use pic_shape_f
 
+      use pic_moments, ONLY: IPx,IPy,IPz,Ins
+
       use grid, ONLY: fromLocalToGlobalLimits
      .               ,fromGlobalToLocalLimits
      .               ,find_global_nobc
@@ -3044,12 +3046,12 @@ c     Free work space
 
 c     find_pcle_drift_velocity_z (vz only, which is cell-centered)
 c     ######################################################################
-      subroutine find_pcle_drift_velocity_z(mments,mments_given)
+      subroutine find_pcle_drift_velocity_z(vzmom,vzmom_given)
 
       implicit none
 
-      real(8), intent(in) :: mments(0:,0:,:,0:)
-      real(8), intent(in),optional :: mments_given(0:,0:,:,0:)
+      real(8), intent(in) :: vzmom(0:,0:,:)
+      real(8), intent(in),optional :: vzmom_given(0:,0:,:)
 
       integer :: bcs(6,n_sp)
       integer :: ci(9),ipcl,numpcles,numspcs
@@ -3065,8 +3067,10 @@ c     ######################################################################
 
 c     Begin program
 
-      if (maxval(abs(Jpz(:,:,:)))==0d0
-     .    .and.(.not.PRESENT(mments_given))) return
+      if (associated(Jpz)) then
+        if (maxval(abs(Jpz(:,:,:)))==0d0
+     .    .and.(.not.PRESENT(vzmom_given))) return
+      endif
 
 c     Build GLOBAL 9-point stencil matrix
 
@@ -3076,14 +3080,14 @@ c     Build LOCAL rhs taking Jacobian into account
 
       rr  = 0d0
 
-      if(present(mments_given)) then
+      if(present(vzmom_given)) then
         do k=1,nzl
           do j=1,nyl
             do i=1,nxl
               ii = i + nxl*(j-1) + nxl*nyl*(k-1)
               call fromLocalToGlobalLimits(gpicdef,1,i,j,k
      .                                    ,igl,jgl,kgl)
-              rr(ii,:) = mments_given(i,j,:,3)-mments(i,j,:,3) !No charge included!
+              rr(ii,:) = vzmom_given(i,j,:)-vzmom(i,j,:) !No charge included!
             enddo
           enddo
         enddo
@@ -3094,7 +3098,7 @@ c     Build LOCAL rhs taking Jacobian into account
               ii = i + nxl*(j-1) + nxl*nyl*(k-1)
               call fromLocalToGlobalLimits(gpicdef,1,i,j,k
      .                                    ,igl,jgl,kgl)
-              rr(ii,:) = npc_avg(1:n_sp)*Jpz(igl,jgl,:)-mments(i,j,:,3) !No charge included!
+              rr(ii,:) =npc_avg(1:n_sp)*Jpz(igl,jgl,:)-vzmom(i,j,:) !No charge included!
             enddo
           enddo
         enddo
@@ -3159,14 +3163,17 @@ c     Assign particle drift velocity vz (Stardard curvilinear convention, i.e., 
         do ip=1,numpcles
           if(ip.le.nip) then    !reserved inflow particles
             spcs(isp)%pcles(ip)%v_n (:,3) = 0d0
-            spcs(isp)%pcles(ip)%v_np(:,3) = spcs(isp)%pcles(ip)%v_n(:,3)
+            spcs(isp)%pcles(ip)%v_np(:,3) =
+     .           spcs(isp)%pcles(ip)%v_n(:,IPz)
           else
             call xform_pcle_idx(spcs(isp)%pcles(ip)%ijk_n,nxg,i_n,j_n)
             do i=1, _Npg
-              spcs(isp)%pcles(ip)%v_n(i,3) =spcs(isp)%pcles(ip)%v_n(i,3)
-     .                                     + solg(i_n(i),j_n(i),1,isp)
+              spcs(isp)%pcles(ip)%v_n(i,3) =
+     .             spcs(isp)%pcles(ip)%v_n(i,IPz)
+     .            + solg(i_n(i),j_n(i),1,isp)
 cc     .                                     -v0_z(isp)
-              spcs(isp)%pcles(ip)%v_np(i,3)=spcs(isp)%pcles(ip)%v_n(i,3)
+              spcs(isp)%pcles(ip)%v_np(i,3)=
+     .             spcs(isp)%pcles(ip)%v_n(i,Ipz)
             end do
           end if
         end do
@@ -3178,12 +3185,12 @@ cc     .                                     -v0_z(isp)
 
 c     find_pcle_drift_velocity_x (vx only)
 c     ######################################################################
-      subroutine find_pcle_drift_velocity_x(mments,mments_given)
+      subroutine find_pcle_drift_velocity_x(vxmom,vxmom_given)
 
       implicit none
 
-      real(8), intent(in) :: mments(0:,0:,:,0:)
-      real(8), intent(in),optional :: mments_given(0:,0:,:,0:)
+      real(8), intent(in) :: vxmom(0:,0:,:)
+      real(8), intent(in),optional :: vxmom_given(0:,0:,:)
 
       integer :: bcs(6,n_sp)
       integer :: ci(9),ipcl,numpcles,numspcs
@@ -3201,7 +3208,10 @@ c     ######################################################################
 
 c     Begin program
 
-      if (maxval(abs(Jpx(:,:,:)))==0d0) return
+      if (associated(Jpx)) then
+        if (maxval(abs(Jpx(:,:,:)))==0d0
+     .    .and.(.not.PRESENT(vxmom_given))) return
+      endif
 
 c     Build GLOBAL 9-point stencil matrix
 
@@ -3211,14 +3221,14 @@ c     Build LOCAL rhs taking Jacobian into account
 
       rr  = 0d0
 
-      if(present(mments_given)) then
+      if(present(vxmom_given)) then
         do k=1,nzl
           do j=1,nyl
             do i=1,nxl
               ii = i + nxl*(j-1) + nxl*nyl*(k-1)
               call fromLocalToGlobalLimits(gpicdef,1,i,j,k
      .                                    ,igl,jgl,kgl)
-              rr(ii,:) =  mments_given(i,j,:,1) -mments(i,j,:,1) 
+              rr(ii,:) =  vxmom_given(i,j,:) -vxmom(i,j,:) 
             enddo
           enddo
         enddo         
@@ -3229,7 +3239,7 @@ c     Build LOCAL rhs taking Jacobian into account
               ii = i + nxl*(j-1) + nxl*nyl*(k-1)
               call fromLocalToGlobalLimits(gpicdef,1,i,j,k
      .                                    ,igl,jgl,kgl)
-              rr(ii,:) = npc_avg(1:n_sp)*Jpx(igl,jgl,:)-mments(i,j,:,1) 
+              rr(ii,:)= npc_avg(1:n_sp)*Jpx(igl,jgl,:)-vxmom(i,j,:) 
             enddo
           enddo
         enddo
@@ -3301,15 +3311,15 @@ c     Assign particle drift velocity vz (Stardard curvilinear convention, i.e., 
               xp = spcs(isp)%pcles(ip)%x_n(i,1)*ihx
               if(xp>0.5d0) then
                  spcs(isp)%pcles(ip)%v_n(i,1) =
-     .                    spcs(isp)%pcles(ip)%v_n(i,1)
+     .                    spcs(isp)%pcles(ip)%v_n(i,IPx)
      .                   +solg(i_n(i),j_n(i),1,isp)
               else
                  spcs(isp)%pcles(ip)%v_n(i,1) =
-     .                    spcs(isp)%pcles(ip)%v_n(i,1)
+     .                    spcs(isp)%pcles(ip)%v_n(i,IPx)
      .                   +solg(imp   ,j_n(i),1,isp)
               end if
               spcs(isp)%pcles(ip)%v_np(i,1)
-     .                  = spcs(isp)%pcles(ip)%v_n(i,1)
+     .                  = spcs(isp)%pcles(ip)%v_n(i,IPx)
 	    end do
           end if
         end do
@@ -3321,12 +3331,12 @@ c     Assign particle drift velocity vz (Stardard curvilinear convention, i.e., 
 
 c     find_pcle_drift_velocity_y (vy only)
 c     ######################################################################
-      subroutine find_pcle_drift_velocity_y(mments,mments_given)
+      subroutine find_pcle_drift_velocity_y(vymom,vymom_given)
 
       implicit none
 
-      real(8), intent(in) :: mments(0:,0:,:,0:)
-      real(8), intent(in),optional :: mments_given(0:,0:,:,0:)
+      real(8), intent(in) :: vymom(0:,0:,:)
+      real(8), intent(in),optional :: vymom_given(0:,0:,:)
 
       integer :: bcs(6,n_sp)
       integer :: ci(9),ipcl,numpcles,numspcs
@@ -3343,7 +3353,10 @@ c     ######################################################################
 
 c     Begin program
 
-cc      if (maxval(abs(Jpy(:,:,:)))==0d0) return
+      if (associated(Jpy)) then
+        if (maxval(abs(Jpy(:,:,:)))==0d0
+     .    .and.(.not.PRESENT(vymom_given))) return
+      endif
 
 c     Build GLOBAL 9-point stencil matrix
 
@@ -3353,14 +3366,14 @@ c     Build LOCAL rhs taking Jacobian into account
 
       rr  = 0d0
 
-      if(present(mments_given)) then
+      if(present(vymom_given)) then
         do k=1,nzl
           do j=1,nyl
             do i=1,nxl
               ii = i + nxl*(j-1) + nxl*nyl*(k-1)
               call fromLocalToGlobalLimits(gpicdef,1,i,j,k
      .                                    ,igl,jgl,kgl)
-              rr(ii,:) =  mments_given(i,j,:,2)-mments(i,j,:,2) 
+              rr(ii,:) =  vymom_given(i,j,:)-vymom(i,j,:) 
             enddo
           enddo
         enddo         
@@ -3371,7 +3384,7 @@ c     Build LOCAL rhs taking Jacobian into account
               ii = i + nxl*(j-1) + nxl*nyl*(k-1)
               call fromLocalToGlobalLimits(gpicdef,1,i,j,k
      .                                    ,igl,jgl,kgl)
-              rr(ii,:) = npc_avg(1:n_sp)*Jpy(igl,jgl,:)-mments(i,j,:,2) 
+              rr(ii,:) =npc_avg(1:n_sp)*Jpy(igl,jgl,:)-vymom(i,j,:) 
             enddo
           enddo
         enddo
@@ -3443,15 +3456,15 @@ c     Assign particle drift velocity vy (Stardard curvilinear convention, i.e., 
               yp = spcs(isp)%pcles(ip)%x_n(i,2)*ihy
               if(yp>0.5d0) then
                  spcs(isp)%pcles(ip)%v_n(i,2) =
-     .                    spcs(isp)%pcles(ip)%v_n(i,2)
+     .                    spcs(isp)%pcles(ip)%v_n(i,Ipy)
      .                   +solg(i_n(i),j_n(i),1,isp)
               else
                  spcs(isp)%pcles(ip)%v_n(i,2) =
-     .                    spcs(isp)%pcles(ip)%v_n(i,2)
+     .                    spcs(isp)%pcles(ip)%v_n(i,Ipy)
      .                   +solg(i_n(i),jmp   ,1,isp)
               end if
               spcs(isp)%pcles(ip)%v_np(i,2)
-     .                  = spcs(isp)%pcles(ip)%v_n(i,2)
+     .                  = spcs(isp)%pcles(ip)%v_n(i,Ipy)
 	    end do
           end if
         end do
@@ -4726,9 +4739,9 @@ c     Find particle weights and drift velocities
         !Check GY
         call gather_moments(gpicdef)
 
-        call find_pcle_drift_velocity_z(moms(:,:,1,1:n_sp,:))
-c$$$        call find_pcle_drift_velocity_x(moms(:,:,1,1:n_sp,:))
-c$$$        call find_pcle_drift_velocity_y(moms(:,:,1,1:n_sp,:))
+        call find_pcle_drift_velocity_x(moms(:,:,1,1:n_sp,Ipx))
+        call find_pcle_drift_velocity_y(moms(:,:,1,1:n_sp,Ipy))
+        call find_pcle_drift_velocity_z(moms(:,:,1,1:n_sp,Ipz))
 
         call destroy_mass_matrix
       end if

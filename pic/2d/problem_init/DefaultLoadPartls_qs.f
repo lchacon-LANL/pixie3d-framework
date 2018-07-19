@@ -25,7 +25,7 @@ c$$$!$OMP.REDUCTION(+:v_tot,vx2,vt2)
                where (rx==0d0) rx = rx + 1d-16 !end with 1
                where (rx==1d0) rx = rx - 1d-16
 c diag***
-               rx = 0.5
+c$$$               rx = 0.5
 c diag***
                xp = hx*rx 
 
@@ -33,7 +33,7 @@ c diag***
                where (rx==0d0) rx = rx + 1d-16 !end with 1
                where (rx==1d0) rx = rx - 1d-16
 c diag***
-               rx = 0.5
+c$$$               rx = 0.5
 c diag***
                yp = hy*rx 
 
