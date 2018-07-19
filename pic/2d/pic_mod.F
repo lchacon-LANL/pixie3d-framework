@@ -834,7 +834,7 @@ c     Test for dts (presumably no cell-crossing with a small timestep)
 #endif
         end do
 
-        dt_sub = min(dt_sub,(6d0*xtoll*dts/(anup+1d-300*dts))
+        dt_sub = min(dt_sub,(6d0*xtoll*dts/(anup+1d-30*dts))
      $                      **(0.333333333333333d0))
 
       end subroutine estimate_dtp
