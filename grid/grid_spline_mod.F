@@ -1421,6 +1421,7 @@ c     Call variables
 c     Local variables
 
       integer :: ierror,xd,yd,zd
+      real(8) :: x11,x22,x33
       real(8),pointer :: lxcoef(:,:,:,:)
 
 c     Begin program
@@ -1449,26 +1450,32 @@ c     Begin program
         zd = 0
       endif
 
-      call chk_pos(x1,x2,x3,ierr=ierror)
+      x11 = x1 ; x22 = x2 ; x33 = x3
+      call chk_pos(x11,x22,x33,ierr=ierror)
 
       if (PRESENT(ierr)) ierr = ierror
 
       if (ierror /= ORB_OK) return
 
-      x = db3val(x1,x2,x3,xd,yd,zd,tx,ty,tz,nx,ny,nz
+      x = db3val(x11,x22,x33,xd,yd,zd,tx,ty,tz,nx,ny,nz
      .          ,kx,ky,kz,lxcoef(:,:,:,1)
      .          ,worke(1+thr_num*dime:(thr_num+1)*dime))
 !     .          ,work(1+thr_num*dim:(thr_num+1)*dim))
 
-      y = db3val(x1,x2,x3,xd,yd,zd,tx,ty,tz,nx,ny,nz
+      y = db3val(x11,x22,x33,xd,yd,zd,tx,ty,tz,nx,ny,nz
      .          ,kx,ky,kz,lxcoef(:,:,:,2)
      .          ,worke(1+thr_num*dime:(thr_num+1)*dime))
 !     .          ,work(1+thr_num*dim:(thr_num+1)*dim))
 
-      z = db3val(x1,x2,x3,xd,yd,zd,tx,ty,tz,nx,ny,nz
+      z = db3val(x11,x22,x33,xd,yd,zd,tx,ty,tz,nx,ny,nz
      .          ,kx,ky,kz,lxcoef(:,:,:,3)
      .          ,worke(1+thr_num*dime:(thr_num+1)*dime))
 !     .          ,work(1+thr_num*dim:(thr_num+1)*dim))
+
+      !Shift coords if physical coord is logical coord
+      if (x_is_log) x = x + (x1-x11)
+      if (y_is_log) y = y + (x2-x22)
+      if (z_is_log) z = z + (x3-x33)
 
       nullify(lxcoef)
 
@@ -1497,7 +1504,7 @@ c     Local variables
       real(8),parameter :: tol=1d-12
 
       integer :: iter
-      real(8) :: JJ(size,size),res(size,icol),dxi(size,icol)
+      real(8) :: JJ(size,size),res(size,icol),dxi(size,icol),xi(size)
      .          ,error(maxit),damp(maxit),updt(maxit)
 
       logical :: prnt
@@ -1512,13 +1519,7 @@ c     Begin program
         lxcoef => xcoef
       endif
 
-      prnt = (ilevel > 1)
-
-      ierror = ORB_OK
-
-c$$$      x1 = sqrt(x*x+y*y)  !Radius
-c$$$      x2 = acos(x/x1)     !Theta
-c$$$      x3 = z              !Z
+      prnt = (my_rank == 0).and.(ilevel > 1)
 
       if (prnt) then
         write (*,*)
@@ -1527,9 +1528,13 @@ c$$$      x3 = z              !Z
       endif
 
 c     Perform iteration
+      
+      ierror = ORB_OK
 
       do iter=1,maxit
 
+        damp(iter) = 1d0
+        
         if (prnt) write (*,*) '>>>>Iteration=',iter
 
         !Form residual and check convergence
@@ -1554,25 +1559,24 @@ c     Perform iteration
         if (prnt) write (*,*) 'evalXi -- J(2,:)=',JJ(2,:)
         if (prnt) write (*,*) 'evalXi -- J(3,:)=',JJ(3,:)
 
-        !Find update dxi =-JJ^-1(res)
+        !Find update dxi = JJ^-1(res)
         call blockSolve(size,JJ,icol,res,dxi)
 
         if (prnt) write (*,*) 'evalXi -- dxi=',dxi
 
         updt(iter) = sqrt(sum(dxi*dxi))
-        
-c$$$        !Linesearch
-c$$$        if (iter > 1) then
-c$$$          call linesearch(x1,x2,x3,dxi(:,1),error(iter),damp(iter)
-c$$$     .                   ,ierror)
-c$$$        else
-          damp(iter) = 1d0
-          x1 = x1 + dxi(1,1)
-          x2 = x2 + dxi(2,1)
-          x3 = x3 + dxi(3,1)
-c$$$        endif
+
+        !Update solution
+        xi = (/x1,x2,x3/)
+        call linesearch(xi,dxi(:,1),error(iter),damp(iter),ierror)
+        x1 = xi(1) ; x2 = xi(2) ; x3 = xi(3)
+c$$$        x1 = x1 + dxi(1,1,iter)
+c$$$        x2 = x2 + dxi(2,1,iter)
+c$$$        x3 = x3 + dxi(3,1,iter)
 
         if (ierror /= ORB_OK) exit
+
+        if (prnt) write (*,*) 'evalXi -- xi=',x1,x2,x3
 
         !Singular point BC
         call chk_pos(x1,x2,x3,ierr=ierror,no_per_bc=.true.)
@@ -1592,13 +1596,12 @@ c$$$        endif
         write (*,*) 'evalXi -- domain=',xsmin,xsmax
      .                                 ,ysmin,ysmax
      .                                 ,zsmin,zsmax
-        write (*,*) 'evalXi -- Residual history: '
+        write (*,*) 'evalXi -- Newton convergence history: '
      .              ,error(1:min(iter,maxit))
-        write (*,*) 'evalXi -- Update history: '
-     .              ,updt (1:min(iter,maxit))
-        write (*,*) 'evalXi -- Damp parameter history: '
-     .              ,damp (1:min(iter,maxit))
-        stop
+        write (*,*) 'evalXi -- Newton update history: '
+     .              ,upde (1:min(iter-1,maxit))
+        write (*,*) 'evalXi -- Newton damping history: '
+     .              ,damp (1:min(iter-1,maxit))
       endif
 
       contains
@@ -1693,13 +1696,13 @@ c     ###################################################################
 
 c     linesearch
 c     ###############################################################
-      subroutine linesearch (x1,x2,x3,ddx,fk,damp,ierror)
+      subroutine linesearch (x,ddx,fk,damp,ierror)
       implicit none       !For safe fortran
 c     ---------------------------------------------------------------
 c     If global is true, uses linesearch backtracking to ensure
 c     sufficient reduction in the Newton residual norm.
 c     In call:
-c       - x1,x2,x3 (input/output): current/next Newton state
+c       - x (input/output): current Newton state, next Newton state
 c       - ddx (input): Newton update
 c       - fk (input): current Newton residual
 c       - damp (output): damping parameter
@@ -1712,13 +1715,13 @@ c     ---------------------------------------------------------------
 c     Call variables
 
       integer :: ierror
-      real(8) :: x1,x2,x3,ddx(size),fk,damp
+      real(8) :: x(size),ddx(size),fk,damp
 
 c     Local variables
 
       integer :: idamp
       real(8) :: dampm,theta,dxnorm,fkp,fm,df,ddf
-      real(8) :: b(size),dummy(size),x(size)
+      real(8) :: b(size),dummy(size)
       real(8) :: alpha,sigma0,sigma1
 
 c     Begin program
@@ -1733,8 +1736,6 @@ c     Initialize parameters
       alpha = 1d-1  !Residual reduction parameter
 
 c     Start quadratic linesearch backtracking
-
-      x = (/x1,x2,x3/)
 
       do idamp = 1,100
 
@@ -1792,9 +1793,7 @@ cc          write (*,*) 'Damping parameters',dampm,damp
         endif
       enddo
 
-      x1 = dummy(1)
-      x2 = dummy(2)
-      x3 = dummy(3)
+      x = dummy
 
       if (damp < 1d-8) ierror = ORB_SP_ERR
 
