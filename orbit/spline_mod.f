@@ -1420,6 +1420,11 @@ c     Begin program
      .          ,worke(1+thr_num*dime:(thr_num+1)*dime))
 !     .          ,work(1+thr_num*dim:(thr_num+1)*dim))
 
+      !Shift coords if physical coord is logical coord
+      if (x_is_log) x = x + (x1-x11)
+      if (y_is_log) y = y + (x2-x22)
+      if (z_is_log) z = z + (x3-x33)
+
       nullify(lxcoef)
 
       end subroutine evalX
