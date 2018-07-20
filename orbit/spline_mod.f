@@ -1536,9 +1536,9 @@ c$$$        x3 = x3 + dxi(3,1,iter)
         write (*,*) 'evalXi -- Newton convergence history: '
      .              ,error(1:min(iter,maxit))
         write (*,*) 'evalXi -- Newton update history: '
-     .              ,sqrt(sum(dxi(:,icol,1:min(iter,maxit)),1)**2)
+     .              ,sqrt(sum(dxi(:,icol,1:min(iter-1,maxit)),1)**2)
         write (*,*) 'evalXi -- Newton damping history: '
-     .              ,damp (1:min(iter,maxit))
+     .              ,damp (1:min(iter-1,maxit))
       endif
 
       contains
