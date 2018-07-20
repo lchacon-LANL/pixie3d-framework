@@ -1369,6 +1369,7 @@ c     Call variables
 c     Local variables
 
       integer :: ierror,xd,yd,zd
+      real(8) :: x11,x22,x33
       real(8),pointer :: lxcoef(:,:,:,:)
 
 c     Begin program
@@ -1397,23 +1398,24 @@ c     Begin program
         zd = 0
       endif
 
-      call chk_pos(x1,x2,x3,ierr=ierror)
+      x11 = x1 ; x22 = x2 ; x33 = x3
+      call chk_pos(x11,x22,x33,ierr=ierror)
 
       if (PRESENT(ierr)) ierr = ierror
 
       if (ierror /= ORB_OK) return
 
-      x = db3val(x1,x2,x3,xd,yd,zd,tx,ty,tz,nx,ny,nz
+      x = db3val(x11,x22,x33,xd,yd,zd,tx,ty,tz,nx,ny,nz
      .          ,kx,ky,kz,lxcoef(:,:,:,1)
      .          ,worke(1+thr_num*dime:(thr_num+1)*dime))
 !     .          ,work(1+thr_num*dim:(thr_num+1)*dim))
 
-      y = db3val(x1,x2,x3,xd,yd,zd,tx,ty,tz,nx,ny,nz
+      y = db3val(x11,x22,x33,xd,yd,zd,tx,ty,tz,nx,ny,nz
      .          ,kx,ky,kz,lxcoef(:,:,:,2)
      .          ,worke(1+thr_num*dime:(thr_num+1)*dime))
 !     .          ,work(1+thr_num*dim:(thr_num+1)*dim))
 
-      z = db3val(x1,x2,x3,xd,yd,zd,tx,ty,tz,nx,ny,nz
+      z = db3val(x11,x22,x33,xd,yd,zd,tx,ty,tz,nx,ny,nz
      .          ,kx,ky,kz,lxcoef(:,:,:,3)
      .          ,worke(1+thr_num*dime:(thr_num+1)*dime))
 !     .          ,work(1+thr_num*dim:(thr_num+1)*dim))
@@ -1501,12 +1503,12 @@ cc      prnt = .true.
         !Find update dxi = JJ^-1(res)
         call blockSolve(size,JJ,icol,res,dxi(:,:,iter))
 
-        if (prnt) write (*,*) 'evalXi -- dxi=',dxi(:,:,iter)
-
         !Update solution
         xi = (/x1,x2,x3/)
         call linesearch(size,xi,dxi(:,icol,iter),error(iter),damp(iter))
         x1 = xi(1) ; x2 = xi(2) ; x3 = xi(3)
+
+        if (prnt) write (*,*) 'evalXi -- xi=',x1,x2,x3
 
         if (prnt) write (*,*) 'evalXi -- damp=',damp(iter)
 c$$$        x1 = x1 + dxi(1,1,iter)
