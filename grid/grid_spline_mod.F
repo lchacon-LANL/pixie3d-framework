@@ -1599,7 +1599,7 @@ c$$$        x3 = x3 + dxi(3,1,iter)
         write (*,*) 'evalXi -- Newton convergence history: '
      .              ,error(1:min(iter,maxit))
         write (*,*) 'evalXi -- Newton update history: '
-     .              ,upde (1:min(iter-1,maxit))
+     .              ,updt (1:min(iter-1,maxit))
         write (*,*) 'evalXi -- Newton damping history: '
      .              ,damp (1:min(iter-1,maxit))
       endif
