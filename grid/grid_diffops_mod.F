@@ -7504,7 +7504,7 @@ c     Find X ZIP flux (used even if method /= ZIP)
 
 c     Other advective methods
 
-      if (method /= 2.and.(.not.at_bdry)) then
+      if (method /= ZIP.and.(.not.at_bdry)) then
 
         !Find velocities at faces from ZIP fluxes
         if (zv
@@ -7596,7 +7596,7 @@ c     Find X ZIP flux (used even if method /= ZIP)
 
 c     Other advective methods
 
-      if (method /= 2.and.(.not.at_bdry)) then
+      if (method /= ZIP.and.(.not.at_bdry)) then
 
         !Find velocities at faces from ZIP fluxes
         if (zv
@@ -7688,7 +7688,7 @@ c     Find X ZIP flux (used even if method /= ZIP)
 
 c     Other advective methods
 
-      if (method /= 2.and.(.not.at_bdry)) then
+      if (method /= ZIP.and.(.not.at_bdry)) then
 
         !Find velocities at faces from ZIP fluxes
         if (zv
@@ -7928,7 +7928,7 @@ c     Figure out advective method
      .      .or.(isBdry(g_def,i+1,igr,1).and.bcond(1)/=PER)
 
       if (at_bdry.and.method > ZIP) then
-        meth = UPWD             !Revert to upwinding
+        meth = ZIP !UPWD             !Revert to upwinding
       else
         meth = method
       endif
@@ -7993,7 +7993,7 @@ c     Figure out advective method
      .      .or.(isBdry(g_def,j+1,igr,3).and.bcond(3)/=PER)
 
       if (at_bdry.and.method > ZIP) then
-        meth = UPWD             !Revert to upwinding
+        meth = ZIP !UPWD             !Revert to upwinding
       else
         meth = method
       endif
@@ -8058,7 +8058,7 @@ c     Figure out advective method
      .      .or.(isBdry(g_def,k+1,igr,5).and.bcond(5)/=PER)
 
       if (at_bdry.and.method > ZIP) then
-        meth = UPWD             !Revert to upwinding
+        meth = ZIP !UPWD             !Revert to upwinding
       else
         meth = method
       endif
