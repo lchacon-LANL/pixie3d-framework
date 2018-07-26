@@ -756,10 +756,12 @@ c     Daniele,23/03/2009: dump the initial point of the orbit
             else
               write(nunity(thrnum)) real(x0),real(z0)
             endif
-           else if (ridge) then
-!#! Marco, write initial position in the y=yss0 plane,ridgeridge
-            call ridge_write(x0,z0,thrnum)
            endif
+          endif
+
+          if (lssy .and. ridge) then
+!!#! Marco, write initial position in the y=yss0 plane,ridgeridge
+           call ridge_write(x0,z0,thrnum)
           endif
 
           if(lssz .and. z0 == zss0) then
@@ -769,10 +771,13 @@ c     Daniele,23/03/2009: dump the initial point of the orbit
             else
               write(nunitz(thrnum)) real(x0),real(y0)        !In radius
             endif
-           else if (ridge) then
-!#! Marco, write initial position in the z=zss0 plane
-            call ridge_write(x0,y0,thrnum)
            endif
+          endif
+
+          if (lssz .and. ridge) then
+!!#! Marco, write initial position in the z=zss0 plane
+!            write(*,*) 'WRITE_ci',x0,y0,thrnum
+            call ridge_write(x0,y0,thrnum)
           endif
 
         endif
@@ -2710,8 +2715,11 @@ c     Local variables
 
         real(8) :: rr
         integer :: iwhich
+        integer :: thrnum,thrtot
 
 c     Begin program
+
+        call get_omp_thread_id(thrnum,thrtot)
 
         xss = 0d0 ; yss = 0d0 ; zss = 0d0 ; tss = 0d0
 
@@ -2750,7 +2758,7 @@ c     Check for intersection with X surface of section
 
           if (ss_io) then
             call chk_pos(xss,yss,zss) !this resets logical coords
-            write(nunitx(thr_num)) real(yss),real(zss)
+            write(nunitx(thrnum)) real(yss),real(zss)
           endif
 
           !Accumulate B diagnostics
@@ -2771,9 +2779,9 @@ c     Check for intersection with Y surface of section
             call chk_pos(xss,yss,zss) !this resets logical coords
             
             if (flux) then
-              write(nunity(thr_num)) real(0.5*xss**2),real(zss)
+              write(nunity(thrnum)) real(0.5*xss**2),real(zss)
             else
-              write(nunity(thr_num)) real(xss),real(zss)
+              write(nunity(thrnum)) real(xss),real(zss)
             endif
           endif
 
@@ -2795,16 +2803,16 @@ c     Check for intersection with Z surface of section
             if (rzss) then   !Find R-Z plane positions
               call evalX(xss,yss,zss,xcar,ycar,zcar) !Eval Cartesian coords; also resets logical coords
               rr = sqrt(xcar**2+ycar**2)
-              write(nunitrz(thr_num)) real(rr),real(zcar)
+              write(nunitrz(thrnum)) real(rr),real(zcar)
             endif
 
             if (lssz) then
               call chk_pos(xss,yss,zss) !this resets logical coords
 
               if (flux) then
-                write(nunitz(thr_num)) real(0.5*xss**2),real(yss) !In flux
+                write(nunitz(thrnum)) real(0.5*xss**2),real(yss) !In flux
               else
-                write(nunitz(thr_num)) real(xss)       ,real(yss) !In radius
+                write(nunitz(thrnum)) real(xss)       ,real(yss) !In radius
               endif
             endif
           endif
@@ -2968,9 +2976,12 @@ c     Call variables
 c     Local variables
 
         real(8) :: rr
-        integer :: iwhich
+        integer :: iwhich,iierr
+        integer :: thrnum,thrtot
 
 c     Begin program
+
+        call get_omp_thread_id(thrnum,thrtot)
 
         xss = 0d0 ; yss = 0d0 ; zss = 0d0 ; tss = 0d0
 
@@ -2999,7 +3010,14 @@ c     Check for intersection with X surface of section
             mx = mx + 1
             if (.not. ridge .and. .not. auto_corr) then
              call chk_pos(xss,yss,zss) !this resets logical coords
-             write(nunitx(thr_num)) real(yss),real(zss)
+!#! Marco, november 2017, insert the ierr in chk_pos for consistency
+!with t3d which needs to stop when orbit exits domain
+!             call chk_pos(xss,yss,zss) !this resets logical coords
+             call chk_pos(xss,yss,zss,ierr=iierr) !this resets logical coords
+             if (iierr .ne. 0) then
+              return
+             endif
+             write(nunitx(thrnum)) real(yss),real(zss)
             endif
           endif
 
@@ -3027,17 +3045,30 @@ c     Check for intersection with Y surface of section
           if (ridge) then 
            if ((my .lt. max_inter_y) 
      .         .and. (mod(my,delta_y) .eq. 0)) then
+!            call chk_pos(xss,yss,zss,ierr=iierr) !this resets logical coords
+            if (xss .gt. xmax) then
+!             write(*,*) 'DIAGyridge',my,delta_y,xss,zss
+             call ridge_write(1.d0,0.d0,thrnum)
+            else
 !#!Marco, ridge write
-            call ridge_write(xss,zss,thr_num)
+            call ridge_write(xss,zss,thrnum)
+            endif
            endif
           endif
  
           if (.not. ridge .and. .not. auto_corr) then
            call chk_pos(xss,yss,zss) !this resets logical coords
+!#! Marco, november 2017, insert the ierr in chk_pos for consistency
+!with t3d which needs to stop when orbit exits domain
+!             call chk_pos(xss,yss,zss) !this resets logical coords
+             call chk_pos(xss,yss,zss,ierr=iierr) !this resets logical coords
+             if (iierr .ne. 0) then
+              return
+             endif
            if (flux) then
-             write(nunity(thr_num)) real(0.5*xss**2),real(zss)
+             write(nunity(thrnum)) real(0.5*xss**2),real(zss)
            else
-             write(nunity(thr_num)) real(xss),real(zss)
+             write(nunity(thrnum)) real(xss),real(zss)
            endif
           endif
          endif
@@ -3064,7 +3095,7 @@ c     Check for intersection with Z surface of section
              if (.not. ridge .and. .not. auto_corr) then
               call evalX(xss,yss,zss,xcar,ycar,zcar) !Eval Cartesian coords; also resets logical coords
               rr = sqrt(xcar**2+ycar**2)
-              write(nunitrz(thr_num)) real(rr),real(zcar)
+              write(nunitrz(thrnum)) real(rr),real(zcar)
              endif
             endif
 
@@ -3072,31 +3103,43 @@ c     Check for intersection with Z surface of section
             if (auto_corr) then
              !update number of intersections
              call auto_corr_intersz_update(intersect_z)
-!             write(*,*) 'DIAGac0',thr_num,intersect_z
+!             write(*,*) 'DIAGac0',thrnum,intersect_z
             endif
 
 !#!Marco, update intersection counter
             mz = mz + 1
-!            write(*,*) 'DIAGz0',thr_num,mz,delta_z,max_inter_z
+!            write(*,*) 'DIAGz0',thrnum
 
             if (ridge) then 
              if ((mz .lt. max_inter_z)
      .           .and. (mod(mz,delta_z) .eq. 0)) then
-                if (thr_num .eq. 0) then
-!                 write(*,*) 'DIAGridge',mz,delta_z,xss,yss
+                if (thrnum .eq. 0) then
+!                 write(*,*) 'DIAGridge0',mz,delta_z,xss,yss
                 endif
+              if (xss .gt. xmax) then
+!               write(*,*) 'DIAGridge',xss,xmax
+               call ridge_write(1.d0,0.d0,thrnum)
+              else
 !#!Marco, ridge write
-              call ridge_write(xss,yss,thr_num)
+!               write(*,*) 'DIAGridge',thrnum
+               call ridge_write(xss,yss,thrnum)
+              endif
              endif
+
             endif
  
             if (.not. ridge .and. .not. auto_corr) then
-!             write(*,*) 'DIAG_chkpos'
-             call chk_pos(xss,yss,zss) !this resets logical coords
+!#! Marco, november 2017, insert the ierr in chk_pos for consistency
+!with t3d which needs to stop when orbit exits domain
+!             call chk_pos(xss,yss,zss) !this resets logical coords
+             call chk_pos(xss,yss,zss,ierr=iierr) !this resets logical coords
+             if (iierr .ne. 0) then
+              return
+             endif
              if (flux) then
-               write(nunitz(thr_num)) real(0.5*xss**2),real(yss) !In flux
+               write(nunitz(thrnum)) real(0.5*xss**2),real(yss) !In flux
              else
-               write(nunitz(thr_num)) real(xss)       ,real(yss) !In radius
+               write(nunitz(thrnum)) real(xss)       ,real(yss) !In radius
              endif
 
             endif

@@ -552,11 +552,11 @@ endif
 # ra22 (RFX) #
 ##############
 
-ifeq ($(HOST),ra22)
+ifeq ($(HOST),rat2)
 
   CPPFLAGS += $(PREPROC)RFX $(PREPROC)sed_nosymlinks
 
-  FC = pgf95
+  FC = gfortran
 
   override HDF5 = f
 
@@ -566,17 +566,18 @@ ifeq ($(HOST),ra22)
 
     ifeq ($(BOPT),O)
       PETSC_ARCH = linux64_openmpi
+#      PETSC_ARCH = linux64_intelmpi_rat2
     else
       PETSC_ARCH = linux64_openmpi_g
     endif
 
-    ADIOS = t
+    ADIOS = f
     ADIOS_HOME = /ricercatori/ft/adios-1.3
     ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L/ricercatori/ft/mxml-2.6/lib -lmxml
     ADIOS_VER  = 1.3
 
   else
-    LIBS     += -llapack -lblas
+    LIBS     += -L$(LAPACK_LIB) -llapack -L$(BLAS_LIB) -lblas
 
     ADIOS = f
   endif

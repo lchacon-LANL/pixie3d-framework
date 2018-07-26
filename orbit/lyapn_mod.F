@@ -18,8 +18,8 @@
 !$OMP THREADPRIVATE(lyap,connect,ridge)
        logical :: auto_corr=.false., ac_rtrn
 !$OMP THREADPRIVATE(auto_corr,ac_rtrn)
-       integer :: intersect_x, intersect_y, intersect_z, ilup=0
-!$OMP THREADPRIVATE(intersect_x,intersect_y,intersect_z, ilup)
+       integer :: intersect_x, intersect_y, intersect_z
+!$OMP THREADPRIVATE(intersect_x,intersect_y,intersect_z)
        integer :: intersect_tor
 !$OMP THREADPRIVATE(intersect_tor)
        integer :: max_inter_y,max_inter_x,max_inter_z
@@ -34,6 +34,7 @@
 !$OMP THREADPRIVATE(big_n)
        integer :: delta_y,delta_z
 !$OMP THREADPRIVATE(delta_y,delta_z)
+       integer :: ilup = 0
 
 !#! Marco, attention
        character(200) :: init_cond_file
@@ -55,6 +56,51 @@
       contains
 
 !#! IO routines
+!     read_ext_file
+!     #################################################################
+      subroutine read_ext_file(init_cond_file,nextci,temp4,itot)
+
+!     -----------------------------------------------------------------
+!     Read initial conditions from external file
+!     -----------------------------------------------------------------
+
+        implicit none
+
+!     Call variables
+        character*200 :: init_cond_file
+        integer(8), intent(in) :: nextci
+        real(8), intent(out) :: temp4(0:nextci,0:2)
+        integer, intent(out) :: itot
+
+!     Local variables
+        character*200 :: tfile
+        real(8) :: tot, temp0
+        real(8) :: temp3(0:2)
+        integer :: iost,part
+
+!#! initial conditions from file, to have initial conditions on the same
+!#! flux surface
+       tfile = trim(init_cond_file)
+       tot=0.
+       part = 1
+       open(unit=657,file=trim(tfile),
+     .      form='unformatted',status='unknown')
+
+       do
+        read(657,iostat=iost) temp3(0:2)
+!        write(*,*) 'DIAG_read',temp3
+        tot = tot + 1.
+        temp4(part,:)=temp3
+        part = part + 1
+        if (iost .ne. 0) then
+         exit
+        endif
+       enddo
+       close(657)
+
+       itot=int(tot)
+
+      end subroutine read_ext_file
 
 !     lyap_io_init
 !     #################################################################
@@ -80,7 +126,6 @@
 !     Begin program
 
         ssx = 'split/lyap_'//int2char(ilup)
-  
         unitlp= 56027+ilup
         open(unit=unitlp,file=trim(ssx),action='write'
      .        ,form='unformatted')
@@ -91,6 +136,8 @@
 
       end subroutine lyap_io_init
 
+!     lyap_write_ci
+!     #################################################################
       subroutine lyap_write_ci(ci,ninit,str)
 
 !     -----------------------------------------------------------------
@@ -238,7 +285,9 @@
 
       end subroutine ridge_io_end
 
-      subroutine ridge_write(x_1,x_2,thr_num)
+!     ridge_write
+!     #################################################################
+      subroutine ridge_write(x_1,x_2,thrnum)
 
 !     ------------------------------------------------------------------------
 !     Write intersections when needed
@@ -248,14 +297,14 @@
 
 !     Call variables
         real(8) :: x_1, x_2
-        integer :: thr_num
+        integer :: thrnum
 
 !     Local variables
 
-!        write(*,'(a,i2,i2,i0,2f18.8)') 'DIAGw1, thr_num ',my_rank
-!     .           ,thr_num
-!     .           ,ridgex(thr_num),x_1,x_2
-        write(ridgex(thr_num)) x_1,x_2
+!        write(*,'(a,i4,i4,i7,2f18.8)') 'DIAGw1, thr_num ',my_rank
+!     .           ,thrnum
+!     .           ,ridgex(thrnum),x_1,x_2
+        write(ridgex(thrnum)) x_1,x_2
 
       end subroutine ridge_write
 
@@ -1147,6 +1196,185 @@ c     ###############################################################
      $           .or.(lssz .and. (intersect_z .ge. max_inter_z))
  
       end function auto_corr_inters_stop
+
+!#! routine per ridges
+c     write_final_cond
+c     ###############################################################
+      subroutine write_final_cond(zsurf,numberic,NstationFiles
+     .    ,ddeltar,ddeltath)
+
+      implicit none 
+
+      ! Local variables
+      real(8) :: r
+      real(8), intent(in) :: zsurf,ddeltar,ddeltath ! input
+      real(8), allocatable,dimension(:,:) :: real_points_start
+      real(8), allocatable,dimension(:,:) :: real_points_end
+      integer :: number_ci_for_thread!,thrtt
+      integer, parameter :: n_intersection = 1
+      integer :: n_data_tot,dumm,counter,qq,tenmod
+      real(8), dimension(2) :: dati
+      character(50) l_ll
+      real(8), allocatable,dimension(:,:) :: punti
+      integer :: i,ll,ii,aa,reason,iStation
+      integer, intent(in) :: NstationFiles
+      character(LEN=100), dimension(:), allocatable :: stationFileNames
+      character(50) :: filename 
+      integer, intent(in):: numberic !input 
+
+!      call system('ls ridgez* > fileContents.txt')
+!      open(3331,FILE='fileContents.txt',action="read")
+!
+!      !how many
+!      i = 0
+!
+!      do
+!       read(3331,FMT='(a)',iostat=reason) r
+!       write(*,*) r
+!       if (reason/=0) EXIT
+!       i = i+1
+!      end do
+!      close(3331)
+!
+!      NstationFiles = i
+      number_ci_for_thread = int(numberic/NstationFiles)
+      write(*,*) 'NstationFiles',NstationFiles,number_ci_for_thread
+!     .            ,thrtt
+
+!      open(unit=290,file='data.dat',status='old',
+!     .       form='formatted',action='write')
+      open(unit=190,file='final_conditions.bin',status='unknown',
+     .       form='unformatted',action='write')
+
+
+!------------- inizio a leggere e scrivere------------
+
+      allocate (punti(0:1,0:number_ci_for_thread
+     .           *(1+n_intersection) - 1))
+
+
+      allocate (real_points_start(0:1,
+     .          0:(number_ci_for_thread
+     .           *(1+n_intersection) - 1)/10))
+
+      allocate (real_points_end(0:1,
+     .          0:(number_ci_for_thread
+     .           *(1+n_intersection) - 1)/10))
+!#! Marco, set to zero the vectors
+      punti(:,:) = 0.d0
+      real_points_start(:,:) = 0.d0
+      real_points_end(:,:) = 0.d0
+      counter = 0
+
+      do ll = 0,NstationFiles-1
+     
+       filename = 'ridgez_proc'//int2char(ll)
+       write(*,*) 'DIAGfilename',filename,ll
+
+       open(unit=180,file=filename,status='old',
+     .       form='unformatted',action='read')
+
+!        write(*,*) 'DIAG2',number_ci_for_thread,n_intersection
+!        do ii=0,number_ci_for_thread*(1+n_intersection) - 1
+!         read(180,iostat=dumm), dati
+!!         write(*,*) 'dati  ', ii,dati     
+!         if (dumm .eq. 0) then
+!          punti(0:1,ii) = dati
+!         else
+!          exit
+!         endif
+!        enddo
+
+        do ii=0,number_ci_for_thread*(1+n_intersection) - 1
+         read(180,iostat=dumm), dati
+!         write(*,*) 'dati  ', ii,dati     
+         if (dumm .eq. 0) then
+          punti(0:1,ii) = dati
+         else 
+          tenmod = mod(ii,10)
+!#! Marco, nel file ridgez_proc* devono esserci number_ci_for_thread*2
+!valori scritti
+          counter = counter + (number_ci_for_thread*2- (ii-tenmod))
+          write(*,*) 'error reading, skipping at i=',ii
+          write(*,*) 'number of ci not written '
+     .       , number_ci_for_thread*2 - (ii-tenmod)
+          !#! remove broken couple c.i.+advanced
+           punti(0,ii-tenmod:ii) = 0.5d0 
+           punti(1,ii-tenmod:ii) = 0.5d0
+           do qq=ii-10-tenmod,ii 
+            write(*,*) 'check',qq,punti(0,qq)
+           enddo
+          exit
+         endif
+        enddo
+
+
+
+!        do ii=0,number_ci_for_thread*(1+n_intersection) - 1
+!         read(180,iostat=dumm), dati
+!!         write(*,*) 'dati  ', ii,dati     
+!         if (dumm .eq. 0) then
+!          punti(0:1,ii) = dati
+!         else 
+!          counter = counter + (number_ci_for_thread*2- ii)
+!          write(*,*) 'error reading, skipping at i=',ii,counter
+!          exit
+!         endif
+!        enddo
+
+        n_data_tot = number_ci_for_thread*(1+n_intersection)
+        ! end of ll-th thread data reading
+        !get real data
+
+!        deltar = abs(punti(0,1) - punti(0,0))
+!        deltath = abs(punti(1,3) - punti(1,0))
+        real_points_start = punti(0:1,0:n_data_tot:10)
+        real_points_end = punti(0:1,1:n_data_tot:10)
+
+        do aa = 0,size(real_points_end(0,:)) -1
+               
+         write(190), real_points_end(0,aa),
+     .               real_points_end(1,aa), zsurf
+
+         write(190), real_points_end(0,aa) + ddeltar,
+     .               real_points_end(1,aa), zsurf
+
+         write(190), real_points_end(0,aa) - ddeltar,
+     .               real_points_end(1,aa), zsurf
+
+         write(190), real_points_end(0,aa),
+     .               real_points_end(1,aa) + ddeltath, 
+     .               zsurf
+
+         write(190), real_points_end(0,aa),
+     .               real_points_end(1,aa) - ddeltath,
+     .               zsurf
+
+
+!         write(290,'(2f13.7)'),
+!     .    real_points_end(0,aa),real_points_end(1,aa)
+!
+!         write(290,'(2f13.7)'), real_points_end(0,aa) + deltar,
+!     .               real_points_end(1,aa)
+!
+!         write(290,'(2f13.7)'), real_points_end(0,aa) - deltar,
+!     .               real_points_end(1,aa)
+!
+!         write(290,'(2f13.7)'), real_points_end(0,aa),
+!     .               real_points_end(1,aa) + deltath
+!
+!         write(290,'(2f13.7)'), real_points_end(0,aa),
+!     .               real_points_end(1,aa) - deltath
+!
+
+        enddo
+        close(180) ! close reading file
+       enddo ! close reading loop
+       close(190) !close writing file
+       write(*,*) 'Ho mancato ',counter,' condizioni iniziali su '
+     .        ,numberic
+
+      end subroutine write_final_cond
 
       end module lyapn
 
