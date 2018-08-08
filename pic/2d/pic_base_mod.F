@@ -2876,7 +2876,7 @@ c     ######################################################################
 
 c     Call variables
 
-      real(8), intent(in) :: mments(0:,0:,:,0:)
+      real(8), intent(in) :: mments(0:,0:,:)
       real(8), intent(in),optional :: dens_given(0:,0:,:)
 
       integer :: bcs(6,n_sp),igl,jgl,kgl,i,j,k,ii,ip,isp,numspcs
@@ -2905,7 +2905,7 @@ c     Build LOCAL rhs taking Jacobian into account
               call fromLocalToGlobalLimits(gpicdef,1,i,j,k
      .                                    ,igl,jgl,kgl)
               !solve for delta weight
-              rr(ii,:) = dens_given(i,j,:) -mments(i,j,:,0)
+              rr(ii,:) = dens_given(i,j,:) -mments(i,j,:)
             enddo
           enddo
         enddo
@@ -2917,7 +2917,7 @@ c     Build LOCAL rhs taking Jacobian into account
               call fromLocalToGlobalLimits(gpicdef,1,i,j,k
      .                                    ,igl,jgl,kgl)
               !solve for delta weight
-              rr(ii,:) = npc_avg(1:n_sp)*Jns(igl,jgl,:)-mments(i,j,:,0)
+              rr(ii,:) = npc_avg(1:n_sp)*Jns(igl,jgl,:)-mments(i,j,:)
             enddo
           enddo
         enddo
@@ -4734,7 +4734,7 @@ c     Find particle weights and drift velocities
 
         call setup_mass_matrix(nxl,nyl,nzl,nxg,nyg,nzg)
 
-        call find_pcle_weights(moms(:,:,1,1:n_sp,:))
+        call find_pcle_weights(moms(:,:,1,1:n_sp,Ins))
 
         !Check GY
         call gather_moments(gpicdef)
