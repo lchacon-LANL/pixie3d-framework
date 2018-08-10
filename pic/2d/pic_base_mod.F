@@ -4539,10 +4539,10 @@ c     Load particles
      .              ,"Slow shock quiet start not implemented")
         case('kaw_ii')
 #include "problem_init/kawiiLoadPartls_qs.f"
-        case('landau','2strm','iaw','langdon')
+        case('landau','2strm','iaw')!,'langdon')
 #include "problem_init/UniformLoadPartls_qs.f"
         case default  
-#include "problem_init/DefaultLoadPartls_qs.f"
+#include "problem_init/RandomLoadPartls_qs.f"
         end select
 
       else                      !quiet_start
@@ -4554,10 +4554,10 @@ c     Load particles
 #include "problem_init/slowShockLoadPartls.f"
         case('kaw_ii')   
 #include "problem_init/kawiiLoadPartls.f"
-        case('landau','2strm','iaw','langdon')
+        case('landau','2strm','iaw')!,'langdon')
 #include "problem_init/UniformLoadPartls.f"
         case default
-#include "problem_init/DefaultLoadPartls.f"
+#include "problem_init/RandomLoadPartls.f"
         end select
 
       end if                    !without quiet_start
