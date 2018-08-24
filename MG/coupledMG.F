@@ -6082,6 +6082,7 @@ c     Begin program
           call readSolverHierarchy (solver,depth1)
           solver%options%diag => diag
           solver%options%mgctx=> mgctx
+          solver%options%mg_grid_def => mgctx%g_def
           call writeSolverHierarchy(solver,depth1)
 
           !Call solver

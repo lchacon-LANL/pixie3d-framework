@@ -591,6 +591,10 @@ c #####################################################################
           module procedure imposeBConScalar,imposeBConVector
         end INTERFACE
 
+        INTERFACE setBC_ez
+          module procedure imposeBConScalar_ez,imposeBConVector_ez
+        end INTERFACE
+
         INTERFACE XferBCs
           module procedure XferBCs_scl, XferBCs_vec
         END INTERFACE 

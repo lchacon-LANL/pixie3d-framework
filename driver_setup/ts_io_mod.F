@@ -94,7 +94,7 @@ c     Begin program
 #if defined(petsc)
       call PetscGetTime   (prof_time(3),prof_err)
       e_time = prof_time(3)-prof_time(1)
-cc        if (my_rank == 0) write (*,*) e_time, quota
+cc      if (my_rank == 0) write (*,*) "Time counters",e_time, quota
 #else
       e_time = 0d0
 #endif
