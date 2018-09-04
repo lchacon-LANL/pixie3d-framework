@@ -52,7 +52,7 @@ c     Newton-Krylov iteration
       nk_conf%etak_meth      = method
       nk_conf%ksmax          = maxksp
       nk_conf%gmmax          = maxitgm
-      nk_conf%nwt_max_it_acc = 0.7*maxitnwt
+      nk_conf%nwt_max_it_acc = ceiling(0.7*maxitnwt)
       nk_conf%nwt_max_it_rej = maxitnwt
       nk_conf%global_meth    = global
 
