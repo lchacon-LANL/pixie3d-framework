@@ -153,7 +153,7 @@ endif
 # mavis (LANL) #
 ################
 
-ifeq ($(HOST),mavis)
+ifeq ($(findstring mavis,$(HOST)),mavis)
 
   FC = gfortran
 
@@ -173,19 +173,24 @@ ifeq ($(HOST),mavis)
 
   else
     ifdef BOPT
-      PETSC_DIR ?=$(HOME)/lib/petsc-3.0.0-p7
+      PETSC_DIR ?=/apps/contrib/petsc-3.0.0-p7
 
-      PETSC_ARCH = linux64_openmpi
+      ifeq ($(BOPT),O)
+        PETSC_ARCH = linux64_openmpi_gcc-7.2.0
+      else
+        PETSC_ARCH = linux64_openmpi_gcc-7.2.0_g
+      endif
 
       #Determined via modules
       HDF5 = t
-      HDF5_LIBS =-L$(PHDF5_LIB) -lhdf5_fortran -lhdf5 -lz -lm
-      HDF5_MOD  = $(PHDF5_LIB)
-      HDF5_INC  = $(PHDF5_INC)
+      HDF5_LIBS =-L/apps/hdf5-1.10.2/lib -lhdf5hl_fortran -lhdf5_fortran -lhdf5_hl -lhdf5 -lz -lm -ldl
+      HDF5_MOD  = /apps/hdf5-1.10.2/include 
+      HDF5_INC  = /apps/hdf5-1.10.2/include
 
       #Determined via modules
       ADIOS = t
-      ADIOS_LIBS = -I$(ADIOS_INC) -L$(ADIOS_LIB) -ladiosf -ladiosreadf -L$(HOME)/lib/mxml-2.7/lib -lmxml
+      ADIOS_LIBS = -I/apps/contrib/adios-1.10.0/lib/include -L/apps/contrib/adios-1.10.0/lib/lib -ladiosf_v1
+      ADIOS_VER  = 1.10.0
 
     else
       LIBS += -L$(HOME)/lib -llapack -lblas
