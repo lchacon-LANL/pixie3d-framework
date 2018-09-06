@@ -2874,7 +2874,8 @@ c End program
 c     fillVecArray1
 c     ###################################################################
       subroutine fillVecArray1(g_def,igrid,neq,x,arr,bcs,iorder,arr_cov
-     .                 ,bc,arr0,is_vec,is_cnv,gpos,icomp,result_is_curv)
+     .                 ,bc,arr0,is_vec,is_cnv,gpos,icomp,result_is_curv
+     .                 ,sp_reg)
 
 c     -------------------------------------------------------------------
 c     Fills array arr (with BCs) using vector x  (two dimensional).
@@ -2894,7 +2895,7 @@ c     Call variables
 
         integer,optional :: gpos,icomp(:)
         real(8),optional,dimension(:,:,:,:) :: arr_cov,arr0
-        logical,optional :: is_vec,is_cnv,result_is_curv,bc
+        logical,optional :: is_vec,is_cnv,result_is_curv,bc,sp_reg
 
 c     Local variables
 
@@ -2952,22 +2953,26 @@ c     Begin program
           call setMGBC(g_def,gps,neq,nx,ny,nz,igrid,arr,bcs
      .              ,icomp=icomp,is_vec=isvec,is_cnv=iscnv
      .              ,iorder=iorder,arr_cov=arr_cov,arr0=arr0
-     .              ,result_is_curv=result_is_curv)
+     .              ,result_is_curv=result_is_curv
+     .              ,regularize_sp=sp_reg)
         elseif (PRESENT(arr_cov)) then
           call setMGBC(g_def,gps,neq,nx,ny,nz,igrid,arr,bcs
      .              ,icomp=icomp,is_vec=isvec,is_cnv=iscnv
      .              ,iorder=iorder,arr_cov=arr_cov
-     .              ,result_is_curv=result_is_curv)
+     .              ,result_is_curv=result_is_curv
+     .              ,regularize_sp=sp_reg)
         elseif (PRESENT(arr0)) then
           call setMGBC(g_def,gps,neq,nx,ny,nz,igrid,arr,bcs
      .              ,icomp=icomp,is_vec=isvec,is_cnv=iscnv
      .              ,iorder=iorder,arr0=arr0
-     .              ,result_is_curv=result_is_curv)
+     .              ,result_is_curv=result_is_curv
+     .              ,regularize_sp=sp_reg)
         else
           call setMGBC(g_def,gps,neq,nx,ny,nz,igrid,arr,bcs
      .              ,icomp=icomp,is_vec=isvec,is_cnv=iscnv
      .              ,iorder=iorder
-     .              ,result_is_curv=result_is_curv)
+     .              ,result_is_curv=result_is_curv
+     .              ,regularize_sp=sp_reg)
         endif
 
       call deallocMGPointers(fpointers,mg_ctx_l)
@@ -2979,7 +2984,8 @@ c     End program
 c     fillVecArray2
 c     ###################################################################
       subroutine fillVecArray2(g_def,igrid,neq,x,arr,bcs,iorder,arr_cov
-     .                    ,arr0,is_vec,is_cnv,gpos,icomp,result_is_curv)
+     .                    ,arr0,is_vec,is_cnv,gpos,icomp,result_is_curv
+     .                    ,sp_reg)
 
 c     -------------------------------------------------------------------
 c     Fills array arr (with BCs) using vector x (one dimensional).
@@ -2999,7 +3005,7 @@ c     Call variables
 
         integer,optional :: gpos,icomp(:)
         real(8),optional,dimension(:,:,:,:) :: arr_cov,arr0
-        logical,optional :: is_vec,is_cnv,result_is_curv
+        logical,optional :: is_vec,is_cnv,result_is_curv,sp_reg
 
 c     Local variables
 
@@ -3046,22 +3052,26 @@ c     Begin program
           call setMGBC(g_def,gps,neq,nx,ny,nz,igrid,arr,bcs
      .              ,icomp=icomp,is_vec=isvec,is_cnv=iscnv
      .              ,iorder=iorder,arr_cov=arr_cov,arr0=arr0
-     .              ,result_is_curv=result_is_curv)
+     .              ,result_is_curv=result_is_curv
+     .              ,regularize_sp=sp_reg)
         elseif (PRESENT(arr_cov)) then
           call setMGBC(g_def,gps,neq,nx,ny,nz,igrid,arr,bcs
      .              ,icomp=icomp,is_vec=isvec,is_cnv=iscnv
      .              ,iorder=iorder,arr_cov=arr_cov
-     .              ,result_is_curv=result_is_curv)
+     .              ,result_is_curv=result_is_curv
+     .              ,regularize_sp=sp_reg)
         elseif (PRESENT(arr0)) then
           call setMGBC(g_def,gps,neq,nx,ny,nz,igrid,arr,bcs
      .              ,icomp=icomp,is_vec=isvec,is_cnv=iscnv
      .              ,iorder=iorder,arr0=arr0
-     .              ,result_is_curv=result_is_curv)
+     .              ,result_is_curv=result_is_curv
+     .              ,regularize_sp=sp_reg)
         else
           call setMGBC(g_def,gps,neq,nx,ny,nz,igrid,arr,bcs
      .              ,icomp=icomp,is_vec=isvec,is_cnv=iscnv
      .              ,iorder=iorder
-     .              ,result_is_curv=result_is_curv)
+     .              ,result_is_curv=result_is_curv
+     .              ,regularize_sp=sp_reg)
         endif
 
         call deallocMGPointers(fpointers,mg_ctx_l)
