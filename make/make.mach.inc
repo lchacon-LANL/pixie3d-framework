@@ -1033,16 +1033,96 @@ endif
 # Darwin #
 ##########
 
-ifeq ($(findstring cn,$(HOST)),cn)
-  FC = ifort
-#  M_ARCH = core-avx2
-  LIBS += -llapack -lblas
-endif
-
 ifeq ($(findstring darwin,$(HOST)),darwin)
-  FC = ifort
-#  M_ARCH = core-avx2
-  LIBS += -llapack -lblas
+
+  override MACHINE = darwin
+
+  ifeq ($(findstring gfortran,$(FC)),gfortran)
+
+    NETCDF=f
+    NETCDF_LIBS = -lnetcdff -lnetcdf
+    NETCDF_INC  = -I/usr/include
+
+    ifdef BOPT
+     PETSC_DIR =$(HOME)/software/petsc-3.0.0-p7
+
+     ifeq ($(BOPT),O)
+      PETSC_ARCH = linux64_openmpi3.1.0_gcc7.3.0
+     else
+      PETSC_ARCH = linux64_openmpi3.1.0_gcc7.3.0_g
+     endif
+
+     HDF5 = f
+
+     HDF5_HOME = /usr/projects/hpcsoft/toss2/wolf/hdf5/1.8.16_gcc-5.3.0_openmpi-1.10.5
+     HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+     HDF5_MOD  = $(HDF5_HOME)/include
+     HDF5_INC  = $(HDF5_MOD)
+
+     ADIOS = f
+
+     ADIOS_BUFFER_MB = 1000
+     ADIOS_METHOD = MPI_LUSTRE
+
+     ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.10.0/lib-wolf-gcc-5.3.0_openmpi-1.10.5
+     ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -llustreapi
+     ADIOS_VER  = 1.10.0
+
+     SPRNG = f
+
+     SPRNG_PAR_HOME = /turquoise/usr/projects/magreconn/soft/sprng5
+     SPRNG_LIBS = $(SPRNG_PAR_HOME)/lib/wolf-gcc5.3.0-openmpi1.10.5/lib -lsprng -lstdc++ -lm
+     SPRNG_INC  = $(SPRNG_PAR_HOME)/include
+    else
+     HDF5 = f
+     ADIOS = f
+     LIBS += -llapack -lblas
+    endif
+  endif
+
+  ifeq ($(findstring ifort,$(FC)),ifort)
+
+    NETCDF=f
+
+    ifdef BOPT
+       PETSC_DIR =$(HOME)/software/petsc-3.0.0-p7
+
+       ifeq ($(BOPT),O)
+        PETSC_ARCH = linux64_openmpi3.1.0_intel17.0.6
+       else
+        PETSC_ARCH = linux64_openmpi3.1.0_intel17.0.6_g
+       endif
+
+       HDF5 = f
+
+       HDF5_HOME = /usr/projects/hpcsoft/toss2/wolf/hdf5/1.8.16_intel-17.0.1_openmpi-1.10.5
+       HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+       HDF5_MOD  = $(HDF5_HOME)/include
+       HDF5_INC  = $(HDF5_MOD)
+
+       ADIOS = f
+
+       ADIOS_BUFFER_MB = 1000
+       ADIOS_METHOD = MPI
+
+       ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.10.0/lib-wolf-intel-17.0.1_openmpi-1.10.5
+       ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -llustreapi
+       ADIOS_VER  = 1.10.0
+
+       SPRNG = f
+
+       SPRNG_PAR_HOME = /turquoise/usr/projects/magreconn/soft/sprng5
+       SPRNG_LIBS = $(SPRNG_PAR_HOME)/lib/wolf-intel17.0.1-openmpi1.10.5/lib -lsprng -lstdc++ -lm
+       SPRNG_INC  = $(SPRNG_PAR_HOME)/include
+
+    else
+      HDF5 = f
+      ADIOS = f
+      LIBS += -llapack -lblas
+    endif
+
+  endif
+
 endif
 
 #####################
