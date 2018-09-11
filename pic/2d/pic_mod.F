@@ -980,7 +980,7 @@ c     Local variables
       real(_prec) :: Exp,Eyp,Ezp,Bxp,Byp,Bzp
      .              ,xhp(_Npg,3),xnp(_Npg,3),x0p(_Npg,3)
      .              ,x_nh(_Npg,3),cov(3,3),cnv(3,3),xlog(_Npg,3)
-     .              ,dum1(_Npg),dum2(_Npg,2),dum3(_Npg,3)
+     .              ,dum1(_Npg),dum2(_Npg,2),dum3(_Npg,3),dt_nuh(_Npg)
       real(_prec) :: Sx2_n(_Npg,3), Sy2_n(_Npg,3)
       real(_prec) :: Sx1(_Npg,2),Sx2(_Npg,3),DSx(_Npg,3)
       real(_prec) :: Sy1(_Npg,2),Sy2(_Npg,3),DSy(_Npg,3)
@@ -1039,21 +1039,11 @@ c     Find E
 c     Find B
 
       !Prepare vector potential at nu+1/2
-      dum1 = 0.5d0*(-2d0*dtp+dt+dtau)
+      dt_nuh = 0.5d0*(-2d0*dtp+dt+dtau)
 
       !VECTOR SIMD
       do i=1,_Npg
-         Az_nuh(i,:,:) = A_3(i,:,:) + DtA_3(i,:,:)*dum1(i)
-      enddo
-
-      !VECTOR SIMD
-      do i=1,_Npg
-         Ay_nuh(i,:,:) = A_2(i,:,:) + DtA_2(i,:,:)*dum1(i)
-      enddo
-
-      !VECTOR SIMD
-      do i=1,_Npg
-         Ax_nuh(i,:,:) = A_1(i,:,:) + DtA_1(i,:,:)*dum1(i)
+         Az_nuh(i,:,:) = A_3(i,:,:) + DtA_3(i,:,:)*dt_nuh(i)
       enddo
 
       call opt_matvec_tr_pcle(Sx2,Az_nuh,dum3)
@@ -1064,9 +1054,19 @@ c     Find B
       call dot_product_3_pcle(dum3,Sy2,dum1)
       Bp(:,2) =-dum1 + B0(2)
 
+      !VECTOR SIMD
+      do i=1,_Npg
+         Ay_nuh(i,:,:) = A_2(i,:,:) + DtA_2(i,:,:)*dt_nuh(i)
+      enddo
+
       call opt_matvec_2_pcle (DSx,Ay_nuh,dum2)
       call dot_product_2_pcle(dum2,Sy1,dum1)
       Bp(:,3) = dum1
+
+      !VECTOR SIMD
+      do i=1,_Npg
+         Ax_nuh(i,:,:) = A_1(i,:,:) + DtA_1(i,:,:)*dt_nuh1(i)
+      enddo
 
       call opt_matvec_22_pcle(Sx1,Ax_nuh,dum3)
       call dot_product_3_pcle(dum3,DSy,dum1)
@@ -1097,7 +1097,7 @@ c     Local variables
       real(_prec) :: xhp(_Npg,3),xnp(_Npg,3)
      .              ,x_nh(_Npg,3),cov(_Npg,3,3),cnv(_Npg,3,3)
      .              ,xlog(_Npg,3),x0p(_Npg,3)
-     .              ,dum1(_Npg),dum2(_Npg,2),dum3(_Npg,3)
+     .              ,dum1(_Npg),dum2(_Npg,2),dum3(_Npg,3),dt_nuh(_Npg)
       real(_prec) :: Sx2_n(_Npg,3), Sy2_n(_Npg,3)
       real(_prec) :: Sx1(_Npg,2),Sx2(_Npg,3),DSx(_Npg,3)
       real(_prec) :: Sy1(_Npg,2),Sy2(_Npg,3),DSy(_Npg,3)
@@ -1154,21 +1154,11 @@ c     Find E
 c     Find B
 
       !Prepare vector potential at nu+1/2
-      dum1 = 0.5d0*(-2d0*dtp+dt+dtau)
+      dt_nuh = 0.5d0*(-2d0*dtp+dt+dtau)
 
       !VECTOR SIMD
       do i=1,_Npg
-         Az_nuh(i,:,:) = A_3(i,:,:) + DtA_3(i,:,:)*dum1(i)
-      enddo
-
-      !VECTOR SIMD
-      do i=1,_Npg
-         Ay_nuh(i,:,:) = A_2(i,:,:) + DtA_2(i,:,:)*dum1(i)
-      enddo
-
-      !VECTOR SIMD
-      do i=1,_Npg
-         Ax_nuh(i,:,:) = A_1(i,:,:) + DtA_1(i,:,:)*dum1(i)
+         Az_nuh(i,:,:) = A_3(i,:,:) + DtA_3(i,:,:)*dt_nuh(i)
       enddo
 
       call opt_matvec_tr_pcle(Sx2,Az_nuh,dum3)
@@ -1179,9 +1169,19 @@ c     Find B
       call dot_product_3_pcle(dum3,Sy2,dum1)
       Bp(:,2) =-dum1
 
+      !VECTOR SIMD
+      do i=1,_Npg
+         Ay_nuh(i,:,:) = A_2(i,:,:) + DtA_2(i,:,:)*dt_nuh(i)
+      enddo
+
       call opt_matvec_2_pcle (DSx,Ay_nuh,dum2)
       call dot_product_2_pcle(dum2,Sy1,dum1)
       Bp(:,3) = dum1
+
+      !VECTOR SIMD
+      do i=1,_Npg
+         Ax_nuh(i,:,:) = A_1(i,:,:) + DtA_1(i,:,:)*dt_nuh(i)
+      enddo
 
       call opt_matvec_22_pcle(Sx1,Ax_nuh,dum3)
       call dot_product_3_pcle(dum3,DSy,dum1)
