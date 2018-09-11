@@ -1046,6 +1046,16 @@ c     Find B
          Az_nuh(i,:,:) = A_3(i,:,:) + DtA_3(i,:,:)*dum1(i)
       enddo
 
+      !VECTOR SIMD
+      do i=1,_Npg
+         Ay_nuh(i,:,:) = A_2(i,:,:) + DtA_2(i,:,:)*dum1(i)
+      enddo
+
+      !VECTOR SIMD
+      do i=1,_Npg
+         Ax_nuh(i,:,:) = A_1(i,:,:) + DtA_1(i,:,:)*dum1(i)
+      enddo
+
       call opt_matvec_tr_pcle(Sx2,Az_nuh,dum3)
       call dot_product_3_pcle(dum3,DSy,dum1)
       Bp(:,1) = dum1 + B0(1)
@@ -1054,19 +1064,9 @@ c     Find B
       call dot_product_3_pcle(dum3,Sy2,dum1)
       Bp(:,2) =-dum1 + B0(2)
 
-      !VECTOR SIMD
-      do i=1,_Npg
-         Ay_nuh(i,:,:) = A_2(i,:,:) + DtA_2(i,:,:)*dum1(i)
-      enddo
-
       call opt_matvec_2_pcle (DSx,Ay_nuh,dum2)
       call dot_product_2_pcle(dum2,Sy1,dum1)
       Bp(:,3) = dum1
-
-      !VECTOR SIMD
-      do i=1,_Npg
-         Ax_nuh(i,:,:) = A_1(i,:,:) + DtA_1(i,:,:)*dum1(i)
-      enddo
 
       call opt_matvec_22_pcle(Sx1,Ax_nuh,dum3)
       call dot_product_3_pcle(dum3,DSy,dum1)
@@ -1161,6 +1161,16 @@ c     Find B
          Az_nuh(i,:,:) = A_3(i,:,:) + DtA_3(i,:,:)*dum1(i)
       enddo
 
+      !VECTOR SIMD
+      do i=1,_Npg
+         Ay_nuh(i,:,:) = A_2(i,:,:) + DtA_2(i,:,:)*dum1(i)
+      enddo
+
+      !VECTOR SIMD
+      do i=1,_Npg
+         Ax_nuh(i,:,:) = A_1(i,:,:) + DtA_1(i,:,:)*dum1(i)
+      enddo
+
       call opt_matvec_tr_pcle(Sx2,Az_nuh,dum3)
       call dot_product_3_pcle(dum3,DSy,dum1)
       Bp(:,1) = dum1
@@ -1169,19 +1179,9 @@ c     Find B
       call dot_product_3_pcle(dum3,Sy2,dum1)
       Bp(:,2) =-dum1
 
-      !VECTOR SIMD
-      do i=1,_Npg
-         Ay_nuh(i,:,:) = A_2(i,:,:) + DtA_2(i,:,:)*dum1(i)
-      enddo
-
       call opt_matvec_2_pcle (DSx,Ay_nuh,dum2)
       call dot_product_2_pcle(dum2,Sy1,dum1)
       Bp(:,3) = dum1
-
-      !VECTOR SIMD
-      do i=1,_Npg
-         Ax_nuh(i,:,:) = A_1(i,:,:) + DtA_1(i,:,:)*dum1(i)
-      enddo
 
       call opt_matvec_22_pcle(Sx1,Ax_nuh,dum3)
       call dot_product_3_pcle(dum3,DSy,dum1)
