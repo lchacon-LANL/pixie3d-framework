@@ -1065,7 +1065,7 @@ c     Find B
 
       !VECTOR SIMD
       do i=1,_Npg
-         Ax_nuh(i,:,:) = A_1(i,:,:) + DtA_1(i,:,:)*dt_nuh1(i)
+         Ax_nuh(i,:,:) = A_1(i,:,:) + DtA_1(i,:,:)*dt_nuh(i)
       enddo
 
       call opt_matvec_22_pcle(Sx1,Ax_nuh,dum3)
