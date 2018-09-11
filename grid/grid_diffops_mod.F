@@ -679,8 +679,6 @@ c     Calculates grad(A) in general non-orthogonal coordinates.
 c     The vector grad(A) is covariant.
 c     ---------------------------------------------------------------
 
-      use oned_int
-      
       implicit none           !For safe fortran
 
 c     Call variables
@@ -691,13 +689,13 @@ c     Call variables
 
       real(8) :: arr(0:nx+1,0:ny+1,0:nz+1),cov(3)
 
-      integer,optional :: hex,hey,hez,order
+      integer,optional :: order,hex,hey,hez
 
 c     Local variables
 
-      integer :: ip,im,jp,jm,kp,km,ig,jg,kg,hx,hy,hz,ord,ordmax
-     .          ,imin,imax,igmin,igmax
-      real(8) :: dhx,dhy,dhz,dx1,dx2,dy1,dy2,dz1,dz2
+      integer :: ip,im,jp,jm,kp,km,ig,jg,kg,hx,hy,hz
+      real(8) :: dhx,dhy,dhz,dx1,dx2,dy1,dy2,dz1,dz2,id1,id2,id12
+      real(8) :: gx,gy,gz
 
 c     Begin program
 
@@ -759,134 +757,360 @@ cc      cov = (/ gx,gy,gz /)
 cc
 cc      return
 
-c     Arbitrary order formulas
+c     2nd order formulas
 
-      cov = 0d0
+      gx = 0d0 ; gy = 0d0 ; gz = 0d0
 
-      if (PRESENT(order)) then
-        ordmax = order
-      else
-        ordmax = 3
-      endif
- 
       !X comp
-      ord = min(ordmax,nx+1)
       select case(hx)
       case(0)
         if (i==0) then
-          call IntDriver1d(ord+1,g_def%xx(ig:ig+ord)
-     .                    ,arr(i:i+ord,j,k)
-     .                    ,1,g_def%xx(ig:ig),cov(1:1),ord,deriv=1)
+          dx1=g_def%dx(ig)
+          dx2=g_def%dx(ig+1)
+c$$$          gx = (-arr(i+2,j,k)*dx1/(dx2*(dx1+dx2))
+c$$$     .          +arr(i+1,j,k)*(dx1+dx2)/(dx1*dx2)
+c$$$     .          -arr(i  ,j,k)*(1d0/dx1+1d0/(dx1+dx2)))
+          id1=1d0/dx1
+          id2=1d0/dx2
+          id12=1d0/(dx1+dx2)
+          gx = (-arr(i+2,j,k)*dx1*id2*id12
+     .          +arr(i+1,j,k)*(id1+id2)
+     .          -arr(i  ,j,k)*(id1+id12))
         elseif (i==nx+1) then
-          call IntDriver1d(ord+1,g_def%xx(ig-ord:ig),arr(i-ord:i,j,k)
-     .                    ,1,g_def%xx(ig:ig),cov(1:1),ord,deriv=1)
+          dx1=g_def%dx(ig-1)
+          dx2=g_def%dx(ig-2)
+c$$$          gx = -(-arr(i-2,j,k)*dx1/(dx2*(dx1+dx2))
+c$$$     .           +arr(i-1,j,k)*(dx1+dx2)/(dx1*dx2)
+c$$$     .           -arr(i  ,j,k)*(1d0/dx1+1d0/(dx1+dx2)))
+          id1=1d0/dx1
+          id2=1d0/dx2
+          id12=1d0/(dx1+dx2)
+          gx =-(-arr(i-2,j,k)*dx1*id2*id12
+     .          +arr(i-1,j,k)*(id1+id2)
+     .          -arr(i  ,j,k)*(id1+id12))
         else
           dx1=g_def%dx(ig-1)
           dx2=g_def%dx(ig)
-          cov(1) = (arr(i+1,j,k)-arr(i-1,j,k))/(dx1+dx2)
-c$$$          cov(1) = q_int(3,arr(i-1:i+1,j,k),g_def%xx(ig-1:ig+1),g_def%xx(ig),1)
+
+cc          gx = ( arr(i+1,j,k)*dx1/dx2/(dx1+dx2)
+cc     .          +arr(i  ,j,k)*(dx2-dx1)/dx2/dx1
+cc     .          -arr(i-1,j,k)*dx2/dx1/(dx1+dx2))
+          gx = (arr(i+1,j,k)-arr(i-1,j,k))/(dx1+dx2)
         endif
-        
-c$$$cc        if (i<(ord+1)/2+1) then
-c$$$        if (i<2) then
-c$$$          ord   = min(3,ord)
-c$$$          imin  = max(i-ord/2-mod(ord,2),0)
-c$$$     .          - max(i+ord/2-(nx+1),0) 
-c$$$          imax  = min(i+ord/2 ,nx+1)
-c$$$     .          - min(i-ord/2-mod(ord,2),0)
-c$$$          igmin = ig - (i-imin)
-c$$$          igmax = ig + (imax-i)
-c$$$          call IntDriver1d(ord+1
-c$$$     .                    ,g_def%xx(igmin:igmax),arr(imin:imax,j,k)
-c$$$     .                    ,1,g_def%xx(ig:ig),cov(1:1),ord,deriv=1)
-c$$$        elseif (i>=nx+1-(ord+1)/2) then
-c$$$          ord   = min(3,ord)
-c$$$          imin  = max(i-ord/2-mod(ord,2),0)
-c$$$     .          - max(i+ord/2-(nx+1),0) 
-c$$$          imax  = min(i+ord/2 ,nx+1)
-c$$$     .          - min(i-ord/2-mod(ord,2),0)
-c$$$          igmin = ig - (i-imin)
-c$$$          igmax = ig + (imax-i)
-c$$$          call IntDriver1d(ord+1
-c$$$     .                    ,g_def%xx(igmin:igmax),arr(imin:imax,j,k)
-c$$$     .                    ,1,g_def%xx(ig:ig),cov(1:1),ord,deriv=1)
-c$$$        else
-c$$$c$$$          imin  = max(i-ord/2-mod(ord,2),0)
-c$$$c$$$     .          - max(i+ord/2-(nx+1),0) 
-c$$$c$$$          imax  = min(i+ord/2 ,nx+1)
-c$$$c$$$     .          - min(i-ord/2-mod(ord,2),0)
-c$$$c$$$c$$$          imin  = max(i-ord/2,0)
-c$$$c$$$c$$$     .          - max(i+ord/2+mod(ord,2)-(nx+1),0) 
-c$$$c$$$c$$$          imax  = min(i+ord/2+mod(ord,2) ,nx+1)
-c$$$c$$$c$$$     .          - min(i-ord/2,0)
-c$$$c$$$          
-c$$$c$$$          igmin = ig - (i-imin)
-c$$$c$$$          igmax = ig + (imax-i)
-c$$$c$$$
-c$$$c$$$          write (*,*) "grad tst",i,imin,imax
-c$$$c$$$
-c$$$c$$$          call IntDriver1d(ord+1
-c$$$c$$$     .                    ,g_def%xx(igmin:igmax),arr(imin:imax,j,k)
-c$$$c$$$     .                    ,1,g_def%xx(ig:ig),cov(1:1),ord,deriv=1)
-c$$$          write (*,*) i,ord
-c$$$          ord = 4
-c$$$          call IntDriver1d(ord+1,g_def%xx(ig-(ord+1)/2:ig+ord/2)
-c$$$     .                    ,arr(i-(ord+1)/2:i+ord/2,j,k)
-c$$$     .                    ,1,g_def%xx(ig:ig),cov(1:1),ord,deriv=1)
-c$$$        endif
       case(1)
-        if (i<nx+1) cov(1) =(arr(i+1,j,k)-arr(i  ,j,k))/g_def%dx(ig)
+        if (i<nx+1) gx =(arr(i+1,j,k)-arr(i  ,j,k))/g_def%dx(ig)
       case(-1)
-        if (i>0   ) cov(1) =(arr(i  ,j,k)-arr(i-1,j,k))/g_def%dx(ig-1)
+        if (i>0   ) gx =(arr(i  ,j,k)-arr(i-1,j,k))/g_def%dx(ig-1)
       end select
 
       !Y comp
-      ord = min(ordmax,ny+1)
       select case (hy)
       case(0)
         if (j==0) then
-          call IntDriver1d (ord+1,g_def%yy(jg:jg+ord),arr(i,j:j+ord,k)
-     .                     ,1,g_def%yy(jg:jg),cov(2:2),ord,deriv=1)
+          dy1=g_def%dy(jg)
+          dy2=g_def%dy(jg+1)
+c$$$          gy = (-arr(i,j+2,k)*dy1/(dy2*(dy1+dy2))
+c$$$     .          +arr(i,j+1,k)*(dy1+dy2)/(dy1*dy2)
+c$$$     .          -arr(i,j  ,k)*(1d0/dy1+1d0/(dy1+dy2)))
+          id1=1d0/dy1
+          id2=1d0/dy2
+          id12=1d0/(dy1+dy2)
+          gy = (-arr(i,j+2,k)*dy1*id2*id12
+     .          +arr(i,j+1,k)*(id1+id2)
+     .          -arr(i,j  ,k)*(id1+id12))
         elseif (j==ny+1) then
-          call IntDriver1d (ord+1,g_def%yy(jg-ord:jg),arr(i,j-ord:j,k)
-     .                     ,1,g_def%yy(jg:jg),cov(2:2),ord,deriv=1)
+          dy1=g_def%dy(jg-1)
+          dy2=g_def%dy(jg-2)
+c$$$          gy = -(-arr(i,j-2,k)*dy1/(dy2*(dy1+dy2))
+c$$$     .           +arr(i,j-1,k)*(dy1+dy2)/(dy1*dy2)
+c$$$     .           -arr(i,j  ,k)*(1d0/dy1+1d0/(dy1+dy2)))
+          id1=1d0/dy1
+          id2=1d0/dy2
+          id12=1d0/(dy1+dy2)
+          gy =-(-arr(i,j-2,k)*dy1*id2*id12
+     .          +arr(i,j-1,k)*(dy1+dy2)*id1*id2
+     .          -arr(i,j  ,k)*(id1+id12))
         else
           dy1=g_def%dy(jg-1)
           dy2=g_def%dy(jg)
-          cov(2) = (arr(i,j+1,k)-arr(i,j-1,k))/(dy1+dy2)
-c$$$          cov(2) = q_int(3,arr(i,j-1:j+1,k),g_def%yy(jg-1:jg+1),g_def%yy(jg),1)
+
+cc          gy = ( arr(i,j+1,k)*dy1/dy2/(dy1+dy2)
+cc     .          +arr(i,j  ,k)*(dy2-dy1)/dy2/dy1
+cc     .          -arr(i,j-1,k)*dy2/dy1/(dy1+dy2))
+          gy = (arr(i,j+1,k)-arr(i,j-1,k))/(dy1+dy2)
         endif
       case(1)
-        if (j<ny+1) cov(2) =(arr(i,j+1,k)-arr(i,j  ,k))/g_def%dy(jg  )
+        if (j<ny+1) gy =(arr(i,j+1,k)-arr(i,j  ,k))/g_def%dy(jg  )
       case(-1)
-        if (j>0   ) cov(2) =(arr(i,j  ,k)-arr(i,j-1,k))/g_def%dy(jg-1)
+        if (j>0   ) gy =(arr(i,j  ,k)-arr(i,j-1,k))/g_def%dy(jg-1)
       end select
 
       !Z comp
-      ord = min(ordmax,nz+1)
       select case(hz)
       case(0)
         if (k==0) then
-          call IntDriver1d (ord+1,g_def%zz(kg:kg+ord),arr(i,j,k:k+ord)
-     .                     ,1,g_def%zz(kg:kg),cov(3:3),ord,deriv=1)
+          dz1=g_def%dz(kg)
+          dz2=g_def%dz(kg+1)
+c$$$          gz = (-arr(i,j,k+2)*dz1/(dz2*(dz1+dz2))
+c$$$     .          +arr(i,j,k+1)*(dz1+dz2)/(dz1*dz2)
+c$$$     .          -arr(i,j,k  )*(1d0/dz1+1d0/(dz1+dz2)))
+          id1=1d0/dz1
+          id2=1d0/dz2
+          id12=1d0/(dz1+dz2)
+          gz = (-arr(i,j,k+2)*dz1*id2*id12
+     .          +arr(i,j,k+1)*(id1+id2)
+     .          -arr(i,j,k  )*(id1+id12))
         elseif (k==nz+1) then
-          call IntDriver1d (ord+1,g_def%zz(kg-ord:kg),arr(i,j,k-ord:k)
-     .                     ,1,g_def%zz(kg:kg),cov(3:3),ord,deriv=1)
+          dz1=g_def%dz(kg-1)
+          dz2=g_def%dz(kg-2)
+c$$$          gz = -(-arr(i,j,k-2)*dz1/(dz2*(dz1+dz2))
+c$$$     .           +arr(i,j,k-1)*(dz1+dz2)/(dz1*dz2)
+c$$$     .           -arr(i,j,k  )*(1d0/dz1+1d0/(dz1+dz2)))
+          id1=1d0/dz1
+          id2=1d0/dz2
+          id12=1d0/(dz1+dz2)
+          gz =-(-arr(i,j,k-2)*dz1*id2*id12
+     .          +arr(i,j,k-1)*(id1+id2)
+     .          -arr(i,j,k  )*(id1+id12))
         else
           dz1=g_def%dz(kg-1)
           dz2=g_def%dz(kg)
-          cov(3) = (arr(i,j,k+1)-arr(i,j,k-1))/(dz1+dz2)
-c$$$          cov(3) = q_int(3,arr(i,j,k-1:k+1),g_def%zz(kg-1:kg+1),g_def%zz(kg),1)
+
+cc          gz = ( arr(i,j,k+1)*dz1/dz2/(dz1+dz2)
+cc     .          +arr(i,j,k  )*(dz2-dz1)/dz2/dz1
+cc     .          -arr(i,j,k-1)*dz2/dz1/(dz1+dz2))
+          gz = (arr(i,j,k+1)-arr(i,j,k-1))/(dz1+dz2)
         endif
       case(1)
-        if (k<nz+1) cov(3) =(arr(i,j,k+1)-arr(i,j,k  ))/g_def%dz(kg  )
+        if (k<nz+1) gz =(arr(i,j,k+1)-arr(i,j,k  ))/g_def%dz(kg  )
       case(-1)
-        if (k>0   ) cov(3) =(arr(i,j,k  )-arr(i,j,k-1))/g_def%dz(kg-1)
+        if (k>0   ) gz =(arr(i,j,k  )-arr(i,j,k-1))/g_def%dz(kg-1)
       end select
+
+      cov = (/ gx,gy,gz /)
 
 c     End program
 
       end function grad_ijk
+
+c$$$c     grad_ijk
+c$$$c     ###############################################################
+c$$$      function grad_ijk(g_def,i,j,k,nx,ny,nz,igx,igy,igz,arr,hex,hey,hez
+c$$$     .                 ,order) result(cov)
+c$$$
+c$$$c     ---------------------------------------------------------------
+c$$$c     Calculates grad(A) in general non-orthogonal coordinates.
+c$$$c     The vector grad(A) is covariant.
+c$$$c     ---------------------------------------------------------------
+c$$$
+c$$$      use oned_int
+c$$$      
+c$$$      implicit none           !For safe fortran
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$      type(grid_mg_def),pointer :: g_def
+c$$$
+c$$$      integer :: i,j,k,nx,ny,nz,igx,igy,igz
+c$$$
+c$$$      real(8) :: arr(0:nx+1,0:ny+1,0:nz+1),cov(3)
+c$$$
+c$$$      integer,optional :: hex,hey,hez,order
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$      integer :: ip,im,jp,jm,kp,km,ig,jg,kg,hx,hy,hz,ord,ordmax
+c$$$     .          ,imin,imax,igmin,igmax
+c$$$      real(8) :: dhx,dhy,dhz,dx1,dx2,dy1,dy2,dz1,dz2
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$      hx = 0; hy = 0; hz = 0
+c$$$
+c$$$      if (PRESENT(hex)) hx = hex
+c$$$      if (PRESENT(hey)) hy = hey
+c$$$      if (PRESENT(hez)) hz = hez
+c$$$
+c$$$      ip = i+1
+c$$$      im = i-1
+c$$$      jp = j+1
+c$$$      jm = j-1
+c$$$      kp = k+1
+c$$$      km = k-1
+c$$$
+c$$$      call getMGmap(g_def,i,j,k,igx,igy,igz,ig,jg,kg)
+c$$$
+c$$$c     Central-difference formulas
+c$$$
+c$$$cc      dhx = 2.*g_def%dxh(ig)
+c$$$cc      dhy = 2.*g_def%dyh(jg)
+c$$$cc      dhz = 2.*g_def%dzh(kg)
+c$$$cccc      dhx = g_def%dx(ig-1)+g_def%dx(ig)
+c$$$cccc      dhy = g_def%dy(jg-1)+g_def%dy(jg)
+c$$$cccc      dhz = g_def%dz(kg-1)+g_def%dz(kg)
+c$$$cc
+c$$$ccc     Exceptions
+c$$$cc
+c$$$cc      if (hx == 1) then
+c$$$cc        im = i
+c$$$cc        dhx = g_def%dx(ig)
+c$$$cc      elseif (hx == -1) then
+c$$$cc        ip = i
+c$$$cc        dhx = g_def%dx(ig-1)
+c$$$cc      endif
+c$$$cc
+c$$$cc      if (hy == 1) then
+c$$$cc        jm = j
+c$$$cc        dhy = g_def%dy(jg)
+c$$$cc      elseif (hy == -1) then
+c$$$cc        jp = j
+c$$$cc        dhy = g_def%dy(jg-1)
+c$$$cc      endif
+c$$$cc
+c$$$cc      if (hz == 1) then
+c$$$cc        km = k
+c$$$cc        dhz = g_def%dz(kg)
+c$$$cc      elseif (hz == -1) then
+c$$$cc        kp = k
+c$$$cc        dhz = g_def%dz(kg-1)
+c$$$cc      endif
+c$$$cc
+c$$$cc      gx = (arr(ip,j,k)-arr(im,j,k))/dhx
+c$$$cc      gy = (arr(i,jp,k)-arr(i,jm,k))/dhy
+c$$$cc      gz = (arr(i,j,kp)-arr(i,j,km))/dhz
+c$$$cc
+c$$$cc      cov = (/ gx,gy,gz /)
+c$$$cc
+c$$$cc      return
+c$$$
+c$$$c     Arbitrary order formulas
+c$$$
+c$$$      cov = 0d0
+c$$$
+c$$$      if (PRESENT(order)) then
+c$$$        ordmax = order
+c$$$      else
+c$$$        ordmax = 3
+c$$$      endif
+c$$$ 
+c$$$      !X comp
+c$$$      ord = min(ordmax,nx+1)
+c$$$      select case(hx)
+c$$$      case(0)
+c$$$        if (i==0) then
+c$$$          call IntDriver1d(ord+1,g_def%xx(ig:ig+ord)
+c$$$     .                    ,arr(i:i+ord,j,k)
+c$$$     .                    ,1,g_def%xx(ig:ig),cov(1:1),ord,deriv=1)
+c$$$        elseif (i==nx+1) then
+c$$$          call IntDriver1d(ord+1,g_def%xx(ig-ord:ig),arr(i-ord:i,j,k)
+c$$$     .                    ,1,g_def%xx(ig:ig),cov(1:1),ord,deriv=1)
+c$$$        else
+c$$$          dx1=g_def%dx(ig-1)
+c$$$          dx2=g_def%dx(ig)
+c$$$          cov(1) = (arr(i+1,j,k)-arr(i-1,j,k))/(dx1+dx2)
+c$$$c$$$          cov(1) = q_int(3,arr(i-1:i+1,j,k),g_def%xx(ig-1:ig+1),g_def%xx(ig),1)
+c$$$        endif
+c$$$        
+c$$$c$$$cc        if (i<(ord+1)/2+1) then
+c$$$c$$$        if (i<2) then
+c$$$c$$$          ord   = min(3,ord)
+c$$$c$$$          imin  = max(i-ord/2-mod(ord,2),0)
+c$$$c$$$     .          - max(i+ord/2-(nx+1),0) 
+c$$$c$$$          imax  = min(i+ord/2 ,nx+1)
+c$$$c$$$     .          - min(i-ord/2-mod(ord,2),0)
+c$$$c$$$          igmin = ig - (i-imin)
+c$$$c$$$          igmax = ig + (imax-i)
+c$$$c$$$          call IntDriver1d(ord+1
+c$$$c$$$     .                    ,g_def%xx(igmin:igmax),arr(imin:imax,j,k)
+c$$$c$$$     .                    ,1,g_def%xx(ig:ig),cov(1:1),ord,deriv=1)
+c$$$c$$$        elseif (i>=nx+1-(ord+1)/2) then
+c$$$c$$$          ord   = min(3,ord)
+c$$$c$$$          imin  = max(i-ord/2-mod(ord,2),0)
+c$$$c$$$     .          - max(i+ord/2-(nx+1),0) 
+c$$$c$$$          imax  = min(i+ord/2 ,nx+1)
+c$$$c$$$     .          - min(i-ord/2-mod(ord,2),0)
+c$$$c$$$          igmin = ig - (i-imin)
+c$$$c$$$          igmax = ig + (imax-i)
+c$$$c$$$          call IntDriver1d(ord+1
+c$$$c$$$     .                    ,g_def%xx(igmin:igmax),arr(imin:imax,j,k)
+c$$$c$$$     .                    ,1,g_def%xx(ig:ig),cov(1:1),ord,deriv=1)
+c$$$c$$$        else
+c$$$c$$$c$$$          imin  = max(i-ord/2-mod(ord,2),0)
+c$$$c$$$c$$$     .          - max(i+ord/2-(nx+1),0) 
+c$$$c$$$c$$$          imax  = min(i+ord/2 ,nx+1)
+c$$$c$$$c$$$     .          - min(i-ord/2-mod(ord,2),0)
+c$$$c$$$c$$$c$$$          imin  = max(i-ord/2,0)
+c$$$c$$$c$$$c$$$     .          - max(i+ord/2+mod(ord,2)-(nx+1),0) 
+c$$$c$$$c$$$c$$$          imax  = min(i+ord/2+mod(ord,2) ,nx+1)
+c$$$c$$$c$$$c$$$     .          - min(i-ord/2,0)
+c$$$c$$$c$$$          
+c$$$c$$$c$$$          igmin = ig - (i-imin)
+c$$$c$$$c$$$          igmax = ig + (imax-i)
+c$$$c$$$c$$$
+c$$$c$$$c$$$          write (*,*) "grad tst",i,imin,imax
+c$$$c$$$c$$$
+c$$$c$$$c$$$          call IntDriver1d(ord+1
+c$$$c$$$c$$$     .                    ,g_def%xx(igmin:igmax),arr(imin:imax,j,k)
+c$$$c$$$c$$$     .                    ,1,g_def%xx(ig:ig),cov(1:1),ord,deriv=1)
+c$$$c$$$          write (*,*) i,ord
+c$$$c$$$          ord = 4
+c$$$c$$$          call IntDriver1d(ord+1,g_def%xx(ig-(ord+1)/2:ig+ord/2)
+c$$$c$$$     .                    ,arr(i-(ord+1)/2:i+ord/2,j,k)
+c$$$c$$$     .                    ,1,g_def%xx(ig:ig),cov(1:1),ord,deriv=1)
+c$$$c$$$        endif
+c$$$      case(1)
+c$$$        if (i<nx+1) cov(1) =(arr(i+1,j,k)-arr(i  ,j,k))/g_def%dx(ig)
+c$$$      case(-1)
+c$$$        if (i>0   ) cov(1) =(arr(i  ,j,k)-arr(i-1,j,k))/g_def%dx(ig-1)
+c$$$      end select
+c$$$
+c$$$      !Y comp
+c$$$      ord = min(ordmax,ny+1)
+c$$$      select case (hy)
+c$$$      case(0)
+c$$$        if (j==0) then
+c$$$          call IntDriver1d (ord+1,g_def%yy(jg:jg+ord),arr(i,j:j+ord,k)
+c$$$     .                     ,1,g_def%yy(jg:jg),cov(2:2),ord,deriv=1)
+c$$$        elseif (j==ny+1) then
+c$$$          call IntDriver1d (ord+1,g_def%yy(jg-ord:jg),arr(i,j-ord:j,k)
+c$$$     .                     ,1,g_def%yy(jg:jg),cov(2:2),ord,deriv=1)
+c$$$        else
+c$$$          dy1=g_def%dy(jg-1)
+c$$$          dy2=g_def%dy(jg)
+c$$$          cov(2) = (arr(i,j+1,k)-arr(i,j-1,k))/(dy1+dy2)
+c$$$c$$$          cov(2) = q_int(3,arr(i,j-1:j+1,k),g_def%yy(jg-1:jg+1),g_def%yy(jg),1)
+c$$$        endif
+c$$$      case(1)
+c$$$        if (j<ny+1) cov(2) =(arr(i,j+1,k)-arr(i,j  ,k))/g_def%dy(jg  )
+c$$$      case(-1)
+c$$$        if (j>0   ) cov(2) =(arr(i,j  ,k)-arr(i,j-1,k))/g_def%dy(jg-1)
+c$$$      end select
+c$$$
+c$$$      !Z comp
+c$$$      ord = min(ordmax,nz+1)
+c$$$      select case(hz)
+c$$$      case(0)
+c$$$        if (k==0) then
+c$$$          call IntDriver1d (ord+1,g_def%zz(kg:kg+ord),arr(i,j,k:k+ord)
+c$$$     .                     ,1,g_def%zz(kg:kg),cov(3:3),ord,deriv=1)
+c$$$        elseif (k==nz+1) then
+c$$$          call IntDriver1d (ord+1,g_def%zz(kg-ord:kg),arr(i,j,k-ord:k)
+c$$$     .                     ,1,g_def%zz(kg:kg),cov(3:3),ord,deriv=1)
+c$$$        else
+c$$$          dz1=g_def%dz(kg-1)
+c$$$          dz2=g_def%dz(kg)
+c$$$          cov(3) = (arr(i,j,k+1)-arr(i,j,k-1))/(dz1+dz2)
+c$$$c$$$          cov(3) = q_int(3,arr(i,j,k-1:k+1),g_def%zz(kg-1:kg+1),g_def%zz(kg),1)
+c$$$        endif
+c$$$      case(1)
+c$$$        if (k<nz+1) cov(3) =(arr(i,j,k+1)-arr(i,j,k  ))/g_def%dz(kg  )
+c$$$      case(-1)
+c$$$        if (k>0   ) cov(3) =(arr(i,j,k  )-arr(i,j,k-1))/g_def%dz(kg-1)
+c$$$      end select
+c$$$
+c$$$c     End program
+c$$$
+c$$$      end function grad_ijk
 
 c     grad_mesh
 c     ###############################################################
