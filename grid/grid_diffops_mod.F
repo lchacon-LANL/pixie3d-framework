@@ -3231,6 +3231,10 @@ c     Begin program
         kp = k+1
         km = k-1
 
+        if (cntv) gsuper = g_def%gmetric%grid(igrid)%gsup(i,j,k,:,:)
+
+        tsrc = nabla_v_src(i,j,k)
+
         select case(half_elem)
         case (1)
           dhx = g_def%dx(ig)
@@ -3244,16 +3248,11 @@ c     Begin program
           vkp(:) = 0.5*(aa(ip,j,kp,:)+aa(i,j,kp,:))
           vkm(:) = 0.5*(aa(ip,j,km,:)+aa(i,j,km,:))
 
-          tsrc = 0.5*(nabla_v_src(ip,j,k)
-     .               +nabla_v_src(i ,j,k))
+          tsrc = 0.5*(nabla_v_src(ip,j,k)+tsrc)
 
           if (cntv)
-c$$$     .    gsuper =0.25*(g_def%gmetric%grid(igrid)%gsup_v(i,j  ,k  ,:,:)
-c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i,j-1,k  ,:,:)
-c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i,j  ,k-1,:,:)
-c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i,j-1,k-1,:,:))
-     .      gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(ip,j,k,:,:)
-     .                   +g_def%gmetric%grid(igrid)%gsup(i ,j,k,:,:))
+     .         gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(ip,j,k,:,:)
+     .                      +gsuper)
 
         case (2)
           dhy = g_def%dy(jg)
@@ -3267,16 +3266,11 @@ c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i,j-1,k-1,:,:))
           vkp(:) = 0.5*(aa(i,j,kp,:)+aa(i,jp,kp,:))
           vkm(:) = 0.5*(aa(i,j,km,:)+aa(i,jp,km,:))
 
-          tsrc = 0.5*(nabla_v_src(i,jp,k)
-     .               +nabla_v_src(i,j ,k))
+          tsrc = 0.5*(nabla_v_src(i,jp,k)+tsrc)
 
           if (cntv)
-c$$$     .    gsuper =0.25*(g_def%gmetric%grid(igrid)%gsup_v(i  ,j,k  ,:,:)
-c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j,k  ,:,:)
-c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i  ,j,k-1,:,:)
-c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j,k-1,:,:))
-     .    gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,jp,k,:,:)
-     .                 +g_def%gmetric%grid(igrid)%gsup(i,j ,k,:,:))
+     .         gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,jp,k,:,:)
+     .                      +gsuper)
 
         case (3)
           dhz = g_def%dz(kg)
@@ -3290,16 +3284,11 @@ c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j,k-1,:,:))
           vkp(:) = aa(i,j,kp,:)
           vkm(:) = aa(i,j,k ,:)
 
-          tsrc = 0.5*(nabla_v_src(i,j,kp)
-     .               +nabla_v_src(i,j,k ))
+          tsrc = 0.5*(nabla_v_src(i,j,kp)+tsrc)
 
           if (cntv)
-c$$$     .    gsuper =0.25*(g_def%gmetric%grid(igrid)%gsup_v(i  ,j  ,k,:,:)
-c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j  ,k,:,:)
-c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i  ,j-1,k,:,:)
-c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j-1,k,:,:))
-     .    gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,j,kp,:,:)
-     .                 +g_def%gmetric%grid(igrid)%gsup(i,j,k ,:,:))
+     .         gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,j,kp,:,:)
+     .                      +gsuper)
 
         case default
 
@@ -3312,10 +3301,6 @@ c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j-1,k,:,:))
           vkp(:) = aa(i,j,kp,:)
           vkm(:) = aa(i,j,km,:)
 
-          tsrc = nabla_v_src(i,j,k)
-
-          gsuper = g_def%gmetric%grid(igrid)%gsup(i,j,k,:,:)
-
         end select
 
         idh(1) = 1d0/dhx
@@ -3326,13 +3311,21 @@ c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j-1,k,:,:))
         tensor(2,:) = (vjp(:)-vjm(:))*idh(2)
         tensor(3,:) = (vkp(:)-vkm(:))*idh(3)
 
-c$$$        if (cntv) tensor = matmul(gsuper,tensor)
-
       ! Add geometric source
 
         tensor = tensor + tsrc
 
         if (cntv) tensor = matmul(gsuper,tensor)
+cc        if (cntv) then
+cc           do j=1,3
+cc              !$OMP SIMD
+cc              do i=1,3
+cc                 tensor(i,j) = gsuper(i,1)*tensor(1,j)
+cc     $                        +gsuper(i,2)*tensor(2,j)
+cc     $                        +gsuper(i,3)*tensor(3,j)
+cc              enddo
+cc           enddo
+cc        endif
 
 c     End program
 
@@ -3369,14 +3362,14 @@ c     Begin program
         do l=1,3
           do m=1,3
             tensor(l,m) =
+cc     .              cnv(1)*g_def%gmetric%grid(igrid)%Gamma(i,j,k,m,1,l)
+cc     .             +cnv(2)*g_def%gmetric%grid(igrid)%Gamma(i,j,k,m,2,l)
+cc     .             +cnv(3)*g_def%gmetric%grid(igrid)%Gamma(i,j,k,m,3,l)
      .              dot_product(cnv
      .                   ,g_def%gmetric%grid(igrid)%Gamma(i,j,k,m,:,l))
      .             -cnv(m)*dum(l)
           enddo
         enddo
-
-c$$$        if (cntv)
-c$$$     .   tensor=matmul(g_def%gmetric%grid(igrid)%gsup(i,j,k,:,:),tensor)
 
 c     End program
 
