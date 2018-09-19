@@ -4885,7 +4885,7 @@ c     Local variables
      .          ,imni,imxi,jmni,jmxi,kmni,kmxi,num,i_bc,i1,i2
 
       real(8) :: valx(1),valy(1),valz(1),xto(1),yto(1),zto(1),curv(3)
-     $          ,dx,dy,dz
+     $          ,idx,idy,idz
 
       logical :: flg(3),select_bc(3),face,edge,corner
 
@@ -4933,43 +4933,43 @@ c     Identify directions for extrapolation.
 
         if (inx > 2) then
           if (ito == imn) then
-            dx = gbc_def%dx(ig+2)
+            idx = 1d0/gbc_def%dx(ig+2)
             curv(1) = (  array(ito+1,jto,kto)
      $                -2*array(ito+2,jto,kto)
-     $                  +array(ito+3,jto,kto))*dx**(-2)
+     $                  +array(ito+3,jto,kto))*idx*idx
           else
-            dx = gbc_def%dx(ig-2)
+            idx = 1d0/gbc_def%dx(ig-2)
             curv(1) = (  array(ito-1,jto,kto)
      $                -2*array(ito-2,jto,kto)
-     $                  +array(ito-3,jto,kto))*dx**(-2)
+     $                  +array(ito-3,jto,kto))*idx*idx
           endif
         endif
 
         if (iny > 2) then
           if (jto == jmn) then
-            dy = gbc_def%dy(jg+2)
+            idy = 1d0/gbc_def%dy(jg+2)
             curv(2) = (  array(ito,jto+1,kto)
      $                -2*array(ito,jto+2,kto)
-     $                  +array(ito,jto+3,kto))*dy**(-2)
+     $                  +array(ito,jto+3,kto))*idy*idy
           else                                              
-            dy = gbc_def%dy(jg-2)
+            idy = 1d0/gbc_def%dy(jg-2)
             curv(2) = (  array(ito,jto-1,kto)
      $                -2*array(ito,jto-2,kto)
-     $                  +array(ito,jto-3,kto))*dy**(-2)
+     $                  +array(ito,jto-3,kto))*idy*idy
           endif
         endif
 
         if (inz > 2) then
           if (kto == kmn) then
-            dz = gbc_def%dz(kg+2)
+            idz = 1d0/gbc_def%dz(kg+2)
             curv(3) = (  array(ito,jto,kto+1)
      $                -2*array(ito,jto,kto+2)
-     $                  +array(ito,jto,kto+3))*dz**(-2)
+     $                  +array(ito,jto,kto+3))*idz*idz
           else                                                  
-            dz = gbc_def%dz(kg-2)
+            idz = 1d0/gbc_def%dz(kg-2)
             curv(3) = (  array(ito,jto,kto-1)
      $                -2*array(ito,jto,kto-2)
-     $                  +array(ito,jto,kto-3))*dz**(-2)
+     $                  +array(ito,jto,kto-3))*idz*idz
           endif
         endif
 

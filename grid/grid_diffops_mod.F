@@ -3316,16 +3316,16 @@ c     Begin program
         tensor = tensor + tsrc
 
         if (cntv) tensor = matmul(gsuper,tensor)
-cc        if (cntv) then
-cc           do j=1,3
-cc              !$OMP SIMD
-cc              do i=1,3
-cc                 tensor(i,j) = gsuper(i,1)*tensor(1,j)
-cc     $                        +gsuper(i,2)*tensor(2,j)
-cc     $                        +gsuper(i,3)*tensor(3,j)
-cc              enddo
-cc           enddo
-cc        endif
+c$$$        if (cntv) then
+c$$$           do j=1,3
+c$$$cc              !$OMP SIMD
+c$$$              do i=1,3
+c$$$                 tensor(i,j) = gsuper(i,1)*tensor(1,j)
+c$$$     $                        +gsuper(i,2)*tensor(2,j)
+c$$$     $                        +gsuper(i,3)*tensor(3,j)
+c$$$              enddo
+c$$$           enddo
+c$$$        endif
 
 c     End program
 
@@ -3349,25 +3349,23 @@ c     Call variables
 c     Local variables
 
         integer    :: l,m
-        real(8)    :: cnv(3),dum(3)
+        real(8)    :: cnv(3),dum(3),hessian(3,3,3)
 
 c     Begin program
 
-        cnv = aa(i,j,k,:)
+        hessian = g_def%gmetric%grid(igrid)%Gamma(i,j,k,:,:,:)
 
-        dum = g_def%gmetric%grid(igrid)%Gamma(i,j,k,1,1,:)
-     .       +g_def%gmetric%grid(igrid)%Gamma(i,j,k,2,2,:)
-     .       +g_def%gmetric%grid(igrid)%Gamma(i,j,k,3,3,:)
+        cnv = aa(i,j,k,:)
 
         do l=1,3
           do m=1,3
             tensor(l,m) =
-cc     .              cnv(1)*g_def%gmetric%grid(igrid)%Gamma(i,j,k,m,1,l)
-cc     .             +cnv(2)*g_def%gmetric%grid(igrid)%Gamma(i,j,k,m,2,l)
-cc     .             +cnv(3)*g_def%gmetric%grid(igrid)%Gamma(i,j,k,m,3,l)
-     .              dot_product(cnv
-     .                   ,g_def%gmetric%grid(igrid)%Gamma(i,j,k,m,:,l))
-     .             -cnv(m)*dum(l)
+     .           cnv(1)* Hessian(m,1,l)
+     .          +cnv(2)* Hessian(m,2,l)
+     .          +cnv(3)* Hessian(m,3,l)
+     .          -cnv(m)*(Hessian(1,1,l)
+     .                  +Hessian(2,2,l)
+     .                  +Hessian(3,3,l))
           enddo
         enddo
 
@@ -3633,6 +3631,12 @@ c     Begin program
 
         jac => g_def%gmetric%grid(igrid)%jac
 
+        tsrc = nabla_v_src(i,j,k)
+
+        gsuper = g_def%gmetric%grid(igrid)%gsup(i,j,k,:,:)
+
+        jach = g_def%gmetric%grid(igrid)%jac (i ,j,k)
+
         select case(half_elem)
         case (1)
           dhx = g_def%dx(ig)
@@ -3651,20 +3655,12 @@ c     Begin program
      .                 +vcnv(i ,j,km,:)/jac(i ,j,km))
 
           tsrc = 0.5*(nabla_v_src(ip,j,k)
-     .               +nabla_v_src(i ,j,k))
+     .               +tsrc)
 
-c$$$          gsuper =0.25*(g_def%gmetric%grid(igrid)%gsup_v(i,j  ,k  ,:,:)
-c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i,j-1,k  ,:,:)
-c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i,j  ,k-1,:,:)
-c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i,j-1,k-1,:,:))
           gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(ip,j,k,:,:)
-     .                 +g_def%gmetric%grid(igrid)%gsup(i ,j,k,:,:))
-c$$$          jach   =0.25*(g_def%gmetric%grid(igrid)%jac_v(i,j  ,k  )
-c$$$     .                 +g_def%gmetric%grid(igrid)%jac_v(i,j-1,k  )
-c$$$     .                 +g_def%gmetric%grid(igrid)%jac_v(i,j  ,k-1)
-c$$$     .                 +g_def%gmetric%grid(igrid)%jac_v(i,j-1,k-1))
+     .                 +gsuper)
           jach  = 0.5*(g_def%gmetric%grid(igrid)%jac (ip,j,k)
-     .                +g_def%gmetric%grid(igrid)%jac (i ,j,k))
+     .                +jach)
 
         case (2)
           dhy = g_def%dy(jg)
@@ -3683,20 +3679,11 @@ c$$$     .                 +g_def%gmetric%grid(igrid)%jac_v(i,j-1,k-1))
      .                 +vcnv(i,jp,km,:)/jac(i,jp,km))
 
           tsrc = 0.5*(nabla_v_src(i,jp,k)
-     .               +nabla_v_src(i,j ,k))
-
-c$$$          gsuper =0.25*(g_def%gmetric%grid(igrid)%gsup_v(i  ,j,k  ,:,:)
-c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j,k  ,:,:)
-c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i  ,j,k-1,:,:)
-c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j,k-1,:,:))
+     .               +tsrc)
           gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,jp,k,:,:)
-     .                 +g_def%gmetric%grid(igrid)%gsup(i,j ,k,:,:))
-c$$$          jach   =0.25*(g_def%gmetric%grid(igrid)%jac_v(i  ,j,k  )
-c$$$     .                 +g_def%gmetric%grid(igrid)%jac_v(i-1,j,k  )
-c$$$     .                 +g_def%gmetric%grid(igrid)%jac_v(i  ,j,k-1)
-c$$$     .                 +g_def%gmetric%grid(igrid)%jac_v(i-1,j,k-1))
+     .                 +gsuper)
           jach  = 0.5*(g_def%gmetric%grid(igrid)%jac (i,jp,k)
-     .                +g_def%gmetric%grid(igrid)%jac (i,j ,k))
+     .                +jach)
 
         case (3)
           dhz = g_def%dz(kg)
@@ -3715,20 +3702,11 @@ c$$$     .                 +g_def%gmetric%grid(igrid)%jac_v(i-1,j,k-1))
           vkm(:) = vcnv(i,j,k ,:)/jac(i,j,k )
 
           tsrc = 0.5*(nabla_v_src(i,j,kp)
-     .               +nabla_v_src(i,j,k ))
-
-c$$$          gsuper =0.25*(g_def%gmetric%grid(igrid)%gsup_v(i  ,j  ,k,:,:)
-c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j  ,k,:,:)
-c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i  ,j-1,k,:,:)
-c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j-1,k,:,:))
+     .               +tsrc)
           gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,j,kp,:,:)
-     .                 +g_def%gmetric%grid(igrid)%gsup(i,j,k ,:,:))
-c$$$          jach   =0.25*(g_def%gmetric%grid(igrid)%jac_v(i  ,j  ,k)
-c$$$     .                 +g_def%gmetric%grid(igrid)%jac_v(i-1,j  ,k)
-c$$$     .                 +g_def%gmetric%grid(igrid)%jac_v(i  ,j-1,k)
-c$$$     .                 +g_def%gmetric%grid(igrid)%jac_v(i-1,j-1,k))
+     .                 +gsuper)
           jach  = 0.5*(g_def%gmetric%grid(igrid)%jac (i,j,kp)
-     .                +g_def%gmetric%grid(igrid)%jac (i,j,k ))
+     .                +jach)
 
         case default
 
@@ -3740,12 +3718,6 @@ c$$$     .                 +g_def%gmetric%grid(igrid)%jac_v(i-1,j-1,k))
                                              
           vkp(:) = vcnv(i,j,kp,:)/jac(i,j,kp)
           vkm(:) = vcnv(i,j,km,:)/jac(i,j,km)
-
-          tsrc = nabla_v_src(i,j,k)
-
-          gsuper = g_def%gmetric%grid(igrid)%gsup(i,j,k,:,:)
-
-          jach   = g_def%gmetric%grid(igrid)%jac (i,j,k)
 
         end select
 
@@ -3760,8 +3732,6 @@ c$$$     .                 +g_def%gmetric%grid(igrid)%jac_v(i-1,j-1,k))
         tensor(1,:) = (vip(:)-vim(:))*idh(1)*jach
         tensor(2,:) = (vjp(:)-vjm(:))*idh(2)*jach
         tensor(3,:) = (vkp(:)-vkm(:))*idh(3)*jach
-
-cc        tensor = matmul(gsuper,tensor)
 
         !Add geometric source
 
@@ -3796,8 +3766,6 @@ c     Begin program
         tensor(:,2) = matmul(vcnv(i,j,k,:),hessian(2,:,:))
         tensor(:,3) = matmul(vcnv(i,j,k,:),hessian(3,:,:))
 
-cc        tensor=matmul(g_def%gmetric%grid(igrid)%gsup(i,j,k,:,:),tensor)
-        
 c     End program
 
       end function nabla_v_src
@@ -3851,6 +3819,10 @@ c     Begin program
         kp = k+1
         km = k-1
 
+        tsrc = nabla_v_src(i,j,k)
+
+        gsuper = g_def%gmetric%grid(igrid)%gsup(i,j,k,:,:)
+
         select case(half_elem)
         case (1)
           dhx = g_def%dx(ig)
@@ -3865,14 +3837,10 @@ c     Begin program
           vkm(:) = 0.5*(vcov(ip,j,km,:)+vcov(i,j,km,:))
 
           tsrc = 0.5*(nabla_v_src(ip,j,k)
-     .               +nabla_v_src(i ,j,k))
+     .               +tsrc)
 
-c$$$          gsuper =0.25*(g_def%gmetric%grid(igrid)%gsup_v(i,j  ,k  ,:,:)
-c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i,j-1,k  ,:,:)
-c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i,j  ,k-1,:,:)
-c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i,j-1,k-1,:,:))
           gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(ip,j,k,:,:)
-     .                 +g_def%gmetric%grid(igrid)%gsup(i ,j,k,:,:))
+     .                 +gsuper)
 
         case (2)
           dhy = g_def%dy(jg)
@@ -3887,14 +3855,10 @@ c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i,j-1,k-1,:,:))
           vkm(:) = 0.5*(vcov(i,j,km,:)+vcov(i,jp,km,:))
 
           tsrc = 0.5*(nabla_v_src(i,jp,k)
-     .               +nabla_v_src(i,j ,k))
+     .               +tsrc)
 
-c$$$          gsuper =0.25*(g_def%gmetric%grid(igrid)%gsup_v(i  ,j,k  ,:,:)
-c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j,k  ,:,:)
-c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i  ,j,k-1,:,:)
-c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j,k-1,:,:))
           gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,jp,k,:,:)
-     .                 +g_def%gmetric%grid(igrid)%gsup(i,j ,k,:,:))
+     .                 +gsuper)
 
         case (3)
           dhz = g_def%dz(kg)
@@ -3909,14 +3873,10 @@ c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j,k-1,:,:))
           vkm(:) = vcov(i,j,k ,:)
 
           tsrc = 0.5*(nabla_v_src(i,j,kp)
-     .               +nabla_v_src(i,j,k ))
+     .               +tsrc)
 
-c$$$          gsuper =0.25*(g_def%gmetric%grid(igrid)%gsup_v(i  ,j  ,k,:,:)
-c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j  ,k,:,:)
-c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i  ,j-1,k,:,:)
-c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j-1,k,:,:))
           gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,j,kp,:,:)
-     .                 +g_def%gmetric%grid(igrid)%gsup(i,j,k ,:,:))
+     .                 +gsuper)
 
         case default
 
@@ -3929,10 +3889,6 @@ c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j-1,k,:,:))
           vkp(:) = vcov(i,j,kp,:)
           vkm(:) = vcov(i,j,km,:)
 
-          tsrc = nabla_v_src(i,j,k)
-
-          gsuper = g_def%gmetric%grid(igrid)%gsup(i,j,k,:,:)
-
         end select
 
         idh(1) = 1d0/dhx
@@ -3943,11 +3899,7 @@ c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j-1,k,:,:))
         tensor(2,:) = (vjp(:)-vjm(:))*idh(2)
         tensor(3,:) = (vkp(:)-vkm(:))*idh(3)
 
-cc        tensor = matmul(gsuper,tensor)
-
       ! Add geometric source
-
-cc        tsrc = nabla_v_src2(i,j,k,half_elem)
 
         tensor = tensor + tsrc
 
@@ -3970,18 +3922,58 @@ c     -------------------------------------------------------------
         integer :: i,j,k
         real(8) :: tensor(3,3)
 
-        real(8) :: hessian(3,3,3),gsuper(3,3)
+        real(8) :: hessian(3,3,3),cov(3)
 
 c     Begin program
 
         hessian = g_def%gmetric%grid(igrid)%Gamma(i,j,k,:,:,:)
 
-        tensor(:,1) = -matmul(vcov(i,j,k,:),hessian(:,:,1))
-        tensor(:,2) = -matmul(vcov(i,j,k,:),hessian(:,:,2))
-        tensor(:,3) = -matmul(vcov(i,j,k,:),hessian(:,:,3))
+        cov = vcov(i,j,k,:)
 
-cc        gsuper = g_def%gmetric%grid(igrid)%gsup(i,j,k,:,:)
-cc        tensor = matmul(gsuper,tensor)
+      ! l = 1, m = 1
+        tensor(1,1) =-cov(1)*hessian(1,1,1)
+     .               -cov(2)*hessian(2,1,1)
+     .               -cov(3)*hessian(3,1,1)
+
+      ! l = 1, m = 2
+        tensor(1,2) =-cov(1)*hessian(1,1,2)
+     .               -cov(2)*hessian(2,1,2)
+     .               -cov(3)*hessian(3,1,2)
+
+      ! l = 1, m = 3
+        tensor(1,3) =-cov(1)*hessian(1,1,3)
+     .               -cov(2)*hessian(2,1,3)
+     .               -cov(3)*hessian(3,1,3)
+
+      ! l = 2, m = 1
+        tensor(2,1) =-cov(1)*hessian(1,2,1)
+     .               -cov(2)*hessian(2,2,1)
+     .               -cov(3)*hessian(3,2,1)
+
+      ! l = 2, m = 2
+        tensor(2,2) =-cov(1)*hessian(1,2,2)
+     .               -cov(2)*hessian(2,2,2)
+     .               -cov(3)*hessian(3,2,2)
+
+      ! l = 2, m = 3
+        tensor(2,3) =-cov(1)*hessian(1,2,3)
+     .               -cov(2)*hessian(2,2,3)
+     .               -cov(3)*hessian(3,2,3)
+
+      ! l = 3, m = 1
+        tensor(3,1) =-cov(1)*hessian(1,3,1)
+     .               -cov(2)*hessian(2,3,1)
+     .               -cov(3)*hessian(3,3,1)
+
+      ! l = 3, m = 2
+        tensor(3,2) =-cov(1)*hessian(1,3,2)
+     .               -cov(2)*hessian(2,3,2)
+     .               -cov(3)*hessian(3,3,2)
+
+      ! l = 3, m = 3
+        tensor(3,3) =-cov(1)*hessian(1,3,3)
+     .               -cov(2)*hessian(2,3,3)
+     .               -cov(3)*hessian(3,3,3)
 
 c     End program
 
