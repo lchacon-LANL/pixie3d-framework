@@ -859,7 +859,7 @@ c     Evaluate grid quantities (at vertices)
               g_def%gmetric%grid(igrid)%jac_v(i,j,k) = jac
 
               if (jac <= 0d0
-     .           .and. (.not.isSP2(g_def,i+1,igrid,ibc=1))) then
+     .           .and. (.not.isSP2(g_def,i+1,igrid))) then
                 if (.not.(check_grid.or.return_error)) then
                   write (*,*) 'Negative Jacobian in half mesh'
                   write (*,*) 'Grid level',igrid
@@ -874,7 +874,7 @@ c     Evaluate grid quantities (at vertices)
                 elseif (return_error) then
                   lerr = 1 ;  exit
                 endif
-              elseif (isSP2(g_def,i+1,igrid,ibc=1)) then
+              elseif (isSP2(g_def,i+1,igrid)) then
                 ijac = 0d0
               else
                 ijac = 1d0/jac
@@ -1003,7 +1003,7 @@ c     Evaluate rest of grid quantities
               g_def%gmetric%grid(igrid)%jac(i,j,k) = jac
 
               if (jac <= 0d0
-     .           .and.(.not.isSP2(g_def,i+1,igrid,ibc=1))) then
+     .           .and.(.not.isSP2(g_def,i+1,igrid))) then
                 if (.not.check_grid .and. (.not.return_error)) then
                   write (*,*) 'Negative Jacobian in integer mesh'
                   write (*,*) 'Grid level',igrid

@@ -1979,8 +1979,10 @@ c     Local variables
       real(8) :: d_xx_ip
      .          ,d_xy_ipjp,d_xy_ipjm
      .          ,d_xz_ipkp,d_xz_ipkm
+cc     $          ,idx(0:1),idy(0:1),idz(0:1)
 
       real(8),dimension(:,:,:,:,:),pointer :: gsup
+cc      real(8),dimension(0:2,0:2,0:2,3) :: gsup
 
       real(8),dimension(:,:,:),pointer :: dff
 
@@ -2001,6 +2003,10 @@ c     Begin program
       endif
 
       call getMGmap(g_def,i,j,k,igrid,igrid,igrid,ig,jg,kg)
+
+c$$$      idx(1) = 1d0/g_def%dx(ig)
+c$$$      idy(:) = 1d0/g_def%dy(jg-1:jg)
+c$$$      idz(:) = 1d0/g_def%dz(kg-1:kg)
 
       ip = i+1
       im = i-1
@@ -2094,6 +2100,91 @@ c     Begin program
      .                     +gsup(ip,j,km,1,3))
         endif
       endif
+c$$$      if (vrtx_met) then
+c$$$        !Vertex metrics
+c$$$        gsup(0:1,0:1,0:1,:)
+c$$$     $      = g_def%gmetric%grid(igrid)%gsup_v(im:i,jm:j,km:k,1,:)
+c$$$
+c$$$        d_xx_ip = 0.25*(gsup(1,1,1,1)
+c$$$     .                 +gsup(1,0,1,1)
+c$$$     .                 +gsup(1,1,0,1)
+c$$$     .                 +gsup(1,0,0,1))
+c$$$
+c$$$        d_xy_ipjp = 0.5*(gsup(1,1,1,2)
+c$$$     .                  +gsup(1,1,0,2))
+c$$$        d_xy_ipjm = 0.5*(gsup(1,0,1,2)
+c$$$     .                  +gsup(1,0,0,2))
+c$$$
+c$$$        d_xz_ipkp = 0.5*(gsup(1,1,1,3)
+c$$$     .                  +gsup(1,0,1,3))
+c$$$        d_xz_ipkm = 0.5*(gsup(1,1,0,3)
+c$$$     .                  +gsup(1,0,0,3))
+c$$$
+c$$$        if (have_diff) then
+c$$$          d_xx_ip = 0.5*(dff(i ,j,k)+dff(ip,j,k))*d_xx_ip
+c$$$          d_xy_ipjp = 0.25*(dff(i ,j ,k)          
+c$$$     .                     +dff(ip,j ,k)          
+c$$$     .                     +dff(i ,jp,k)          
+c$$$     .                     +dff(ip,jp,k))*d_xy_ipjp
+c$$$          d_xy_ipjm = 0.25*(dff(i ,j ,k)          
+c$$$     .                     +dff(ip,j ,k)          
+c$$$     .                     +dff(i ,jm,k)          
+c$$$     .                     +dff(ip,jm,k))*d_xy_ipjm
+c$$$          d_xz_ipkp = 0.25*(dff(i ,j,k )           
+c$$$     .                     +dff(ip,j,k )           
+c$$$     .                     +dff(i ,j,kp)           
+c$$$     .                     +dff(ip,j,kp))*d_xz_ipkp
+c$$$          d_xz_ipkm = 0.25*(dff(i ,j,k )           
+c$$$     .                     +dff(ip,j,k )           
+c$$$     .                     +dff(i ,j,km)           
+c$$$     .                     +dff(ip,j,km))*d_xz_ipkm
+c$$$        endif
+c$$$
+c$$$      else
+c$$$        !Cell-centered metrics
+c$$$        gsup(:,:,:,:)
+c$$$     $        = g_def%gmetric%grid(igrid)%gsup_v(im:ip,jm:jp,km:kp,1,:)
+c$$$
+c$$$        if (have_diff) then
+c$$$          d_xx_ip   =  0.5*(dff(i ,j ,k)*gsup(1,1,1,1)
+c$$$     .                     +dff(ip,j ,k)*gsup(2,1,1,1))
+c$$$          d_xy_ipjp = 0.25*(dff(i ,j ,k)*gsup(1,1,1,2)
+c$$$     .                     +dff(ip,j ,k)*gsup(2,1,1,2)
+c$$$     .                     +dff(i ,jp,k)*gsup(1,2,1,2)
+c$$$     .                     +dff(ip,jp,k)*gsup(2,2,1,2))
+c$$$          d_xy_ipjm = 0.25*(dff(i ,j ,k)*gsup(1,1,1,2)
+c$$$     .                     +dff(ip,j ,k)*gsup(2,1,1,2)
+c$$$     .                     +dff(i ,jm,k)*gsup(1,0,1,2)
+c$$$     .                     +dff(ip,jm,k)*gsup(2,0,1,2))
+c$$$          d_xz_ipkp = 0.25*(dff(i ,j,k )*gsup(1,1,1,3)
+c$$$     .                     +dff(ip,j,k )*gsup(2,1,1,3)
+c$$$     .                     +dff(i ,j,kp)*gsup(1,1,2,3)
+c$$$     .                     +dff(ip,j,kp)*gsup(2,1,2,3))
+c$$$          d_xz_ipkm = 0.25*(dff(i ,j,k )*gsup(1,1,1,3)
+c$$$     .                     +dff(ip,j,k )*gsup(2,1,1,3)
+c$$$     .                     +dff(i ,j,km)*gsup(1,1,0,3)
+c$$$     .                     +dff(ip,j,km)*gsup(2,1,0,3))
+c$$$        else
+c$$$          d_xx_ip   =  0.5*(gsup(1,1,1,1)
+c$$$     .                     +gsup(2,1,1,1))
+c$$$          d_xy_ipjp = 0.25*(gsup(1,1,1,2)
+c$$$     .                     +gsup(2,1,1,2)
+c$$$     .                     +gsup(1,2,1,2)
+c$$$     .                     +gsup(2,2,1,2))
+c$$$          d_xy_ipjm = 0.25*(gsup(1,1,1,2)
+c$$$     .                     +gsup(2,1,1,2)
+c$$$     .                     +gsup(1,0,1,2)
+c$$$     .                     +gsup(2,0,1,2))
+c$$$          d_xz_ipkp = 0.25*(gsup(1,1,1,3)
+c$$$     .                     +gsup(2,1,1,3)
+c$$$     .                     +gsup(1,1,2,3)
+c$$$     .                     +gsup(2,1,2,3))
+c$$$          d_xz_ipkm = 0.25*(gsup(1,1,1,3)
+c$$$     .                     +gsup(2,1,1,3)
+c$$$     .                     +gsup(1,1,0,3)
+c$$$     .                     +gsup(2,1,0,3))
+c$$$        endif
+c$$$      endif
 
       flx   = d_xx_ip  *(arr(ip,j ,k)-arr(i,j ,k))/g_def%dx(ig)
      .  +.25*(d_xy_ipjp*(arr(ip,jp,k)+arr(i,jp,k)               
@@ -2104,6 +2195,15 @@ c     Begin program
      .                  -arr(ip,j,k )-arr(i,j,k ))/g_def%dz(kg)
      .  +     d_xz_ipkm*(arr(ip,j,k )+arr(i,j,k )               
      .                  -arr(ip,j,km)-arr(i,j,km))/g_def%dz(kg-1))
+c$$$      flx   = d_xx_ip  *(arr(ip,j ,k)-arr(i,j ,k))*idx(1)
+c$$$     .  +.25*(d_xy_ipjp*(arr(ip,jp,k)+arr(i,jp,k)               
+c$$$     .                  -arr(ip,j ,k)-arr(i,j ,k))*idy(1)
+c$$$     .  +     d_xy_ipjm*(arr(ip,j ,k)+arr(i,j ,k)               
+c$$$     .                  -arr(ip,jm,k)-arr(i,jm,k))*idy(0)
+c$$$     .  +     d_xz_ipkp*(arr(ip,j,kp)+arr(i,j,kp)               
+c$$$     .                  -arr(ip,j,k )-arr(i,j,k ))*idz(1)
+c$$$     .  +     d_xz_ipkm*(arr(ip,j,k )+arr(i,j,k )               
+c$$$     .                  -arr(ip,j,km)-arr(i,j,km))*idz(0))
 
 c     End program
 
@@ -3205,7 +3305,8 @@ c     Local variables
         real(8) :: v(3),vip(3),vim(3),vjp(3),vjm(3),vkp(3),vkm(3)
         real(8) :: tsrc(3,3),gsuper(3,3)
         logical :: cntv
-        
+        real(8),pointer,dimension(:,:,:,:,:) :: gsup
+
 c     Begin program
 
         igrid = igx
@@ -3231,7 +3332,7 @@ c     Begin program
         kp = k+1
         km = k-1
 
-        if (cntv) gsuper = g_def%gmetric%grid(igrid)%gsup(i,j,k,:,:)
+        if (cntv) gsup => g_def%gmetric%grid(igrid)%gsup
 
         tsrc = nabla_v_src(i,j,k)
 
@@ -3250,9 +3351,8 @@ c     Begin program
 
           tsrc = 0.5*(nabla_v_src(ip,j,k)+tsrc)
 
-          if (cntv)
-     .         gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(ip,j,k,:,:)
-     .                      +gsuper)
+          if (cntv) gsuper = 0.5*(gsup(ip,j,k,:,:)
+     .                           +gsup(i ,j,k,:,:))
 
         case (2)
           dhy = g_def%dy(jg)
@@ -3268,9 +3368,8 @@ c     Begin program
 
           tsrc = 0.5*(nabla_v_src(i,jp,k)+tsrc)
 
-          if (cntv)
-     .         gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,jp,k,:,:)
-     .                      +gsuper)
+          if (cntv) gsuper = 0.5*(gsup(i,jp,k,:,:)
+     .                           +gsup(i,j ,k,:,:))
 
         case (3)
           dhz = g_def%dz(kg)
@@ -3286,9 +3385,8 @@ c     Begin program
 
           tsrc = 0.5*(nabla_v_src(i,j,kp)+tsrc)
 
-          if (cntv)
-     .         gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,j,kp,:,:)
-     .                      +gsuper)
+          if (cntv) gsuper = 0.5*(gsup(i,j,kp,:,:)
+     .                           +gsup(i,j,k ,:,:))
 
         case default
 
@@ -3301,6 +3399,8 @@ c     Begin program
           vkp(:) = aa(i,j,kp,:)
           vkm(:) = aa(i,j,km,:)
 
+          gsuper = gsup(i,j,k,:,:)
+          
         end select
 
         idh(1) = 1d0/dhx
@@ -3316,16 +3416,6 @@ c     Begin program
         tensor = tensor + tsrc
 
         if (cntv) tensor = matmul(gsuper,tensor)
-c$$$        if (cntv) then
-c$$$           do j=1,3
-c$$$cc              !$OMP SIMD
-c$$$              do i=1,3
-c$$$                 tensor(i,j) = gsuper(i,1)*tensor(1,j)
-c$$$     $                        +gsuper(i,2)*tensor(2,j)
-c$$$     $                        +gsuper(i,3)*tensor(3,j)
-c$$$              enddo
-c$$$           enddo
-c$$$        endif
 
 c     End program
 
@@ -3349,23 +3439,24 @@ c     Call variables
 c     Local variables
 
         integer    :: l,m
-        real(8)    :: cnv(3),dum(3),hessian(3,3,3)
+        real(8)    :: cnv(3),dum(3)!,hessian(3,3,3)
+        real(8),pointer,dimension(:,:,:,:,:,:) :: hessian
 
 c     Begin program
 
-        hessian = g_def%gmetric%grid(igrid)%Gamma(i,j,k,:,:,:)
+        hessian => g_def%gmetric%grid(igrid)%Gamma!(i,j,k,:,:,:)
 
         cnv = aa(i,j,k,:)
 
         do l=1,3
           do m=1,3
             tensor(l,m) =
-     .           cnv(1)* Hessian(m,1,l)
-     .          +cnv(2)* Hessian(m,2,l)
-     .          +cnv(3)* Hessian(m,3,l)
-     .          -cnv(m)*(Hessian(1,1,l)
-     .                  +Hessian(2,2,l)
-     .                  +Hessian(3,3,l))
+     .           cnv(1)* Hessian(i,j,k,m,1,l)
+     .          +cnv(2)* Hessian(i,j,k,m,2,l)
+     .          +cnv(3)* Hessian(i,j,k,m,3,l)
+     .          -cnv(m)*(Hessian(i,j,k,1,1,l)
+     .                  +Hessian(i,j,k,2,2,l)
+     .                  +Hessian(i,j,k,3,3,l))
           enddo
         enddo
 
@@ -7056,7 +7147,7 @@ c     Find X ZIP flux (used even if method /= ZIP)
      .              + v(i ,j,k)*arr(ip,j,k)/jac  )*(jac+jacip)
       else
         if (   (v(ip,j,k) == -v(i,j,k))
-     .     .or.(isSP2(g_def,i+1,igr,ibc=1).and.spoint)) then
+     .     .or.(isSP2(g_def,i+1,igr).and.spoint)) then
           flxip = 0d0    !Shut off flux for vn=0 BC
         else
           flxip = 0.5*(v(ip,j,k)*arr(i,j,k)+v(i,j,k)*arr(ip,j,k))
@@ -7696,9 +7787,9 @@ c     Find X ZIP flux (used even if method /= ZIP)
       at_bdry = (isBdry(g_def,i ,igr,2).and.bcond(2)/=PER)
      .      .or.(isBdry(g_def,ip,igr,1).and.bcond(1)/=PER)
 
-      spoint = isSP2(g_def,i+1,igr,ibc=1).and.spoint
+      spoint = isSP2(g_def,i+1,igr).and.spoint
       zero_flx = ((v(ip,j,k) == -v(i,j,k)).and.at_bdry)
-     .          .and.(.not.isSP2(g_def,i+1,igr,ibc=1))
+     .          .and.(.not.isSP2(g_def,i+1,igr))
 
       if (.not.at_bdry) then    !Not at boundary
         flxip = 0.25*(v(ip,j,k)*arr(i ,j,k)/jacip

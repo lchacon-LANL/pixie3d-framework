@@ -5206,16 +5206,24 @@ c     (taken care of by scalarNeumann and scalarDirichlet routines)
         write(bc_debug_unit,*)
      .       '>>> extrapolateToCorner, Proc='
      .      ,my_rank,' SYM boundaries',
-     .        (isSYMBdry(gbc_def,ibc=ibcl(1))
-     .     .or.isSYMBdry(gbc_def,ibc=ibcl(2))
-     .     .or.isSYMBdry(gbc_def,ibc=ibcl(3)))
+     .       (bcChk(ibcl(1),SYM,bcnd=bcnd)
+     .    .or.bcChk(ibcl(2),SYM,bcnd=bcnd)
+     .    .or.bcChk(ibcl(3),SYM,bcnd=bcnd))
      .    .and.(.not.force_corners)
+c$$$     .        (isSYMBdry(gbc_def,ibc=ibcl(1))
+c$$$     .     .or.isSYMBdry(gbc_def,ibc=ibcl(2))
+c$$$     .     .or.isSYMBdry(gbc_def,ibc=ibcl(3)))
+c$$$     .    .and.(.not.force_corners)
       endif
 
-      if (   (isSYMBdry(gbc_def,ibc=ibcl(1))
-     .    .or.isSYMBdry(gbc_def,ibc=ibcl(2))
-     .    .or.isSYMBdry(gbc_def,ibc=ibcl(3)))
+      if (   (bcChk(ibcl(1),SYM,bcnd=bcnd)
+     .    .or.bcChk(ibcl(2),SYM,bcnd=bcnd)
+     .    .or.bcChk(ibcl(3),SYM,bcnd=bcnd))
      .    .and.(.not.force_corners)) then
+c$$$      if (   (isSYMBdry(gbc_def,ibc=ibcl(1))
+c$$$     .    .or.isSYMBdry(gbc_def,ibc=ibcl(2))
+c$$$     .    .or.isSYMBdry(gbc_def,ibc=ibcl(3)))
+c$$$     .    .and.(.not.force_corners)) then
         get_out = .true.
         return
       endif
