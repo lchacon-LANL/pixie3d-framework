@@ -3300,10 +3300,9 @@ c     Call variables
 
 c     Local variables
 
-        integer :: ig,jg,kg,ip,im,jp,jm,kp,km,igrid
-        real(8) :: dhx,dhy,dhz,idh(3)
-        real(8) :: v(3),vip(3),vim(3),vjp(3),vjm(3),vkp(3),vkm(3)
-        real(8) :: tsrc(3,3),gsuper(3,3)
+        integer :: ig,jg,kg,ip,im,jp,jm,kp,km,igrid,ii,jj
+        real(8) :: idh(3),v(3),vip(3),vim(3),vjp(3),vjm(3),vkp(3),vkm(3)
+        real(8) :: tsrc(3,3),gsuper(3,3),cfx,cfy,cfz,dhx,dhy,dhz
         logical :: cntv
         real(8),pointer,dimension(:,:,:,:,:) :: gsup
 
@@ -3321,9 +3320,11 @@ c     Begin program
 
         call getMGmap(g_def,i,j,k,igx,igy,igz,ig,jg,kg)
 
-        dhx = 2.*g_def%dxh(ig)
-        dhy = 2.*g_def%dyh(jg)
-        dhz = 2.*g_def%dzh(kg)
+        cfx = 0.5d0 ; cfy = 0.5d0 ; cfz = 0.5d0
+
+        dhx = g_def%dxh(ig)
+        dhy = g_def%dyh(jg)
+        dhz = g_def%dzh(kg)
 
         ip = i+1
         im = i-1
@@ -3338,7 +3339,7 @@ c     Begin program
 
         select case(half_elem)
         case (1)
-          dhx = g_def%dx(ig)
+          cfx = 1d0
 
           vip(:) = aa(ip,j,k,:)
           vim(:) = aa(i ,j,k,:)
@@ -3355,7 +3356,7 @@ c     Begin program
      .                           +gsup(i ,j,k,:,:))
 
         case (2)
-          dhy = g_def%dy(jg)
+          cfy = 1d0
 
           vip(:) = 0.5*(aa(ip,j,k,:)+aa(ip,jp,k,:))
           vim(:) = 0.5*(aa(im,j,k,:)+aa(im,jp,k,:))
@@ -3372,7 +3373,7 @@ c     Begin program
      .                           +gsup(i,j ,k,:,:))
 
         case (3)
-          dhz = g_def%dz(kg)
+          cfz = 1d0
 
           vip(:) = 0.5*(aa(ip,j,k,:)+aa(ip,j,kp,:))
           vim(:) = 0.5*(aa(im,j,k,:)+aa(im,j,kp,:))
@@ -3403,19 +3404,33 @@ c     Begin program
           
         end select
 
-        idh(1) = 1d0/dhx
-        idh(2) = 1d0/dhy
-        idh(3) = 1d0/dhz
+        !Assembly of tensor
 
-        tensor(1,:) = (vip(:)-vim(:))*idh(1)
-        tensor(2,:) = (vjp(:)-vjm(:))*idh(2)
-        tensor(3,:) = (vkp(:)-vkm(:))*idh(3)
+        idh(1) = cfx/dhx
+        idh(2) = cfy/dhy
+        idh(3) = cfz/dhz
+        
+c$$$        tensor(1,:) = (vip(:)-vim(:))*idh(1) + tsrc(1,:)
+c$$$        tensor(2,:) = (vjp(:)-vjm(:))*idh(2) + tsrc(2,:)
+c$$$        tensor(3,:) = (vkp(:)-vkm(:))*idh(3) + tsrc(3,:)
+c$$$
+c$$$        if (cntv) tensor = matmul(gsuper,tensor)
 
-      ! Add geometric source
-
-        tensor = tensor + tsrc
-
-        if (cntv) tensor = matmul(gsuper,tensor)
+        !Highly optimized, do NOT touch
+        if (cntv) then
+          do jj=1,3
+            do ii=1,3
+              tensor(ii,jj) =
+     $              gsuper(ii,1)*((vip(jj)-vim(jj))*idh(1) + tsrc(1,jj))
+     $             +gsuper(ii,2)*((vjp(jj)-vjm(jj))*idh(2) + tsrc(2,jj))
+     $             +gsuper(ii,3)*((vkp(jj)-vkm(jj))*idh(3) + tsrc(3,jj))
+            enddo
+          enddo
+        else
+          tensor(1,:) = (vip(:)-vim(:))*idh(1) + tsrc(1,:)
+          tensor(2,:) = (vjp(:)-vjm(:))*idh(2) + tsrc(2,:)
+          tensor(3,:) = (vkp(:)-vkm(:))*idh(3) + tsrc(3,:)
+        endif
 
 c     End program
 
@@ -3439,12 +3454,12 @@ c     Call variables
 c     Local variables
 
         integer    :: l,m
-        real(8)    :: cnv(3),dum(3)!,hessian(3,3,3)
+        real(8)    :: cnv(3),dum(3)
         real(8),pointer,dimension(:,:,:,:,:,:) :: hessian
 
 c     Begin program
 
-        hessian => g_def%gmetric%grid(igrid)%Gamma!(i,j,k,:,:,:)
+        hessian => g_def%gmetric%grid(igrid)%Gamma
 
         cnv = aa(i,j,k,:)
 
