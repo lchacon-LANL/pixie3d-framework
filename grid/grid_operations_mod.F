@@ -37,8 +37,10 @@ c     Local variables
 
 c     Begin program
 
-        locl = abs(mod(ibc,2)-2)-1
-        diml = 1 + (ibc-1-locl)/2
+cc        locl = abs(mod(ibc,2)-2)-1
+cc        diml = 1 + (ibc-1-locl)/2
+        diml = (ibc+1)/2
+        locl = ibc + 1 - 2*diml
 
         isBdry = isBdry2(gl_def,i,igr,diml,locl)
 
@@ -236,8 +238,10 @@ c     -----------------------------------------------------------------
           ibcl = (1+locl)+2*(diml-1)
         elseif (PRESENT(ibc)) then
           ibcl = ibc
-          locl = abs(mod(ibcl,2)-2)-1
-          diml = 1 + (ibcl-1-locl)/2
+cc          locl = abs(mod(ibcl,2)-2)-1
+cc          diml = 1 + (ibcl-1-locl)/2
+          diml = (ibc+1)/2
+          locl = ibc + 1 - 2*diml
         else
           write (*,*) 'Error in isSYM'
           write (*,*) 'Aborting...'

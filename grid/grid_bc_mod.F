@@ -881,8 +881,11 @@ c     Begin program
         return
       endif
 
-      loc = abs(mod(ibc,2)-2)-1
-      dim = 1 + (ibc-1-loc)/2
+cc      loc = abs(mod(ibc,2)-2)-1
+cc      dim = 1 + (ibc-1-loc)/2
+
+      dim = (ibc+1)/2
+      loc = ibc + 1 - 2*dim
 
       selectFace= .not.
      .   do__nothing(g_def,dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax)
@@ -4882,20 +4885,20 @@ c     Call variables
 c     Local variables
 
       integer :: i,j,k,ig,jg,kg,inx,iny,inz,order_int(3),offset
-     .          ,imni,imxi,jmni,jmxi,kmni,kmxi,num,i_bc,i1,i2
+     .          ,imni,imxi,jmni,jmxi,kmni,kmxi,i_bc,i1,i2
 
       real(8) :: valx(1),valy(1),valz(1),xto(1),yto(1),zto(1),curv(3)
-     $          ,idx,idy,idz
+     $          ,idx,idy,idz,num
 
-      logical :: flg(3),select_bc(3),face,edge,corner
+      logical :: flg(3),select_bc(3),face,edge,corner,get_out
 
 c     Extrapolation
 
       real(8),dimension(10) :: xx,yy,zz
 
 c     Begin program
-
-      xx = 0d0 ; yy = 0d0 ; zz = 0d0
+      
+cc      xx = 0d0 ; yy = 0d0 ; zz = 0d0
       
 c     Initialize variables
 
@@ -4905,7 +4908,8 @@ c     Initialize variables
 
 c     Check for exceptions
 
-      if (checkExceptions()) return
+      get_out = checkExceptions()
+      if (get_out) return
 
 c     Identify directions for extrapolation.
 
@@ -5033,7 +5037,7 @@ c     Initialize accumulators
       valy = 0d0
       valz = 0d0
 
-      num = 0
+      num = 0.
 
 c     X extrapolation
 
@@ -5057,7 +5061,7 @@ c     X extrapolation
         call IntDriver1d(inx,xx(1:inx),array(imni:imxi,jto,kto)
      .                  ,1,xto,valx,order_int(1))
 
-        num = num + 1
+        num = num + 1.
 
       endif
 
@@ -5083,7 +5087,7 @@ c     Y extrapolation
         call IntDriver1d(iny,yy(1:iny),array(ito,jmni:jmxi,kto)
      .                  ,1,yto,valy,order_int(2))
 
-        num = num + 1
+        num = num + 1.
 
       endif
 
@@ -5109,7 +5113,7 @@ c     Z extrapolation
         call IntDriver1d(inz,zz(1:inz),array(ito,jto,kmni:kmxi)
      .                  ,1,zto,valz,order_int(3))
 
-        num = num + 1
+        num = num + 1.
 
       endif
 
@@ -5160,94 +5164,72 @@ c     Check for "do nothing" conditions
         return
       endif
 
-c     Do nothing for SP boundary faces, edges, and corners
+      if (force_corners) then
+        get_out = .false.
+        return
+      endif
+
+c     Do nothing for SP,DEF,PER, SYM (not FSYM) boundary faces, edges, and corners
 
       if (bc_debug) then
         write(bc_debug_unit,*)
      .       '>>> extrapolateToCorner, Proc='
      .      ,my_rank,' SP boundaries',
-     .       (bcSP(ibc=ibcl(1),bcnd=bcnd)
-     .    .or.bcSP(ibc=ibcl(2),bcnd=bcnd)
-     .    .or.bcSP(ibc=ibcl(3),bcnd=bcnd))
-     .    .and.(.not.force_corners)
-      endif
+     .       (bcSP(ibc=ibcl(1))
+     .    .or.bcSP(ibc=ibcl(2))
+     .    .or.bcSP(ibc=ibcl(3)))
 
-      if (   (bcSP(ibc=ibcl(1),bcnd=bcnd)
-     .    .or.bcSP(ibc=ibcl(2),bcnd=bcnd)
-     .    .or.bcSP(ibc=ibcl(3),bcnd=bcnd))
-     .    .and.(.not.force_corners)) then
-        get_out = .true.
-        return
-      endif
-c     Do nothing for DEF boundary faces, edges, and corners
-
-      if (bc_debug) then
         write(bc_debug_unit,*)
      .       '>>> extrapolateToCorner, Proc='
      .      ,my_rank,' DEF boundaries',
-     .       (bcChk(ibcl(1),DEF,bcnd=bcnd)
-     .    .or.bcChk(ibcl(2),DEF,bcnd=bcnd)
-     .    .or.bcChk(ibcl(3),DEF,bcnd=bcnd))
-     .    .and.(.not.force_corners)
-      endif
+     .       (bcChk(ibcl(1),DEF,bcnd)
+     .    .or.bcChk(ibcl(2),DEF,bcnd)
+     .    .or.bcChk(ibcl(3),DEF,bcnd))
 
-      if (   (bcChk(ibcl(1),DEF,bcnd=bcnd)
-     .    .or.bcChk(ibcl(2),DEF,bcnd=bcnd)
-     .    .or.bcChk(ibcl(3),DEF,bcnd=bcnd))
-     .    .and.(.not.force_corners)) then
-        get_out = .true.
-        return
-      endif
-
-c     Do nothing for SYM (not FSYM) boundary faces, edges, and corners
-c     (taken care of by scalarNeumann and scalarDirichlet routines)
-
-      if (bc_debug) then
         write(bc_debug_unit,*)
      .       '>>> extrapolateToCorner, Proc='
      .      ,my_rank,' SYM boundaries',
-     .       (bcChk(ibcl(1),SYM,bcnd=bcnd)
-     .    .or.bcChk(ibcl(2),SYM,bcnd=bcnd)
-     .    .or.bcChk(ibcl(3),SYM,bcnd=bcnd))
-     .    .and.(.not.force_corners)
+     .       (    bcSYM(ibcl(1))
+     $        .or.bcSYM(ibcl(2))
+     $        .or.bcSYM(ibcl(3)))
 c$$$     .        (isSYMBdry(gbc_def,ibc=ibcl(1))
 c$$$     .     .or.isSYMBdry(gbc_def,ibc=ibcl(2))
 c$$$     .     .or.isSYMBdry(gbc_def,ibc=ibcl(3)))
-c$$$     .    .and.(.not.force_corners)
-      endif
 
-      if (   (bcChk(ibcl(1),SYM,bcnd=bcnd)
-     .    .or.bcChk(ibcl(2),SYM,bcnd=bcnd)
-     .    .or.bcChk(ibcl(3),SYM,bcnd=bcnd))
-     .    .and.(.not.force_corners)) then
-c$$$      if (   (isSYMBdry(gbc_def,ibc=ibcl(1))
-c$$$     .    .or.isSYMBdry(gbc_def,ibc=ibcl(2))
-c$$$     .    .or.isSYMBdry(gbc_def,ibc=ibcl(3)))
-c$$$     .    .and.(.not.force_corners)) then
-        get_out = .true.
-        return
-      endif
-
-c     Do nothing for PER boundary faces, edges, and corners
-c     (taken care of by PETSc and SYNC routines)
-      
-      if (bc_debug) then
         write(bc_debug_unit,*)
      .       '>>> extrapolateToCorner, Proc='
      .      ,my_rank,' PER boundaries',
-     .       (bcChk(ibcl(1),PER,bcnd=bcnd)
-     .    .or.bcChk(ibcl(2),PER,bcnd=bcnd)
-     .    .or.bcChk(ibcl(3),PER,bcnd=bcnd))
-     .    .and.(.not.force_corners)
+     .       (    bcPER(ibcl(1))
+     $        .or.bcPER(ibcl(2))
+     $        .or.bcPER(ibcl(3)))
+c$$$     .       (bcChk(ibcl(1),PER,bcnd=bcnd)
+c$$$     .    .or.bcChk(ibcl(2),PER,bcnd=bcnd)
+c$$$     .    .or.bcChk(ibcl(3),PER,bcnd=bcnd))
       endif
 
-      if (   (bcChk(ibcl(1),PER,bcnd=bcnd)
-     .    .or.bcChk(ibcl(2),PER,bcnd=bcnd)
-     .    .or.bcChk(ibcl(3),PER,bcnd=bcnd))
-     .    .and.(.not.force_corners)) then
-        get_out = .true.
-        return
-      endif
+      get_out = (    bcSP(ibc=ibcl(1))
+     .           .or.bcSP(ibc=ibcl(2))
+     .           .or.bcSP(ibc=ibcl(3)))
+
+      if (get_out) return
+      
+      get_out = (    bcChk(ibcl(1),DEF,bcnd)
+     .           .or.bcChk(ibcl(2),DEF,bcnd)
+     .           .or.bcChk(ibcl(3),DEF,bcnd))
+
+      if (get_out) return
+
+      get_out = (    bcPER(ibcl(1))
+     $           .or.bcPER(ibcl(2))
+     $           .or.bcPER(ibcl(3)))
+
+      if (get_out) return
+
+      get_out = (    bcSYM(ibcl(1))
+     $           .or.bcSYM(ibcl(2))
+     $           .or.bcSYM(ibcl(3)))
+
+      if (get_out) return
 
 c$$$c     Do nothing for doubly-periodic edges (PETSc does it)
 c$$$
@@ -5265,54 +5247,36 @@ c     Do nothing for Dirichlet edges (extrapolateBC does it), except when BOTH a
       if (edge) then
         if ((ibcl(1) == 0)
      .  .and.((selectFace(gbc_def,ibcl(3))
-     .       .and.(bcChk(ibcl(3),DIR,bcnd=bcnd)
-     .         .or.bcChk(ibcl(3),EQU,bcnd=bcnd)))
+     .       .and.(bcChk(ibcl(3),DIR,bcnd)
+     .         .or.bcChk(ibcl(3),EQU,bcnd)))
      .    .or.(selectFace(gbc_def,ibcl(2))
-     .       .and.(bcChk(ibcl(2),DIR,bcnd=bcnd)
-     .         .or.bcChk(ibcl(2),EQU,bcnd=bcnd))))
-c$$$     .  .and.(.not.((selectFace(gbc_def,ibcl(3))
-c$$$     .       .and.(bcChk(ibcl(3),DIR,bcnd=bcnd)
-c$$$     .         .or.bcChk(ibcl(3),EQU,bcnd=bcnd)))
-c$$$     .         .and.(selectFace(gbc_def,ibcl(2))
-c$$$     .       .and.(bcChk(ibcl(2),DIR,bcnd=bcnd)
-c$$$     .         .or.bcChk(ibcl(2),EQU,bcnd=bcnd)))))
-     .     .and.(.not.force_corners)) then
+     .       .and.(bcChk(ibcl(2),DIR,bcnd)
+     .         .or.bcChk(ibcl(2),EQU,bcnd))))
+     .     ) then
           get_out = .true.
           return
         endif
 
         if ((ibcl(2) == 0)
      .  .and.((selectFace(gbc_def,ibcl(3))
-     .       .and.(bcChk(ibcl(3),DIR,bcnd=bcnd)
-     .         .or.bcChk(ibcl(3),EQU,bcnd=bcnd)))
+     .       .and.(bcChk(ibcl(3),DIR,bcnd)
+     .         .or.bcChk(ibcl(3),EQU,bcnd)))
      .    .or.(selectFace(gbc_def,ibcl(1))
-     .       .and.(bcChk(ibcl(1),DIR,bcnd=bcnd)
-     .         .or.bcChk(ibcl(1),EQU,bcnd=bcnd))))
-c$$$     .  .and.(.not.((selectFace(gbc_def,ibcl(3))
-c$$$     .       .and.(bcChk(ibcl(3),DIR,bcnd=bcnd)
-c$$$     .         .or.bcChk(ibcl(3),EQU,bcnd=bcnd)))
-c$$$     .         .and.(selectFace(gbc_def,ibcl(1))
-c$$$     .       .and.(bcChk(ibcl(1),DIR,bcnd=bcnd)
-c$$$     .         .or.bcChk(ibcl(1),EQU,bcnd=bcnd)))))
-     .     .and.(.not.force_corners))then
+     .       .and.(bcChk(ibcl(1),DIR,bcnd)
+     .         .or.bcChk(ibcl(1),EQU,bcnd))))
+     .     )then
           get_out = .true.
           return
         endif
 
         if ((ibcl(3) == 0)
      .  .and.((selectFace(gbc_def,ibcl(1))
-     .       .and.(bcChk(ibcl(1),DIR,bcnd=bcnd)
-     .         .or.bcChk(ibcl(1),EQU,bcnd=bcnd)))
+     .       .and.(bcChk(ibcl(1),DIR,bcnd)
+     .         .or.bcChk(ibcl(1),EQU,bcnd)))
      .    .or.(selectFace(gbc_def,ibcl(2))
-     .       .and.(bcChk(ibcl(2),DIR,bcnd=bcnd)
-     .         .or.bcChk(ibcl(2),EQU,bcnd=bcnd))))
-c$$$     .  .and.(.not.((selectFace(gbc_def,ibcl(1))
-c$$$     .       .and.(bcChk(ibcl(1),DIR,bcnd=bcnd)
-c$$$     .         .or.bcChk(ibcl(1),EQU,bcnd=bcnd)))
-c$$$     .         .and.(selectFace(gbc_def,ibcl(2))
-c$$$     .       .and.(bcChk(ibcl(2),DIR,bcnd=bcnd)
-c$$$     .         .or.bcChk(ibcl(2),EQU,bcnd=bcnd)))))
-     .     .and.(.not.force_corners))then
+     .       .and.(bcChk(ibcl(2),DIR,bcnd)
+     .         .or.bcChk(ibcl(2),EQU,bcnd))))
+     .     )then
           get_out = .true.
           return
         endif
