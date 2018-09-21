@@ -240,8 +240,8 @@ c     -----------------------------------------------------------------
           ibcl = ibc
 cc          locl = abs(mod(ibcl,2)-2)-1
 cc          diml = 1 + (ibcl-1-locl)/2
-          diml = (ibc+1)/2
-          locl = ibc + 1 - 2*diml
+          diml = (ibcl+1)/2
+          locl =  ibcl+1 - 2*diml
         else
           write (*,*) 'Error in isSYM'
           write (*,*) 'Aborting...'
