@@ -72,7 +72,7 @@ ifeq ($(HOST),jetta)
 
   override MACHINE = jetta
 
-  FC = gfortran
+  FC ?= gfortran
 
   OMP_NUM_THREADS = 32
 
@@ -89,6 +89,8 @@ ifeq ($(HOST),jetta)
     LDFLAGS    += -lgfortran
 
   else
+
+  ifeq ($(findstring gfortran,$(FC)),gfortran)
     ifdef BOPT
       PETSC_DIR ?=$(HOME)/lib/petsc-3.0.0-p7
 
@@ -147,6 +149,59 @@ ifeq ($(HOST),jetta)
 #    ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
   endif
 
+  ifeq ($(findstring ifort,$(FC)),ifort)
+    ifdef BOPT
+      PETSC_DIR ?=$(HOME)/lib/petsc-3.0.0-p7
+
+      ifeq ($(BOPT),O)
+        PETSC_ARCH = $(PETSC_ARCH_O)
+      else
+        PETSC_ARCH = $(PETSC_ARCH_g)
+      endif
+
+      HDF5 = f
+
+      #Determined via modules
+      HDF5_LIBS =-L$(PHDF5_LIB) -lhdf5hl_fortran -lhdf5_fortran -lhdf5_hl -lhdf5 -lz -lm 
+      HDF5_MOD  = $(PHDF5_INC)
+      HDF5_INC  = $(PHDF5_INC)
+
+      ifeq ($(PIT),t)
+        ADIOS = f      !ADIOS not ready for parallel-in-time yet
+      else
+        ADIOS = f
+      endif
+
+      ADIOS_BUFFER_MB = 10
+      ADIOS_METHOD = MPI
+
+      ADIOS_HOME = /nh/u/lchacon/lib/adios-1.10.0
+      ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1
+      ADIOS_VER  = 1.10.0
+
+      SPRNG = f
+
+      SPRNG_LIBS = $(SPRNG_PAR_HOME)/lib -lsprng -lstdc++ -lm -lmpi_cxx
+      SPRNG_INC  = $(SPRNG_PAR_HOME)/include
+    else
+      LIBS += -L/usr/lib -llapack -lblas
+
+      HDF5 = f
+
+      #Determined via modules
+      HDF5_LIBS =-L$(SHDF5_LIB) -lhdf5hl_fortran -lhdf5_fortran -lhdf5_hl -lhdf5 -lz -lm -ldl
+      HDF5_MOD  = $(SHDF5_INC)
+      HDF5_INC  = $(SHDF5_INC)
+
+      ADIOS = f
+
+      SPRNG = f
+
+      SPRNG_LIBS = $(SPRNG_SER_HOME)/lib -lsprng -lstdc++ -lm 
+      SPRNG_INC = $(SPRNG_SER_HOME)/include
+    endif
+  endif
+  endif
 endif
 
 ################
