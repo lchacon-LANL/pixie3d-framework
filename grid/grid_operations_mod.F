@@ -40,40 +40,7 @@ c     Begin program
         locl = abs(mod(ibc,2)-2)-1
         diml = 1 + (ibc-1-locl)/2
 
-        if (.not.associated(gl_def)) then
-          write (*,*) 'Grid def struct not associated'
-          write (*,*) 'Aborting in routine isBdry'
-          stop
-        endif
-
-        select case(diml)
-        case(1)
-          ilog = gl_def%ilo(igr)
-          select case(locl)
-          case (0)
-            itst = 1
-          case (1)
-            itst = gl_def%nxgl(igr)
-          end select
-        case(2)
-          ilog = gl_def%jlo(igr)
-          select case(locl)
-          case (0)
-            itst = 1
-          case (1)
-            itst = gl_def%nygl(igr)
-          end select
-        case(3)
-          ilog = gl_def%klo(igr)
-          select case(locl)
-          case (0)
-            itst = 1
-          case (1)
-            itst = gl_def%nzgl(igr)
-          end select
-        end select
-
-        isBdry = (i+ilog-1 == itst)
+        isBdry = isBdry2(gl_def,i,igr,diml,locl)
 
       end function isBdry
 
@@ -157,7 +124,7 @@ c     Begin program
           bcc = bcond
         endif
 
-        isBC = (isBdry(g_def,i,igr,ibc=ibc).and.abs(bcc(ibc)) == BC)
+        isBC = (isBdry(g_def,i,igr,ibc).and.abs(bcc(ibc)) == BC)
 
       end function isBC
 
@@ -182,7 +149,7 @@ c     Begin program
           stop
         endif
 
-        sing_point = (i+gl_def%ilo(igx)-1==1).and.bcSP()
+        sing_point = (i+gl_def%ilo(igx)-1==1).and.(abs(bcond(1)) == SP)
 
       end function isSP
 

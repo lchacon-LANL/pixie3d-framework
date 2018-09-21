@@ -1979,10 +1979,8 @@ c     Local variables
       real(8) :: d_xx_ip
      .          ,d_xy_ipjp,d_xy_ipjm
      .          ,d_xz_ipkp,d_xz_ipkm
-cc     $          ,idx(0:1),idy(0:1),idz(0:1)
 
       real(8),dimension(:,:,:,:,:),pointer :: gsup
-cc      real(8),dimension(0:2,0:2,0:2,3) :: gsup
 
       real(8),dimension(:,:,:),pointer :: dff
 
@@ -2003,10 +2001,6 @@ c     Begin program
       endif
 
       call getMGmap(g_def,i,j,k,igrid,igrid,igrid,ig,jg,kg)
-
-c$$$      idx(1) = 1d0/g_def%dx(ig)
-c$$$      idy(:) = 1d0/g_def%dy(jg-1:jg)
-c$$$      idz(:) = 1d0/g_def%dz(kg-1:kg)
 
       ip = i+1
       im = i-1
@@ -2100,91 +2094,6 @@ c$$$      idz(:) = 1d0/g_def%dz(kg-1:kg)
      .                     +gsup(ip,j,km,1,3))
         endif
       endif
-c$$$      if (vrtx_met) then
-c$$$        !Vertex metrics
-c$$$        gsup(0:1,0:1,0:1,:)
-c$$$     $      = g_def%gmetric%grid(igrid)%gsup_v(im:i,jm:j,km:k,1,:)
-c$$$
-c$$$        d_xx_ip = 0.25*(gsup(1,1,1,1)
-c$$$     .                 +gsup(1,0,1,1)
-c$$$     .                 +gsup(1,1,0,1)
-c$$$     .                 +gsup(1,0,0,1))
-c$$$
-c$$$        d_xy_ipjp = 0.5*(gsup(1,1,1,2)
-c$$$     .                  +gsup(1,1,0,2))
-c$$$        d_xy_ipjm = 0.5*(gsup(1,0,1,2)
-c$$$     .                  +gsup(1,0,0,2))
-c$$$
-c$$$        d_xz_ipkp = 0.5*(gsup(1,1,1,3)
-c$$$     .                  +gsup(1,0,1,3))
-c$$$        d_xz_ipkm = 0.5*(gsup(1,1,0,3)
-c$$$     .                  +gsup(1,0,0,3))
-c$$$
-c$$$        if (have_diff) then
-c$$$          d_xx_ip = 0.5*(dff(i ,j,k)+dff(ip,j,k))*d_xx_ip
-c$$$          d_xy_ipjp = 0.25*(dff(i ,j ,k)          
-c$$$     .                     +dff(ip,j ,k)          
-c$$$     .                     +dff(i ,jp,k)          
-c$$$     .                     +dff(ip,jp,k))*d_xy_ipjp
-c$$$          d_xy_ipjm = 0.25*(dff(i ,j ,k)          
-c$$$     .                     +dff(ip,j ,k)          
-c$$$     .                     +dff(i ,jm,k)          
-c$$$     .                     +dff(ip,jm,k))*d_xy_ipjm
-c$$$          d_xz_ipkp = 0.25*(dff(i ,j,k )           
-c$$$     .                     +dff(ip,j,k )           
-c$$$     .                     +dff(i ,j,kp)           
-c$$$     .                     +dff(ip,j,kp))*d_xz_ipkp
-c$$$          d_xz_ipkm = 0.25*(dff(i ,j,k )           
-c$$$     .                     +dff(ip,j,k )           
-c$$$     .                     +dff(i ,j,km)           
-c$$$     .                     +dff(ip,j,km))*d_xz_ipkm
-c$$$        endif
-c$$$
-c$$$      else
-c$$$        !Cell-centered metrics
-c$$$        gsup(:,:,:,:)
-c$$$     $        = g_def%gmetric%grid(igrid)%gsup_v(im:ip,jm:jp,km:kp,1,:)
-c$$$
-c$$$        if (have_diff) then
-c$$$          d_xx_ip   =  0.5*(dff(i ,j ,k)*gsup(1,1,1,1)
-c$$$     .                     +dff(ip,j ,k)*gsup(2,1,1,1))
-c$$$          d_xy_ipjp = 0.25*(dff(i ,j ,k)*gsup(1,1,1,2)
-c$$$     .                     +dff(ip,j ,k)*gsup(2,1,1,2)
-c$$$     .                     +dff(i ,jp,k)*gsup(1,2,1,2)
-c$$$     .                     +dff(ip,jp,k)*gsup(2,2,1,2))
-c$$$          d_xy_ipjm = 0.25*(dff(i ,j ,k)*gsup(1,1,1,2)
-c$$$     .                     +dff(ip,j ,k)*gsup(2,1,1,2)
-c$$$     .                     +dff(i ,jm,k)*gsup(1,0,1,2)
-c$$$     .                     +dff(ip,jm,k)*gsup(2,0,1,2))
-c$$$          d_xz_ipkp = 0.25*(dff(i ,j,k )*gsup(1,1,1,3)
-c$$$     .                     +dff(ip,j,k )*gsup(2,1,1,3)
-c$$$     .                     +dff(i ,j,kp)*gsup(1,1,2,3)
-c$$$     .                     +dff(ip,j,kp)*gsup(2,1,2,3))
-c$$$          d_xz_ipkm = 0.25*(dff(i ,j,k )*gsup(1,1,1,3)
-c$$$     .                     +dff(ip,j,k )*gsup(2,1,1,3)
-c$$$     .                     +dff(i ,j,km)*gsup(1,1,0,3)
-c$$$     .                     +dff(ip,j,km)*gsup(2,1,0,3))
-c$$$        else
-c$$$          d_xx_ip   =  0.5*(gsup(1,1,1,1)
-c$$$     .                     +gsup(2,1,1,1))
-c$$$          d_xy_ipjp = 0.25*(gsup(1,1,1,2)
-c$$$     .                     +gsup(2,1,1,2)
-c$$$     .                     +gsup(1,2,1,2)
-c$$$     .                     +gsup(2,2,1,2))
-c$$$          d_xy_ipjm = 0.25*(gsup(1,1,1,2)
-c$$$     .                     +gsup(2,1,1,2)
-c$$$     .                     +gsup(1,0,1,2)
-c$$$     .                     +gsup(2,0,1,2))
-c$$$          d_xz_ipkp = 0.25*(gsup(1,1,1,3)
-c$$$     .                     +gsup(2,1,1,3)
-c$$$     .                     +gsup(1,1,2,3)
-c$$$     .                     +gsup(2,1,2,3))
-c$$$          d_xz_ipkm = 0.25*(gsup(1,1,1,3)
-c$$$     .                     +gsup(2,1,1,3)
-c$$$     .                     +gsup(1,1,0,3)
-c$$$     .                     +gsup(2,1,0,3))
-c$$$        endif
-c$$$      endif
 
       flx   = d_xx_ip  *(arr(ip,j ,k)-arr(i,j ,k))/g_def%dx(ig)
      .  +.25*(d_xy_ipjp*(arr(ip,jp,k)+arr(i,jp,k)               
@@ -2195,15 +2104,6 @@ c$$$      endif
      .                  -arr(ip,j,k )-arr(i,j,k ))/g_def%dz(kg)
      .  +     d_xz_ipkm*(arr(ip,j,k )+arr(i,j,k )               
      .                  -arr(ip,j,km)-arr(i,j,km))/g_def%dz(kg-1))
-c$$$      flx   = d_xx_ip  *(arr(ip,j ,k)-arr(i,j ,k))*idx(1)
-c$$$     .  +.25*(d_xy_ipjp*(arr(ip,jp,k)+arr(i,jp,k)               
-c$$$     .                  -arr(ip,j ,k)-arr(i,j ,k))*idy(1)
-c$$$     .  +     d_xy_ipjm*(arr(ip,j ,k)+arr(i,j ,k)               
-c$$$     .                  -arr(ip,jm,k)-arr(i,jm,k))*idy(0)
-c$$$     .  +     d_xz_ipkp*(arr(ip,j,kp)+arr(i,j,kp)               
-c$$$     .                  -arr(ip,j,k )-arr(i,j,k ))*idz(1)
-c$$$     .  +     d_xz_ipkm*(arr(ip,j,k )+arr(i,j,k )               
-c$$$     .                  -arr(ip,j,km)-arr(i,j,km))*idz(0))
 
 c     End program
 
@@ -2979,300 +2879,6 @@ c ######################################################################
 
       contains
 
-c$$$c     fnabla_v
-c$$$c     #############################################################
-c$$$      function fnabla_v(g_def,i,j,k,nx,ny,nz,igx,igy,igz,ax,ay,az
-c$$$     .                 ,half_elem,cnv)
-c$$$     .         result(tensor)
-c$$$c     -------------------------------------------------------------
-c$$$c     Calculates the tensor components T_l^m (if cnv = .false.) or T^lm
-c$$$c     (if cnv = .true.) of nabla(vec v), with v contravariant, and fills
-c$$$c     tensor(l,m) at the following positions:
-c$$$c       + half_elem=0 --> i,j,k
-c$$$c       + half_elem=1 --> i+1/2,j,k
-c$$$c       + half_elem=2 --> i,j+1/2,k
-c$$$c       + half_elem=3 --> i,j,k+1/2
-c$$$c     -------------------------------------------------------------
-c$$$
-c$$$        implicit none
-c$$$
-c$$$c     Call variables
-c$$$
-c$$$        type(grid_mg_def),pointer :: g_def
-c$$$
-c$$$        integer    :: i,j,k,half_elem,nx,ny,nz,igx,igy,igz
-c$$$        real(8)    :: tensor(3,3)
-c$$$        real(8)    :: ax(0:nx+1,0:ny+1,0:nz+1)
-c$$$     .               ,ay(0:nx+1,0:ny+1,0:nz+1)
-c$$$     .               ,az(0:nx+1,0:ny+1,0:nz+1)
-c$$$
-c$$$        logical,optional :: cnv
-c$$$
-c$$$c     Local variables
-c$$$
-c$$$        integer    :: ig,jg,kg,ip,im,jp,jm,kp,km,igrid
-c$$$        real(8)    :: dhx,dhy,dhz,idhx,idhy,idhz
-c$$$        real(8)    :: vxx,vyy,vzz
-c$$$     .               ,vxip,vxim,vxjp,vxjm,vxkp,vxkm
-c$$$     .               ,vyip,vyim,vyjp,vyjm,vykp,vykm
-c$$$     .               ,vzip,vzim,vzjp,vzjm,vzkp,vzkm
-c$$$        real(8)    :: tsrc(3,3),gsuper(3,3),nblv(3,3)
-c$$$     .               ,jacip,jacjp,jacjm,jackp,jackm
-c$$$     .               ,jacipkp,jacipkm,jacipjp,jacipjm,jac
-c$$$
-c$$$        logical    :: cntv
-c$$$
-c$$$c     Begin program
-c$$$
-c$$$        igrid = igx
-c$$$
-c$$$        !Defaults
-c$$$
-c$$$        if (PRESENT(cnv)) then
-c$$$          cntv = cnv
-c$$$        else
-c$$$          cntv = .false.
-c$$$        endif
-c$$$
-c$$$        call getMGmap(g_def,i,j,k,igx,igy,igz,ig,jg,kg)
-c$$$
-c$$$        dhx = 2.*g_def%dxh(ig)
-c$$$        dhy = 2.*g_def%dyh(jg)
-c$$$        dhz = 2.*g_def%dzh(kg)
-c$$$
-c$$$        ip = i+1
-c$$$        im = i-1
-c$$$        jp = j+1
-c$$$        jm = j-1
-c$$$        kp = k+1
-c$$$        km = k-1
-c$$$
-c$$$        nblv = nabla_v_src(i,j,k)
-c$$$
-c$$$        !Exceptions
-c$$$
-c$$$        select case(half_elem)
-c$$$        case (1)
-c$$$          dhx = g_def%dx(ig)
-c$$$
-c$$$          if (cntv) 
-c$$$c$$$            gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i ,j,k,:,:)
-c$$$c$$$     .                   +g_def%gmetric%grid(igrid)%gsup(ip,j,k,:,:))
-c$$$     .      gsuper=.25*(g_def%gmetric%grid(igrid)%gsup_v(i,j  ,k  ,:,:)
-c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i,j-1,k  ,:,:)
-c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i,j  ,k-1,:,:)
-c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i,j-1,k-1,:,:))
-c$$$
-c$$$          vxip = ax(ip,j,k)
-c$$$          vxim = ax(i ,j,k)
-c$$$          vyip = ay(ip,j,k)
-c$$$          vyim = ay(i ,j,k)
-c$$$          vzip = az(ip,j,k)
-c$$$          vzim = az(i ,j,k)
-c$$$
-c$$$          vxjp = 0.5*(ax(i,jp,k)+ax(ip,jp,k))
-c$$$          vxjm = 0.5*(ax(i,jm,k)+ax(ip,jm,k))
-c$$$          vyjp = 0.5*(ay(i,jp,k)+ay(ip,jp,k))
-c$$$          vyjm = 0.5*(ay(i,jm,k)+ay(ip,jm,k))
-c$$$          vzjp = 0.5*(az(i,jp,k)+az(ip,jp,k))
-c$$$          vzjm = 0.5*(az(i,jm,k)+az(ip,jm,k))
-c$$$                                      
-c$$$          vxkp = 0.5*(ax(i,j,kp)+ax(ip,j,kp))
-c$$$          vxkm = 0.5*(ax(i,j,km)+ax(ip,j,km))
-c$$$          vykp = 0.5*(ay(i,j,kp)+ay(ip,j,kp))
-c$$$          vykm = 0.5*(ay(i,j,km)+ay(ip,j,km))
-c$$$          vzkp = 0.5*(az(i,j,kp)+az(ip,j,kp))
-c$$$          vzkm = 0.5*(az(i,j,km)+az(ip,j,km))
-c$$$
-c$$$          tsrc = 0.5*(nabla_v_src(ip,j,k)+nblv)
-c$$$
-c$$$        case (2)
-c$$$          dhy = g_def%dy(jg)
-c$$$
-c$$$          if (cntv)
-c$$$c$$$     .         gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,j ,k,:,:)
-c$$$c$$$     .                      +g_def%gmetric%grid(igrid)%gsup(i,jp,k,:,:))
-c$$$     .      gsuper=.25*(g_def%gmetric%grid(igrid)%gsup_v(i  ,j,k  ,:,:)
-c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j,k  ,:,:)
-c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i  ,j,k-1,:,:)
-c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j,k-1,:,:))
-c$$$
-c$$$          vxip = 0.5*(ax(ip,j,k)+ax(ip,jp,k))
-c$$$          vxim = 0.5*(ax(im,j,k)+ax(im,jp,k))
-c$$$          vyip = 0.5*(ay(ip,j,k)+ay(ip,jp,k))
-c$$$          vyim = 0.5*(ay(im,j,k)+ay(im,jp,k))
-c$$$          vzip = 0.5*(az(ip,j,k)+az(ip,jp,k))
-c$$$          vzim = 0.5*(az(im,j,k)+az(im,jp,k))
-c$$$
-c$$$          vxjp = ax(i,jp,k)
-c$$$          vxjm = ax(i,j ,k)
-c$$$          vyjp = ay(i,jp,k)
-c$$$          vyjm = ay(i,j ,k)
-c$$$          vzjp = az(i,jp,k)
-c$$$          vzjm = az(i,j ,k)
-c$$$
-c$$$          vxkp = 0.5*(ax(i,j,kp)+ax(i,jp,kp))
-c$$$          vxkm = 0.5*(ax(i,j,km)+ax(i,jp,km))
-c$$$          vykp = 0.5*(ay(i,j,kp)+ay(i,jp,kp))
-c$$$          vykm = 0.5*(ay(i,j,km)+ay(i,jp,km))
-c$$$          vzkp = 0.5*(az(i,j,kp)+az(i,jp,kp))
-c$$$          vzkm = 0.5*(az(i,j,km)+az(i,jp,km))
-c$$$
-c$$$          tsrc = 0.5*(nabla_v_src(i,jp,k)+nblv)
-c$$$
-c$$$        case (3)
-c$$$          dhz = g_def%dz(kg)
-c$$$
-c$$$          if (cntv)
-c$$$c$$$     .         gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,j,k ,:,:)
-c$$$c$$$     .                      +g_def%gmetric%grid(igrid)%gsup(i,j,kp,:,:))
-c$$$     .      gsuper=.25*(g_def%gmetric%grid(igrid)%gsup_v(i  ,j  ,k,:,:)
-c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j  ,k,:,:)
-c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i  ,j-1,k,:,:)
-c$$$     .                 +g_def%gmetric%grid(igrid)%gsup_v(i-1,j-1,k,:,:))
-c$$$
-c$$$          vxip = 0.5*(ax(ip,j,k)+ax(ip,j,kp))
-c$$$          vxim = 0.5*(ax(im,j,k)+ax(im,j,kp))
-c$$$          vyip = 0.5*(ay(ip,j,k)+ay(ip,j,kp))
-c$$$          vyim = 0.5*(ay(im,j,k)+ay(im,j,kp))
-c$$$          vzip = 0.5*(az(ip,j,k)+az(ip,j,kp))
-c$$$          vzim = 0.5*(az(im,j,k)+az(im,j,kp))
-c$$$
-c$$$          vxjp = 0.5*(ax(i,jp,k)+ax(i,jp,kp))
-c$$$          vxjm = 0.5*(ax(i,jm,k)+ax(i,jm,kp))
-c$$$          vyjp = 0.5*(ay(i,jp,k)+ay(i,jp,kp))
-c$$$          vyjm = 0.5*(ay(i,jm,k)+ay(i,jm,kp))
-c$$$          vzjp = 0.5*(az(i,jp,k)+az(i,jp,kp))
-c$$$          vzjm = 0.5*(az(i,jm,k)+az(i,jm,kp))
-c$$$
-c$$$          vxkp = ax(i,j,kp)
-c$$$          vxkm = ax(i,j,k )
-c$$$          vykp = ay(i,j,kp)
-c$$$          vykm = ay(i,j,k )
-c$$$          vzkp = az(i,j,kp)
-c$$$          vzkm = az(i,j,k )
-c$$$
-c$$$          tsrc = 0.5*(nabla_v_src(i,j,kp)+nblv)
-c$$$
-c$$$        case default
-c$$$
-c$$$          if (cntv) gsuper=g_def%gmetric%grid(igrid)%gsup(i,j,k ,:,:)
-c$$$
-c$$$          vxip = ax(ip,j,k)
-c$$$          vxim = ax(im,j,k)
-c$$$          vyip = ay(ip,j,k)
-c$$$          vyim = ay(im,j,k)
-c$$$          vzip = az(ip,j,k)
-c$$$          vzim = az(im,j,k)
-c$$$
-c$$$          vxjp = ax(i,jp,k)
-c$$$          vxjm = ax(i,jm,k)
-c$$$          vyjp = ay(i,jp,k)
-c$$$          vyjm = ay(i,jm,k)
-c$$$          vzjp = az(i,jp,k)
-c$$$          vzjm = az(i,jm,k)
-c$$$
-c$$$          vxkp = ax(i,j,kp)
-c$$$          vxkm = ax(i,j,km)
-c$$$          vykp = ay(i,j,kp)
-c$$$          vykm = ay(i,j,km)
-c$$$          vzkp = az(i,j,kp)
-c$$$          vzkm = az(i,j,km)
-c$$$
-c$$$          tsrc = nblv
-c$$$
-c$$$        end select
-c$$$
-c$$$        idhx = 1d0/dhx
-c$$$        idhy = 1d0/dhy
-c$$$        idhz = 1d0/dhz
-c$$$
-c$$$      ! l = 1, m = 1
-c$$$        tensor(1,1) = (vxip-vxim)*idhx
-c$$$
-c$$$      ! l = 1, m = 2
-c$$$        tensor(1,2) = (vyip-vyim)*idhx
-c$$$
-c$$$      ! l = 1, m = 3
-c$$$        tensor(1,3) = (vzip-vzim)*idhx
-c$$$
-c$$$      ! l = 2, m = 1
-c$$$        tensor(2,1) = (vxjp-vxjm)*idhy
-c$$$
-c$$$      ! l = 2, m = 2
-c$$$        tensor(2,2) = (vyjp-vyjm)*idhy
-c$$$
-c$$$      ! l = 2, m = 3
-c$$$        tensor(2,3) = (vzjp-vzjm)*idhy
-c$$$
-c$$$      ! l = 3, m = 1
-c$$$        tensor(3,1) = (vxkp-vxkm)*idhz
-c$$$
-c$$$      ! l = 3, m = 2
-c$$$        tensor(3,2) = (vykp-vykm)*idhz
-c$$$
-c$$$      ! l = 3, m = 3
-c$$$        tensor(3,3) = (vzkp-vzkm)*idhz
-c$$$
-c$$$      ! Add geometric source
-c$$$
-c$$$        tensor = tensor + tsrc
-c$$$
-c$$$        if (cntv) tensor = matmul(gsuper,tensor)
-c$$$
-c$$$c     End program
-c$$$
-c$$$      contains
-c$$$
-c$$$c     nabla_v_src
-c$$$c     #############################################################
-c$$$      function nabla_v_src(i,j,k) result(tensor)
-c$$$
-c$$$c     -------------------------------------------------------------
-c$$$c     Finds geometric source of tensor nabla(v) at cell (i,j,k)
-c$$$c     -------------------------------------------------------------
-c$$$
-c$$$        implicit none
-c$$$
-c$$$c     Call variables
-c$$$
-c$$$        integer    :: i,j,k
-c$$$        real(8)    :: tensor(3,3)
-c$$$
-c$$$c     Local variables
-c$$$
-c$$$        integer    :: l,m
-c$$$        real(8)    :: cnv(3),dum(3)
-c$$$
-c$$$c     Begin program
-c$$$
-c$$$        cnv = (/ ax(i,j,k),ay(i,j,k),az(i,j,k) /)
-c$$$
-c$$$        dum = g_def%gmetric%grid(igrid)%Gamma(i,j,k,1,1,:)
-c$$$     .       +g_def%gmetric%grid(igrid)%Gamma(i,j,k,2,2,:)
-c$$$     .       +g_def%gmetric%grid(igrid)%Gamma(i,j,k,3,3,:)
-c$$$
-c$$$        do l=1,3
-c$$$          do m=1,3
-c$$$            tensor(l,m) =
-c$$$     .              dot_product(cnv
-c$$$     .                   ,g_def%gmetric%grid(igrid)%Gamma(i,j,k,m,:,l))
-c$$$     .             -cnv(m)*dum(l)
-c$$$cc     .           cnv(1)* g_def%gmetric%grid(igrid)%Gamma(i,j,k,m,1,l)
-c$$$cc     .          +cnv(2)* g_def%gmetric%grid(igrid)%Gamma(i,j,k,m,2,l)
-c$$$cc     .          +cnv(3)* g_def%gmetric%grid(igrid)%Gamma(i,j,k,m,3,l)
-c$$$cc     .          -cnv(m)*(g_def%gmetric%grid(igrid)%Gamma(i,j,k,1,1,l)
-c$$$cc     .                  +g_def%gmetric%grid(igrid)%Gamma(i,j,k,2,2,l)
-c$$$cc     .                  +g_def%gmetric%grid(igrid)%Gamma(i,j,k,3,3,l))
-c$$$          enddo
-c$$$        enddo
-c$$$
-c$$$c     End program
-c$$$
-c$$$      end function nabla_v_src
-c$$$
-c$$$      end function fnabla_v
-
 c     fnabla_v
 c     #############################################################
       function fnabla_v(g_def,i,j,k,nx,ny,nz,igx,igy,igz,aa
@@ -3400,7 +3006,7 @@ c     Begin program
           vkp(:) = aa(i,j,kp,:)
           vkm(:) = aa(i,j,km,:)
 
-          gsuper = gsup(i,j,k,:,:)
+          if (cntv) gsuper = gsup(i,j,k,:,:)
           
         end select
 
@@ -6723,10 +6329,6 @@ c     Call variables
      .          ,cnv_out(0:size(vec,1)-1
      $                  ,0:size(vec,2)-1
      $                  ,0:size(vec,3)-1,3)
-
-c$$$      real(8), optional :: diff(0:size(vec,1)-1
-c$$$     $                         ,0:size(vec,2)-1
-c$$$     $                         ,0:size(vec,3)-1)
 
       logical :: iscnv
 
