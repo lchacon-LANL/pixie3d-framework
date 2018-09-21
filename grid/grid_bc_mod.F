@@ -4885,7 +4885,7 @@ c     Call variables
 c     Local variables
 
       integer :: i,j,k,ig,jg,kg,inx,iny,inz,order_int(3),offset
-     .          ,imni,imxi,jmni,jmxi,kmni,kmxi,i_bc,i1,i2
+     .          ,imni,imxi,jmni,jmxi,kmni,kmxi,i_bc,i1(3),i2(3)
 
       real(8) :: valx(1),valy(1),valz(1),xto(1),yto(1),zto(1),curv(3)
      $          ,idx,idy,idz,num
@@ -4982,11 +4982,15 @@ c     Identify directions for extrapolation.
 
       !Do not interpolate **along** direction if not enough points,
       !Directions 1,2,3 are defined as normal to faces.
-      flg = .true.
+c$$$      flg = .true.
+c$$$
+c$$$      if (inx == 0) flg(1) = .false.
+c$$$      if (iny == 0) flg(2) = .false.
+c$$$      if (inz == 0) flg(3) = .false.
 
-      if (inx == 0) flg(1) = .false.
-      if (iny == 0) flg(2) = .false.
-      if (inz == 0) flg(3) = .false.
+      flg(1) = (inx > 0)
+      flg(2) = (iny > 0)
+      flg(3) = (inz > 0)
 
 c     Treat special boundaries
 
@@ -4995,6 +4999,11 @@ c     Treat special boundaries
      .       '>>> extrapolateToCorner, Proc='
      .      ,my_rank,' Treating special boundaries'
       endif
+
+      !Prepare cyclic directions
+      i1(1) = 2 ; i2(1) = 3
+      i1(2) = 3 ; i2(2) = 1
+      i1(3) = 1 ; i2(3) = 2
 
       call select_along
 
@@ -5321,67 +5330,45 @@ c         2) Equilibrium boundary (removed 12/13/06, added back 11/10/08)
 c         3) Discard internal processor boundaries (not real boundaries)
 c     -----------------------------------------------------------------------
 
+      integer :: bcl
+      
       select_bc = .false.
       do i=1,3
-        i_bc = ibcl(i)
-        if (i_bc <= 0) cycle
-        select_bc(i) =(    (abs(bcnd(i_bc)) == IFC)
-     .                 .or.(abs(bcnd(i_bc)) == EQU)
-     .                ).and.selectFace(gbc_def,i_bc)
+c$$$        i_bc = ibcl(i)
+c$$$        if (i_bc <= 0) cycle
+c$$$        select_bc(i) =(    (abs(bcnd(i_bc)) == IFC)
+c$$$     .                 .or.(abs(bcnd(i_bc)) == EQU)
+c$$$     .                ).and.selectFace(gbc_def,i_bc)
+        if (ibcl(i) <= 0) cycle
+        bcl = abs(bcnd(ibcl(i)))
+        select_bc(i) =((bcl == IFC).or.(bcl == EQU))
+     .                .and.selectFace(gbc_def,ibcl(i))
       enddo
 
       do i=1,3
-
-        !Identify other directions
-        i1 = mod(i+1,3)
-        i2 = mod(i+2,3)
-        if (i1 == 0) i1 = 3
-        if (i2 == 0) i2 = 3
-
+        
         !Identify cases in which an edge has two or more directions
         !flagged for elimination:
         !  can't eliminate both interpolation directions simultaneously;
         !  resolve indetermination by choosing smoothest direction
-        if (select_bc(i) .and. (select_bc(i1) .or. select_bc(i2))) then
+        if (select_bc(i).and.(select_bc(i1(i)).or.select_bc(i2(i))))then
 
-cc          if (select_bc(i1).and.select_bc(i2)) then
-cc            if (order_int(i1) <= order_int(i2)) then
-cc              select_bc(i1) = .false.
-cc            else
-cc              select_bc(i2) = .false.
-cc            endif
-cc          endif
-cc
-cc          if (select_bc(i1)) then
-cc            if (order_int(i) <= order_int(i1)) then
-cc              cycle
-cc            else
-cc              flg(i) = .not.select_bc(i)
-cc            endif
-cc          else
-cc            if (order_int(i) <= order_int(i2)) then
-cc              cycle
-cc            else
-cc              flg(i) = .not.select_bc(i)
-cc            endif
-cc          endif
-
-          if (select_bc(i1).and.select_bc(i2)) then
-            if (curv(i1) <= curv(i2)) then
-              select_bc(i1) = .false.
+          if (select_bc(i1(i)).and.select_bc(i2(i))) then
+            if (curv(i1(i)) <= curv(i2(i))) then
+              select_bc(i1(i)) = .false.
             else
-              select_bc(i2) = .false.
+              select_bc(i2(i)) = .false.
             endif
           endif
 
-          if (select_bc(i1)) then
-            if (curv(i) <= curv(i1)) then
+          if (select_bc(i1(i))) then
+            if (curv(i) <= curv(i1(i))) then
               cycle
             else
               flg(i) = .not.select_bc(i)
             endif
           else
-            if (curv(i) <= curv(i2)) then
+            if (curv(i) <= curv(i2(i))) then
               cycle
             else
               flg(i) = .not.select_bc(i)
@@ -5407,28 +5394,27 @@ c         1) Symmetry boundary (NEU+order=0; SYM removed on 6/1/12)
 c         2) Discard internal processor boundaries (not real boundaries)
 c     -----------------------------------------------------------------------
 
+      integer :: bcl
+      
       select_bc = .false.
       do i=1,3
-        i_bc = ibcl(i)
-        if (i_bc <= 0) cycle
-        select_bc(i) =(     (abs(bcnd(i_bc)) == NEU .and. order == 0)
-cc     .                 .or.(abs(bcond(i_bc))== FSYM .and. abs(bcnd(i_bc)) == NEU)
-     .                ).and.selectFace(gbc_def,i_bc)
+c$$$        i_bc = ibcl(i)
+c$$$        if (i_bc <= 0) cycle
+c$$$        select_bc(i) =(     (abs(bcnd(i_bc)) == NEU .and. order == 0)
+c$$$cc     .                 .or.(abs(bcond(i_bc))== FSYM .and. abs(bcnd(i_bc)) == NEU)
+c$$$     .                ).and.selectFace(gbc_def,i_bc)
+        if (ibcl(i) <= 0) cycle
+        bcl = abs(bcnd(ibcl(i)))
+        select_bc(i) =(   (bcl==NEU .and.order==0)
+     .                .or.(bcl==FSYM.and.bcl==NEU))
+     .                .and.selectFace(gbc_def,ibcl(i))
       enddo
 
       do i=1,3
-
-        !Identify other directions
-        i1 = mod(i+1,3)
-        i2 = mod(i+2,3)
-        if (i1 == 0) i1 = 3
-        if (i2 == 0) i2 = 3
-
         if (select_bc(i) .and. flg(i)) then
-          flg(i1) = .false.
-          flg(i2) = .false.
+          flg(i1(i)) = .false.
+          flg(i2(i)) = .false.
         endif
-
       enddo
 
       end subroutine select_across
@@ -5446,19 +5432,13 @@ c     -----------------------------------------------------------------------
 
       do i=1,3
 
-        !Identify other directions
-        i1 = mod(i+1,3)
-        i2 = mod(i+2,3)
-        if (i1 == 0) i1 = 3
-        if (i2 == 0) i2 = 3
-
         !Identify cases in which an edge has two or more directions
         !flagged for inclusion, and check for smoothness
-        if (flg(i1).and.flg(i2)) then
-          if (curv(i1) > 5*curv(i2)) then
-            flg(i1) = .false.
-          elseif (curv(i2) > 5*curv(i1)) then
-            flg(i2) = .false.
+        if (flg(i1(i)).and.flg(i2(i))) then
+          if (curv(i1(i)) > 5*curv(i2(i))) then
+            flg(i1(i)) = .false.
+          elseif (curv(i2(i)) > 5*curv(i1(i))) then
+            flg(i2(i)) = .false.
           endif
         endif
 
