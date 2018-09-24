@@ -5046,7 +5046,7 @@ c     Initialize accumulators
       valy = 0d0
       valz = 0d0
 
-      num = 0.
+      num = 0d0
 
 c     X extrapolation
 
@@ -5070,7 +5070,7 @@ c     X extrapolation
         call IntDriver1d(inx,xx(1:inx),array(imni:imxi,jto,kto)
      .                  ,1,xto,valx,order_int(1))
 
-        num = num + 1.
+        num = num + 1d0
 
       endif
 
@@ -5096,7 +5096,7 @@ c     Y extrapolation
         call IntDriver1d(iny,yy(1:iny),array(ito,jmni:jmxi,kto)
      .                  ,1,yto,valy,order_int(2))
 
-        num = num + 1.
+        num = num + 1d0
 
       endif
 
@@ -5122,7 +5122,7 @@ c     Z extrapolation
         call IntDriver1d(inz,zz(1:inz),array(ito,jto,kmni:kmxi)
      .                  ,1,zto,valz,order_int(3))
 
-        num = num + 1.
+        num = num + 1d0
 
       endif
 
@@ -5184,9 +5184,9 @@ c     Do nothing for SP,DEF,PER, SYM (not FSYM) boundary faces, edges, and corne
         write(bc_debug_unit,*)
      .       '>>> extrapolateToCorner, Proc='
      .      ,my_rank,' SP boundaries',
-     .       (bcSP(ibc=ibcl(1))
-     .    .or.bcSP(ibc=ibcl(2))
-     .    .or.bcSP(ibc=ibcl(3)))
+     .       (bcChk(ibcl(1),SP,bcnd)
+     .    .or.bcChk(ibcl(2),SP,bcnd)
+     .    .or.bcChk(ibcl(3),SP,bcnd))
 
         write(bc_debug_unit,*)
      .       '>>> extrapolateToCorner, Proc='
@@ -5198,45 +5198,39 @@ c     Do nothing for SP,DEF,PER, SYM (not FSYM) boundary faces, edges, and corne
         write(bc_debug_unit,*)
      .       '>>> extrapolateToCorner, Proc='
      .      ,my_rank,' SYM boundaries',
-     .       (    bcSYM(ibcl(1))
-     $        .or.bcSYM(ibcl(2))
-     $        .or.bcSYM(ibcl(3)))
-c$$$     .        (isSYMBdry(gbc_def,ibc=ibcl(1))
-c$$$     .     .or.isSYMBdry(gbc_def,ibc=ibcl(2))
-c$$$     .     .or.isSYMBdry(gbc_def,ibc=ibcl(3)))
+     .       (bcChk(ibcl(1),SYM,bcnd)
+     .    .or.bcChk(ibcl(2),SYM,bcnd)
+     .    .or.bcChk(ibcl(3),SYM,bcnd))
 
         write(bc_debug_unit,*)
      .       '>>> extrapolateToCorner, Proc='
      .      ,my_rank,' PER boundaries',
-     .       (    bcPER(ibcl(1))
-     $        .or.bcPER(ibcl(2))
-     $        .or.bcPER(ibcl(3)))
-c$$$     .       (bcChk(ibcl(1),PER,bcnd=bcnd)
-c$$$     .    .or.bcChk(ibcl(2),PER,bcnd=bcnd)
-c$$$     .    .or.bcChk(ibcl(3),PER,bcnd=bcnd))
+     .       (bcChk(ibcl(1),PER,bcnd)
+     .    .or.bcChk(ibcl(2),PER,bcnd)
+     .    .or.bcChk(ibcl(3),PER,bcnd))
       endif
 
-      get_out = (    bcSP(ibc=ibcl(1))
-     .           .or.bcSP(ibc=ibcl(2))
-     .           .or.bcSP(ibc=ibcl(3)))
+      get_out = (bcChk(ibcl(1),PER,bcnd)
+     .       .or.bcChk(ibcl(2),PER,bcnd)
+     .       .or.bcChk(ibcl(3),PER,bcnd))
+
+      if (get_out) return
+
+      get_out = (bcChk(ibcl(1),SP,bcnd)
+     .       .or.bcChk(ibcl(2),SP,bcnd)
+     .       .or.bcChk(ibcl(3),SP,bcnd))
+
+      if (get_out) return
+
+      get_out = (bcChk(ibcl(1),SYM,bcnd)
+     .       .or.bcChk(ibcl(2),SYM,bcnd)
+     .       .or.bcChk(ibcl(3),SYM,bcnd))
 
       if (get_out) return
       
-      get_out = (    bcChk(ibcl(1),DEF,bcnd)
-     .           .or.bcChk(ibcl(2),DEF,bcnd)
-     .           .or.bcChk(ibcl(3),DEF,bcnd))
-
-      if (get_out) return
-
-      get_out = (    bcPER(ibcl(1))
-     $           .or.bcPER(ibcl(2))
-     $           .or.bcPER(ibcl(3)))
-
-      if (get_out) return
-
-      get_out = (    bcSYM(ibcl(1))
-     $           .or.bcSYM(ibcl(2))
-     $           .or.bcSYM(ibcl(3)))
+      get_out = (bcChk(ibcl(1),DEF,bcnd)
+     .       .or.bcChk(ibcl(2),DEF,bcnd)
+     .       .or.bcChk(ibcl(3),DEF,bcnd))
 
       if (get_out) return
 
