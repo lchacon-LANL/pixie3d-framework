@@ -615,7 +615,7 @@ c #####################################################################
         logical,private :: stg_vector=.false.
 
         private :: setASMflags,interpolateToFace
-     .            ,fillEdges,fillCorners
+     .            ,fillEdges,fillCorners,do__nothing
 
       contains
 
@@ -784,7 +784,7 @@ c     Begin program
 
 c     do__nothing
 c     #####################################################################
-      function do__nothing(gl_def,dim,loc,i1,i2,j1,j2,k1,k2,asm_bc)
+      function do__nothing(gl_def,dim,loc,i1,i2,j1,j2,k1,k2)
 
 c     ---------------------------------------------------------------------
 c     Selects whether to fill or not ghost cells of a given local domain
@@ -796,64 +796,72 @@ c     ---------------------------------------------------------------------
 c     Call variables
 
         logical :: do__nothing
-        integer,intent(IN) :: dim,loc,i1,i2,j1,j2,k1,k2
-        logical,optional :: asm_bc
 
         type(grid_mg_def),pointer :: gl_def
 
+        integer,intent(IN) :: dim,loc,i1,i2,j1,j2,k1,k2
+cc        logical,optional :: asm_bc
+
 c     Local variables
 
-        integer :: ibc
-        logical :: sing_face,asmbc
+c$$$        integer :: ibc
+c$$$        logical :: sing_face,asmbc
 
 c     Begin program
 
-        do__nothing = .false.
+c$$$        do__nothing = .false.
+c$$$
+c$$$        if (PRESENT(asm_bc)) then
+c$$$          asmbc = asm_bc
+c$$$        else
+c$$$          asmbc = asm   !Setup externally
+c$$$        endif
+c$$$
+c$$$        if (asmbc) return      !Return if additive Schwartz method is used (PC)
 
-        if (PRESENT(asm_bc)) then
-          asmbc = asm_bc
-        else
-          asmbc = asm   !Setup externally
-        endif
+c$$$        select case(dim)
+c$$$        case(1)
+c$$$          call checkLimits(i1,i2,gl_def%nxgl(igxbc))
+c$$$        case(2)
+c$$$          call checkLimits(j1,j2,gl_def%nygl(igybc))
+c$$$        case(3)
+c$$$          call checkLimits(k1,k2,gl_def%nzgl(igzbc))
+c$$$        end select
 
-        if (asmbc) return      !Return if additive Schwartz method is used (PC)
-
-        select case(dim)
-        case(1)
-          call checkLimits(i1,i2,gl_def%nxgl(igxbc))
-        case(2)
-          call checkLimits(j1,j2,gl_def%nygl(igybc))
-        case(3)
-          call checkLimits(k1,k2,gl_def%nzgl(igzbc))
-        end select
+        do__nothing =
+     $       ((dim==1).and.(((i1 > 1                 ).and.(loc == 0))
+     $                  .or.((i2 < gl_def%nxgl(igxbc)).and.(loc == 1))))
+     $   .or.((dim==2).and.(((j1 > 1                 ).and.(loc == 0))
+     $                  .or.((j2 < gl_def%nygl(igybc)).and.(loc == 1))))
+     $   .or.((dim==3).and.(((k1 > 1                 ).and.(loc == 0))
+     $                  .or.((k2 < gl_def%nzgl(igzbc)).and.(loc == 1))))
 
 c     End program
 
-      contains
-
-c     checkLimits
-c     #####################################################################
-      subroutine checkLimits(igl,igr,ng)
-
-c     ---------------------------------------------------------------------
-c     Selects LOCAL limits for BC treatment at boundary location determined
-c     by (dim,loc).
-c     ---------------------------------------------------------------------
-
-        implicit none
-
-        integer    :: igl,igr,ng
-
-c     Begin program
-
-        select case(loc)
-        case(0)
-          if (igl > 1 ) do__nothing = .true.
-        case(1)
-          if (igr < ng) do__nothing = .true.
-        end select
-
-      end subroutine checkLimits
+c$$$      contains
+c$$$
+c$$$c     checkLimits
+c$$$c     #####################################################################
+c$$$      subroutine checkLimits(igl,igr,ng)
+c$$$
+c$$$c     ---------------------------------------------------------------------
+c$$$c     Selects LOCAL limits for BC treatment at boundary location determined
+c$$$c     by (dim,loc).
+c$$$c     ---------------------------------------------------------------------
+c$$$
+c$$$        implicit none
+c$$$
+c$$$        integer :: igl,igr,ng
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$        if (loc == 0) then
+c$$$          do__nothing = (igl > 1 )
+c$$$        else
+c$$$          do__nothing = (igr < ng)
+c$$$        endif
+c$$$
+c$$$      end subroutine checkLimits
 
       end function do__nothing
 
@@ -876,19 +884,11 @@ c     ---------------------------------------------------------------------
 
 c     Begin program
 
-      if (ibc <= 0 .or. ibc > 6) then
-        selectFace = .false.
-        return
-      endif
-
-cc      loc = abs(mod(ibc,2)-2)-1
-cc      dim = 1 + (ibc-1-loc)/2
-
       dim = (ibc+1)/2
       loc = ibc + 1 - 2*dim
 
-      selectFace= .not.
-     .   do__nothing(g_def,dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax)
+      selectFace= (ibc >= 1 .and. ibc <= 6).and.(.not.
+     .   do__nothing(g_def,dim,loc,iimin,iimax,jjmin,jjmax,kkmin,kkmax))
 
       end function selectFace
 
@@ -993,8 +993,8 @@ c     Determine ASM BCs
             ibc = (1+loc)+2*(dim-1)
 
             !Select logical and periodic boundaries
-            dn=do__nothing(gl_def,dim,loc,igmin,igmax,jgmin,jgmax,kgmin
-     .                    ,kgmax,asm_bc=.false.)
+            dn=do__nothing(gl_def,dim,loc,igmin,igmax,jgmin,jgmax
+     $                    ,kgmin,kgmax)
 cc     .         .or.((bcond(ibc)==PER).and.asm_dir(dim))  !Deal with interrupted periodic boundaries
      .         .or.(bcond(ibc)==PER)  !Deal with interrupted periodic boundaries
 
