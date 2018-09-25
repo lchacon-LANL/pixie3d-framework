@@ -4908,7 +4908,7 @@ c     Initialize variables
 
 c     Check for exceptions
 
-      get_out = checkExceptions()
+      get_out = checkExceptions().and.(.not.force_corners)
       if (get_out) return
 
 c     Identify directions for extrapolation.
@@ -5168,16 +5168,10 @@ c     Check for "do nothing" conditions
      .      ,my_rank,' Skip corners',(skip_corners.and.(.not.face))
       endif
 
-      if (skip_corners.and.(.not.face)) then
-        get_out = .true.
-        return
-      endif
+      get_out = (skip_corners.and.(.not.face))
 
-      if (force_corners) then
-        get_out = .false.
-        return
-      endif
-
+      if (get_out) return
+      
 c     Do nothing for SP,DEF,PER, SYM (not FSYM) boundary faces, edges, and corners
 
       if (bc_debug) then
@@ -5248,41 +5242,38 @@ c$$$      endif
 c     Do nothing for Dirichlet edges (extrapolateBC does it), except when BOTH are
 
       if (edge) then
-        if ((ibcl(1) == 0)
+        get_out = ((ibcl(1) == 0)
      .  .and.((selectFace(gbc_def,ibcl(3))
      .       .and.(bcChk(ibcl(3),DIR,bcnd)
      .         .or.bcChk(ibcl(3),EQU,bcnd)))
      .    .or.(selectFace(gbc_def,ibcl(2))
      .       .and.(bcChk(ibcl(2),DIR,bcnd)
      .         .or.bcChk(ibcl(2),EQU,bcnd))))
-     .     ) then
-          get_out = .true.
-          return
-        endif
+     .       )
 
-        if ((ibcl(2) == 0)
+        if (get_out) return
+
+        get_out = ((ibcl(2) == 0)
      .  .and.((selectFace(gbc_def,ibcl(3))
      .       .and.(bcChk(ibcl(3),DIR,bcnd)
      .         .or.bcChk(ibcl(3),EQU,bcnd)))
      .    .or.(selectFace(gbc_def,ibcl(1))
      .       .and.(bcChk(ibcl(1),DIR,bcnd)
      .         .or.bcChk(ibcl(1),EQU,bcnd))))
-     .     )then
-          get_out = .true.
-          return
-        endif
+     .       )
 
-        if ((ibcl(3) == 0)
+        if (get_out) return
+
+        get_out = ((ibcl(3) == 0)
      .  .and.((selectFace(gbc_def,ibcl(1))
      .       .and.(bcChk(ibcl(1),DIR,bcnd)
      .         .or.bcChk(ibcl(1),EQU,bcnd)))
      .    .or.(selectFace(gbc_def,ibcl(2))
      .       .and.(bcChk(ibcl(2),DIR,bcnd)
      .         .or.bcChk(ibcl(2),EQU,bcnd))))
-     .     )then
-          get_out = .true.
-          return
-        endif
+     .       )
+
+        if (get_out) return
 
       endif
 
