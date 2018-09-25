@@ -746,9 +746,6 @@ c     Call variables
 c     Local variables
 
         integer :: igrid,nxp,nyp,nzp
-        type(mg_array),pointer :: mg_temp
-
-        type(grid_mg_def),pointer :: gl_def => null()
 
 c     Begin program
 
@@ -757,7 +754,6 @@ c     Allocate MG array
         if (.not.associated(mgarray%grid)) then
           !Main mesh
           mgarray%g_def => g_def
-cc          call alloc_mg_array(mgarray) !mgarray is NOT a pointer
           allocate(mgarray%grid(mgarray%g_def%ngrid))
           do igrid=1,mgarray%g_def%ngrid
             nxp = mgarray%g_def%nxv(igrid)+1
@@ -768,20 +764,8 @@ cc          call alloc_mg_array(mgarray) !mgarray is NOT a pointer
           enddo
 
           !Sub-meshes
-          gl_def => g_def%g_crse_def
-          mg_temp => mgarray
-
-          do while (associated(gl_def)) 
-            allocate(mg_temp%mg_crse_array)
-
-            mg_temp%mg_crse_array%g_def => gl_def
-            call alloc_mg_array(mg_temp%mg_crse_array)
-
-            gl_def => gl_def%g_crse_def
-            mg_temp => mg_temp%mg_crse_array
-          end do
-
-        endif
+          call alloc_mg_array(g_def%g_crse_def,mgarray%mg_crse_array)
+         endif
 
 c     End program
 
@@ -789,23 +773,32 @@ c     End program
 
 c     alloc_mg_array
 c     ####################################################################
-      subroutine alloc_mg_array(mgarr)
+      recursive subroutine alloc_mg_array(g_def,mgarray)
 
       implicit none
 
-      type(mg_array),pointer :: mgarr
+      type(mg_array),pointer :: mgarray
+      type(grid_mg_def),pointer :: g_def
 
       integer :: igrid,nxp,nyp,nzp
 
-      allocate(mgarr%grid(mgarr%g_def%ngrid))
-      do igrid=1,mgarr%g_def%ngrid
-        nxp = mgarr%g_def%nxv(igrid)+1
-        nyp = mgarr%g_def%nyv(igrid)+1
-        nzp = mgarr%g_def%nzv(igrid)+1
-        allocate(mgarr%grid(igrid)%array(0:nxp,0:nyp,0:nzp,neq))
-        mgarr%grid(igrid)%array = 0d0
-      enddo
+      if (associated(g_def)) then
+        allocate(mgarray)
+        mgarray%g_def => g_def
+        allocate(mgarray%grid(mgarray%g_def%ngrid))
+        do igrid=1,mgarray%g_def%ngrid
+          nxp = mgarray%g_def%nxv(igrid)+1
+          nyp = mgarray%g_def%nyv(igrid)+1
+          nzp = mgarray%g_def%nzv(igrid)+1
+          allocate(mgarray%grid(igrid)%array(0:nxp,0:nyp,0:nzp,neq))
+          mgarray%grid(igrid)%array = 0d0
+        enddo
 
+        call alloc_mg_array(g_def%g_crse_def,mgarray%mg_crse_array)
+      else
+        nullify(mgarray)
+      endif
+      
       end subroutine alloc_mg_array
 
       end subroutine allocateMGarray
@@ -818,23 +811,17 @@ c     #################################################################
 
 c     Call variables
 
-        type(mg_array)  :: mgarray
+        type(mg_array) :: mgarray
 
 c     Local variables
 
-        integer          :: igrid
-        type(mg_array),pointer  :: mg_arr,temp
+        integer :: igrid
 
 c     Begin program
 
 c     Deallocate sub-meshes
 
-        mg_arr => mgarray%mg_crse_array
-        do while (associated(mg_arr))
-          temp => mg_arr%mg_crse_array
-          call dealloc_mg_array(mg_arr)
-          mg_arr => temp
-        enddo
+        call dealloc_mg_array(mgarray%mg_crse_array)
 
 c     Deallocate main mesh
 
@@ -854,21 +841,23 @@ c     End program
 
 c     dealloc_mg_array
 c     #################################################################
-      subroutine dealloc_mg_array(mgarray)
+      recursive subroutine dealloc_mg_array(mgarray)
 
-        type(mg_array),pointer  :: mgarray
+        type(mg_array),pointer :: mgarray
+
+        if (associated(mgarray%mg_crse_array)) then
+          call dealloc_mg_array(mgarray%mg_crse_array)
+        endif
 
         if (associated(mgarray)) then
           nullify(mgarray%g_def)
-          nullify(mgarray%mg_crse_array)
           do igrid=1,size(mgarray%grid)
             if (associated(mgarray%grid(igrid)%array)) then
               deallocate(mgarray%grid(igrid)%array)
             endif
           enddo
           deallocate(mgarray%grid)
-        else
-          nullify(mgarray)
+          deallocate(mgarray)
         endif
 
       end subroutine dealloc_mg_array
