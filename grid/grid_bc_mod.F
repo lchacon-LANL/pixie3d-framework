@@ -800,68 +800,46 @@ c     Call variables
         type(grid_mg_def),pointer :: gl_def
 
         integer,intent(IN) :: dim,loc,i1,i2,j1,j2,k1,k2
-cc        logical,optional :: asm_bc
 
 c     Local variables
 
-c$$$        integer :: ibc
-c$$$        logical :: sing_face,asmbc
-
 c     Begin program
 
-c$$$        do__nothing = .false.
-c$$$
-c$$$        if (PRESENT(asm_bc)) then
-c$$$          asmbc = asm_bc
-c$$$        else
-c$$$          asmbc = asm   !Setup externally
-c$$$        endif
-c$$$
-c$$$        if (asmbc) return      !Return if additive Schwartz method is used (PC)
-
-c$$$        select case(dim)
-c$$$        case(1)
-c$$$          call checkLimits(i1,i2,gl_def%nxgl(igxbc))
-c$$$        case(2)
-c$$$          call checkLimits(j1,j2,gl_def%nygl(igybc))
-c$$$        case(3)
-c$$$          call checkLimits(k1,k2,gl_def%nzgl(igzbc))
-c$$$        end select
-
-        do__nothing =
-     $       ((dim==1).and.(((i1 > 1                 ).and.(loc == 0))
-     $                  .or.((i2 < gl_def%nxgl(igxbc)).and.(loc == 1))))
-     $   .or.((dim==2).and.(((j1 > 1                 ).and.(loc == 0))
-     $                  .or.((j2 < gl_def%nygl(igybc)).and.(loc == 1))))
-     $   .or.((dim==3).and.(((k1 > 1                 ).and.(loc == 0))
-     $                  .or.((k2 < gl_def%nzgl(igzbc)).and.(loc == 1))))
+        select case(dim)
+        case(1)
+          call checkLimits(i1,i2,gl_def%nxgl(igxbc))
+        case(2)
+          call checkLimits(j1,j2,gl_def%nygl(igybc))
+        case(3)
+          call checkLimits(k1,k2,gl_def%nzgl(igzbc))
+        end select
 
 c     End program
 
-c$$$      contains
-c$$$
-c$$$c     checkLimits
-c$$$c     #####################################################################
-c$$$      subroutine checkLimits(igl,igr,ng)
-c$$$
-c$$$c     ---------------------------------------------------------------------
-c$$$c     Selects LOCAL limits for BC treatment at boundary location determined
-c$$$c     by (dim,loc).
-c$$$c     ---------------------------------------------------------------------
-c$$$
-c$$$        implicit none
-c$$$
-c$$$        integer :: igl,igr,ng
-c$$$
-c$$$c     Begin program
-c$$$
-c$$$        if (loc == 0) then
-c$$$          do__nothing = (igl > 1 )
-c$$$        else
-c$$$          do__nothing = (igr < ng)
-c$$$        endif
-c$$$
-c$$$      end subroutine checkLimits
+      contains
+
+c     checkLimits
+c     #####################################################################
+      subroutine checkLimits(igl,igr,ng)
+
+c     ---------------------------------------------------------------------
+c     Selects LOCAL limits for BC treatment at boundary location determined
+c     by (dim,loc).
+c     ---------------------------------------------------------------------
+
+        implicit none
+
+        integer :: igl,igr,ng
+
+c     Begin program
+
+        if (loc == 0) then
+          do__nothing = (igl > 1 )
+        else
+          do__nothing = (igr < ng)
+        endif
+
+      end subroutine checkLimits
 
       end function do__nothing
 
@@ -4884,7 +4862,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: i,j,k,ig,jg,kg,inx,iny,inz,order_int(3),offset
+      integer :: i,j,k,ig,jg,kg,inx,iny,inz,order_int(3),offset,count_bc
      .          ,imni,imxi,jmni,jmxi,kmni,kmxi,i_bc,i1(3),i2(3)
 
       real(8) :: valx(1),valy(1),valz(1),xto(1),yto(1),zto(1),curv(3)
@@ -4902,13 +4880,14 @@ cc      xx = 0d0 ; yy = 0d0 ; zz = 0d0
       
 c     Initialize variables
 
-      face   = (count(ibcl /= 0) == 1)
-      edge   = (count(ibcl /= 0) == 2)
-      corner = (count(ibcl /= 0) == 3)
+      count_bc = count(ibcl /= 0)
+      face   = (count_bc == 1)
+      edge   = (count_bc == 2)
+      corner = (count_bc == 3)
 
 c     Check for exceptions
 
-      get_out = checkExceptions().and.(.not.force_corners)
+      get_out = (.not.force_corners).and.checkExceptions()
       if (get_out) return
 
 c     Identify directions for extrapolation.
@@ -4977,17 +4956,13 @@ c     Identify directions for extrapolation.
           endif
         endif
 
-        curv = abs(curv)
+        curv(1) = abs(curv(1))
+        curv(2) = abs(curv(2))
+        curv(3) = abs(curv(3))
       endif
 
       !Do not interpolate **along** direction if not enough points,
       !Directions 1,2,3 are defined as normal to faces.
-c$$$      flg = .true.
-c$$$
-c$$$      if (inx == 0) flg(1) = .false.
-c$$$      if (iny == 0) flg(2) = .false.
-c$$$      if (inz == 0) flg(3) = .false.
-
       flg(1) = (inx > 0)
       flg(2) = (iny > 0)
       flg(3) = (inz > 0)
