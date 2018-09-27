@@ -117,7 +117,8 @@ c     Local variables
 
 c     Begin program
 
-        bcChk = (ibc>=1.and.ibc<=6).and.(abs(bcnd(ibc)) == bctype)
+        bcChk = (ibc>=1.and.ibc<=6)
+        if (bcChk) bcChk = (abs(bcnd(ibc)) == bctype)
 
       end function bcChk
 
