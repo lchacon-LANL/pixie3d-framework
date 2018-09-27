@@ -2908,7 +2908,7 @@ c     Local variables
 
         integer :: ig,jg,kg,ip,im,jp,jm,kp,km,igrid,ii,jj
         real(8) :: idh(3),v(3),vip(3),vim(3),vjp(3),vjm(3),vkp(3),vkm(3)
-        real(8) :: tsrc(3,3),gsuper(3,3),cfx,cfy,cfz,dhx,dhy,dhz
+        real(8) :: tsrc(3,3),gsuper(3,3),dhx,dhy,dhz
         logical :: cntv
         real(8),pointer,dimension(:,:,:,:,:) :: gsup
 
@@ -2926,12 +2926,6 @@ c     Begin program
 
         call getMGmap(g_def,i,j,k,igx,igy,igz,ig,jg,kg)
 
-        cfx = 0.5d0 ; cfy = 0.5d0 ; cfz = 0.5d0
-
-        dhx = g_def%dxh(ig)
-        dhy = g_def%dyh(jg)
-        dhz = g_def%dzh(kg)
-
         ip = i+1
         im = i-1
         jp = j+1
@@ -2945,7 +2939,9 @@ c     Begin program
 
         select case(half_elem)
         case (1)
-          cfx = 1d0
+          dhx =    g_def%dx (ig)
+          dhy = 2.*g_def%dyh(jg)
+          dhz = 2.*g_def%dzh(kg)
 
           vip(:) = aa(ip,j,k,:)
           vim(:) = aa(i ,j,k,:)
@@ -2960,9 +2956,10 @@ c     Begin program
 
           if (cntv) gsuper = 0.5*(gsup(ip,j,k,:,:)
      .                           +gsup(i ,j,k,:,:))
-
         case (2)
-          cfy = 1d0
+          dhx = 2.*g_def%dxh(ig)
+          dhy =    g_def%dy (jg)
+          dhz = 2.*g_def%dzh(kg)
 
           vip(:) = 0.5*(aa(ip,j,k,:)+aa(ip,jp,k,:))
           vim(:) = 0.5*(aa(im,j,k,:)+aa(im,jp,k,:))
@@ -2977,9 +2974,10 @@ c     Begin program
 
           if (cntv) gsuper = 0.5*(gsup(i,jp,k,:,:)
      .                           +gsup(i,j ,k,:,:))
-
         case (3)
-          cfz = 1d0
+          dhx = 2.*g_def%dxh(ig)
+          dhy = 2.*g_def%dyh(jg)
+          dhz =    g_def%dz (kg)
 
           vip(:) = 0.5*(aa(ip,j,k,:)+aa(ip,j,kp,:))
           vim(:) = 0.5*(aa(im,j,k,:)+aa(im,j,kp,:))
@@ -2994,8 +2992,10 @@ c     Begin program
 
           if (cntv) gsuper = 0.5*(gsup(i,j,kp,:,:)
      .                           +gsup(i,j,k ,:,:))
-
         case default
+          dhx = 2.*g_def%dxh(ig)
+          dhy = 2.*g_def%dyh(jg)
+          dhz = 2.*g_def%dzh(kg)
 
           vip(:) = aa(ip,j,k,:)
           vim(:) = aa(im,j,k,:)
@@ -3007,14 +3007,13 @@ c     Begin program
           vkm(:) = aa(i,j,km,:)
 
           if (cntv) gsuper = gsup(i,j,k,:,:)
-          
         end select
 
         !Assembly of tensor
 
-        idh(1) = cfx/dhx
-        idh(2) = cfy/dhy
-        idh(3) = cfz/dhz
+        idh(1) = 1d0/dhx
+        idh(2) = 1d0/dhy
+        idh(3) = 1d0/dhz
         
 c$$$        tensor(1,:) = (vip(:)-vim(:))*idh(1) + tsrc(1,:)
 c$$$        tensor(2,:) = (vjp(:)-vjm(:))*idh(2) + tsrc(2,:)
@@ -3308,7 +3307,7 @@ c     Call variables
 
 c     Local variables
 
-        integer :: ig,jg,kg,ip,im,jp,jm,kp,km
+        integer :: ig,jg,kg,ip,im,jp,jm,kp,km,ii,jj
         real(8) :: dhx,dhy,dhz,idh(3)
         real(8) :: v(3),vip(3),vim(3),vjp(3),vjm(3),vkp(3),vkm(3)
         real(8) :: tsrc(3,3),gsuper(3,3),jach
@@ -3317,13 +3316,7 @@ c     Local variables
 
 c     Begin program
 
-        !Defaults
-
         call getMGmap(g_def,i,j,k,igrid,igrid,igrid,ig,jg,kg)
-
-        dhx = 2.*g_def%dxh(ig)
-        dhy = 2.*g_def%dyh(jg)
-        dhz = 2.*g_def%dzh(kg)
 
         ip = i+1
         im = i-1
@@ -3338,11 +3331,13 @@ c     Begin program
 
         gsuper = g_def%gmetric%grid(igrid)%gsup(i,j,k,:,:)
 
-        jach = g_def%gmetric%grid(igrid)%jac (i ,j,k)
+        jach = g_def%gmetric%grid(igrid)%jac(i,j,k)
 
         select case(half_elem)
         case (1)
-          dhx = g_def%dx(ig)
+          dhx =    g_def%dx (ig)
+          dhy = 2.*g_def%dyh(jg)
+          dhz = 2.*g_def%dzh(kg)
 
           vip(:) = vcnv(ip,j,k,:)/jac(ip,j,k)
           vim(:) = vcnv(i ,j,k,:)/jac(i ,j,k)
@@ -3357,16 +3352,16 @@ c     Begin program
           vkm(:) = 0.5*(vcnv(ip,j,km,:)/jac(ip,j,km)
      .                 +vcnv(i ,j,km,:)/jac(i ,j,km))
 
-          tsrc = 0.5*(nabla_v_src(ip,j,k)
-     .               +tsrc)
+          tsrc = 0.5*(nabla_v_src(ip,j,k)+tsrc)
 
           gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(ip,j,k,:,:)
      .                 +gsuper)
           jach  = 0.5*(g_def%gmetric%grid(igrid)%jac (ip,j,k)
      .                +jach)
-
         case (2)
-          dhy = g_def%dy(jg)
+          dhx = 2.*g_def%dxh(ig)
+          dhy =    g_def%dy (jg)
+          dhz = 2.*g_def%dzh(kg)
 
           vip(:) = 0.5*(vcnv(ip,j ,k,:)/jac(ip,j ,k)
      .                 +vcnv(ip,jp,k,:)/jac(ip,jp,k))
@@ -3387,9 +3382,10 @@ c     Begin program
      .                 +gsuper)
           jach  = 0.5*(g_def%gmetric%grid(igrid)%jac (i,jp,k)
      .                +jach)
-
         case (3)
-          dhz = g_def%dz(kg)
+          dhx = 2.*g_def%dxh(ig)
+          dhy = 2.*g_def%dyh(jg)
+          dhz =    g_def%dz (kg)
 
           vip(:) = 0.5*(vcnv(ip,j,k ,:)/jac(ip,j,k )
      .                 +vcnv(ip,j,kp,:)/jac(ip,j,kp))
@@ -3410,8 +3406,10 @@ c     Begin program
      .                 +gsuper)
           jach  = 0.5*(g_def%gmetric%grid(igrid)%jac (i,j,kp)
      .                +jach)
-
         case default
+          dhx = 2.*g_def%dxh(ig)
+          dhy = 2.*g_def%dyh(jg)
+          dhz = 2.*g_def%dzh(kg)
 
           vip(:) = vcnv(ip,j,k,:)/jac(ip,j,k)
           vim(:) = vcnv(im,j,k,:)/jac(im,j,k)
@@ -3421,26 +3419,33 @@ c     Begin program
                                              
           vkp(:) = vcnv(i,j,kp,:)/jac(i,j,kp)
           vkm(:) = vcnv(i,j,km,:)/jac(i,j,km)
-
         end select
 
         !Compute gradients
-        
-        idh(1) = 1d0/dhx
-        idh(2) = 1d0/dhy
-        idh(3) = 1d0/dhz
-
         if (jach == 0d0) jach = SP_flsv
         
-        tensor(1,:) = (vip(:)-vim(:))*idh(1)*jach
-        tensor(2,:) = (vjp(:)-vjm(:))*idh(2)*jach
-        tensor(3,:) = (vkp(:)-vkm(:))*idh(3)*jach
+        idh(1) = jach/dhx
+        idh(2) = jach/dhy
+        idh(3) = jach/dhz
 
-        !Add geometric source
+        do jj=1,3
+          do ii=1,3
+            tensor(ii,jj) =
+     $              gsuper(ii,1)*((vip(jj)-vim(jj))*idh(1) + tsrc(1,jj))
+     $             +gsuper(ii,2)*((vjp(jj)-vjm(jj))*idh(2) + tsrc(2,jj))
+     $             +gsuper(ii,3)*((vkp(jj)-vkm(jj))*idh(3) + tsrc(3,jj))
+          enddo
+        enddo
 
-        tensor = tensor + tsrc
-
-        tensor = matmul(gsuper,tensor)
+c$$$        tensor(1,:) = (vip(:)-vim(:))*idh(1)
+c$$$        tensor(2,:) = (vjp(:)-vjm(:))*idh(2)
+c$$$        tensor(3,:) = (vkp(:)-vkm(:))*idh(3)
+c$$$
+c$$$        !Add geometric source
+c$$$
+c$$$        tensor = tensor + tsrc
+c$$$
+c$$$        tensor = matmul(gsuper,tensor)
 
 c     End program
 
@@ -3788,13 +3793,7 @@ c     Local variables
 
 c     Begin program
 
-        !Defaults
-
         call getMGmap(g_def,i,j,k,igrid,igrid,igrid,ig,jg,kg)
-
-        dhx = 2.*g_def%dxh(ig)
-        dhy = 2.*g_def%dyh(jg)
-        dhz = 2.*g_def%dzh(kg)
 
         ip = i+1
         im = i-1
@@ -3807,7 +3806,9 @@ c     Begin program
 
         select case(half_elem)
         case (1)
-          dhx = g_def%dx(ig)
+          dhx =    g_def%dx (ig)
+          dhy = 2.*g_def%dyh(jg)
+          dhz = 2.*g_def%dzh(kg)
 
           vip(:) = vcov(ip,j,k,:)
           vim(:) = vcov(i ,j,k,:)
@@ -3818,11 +3819,11 @@ c     Begin program
           vkp(:) = 0.5*(vcov(ip,j,kp,:)+vcov(i,j,kp,:))
           vkm(:) = 0.5*(vcov(ip,j,km,:)+vcov(i,j,km,:))
 
-          tsrc = 0.5*(nabla_v_src(ip,j,k)
-     .               +tsrc)
-
+          tsrc = 0.5*(nabla_v_src(ip,j,k)+tsrc)
         case (2)
-          dhy = g_def%dy(jg)
+          dhx = 2.*g_def%dxh(ig)
+          dhy =    g_def%dy (jg)
+          dhz = 2.*g_def%dzh(kg)
 
           vip(:) = 0.5*(vcov(ip,j,k,:)+vcov(ip,jp,k,:))
           vim(:) = 0.5*(vcov(im,j,k,:)+vcov(im,jp,k,:))
@@ -3833,11 +3834,11 @@ c     Begin program
           vkp(:) = 0.5*(vcov(i,j,kp,:)+vcov(i,jp,kp,:))
           vkm(:) = 0.5*(vcov(i,j,km,:)+vcov(i,jp,km,:))
 
-          tsrc = 0.5*(nabla_v_src(i,jp,k)
-     .               +tsrc)
-
+          tsrc = 0.5*(nabla_v_src(i,jp,k)+tsrc)
         case (3)
-          dhz = g_def%dz(kg)
+          dhx = 2.*g_def%dxh(ig)
+          dhy = 2.*g_def%dyh(jg)
+          dhz =    g_def%dz (kg)
 
           vip(:) = 0.5*(vcov(ip,j,k,:)+vcov(ip,j,kp,:))
           vim(:) = 0.5*(vcov(im,j,k,:)+vcov(im,j,kp,:))
@@ -3848,10 +3849,11 @@ c     Begin program
           vkp(:) = vcov(i,j,kp,:)
           vkm(:) = vcov(i,j,k ,:)
 
-          tsrc = 0.5*(nabla_v_src(i,j,kp)
-     .               +tsrc)
-
+          tsrc = 0.5*(nabla_v_src(i,j,kp)+tsrc)
         case default
+          dhx = 2.*g_def%dxh(ig)
+          dhy = 2.*g_def%dyh(jg)
+          dhz = 2.*g_def%dzh(kg)
 
           vip(:) = vcov(ip,j,k,:)
           vim(:) = vcov(im,j,k,:)
@@ -5177,10 +5179,6 @@ c     Begin program
      .                          ,vec,0,cnv=.true.)
         else
           ip = i+1
-c$$$          jac = 0.25*(g_def%gmetric%grid(igrid)%jac_v(i,j  ,k  )
-c$$$     .               +g_def%gmetric%grid(igrid)%jac_v(i,j-1,k  )
-c$$$     .               +g_def%gmetric%grid(igrid)%jac_v(i,j  ,k-1)
-c$$$     .               +g_def%gmetric%grid(igrid)%jac_v(i,j-1,k-1))
           jac  = 0.5*(g_def%gmetric%grid(igrid)%jac (ip,j,k)
      .               +g_def%gmetric%grid(igrid)%jac (i ,j,k))
 
