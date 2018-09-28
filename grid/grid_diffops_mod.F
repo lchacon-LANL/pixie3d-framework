@@ -2882,7 +2882,7 @@ c ######################################################################
 c     fnabla_v
 c     #############################################################
       function fnabla_v(g_def,i,j,k,nx,ny,nz,igx,igy,igz,aa
-     .                 ,half_elem,cnv) result(tensor)
+     .                 ,half_elem,comp1,comp2,cnv) result(tensor)
 c     -------------------------------------------------------------
 c     Calculates the tensor components T_l^m of nabla(vec v), with
 c     v covariant, and fills tensor(l,m) at the following positions:
@@ -2898,7 +2898,7 @@ c     Call variables
 
         type(grid_mg_def),pointer :: g_def
 
-        integer :: i,j,k,half_elem,nx,ny,nz,igx,igy,igz
+        integer :: i,j,k,half_elem,nx,ny,nz,igx,igy,igz,comp1,comp2
         real(8) :: tensor(3,3)
         real(8) :: aa(0:nx+1,0:ny+1,0:nz+1,3)
 
@@ -2906,8 +2906,8 @@ c     Call variables
 
 c     Local variables
 
-        integer :: ig,jg,kg,ip,im,jp,jm,kp,km,igrid,ii,jj
-        real(8) :: idh(3),v(3),vip(3),vim(3),vjp(3),vjm(3),vkp(3),vkm(3)
+        integer :: ig,jg,kg,ip,im,jp,jm,kp,km,igrid,ii,jj,cc1,cc2
+        real(8) :: idh(3),v(3),vp(3,3),vm(3,3)
         real(8) :: tsrc(3,3),gsuper(3,3),dhx,dhy,dhz
         logical :: cntv
         real(8),pointer,dimension(:,:,:,:,:) :: gsup
@@ -2920,6 +2920,12 @@ c     Begin program
           cntv = cnv
         else
           cntv = .false.
+        endif
+
+        if (cntv) then
+          cc1 = 1 ; cc2 = 3
+        else
+          cc1 = comp1 ; cc2 = comp2
         endif
 
         !Defaults
@@ -2943,14 +2949,14 @@ c     Begin program
           dhy = 2.*g_def%dyh(jg)
           dhz = 2.*g_def%dzh(kg)
 
-          vip(:) = aa(ip,j,k,:)
-          vim(:) = aa(i ,j,k,:)
+          vp(1,:) = aa(ip,j,k,:)
+          vm(1,:) = aa(i ,j,k,:)
 
-          vjp(:) = 0.5*(aa(ip,jp,k,:)+aa(i,jp,k,:))
-          vjm(:) = 0.5*(aa(ip,jm,k,:)+aa(i,jm,k,:))
+          vp(2,:) = 0.5*(aa(ip,jp,k,:)+aa(i,jp,k,:))
+          vm(2,:) = 0.5*(aa(ip,jm,k,:)+aa(i,jm,k,:))
 
-          vkp(:) = 0.5*(aa(ip,j,kp,:)+aa(i,j,kp,:))
-          vkm(:) = 0.5*(aa(ip,j,km,:)+aa(i,j,km,:))
+          vp(3,:) = 0.5*(aa(ip,j,kp,:)+aa(i,j,kp,:))
+          vm(3,:) = 0.5*(aa(ip,j,km,:)+aa(i,j,km,:))
 
           tsrc = 0.5*(nabla_v_src(ip,j,k)+tsrc)
 
@@ -2961,14 +2967,14 @@ c     Begin program
           dhy =    g_def%dy (jg)
           dhz = 2.*g_def%dzh(kg)
 
-          vip(:) = 0.5*(aa(ip,j,k,:)+aa(ip,jp,k,:))
-          vim(:) = 0.5*(aa(im,j,k,:)+aa(im,jp,k,:))
+          vp(1,:) = 0.5*(aa(ip,j,k,:)+aa(ip,jp,k,:))
+          vm(1,:) = 0.5*(aa(im,j,k,:)+aa(im,jp,k,:))
 
-          vjp(:) = aa(i,jp,k,:)
-          vjm(:) = aa(i,j ,k,:)
+          vp(2,:) = aa(i,jp,k,:)
+          vm(2,:) = aa(i,j ,k,:)
                 
-          vkp(:) = 0.5*(aa(i,j,kp,:)+aa(i,jp,kp,:))
-          vkm(:) = 0.5*(aa(i,j,km,:)+aa(i,jp,km,:))
+          vp(3,:) = 0.5*(aa(i,j,kp,:)+aa(i,jp,kp,:))
+          vm(3,:) = 0.5*(aa(i,j,km,:)+aa(i,jp,km,:))
 
           tsrc = 0.5*(nabla_v_src(i,jp,k)+tsrc)
 
@@ -2979,14 +2985,14 @@ c     Begin program
           dhy = 2.*g_def%dyh(jg)
           dhz =    g_def%dz (kg)
 
-          vip(:) = 0.5*(aa(ip,j,k,:)+aa(ip,j,kp,:))
-          vim(:) = 0.5*(aa(im,j,k,:)+aa(im,j,kp,:))
+          vp(1,:) = 0.5*(aa(ip,j,k,:)+aa(ip,j,kp,:))
+          vm(1,:) = 0.5*(aa(im,j,k,:)+aa(im,j,kp,:))
 
-          vjp(:) = 0.5*(aa(i,jp,k,:)+aa(i,jp,kp,:))
-          vjm(:) = 0.5*(aa(i,jm,k,:)+aa(i,jm,kp,:))
+          vp(2,:) = 0.5*(aa(i,jp,k,:)+aa(i,jp,kp,:))
+          vm(2,:) = 0.5*(aa(i,jm,k,:)+aa(i,jm,kp,:))
                 
-          vkp(:) = aa(i,j,kp,:)
-          vkm(:) = aa(i,j,k ,:)
+          vp(3,:) = aa(i,j,kp,:)
+          vm(3,:) = aa(i,j,k ,:)
 
           tsrc = 0.5*(nabla_v_src(i,j,kp)+tsrc)
 
@@ -2997,14 +3003,14 @@ c     Begin program
           dhy = 2.*g_def%dyh(jg)
           dhz = 2.*g_def%dzh(kg)
 
-          vip(:) = aa(ip,j,k,:)
-          vim(:) = aa(im,j,k,:)
+          vp(1,:) = aa(ip,j,k,:)
+          vm(1,:) = aa(im,j,k,:)
 
-          vjp(:) = aa(i,jp,k,:)
-          vjm(:) = aa(i,jm,k,:)
+          vp(2,:) = aa(i,jp,k,:)
+          vm(2,:) = aa(i,jm,k,:)
                 
-          vkp(:) = aa(i,j,kp,:)
-          vkm(:) = aa(i,j,km,:)
+          vp(3,:) = aa(i,j,kp,:)
+          vm(3,:) = aa(i,j,km,:)
 
           if (cntv) gsuper = gsup(i,j,k,:,:)
         end select
@@ -3024,17 +3030,17 @@ c$$$        if (cntv) tensor = matmul(gsuper,tensor)
         !Highly optimized, do NOT touch
         if (cntv) then
           do jj=1,3
-            do ii=1,3
+            do ii=comp1,comp2
               tensor(ii,jj) =
-     $              gsuper(ii,1)*((vip(jj)-vim(jj))*idh(1) + tsrc(1,jj))
-     $             +gsuper(ii,2)*((vjp(jj)-vjm(jj))*idh(2) + tsrc(2,jj))
-     $             +gsuper(ii,3)*((vkp(jj)-vkm(jj))*idh(3) + tsrc(3,jj))
+     $            gsuper(ii,1)*((vp(1,jj)-vm(1,jj))*idh(1) + tsrc(1,jj))
+     $           +gsuper(ii,2)*((vp(2,jj)-vm(2,jj))*idh(2) + tsrc(2,jj))
+     $           +gsuper(ii,3)*((vp(3,jj)-vm(3,jj))*idh(3) + tsrc(3,jj))
             enddo
           enddo
         else
-          tensor(1,:) = (vip(:)-vim(:))*idh(1) + tsrc(1,:)
-          tensor(2,:) = (vjp(:)-vjm(:))*idh(2) + tsrc(2,:)
-          tensor(3,:) = (vkp(:)-vkm(:))*idh(3) + tsrc(3,:)
+          do ii=comp1,comp2
+            tensor(ii,:) = (vp(ii,:)-vm(ii,:))*idh(ii) + tsrc(ii,:)
+          enddo
         endif
 
 c     End program
@@ -3053,13 +3059,13 @@ c     -------------------------------------------------------------
 
 c     Call variables
 
-        integer    :: i,j,k
-        real(8)    :: tensor(3,3)
+        integer :: i,j,k
+        real(8) :: tensor(3,3)
 
 c     Local variables
 
-        integer    :: l,m
-        real(8)    :: cnv(3),dum(3)
+        integer :: n,m
+        real(8) :: cnv(3),dum(3)
         real(8),pointer,dimension(:,:,:,:,:,:) :: hessian
 
 c     Begin program
@@ -3068,15 +3074,15 @@ c     Begin program
 
         cnv = aa(i,j,k,:)
 
-        do l=1,3
+        do n=cc1,cc2
           do m=1,3
-            tensor(l,m) =
-     .           cnv(1)* Hessian(i,j,k,m,1,l)
-     .          +cnv(2)* Hessian(i,j,k,m,2,l)
-     .          +cnv(3)* Hessian(i,j,k,m,3,l)
-     .          -cnv(m)*(Hessian(i,j,k,1,1,l)
-     .                  +Hessian(i,j,k,2,2,l)
-     .                  +Hessian(i,j,k,3,3,l))
+            tensor(n,m) =
+     .           cnv(1)* Hessian(i,j,k,m,1,n)
+     .          +cnv(2)* Hessian(i,j,k,m,2,n)
+     .          +cnv(3)* Hessian(i,j,k,m,3,n)
+     .          -cnv(m)*(Hessian(i,j,k,1,1,n)
+     .                  +Hessian(i,j,k,2,2,n)
+     .                  +Hessian(i,j,k,3,3,n))
           enddo
         enddo
 
@@ -5176,14 +5182,14 @@ c     Begin program
           jac = g_def%gmetric%grid(igrid)%jac(i,j,k)
 
           nabla_v_cnv = fnabla_v(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                          ,vec,0,cnv=.true.)
+     .                          ,vec,0,1,1,cnv=.true.)
         else
           ip = i+1
           jac  = 0.5*(g_def%gmetric%grid(igrid)%jac (ip,j,k)
      .               +g_def%gmetric%grid(igrid)%jac (i ,j,k))
 
           nabla_v_cnv = fnabla_v(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                          ,vec,1,cnv=.true.)
+     .                          ,vec,1,1,1,cnv=.true.)
         endif
 
         if (associated(coef)) then
@@ -5247,7 +5253,7 @@ c     Begin program
           jac= g_def%gmetric%grid(igrid)%jac(i,j,k)
 
           nabla_v_cnv = fnabla_v(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                          ,vec,0,cnv=.true.)
+     .                          ,vec,0,2,2,cnv=.true.)
         else
           jp = j+1
 c$$$          jac= 0.25*(g_def%gmetric%grid(igrid)%jac_v(i  ,j,k  )
@@ -5258,7 +5264,7 @@ c$$$     .              +g_def%gmetric%grid(igrid)%jac_v(i-1,j,k-1))
      .               +g_def%gmetric%grid(igrid)%jac (i,j ,k))
 
           nabla_v_cnv = fnabla_v(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                          ,vec,2,cnv=.true.)
+     .                          ,vec,2,2,2,cnv=.true.)
         endif
 
         if (associated(coef)) then
@@ -5318,7 +5324,7 @@ c     Begin program
           jac= g_def%gmetric%grid(igrid)%jac(i,j,k)
 
           nabla_v_cnv = fnabla_v(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                          ,vec,0,cnv=.true.)
+     .                          ,vec,0,3,3,cnv=.true.)
         else
           kp = k+1
 c$$$          jac= 0.25*(g_def%gmetric%grid(igrid)%jac_v(i  ,j  ,k)
@@ -5329,7 +5335,7 @@ c$$$     .              +g_def%gmetric%grid(igrid)%jac_v(i-1,j-1,k))
      .               +g_def%gmetric%grid(igrid)%jac (i,j,k ))
 
           nabla_v_cnv = fnabla_v(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                          ,vec,3,cnv=.true.)
+     .                          ,vec,3,3,3,cnv=.true.)
         endif
 
         if (associated(coef)) then
@@ -8343,7 +8349,7 @@ c     Call variables
 c     Local variables
 
       integer    :: ieq,hex,hey,hez
-      real(8)    :: nabla_v(3,3),jac
+      real(8)    :: nabla_v(3,3),ijac
 
       logical :: transp,v1cov
 
@@ -8361,7 +8367,7 @@ c     Begin program
         v1cov = .false.
       endif
 
-      jac = g_def%gmetric%grid(igx)%jac(i,j,k)
+      ijac = 1d0/g_def%gmetric%grid(igx)%jac(i,j,k)
 
       select case(meth)
       case(1) !Upwinding
@@ -8370,24 +8376,24 @@ c     Begin program
         hez = int(sign(1d0,-v0(i,j,k,3)))
 
         if (v1cov) then
-          nabla_v = fnabla_v_upwd_cov(g_def,i,j,k,igx,v1,hex,hey,hez)
+          nabla_v=fnabla_v_upwd_cov(g_def,i,j,k,igx,v1,hex,hey,hez)
         else
-          nabla_v = fnabla_v_upwd    (g_def,i,j,k,igx,v1,hex,hey,hez)
+          nabla_v=fnabla_v_upwd    (g_def,i,j,k,igx,v1,hex,hey,hez)
         endif
       case(2) !Central differences
         if (v1cov) then
-          nabla_v = fnabla_v_cov(g_def,i,j,k,igx,v1,0)
+          nabla_v=fnabla_v_cov(g_def,i,j,k,igx,v1,0)
         else
-          nabla_v = fnabla_v(g_def,i,j,k,nxx,nyy,nzz,igx,igy,igz,v1,0)
+          nabla_v=fnabla_v(g_def,i,j,k,nxx,nyy,nzz,igx,igy,igz,v1,0,1,3)
         endif
       case default
         call pstop('tensor_nc_advc','Advection option not implemented')
       end select
 
       if (transp) then
-        vec = matmul(nabla_v,v0(i,j,k,:))/jac
+        vec = matmul(nabla_v,v0(i,j,k,:))*ijac
       else
-        vec = matmul(v0(i,j,k,:),nabla_v)/jac
+        vec = matmul(v0(i,j,k,:),nabla_v)*ijac
       endif
 
       end function tensor_nc_advc
