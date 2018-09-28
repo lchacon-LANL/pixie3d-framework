@@ -2960,9 +2960,8 @@ c     Begin program
 
           tsrc = 0.5*(nabla_v_src(ip,j,k)+tsrc)
 
-          if (cntv) gsuper(comp1:comp2,:)
-     .                     = 0.5*(gsup(ip,j,k,comp1:comp2,:)
-     .                           +gsup(i ,j,k,comp1:comp2,:))
+          if (cntv) gsuper = 0.5*(gsup(ip,j,k,:,:)
+     .                           +gsup(i ,j,k,:,:))
         case (2)
           dhx = 2.*g_def%dxh(ig)
           dhy =    g_def%dy (jg)
@@ -2979,9 +2978,8 @@ c     Begin program
 
           tsrc = 0.5*(nabla_v_src(i,jp,k)+tsrc)
 
-          if (cntv) gsuper(comp1:comp2,:)
-     .                     = 0.5*(gsup(i,jp,k,comp1:comp2,:)
-     .                           +gsup(i,j ,k,comp1:comp2,:))
+          if (cntv) gsuper = 0.5*(gsup(i,jp,k,:,:)
+     .                           +gsup(i,j ,k,:,:))
         case (3)
           dhx = 2.*g_def%dxh(ig)
           dhy = 2.*g_def%dyh(jg)
@@ -2998,9 +2996,8 @@ c     Begin program
 
           tsrc = 0.5*(nabla_v_src(i,j,kp)+tsrc)
 
-          if (cntv) gsuper(comp1:comp2,:)
-     .                     = 0.5*(gsup(i,j,kp,comp1:comp2,:)
-     .                           +gsup(i,j,k ,comp1:comp2,:))
+          if (cntv) gsuper = 0.5*(gsup(i,j,kp,:,:)
+     .                           +gsup(i,j,k ,:,:))
         case default
           dhx = 2.*g_def%dxh(ig)
           dhy = 2.*g_def%dyh(jg)
@@ -3015,7 +3012,7 @@ c     Begin program
           vp(3,:) = aa(i,j,kp,:)
           vm(3,:) = aa(i,j,km,:)
 
-          if (cntv) gsuper(comp1:comp2,:) = gsup(i,j,k,comp1:comp2,:)
+          if (cntv) gsuper = gsup(i,j,k,:,:)
         end select
 
         !Assembly of tensor
