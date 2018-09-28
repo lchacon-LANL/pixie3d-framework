@@ -821,7 +821,9 @@ c     Begin program
 
 c     Deallocate sub-meshes
 
-        call dealloc_mg_array(mgarray%mg_crse_array)
+        if (associated(mgarray%mg_crse_array)) then
+          call dealloc_mg_array(mgarray%mg_crse_array)
+        endif
 
 c     Deallocate main mesh
 
@@ -849,16 +851,14 @@ c     #################################################################
           call dealloc_mg_array(mgarray%mg_crse_array)
         endif
 
-        if (associated(mgarray)) then
-          nullify(mgarray%g_def)
-          do igrid=1,size(mgarray%grid)
-            if (associated(mgarray%grid(igrid)%array)) then
-              deallocate(mgarray%grid(igrid)%array)
-            endif
-          enddo
-          deallocate(mgarray%grid)
-          deallocate(mgarray)
-        endif
+        nullify(mgarray%g_def)
+        do igrid=1,size(mgarray%grid)
+          if (associated(mgarray%grid(igrid)%array)) then
+            deallocate(mgarray%grid(igrid)%array)
+          endif
+        enddo
+        deallocate(mgarray%grid)
+        deallocate(mgarray)
 
       end subroutine dealloc_mg_array
 
