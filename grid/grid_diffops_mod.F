@@ -3884,76 +3884,6 @@ c     End program
 
       contains
 
-c$$$c     nabla_v_src
-c$$$c     #############################################################
-c$$$      function nabla_v_src(i,j,k) result(tensor)
-c$$$
-c$$$c     -------------------------------------------------------------
-c$$$c     Finds geometric source of tensor nabla(v) at cell (i,j,k)
-c$$$c     -------------------------------------------------------------
-c$$$
-c$$$        implicit none
-c$$$
-c$$$        integer :: i,j,k
-c$$$        real(8) :: tensor(3,3)
-c$$$
-c$$$        real(8) :: cov(3)
-c$$$        real(8),pointer,dimension(:,:,:,:,:,:) :: hessian
-c$$$
-c$$$c     Begin program
-c$$$
-c$$$        hessian => g_def%gmetric%grid(igrid)%Gamma
-c$$$
-c$$$        cov = vcov(i,j,k,:)
-c$$$
-c$$$      ! l = 1, m = 1
-c$$$        tensor(1,1) =-cov(1)*hessian(i,j,k,1,1,1)
-c$$$     .               -cov(2)*hessian(i,j,k,2,1,1)
-c$$$     .               -cov(3)*hessian(i,j,k,3,1,1)
-c$$$
-c$$$      ! l = 1, m = 2
-c$$$        tensor(1,2) =-cov(1)*hessian(i,j,k,1,1,2)
-c$$$     .               -cov(2)*hessian(i,j,k,2,1,2)
-c$$$     .               -cov(3)*hessian(i,j,k,3,1,2)
-c$$$
-c$$$      ! l = 1, m = 3
-c$$$        tensor(1,3) =-cov(1)*hessian(i,j,k,1,1,3)
-c$$$     .               -cov(2)*hessian(i,j,k,2,1,3)
-c$$$     .               -cov(3)*hessian(i,j,k,3,1,3)
-c$$$
-c$$$      ! l = 2, m = 1
-c$$$        tensor(2,1) =-cov(1)*hessian(i,j,k,1,2,1)
-c$$$     .               -cov(2)*hessian(i,j,k,2,2,1)
-c$$$     .               -cov(3)*hessian(i,j,k,3,2,1)
-c$$$
-c$$$      ! l = 2, m = 2
-c$$$        tensor(2,2) =-cov(1)*hessian(i,j,k,1,2,2)
-c$$$     .               -cov(2)*hessian(i,j,k,2,2,2)
-c$$$     .               -cov(3)*hessian(i,j,k,3,2,2)
-c$$$
-c$$$      ! l = 2, m = 3
-c$$$        tensor(2,3) =-cov(1)*hessian(i,j,k,1,2,3)
-c$$$     .               -cov(2)*hessian(i,j,k,2,2,3)
-c$$$     .               -cov(3)*hessian(i,j,k,3,2,3)
-c$$$
-c$$$      ! l = 3, m = 1
-c$$$        tensor(3,1) =-cov(1)*hessian(i,j,k,1,3,1)
-c$$$     .               -cov(2)*hessian(i,j,k,2,3,1)
-c$$$     .               -cov(3)*hessian(i,j,k,3,3,1)
-c$$$
-c$$$      ! l = 3, m = 2
-c$$$        tensor(3,2) =-cov(1)*hessian(i,j,k,1,3,2)
-c$$$     .               -cov(2)*hessian(i,j,k,2,3,2)
-c$$$     .               -cov(3)*hessian(i,j,k,3,3,2)
-c$$$
-c$$$      ! l = 3, m = 3
-c$$$        tensor(3,3) =-cov(1)*hessian(i,j,k,1,3,3)
-c$$$     .               -cov(2)*hessian(i,j,k,2,3,3)
-c$$$     .               -cov(3)*hessian(i,j,k,3,3,3)
-c$$$
-c$$$c     End program
-c$$$
-c$$$      end function nabla_v_src
 c     nabla_v_src
 c     #############################################################
       function nabla_v_src(i,j,k) result(tensor)
@@ -3967,58 +3897,59 @@ c     -------------------------------------------------------------
         integer :: i,j,k
         real(8) :: tensor(3,3)
 
-        real(8) :: cov(3),hessian(3,3,3)
+        real(8) :: cov(3)
+        real(8),pointer,dimension(:,:,:,:,:,:) :: hessian
 
 c     Begin program
 
-        hessian = g_def%gmetric%grid(igrid)%Gamma(i,j,k,:,:,:)
+        hessian => g_def%gmetric%grid(igrid)%Gamma
 
         cov = vcov(i,j,k,:)
 
       ! l = 1, m = 1
-        tensor(1,1) =-cov(1)*hessian(1,1,1)
-     .               -cov(2)*hessian(2,1,1)
-     .               -cov(3)*hessian(3,1,1)
+        tensor(1,1) =-cov(1)*hessian(i,j,k,1,1,1)
+     .               -cov(2)*hessian(i,j,k,2,1,1)
+     .               -cov(3)*hessian(i,j,k,3,1,1)
 
       ! l = 1, m = 2
-        tensor(1,2) =-cov(1)*hessian(1,1,2)
-     .               -cov(2)*hessian(2,1,2)
-     .               -cov(3)*hessian(3,1,2)
+        tensor(1,2) =-cov(1)*hessian(i,j,k,1,1,2)
+     .               -cov(2)*hessian(i,j,k,2,1,2)
+     .               -cov(3)*hessian(i,j,k,3,1,2)
 
       ! l = 1, m = 3
-        tensor(1,3) =-cov(1)*hessian(1,1,3)
-     .               -cov(2)*hessian(2,1,3)
-     .               -cov(3)*hessian(3,1,3)
+        tensor(1,3) =-cov(1)*hessian(i,j,k,1,1,3)
+     .               -cov(2)*hessian(i,j,k,2,1,3)
+     .               -cov(3)*hessian(i,j,k,3,1,3)
 
       ! l = 2, m = 1
-        tensor(2,1) =-cov(1)*hessian(1,2,1)
-     .               -cov(2)*hessian(2,2,1)
-     .               -cov(3)*hessian(3,2,1)
+        tensor(2,1) =-cov(1)*hessian(i,j,k,1,2,1)
+     .               -cov(2)*hessian(i,j,k,2,2,1)
+     .               -cov(3)*hessian(i,j,k,3,2,1)
 
       ! l = 2, m = 2
-        tensor(2,2) =-cov(1)*hessian(1,2,2)
-     .               -cov(2)*hessian(2,2,2)
-     .               -cov(3)*hessian(3,2,2)
+        tensor(2,2) =-cov(1)*hessian(i,j,k,1,2,2)
+     .               -cov(2)*hessian(i,j,k,2,2,2)
+     .               -cov(3)*hessian(i,j,k,3,2,2)
 
       ! l = 2, m = 3
-        tensor(2,3) =-cov(1)*hessian(1,2,3)
-     .               -cov(2)*hessian(2,2,3)
-     .               -cov(3)*hessian(3,2,3)
+        tensor(2,3) =-cov(1)*hessian(i,j,k,1,2,3)
+     .               -cov(2)*hessian(i,j,k,2,2,3)
+     .               -cov(3)*hessian(i,j,k,3,2,3)
 
       ! l = 3, m = 1
-        tensor(3,1) =-cov(1)*hessian(1,3,1)
-     .               -cov(2)*hessian(2,3,1)
-     .               -cov(3)*hessian(3,3,1)
+        tensor(3,1) =-cov(1)*hessian(i,j,k,1,3,1)
+     .               -cov(2)*hessian(i,j,k,2,3,1)
+     .               -cov(3)*hessian(i,j,k,3,3,1)
 
       ! l = 3, m = 2
-        tensor(3,2) =-cov(1)*hessian(1,3,2)
-     .               -cov(2)*hessian(2,3,2)
-     .               -cov(3)*hessian(3,3,2)
+        tensor(3,2) =-cov(1)*hessian(i,j,k,1,3,2)
+     .               -cov(2)*hessian(i,j,k,2,3,2)
+     .               -cov(3)*hessian(i,j,k,3,3,2)
 
       ! l = 3, m = 3
-        tensor(3,3) =-cov(1)*hessian(1,3,3)
-     .               -cov(2)*hessian(2,3,3)
-     .               -cov(3)*hessian(3,3,3)
+        tensor(3,3) =-cov(1)*hessian(i,j,k,1,3,3)
+     .               -cov(2)*hessian(i,j,k,2,3,3)
+     .               -cov(3)*hessian(i,j,k,3,3,3)
 
 c     End program
 
