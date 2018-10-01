@@ -81,7 +81,7 @@ ifeq ($(findstring gfortran,$(FC)),gfortran)
   else
     OPTIMIZATION ?= -O3 -g -march=$(M_ARCH) -fopenmp-simd #-fopt-info  -ffast-math
   endif
-  DEBUG        = -g -fbounds-check -fbacktrace -ffpe-trap=invalid,zero -ftrapv #-finit-real=snan #-finit-local-zero #-ggdb3
+  DEBUG        = -g -fbounds-check -fbacktrace -ffpe-trap=invalid,zero,denormal -ftrapv #-finit-real=snan #-finit-local-zero #-ggdb3
   PROFILE      = -O2 -pg -g
   STATIC       = -fno-automatic
   MODFLAG      = -I

@@ -2,7 +2,7 @@
 
 #if !defined(plotting)
 c pic_mover
-c ######################################################################    
+c #####################################################################    
       module pic_mover
 
       use pic_map
@@ -834,7 +834,7 @@ c     Test for dts (presumably no cell-crossing with a small timestep)
 #endif
         end do
 
-        dt_sub = min(dt_sub,(6d0*xtoll*dts/(anup+1d-300*dts))
+        dt_sub = min(dt_sub,(6d0*xtoll*dts/(anup+1d-30*dts))
      $                      **(0.333333333333333d0))
 
       end subroutine estimate_dtp
@@ -980,7 +980,7 @@ c     Local variables
       real(_prec) :: Exp,Eyp,Ezp,Bxp,Byp,Bzp
      .              ,xhp(_Npg,3),xnp(_Npg,3),x0p(_Npg,3)
      .              ,x_nh(_Npg,3),cov(3,3),cnv(3,3),xlog(_Npg,3)
-     .              ,dum1(_Npg),dum2(_Npg,2),dum3(_Npg,3)
+     .              ,dum1(_Npg),dum2(_Npg,2),dum3(_Npg,3),dt_nuh(_Npg)
       real(_prec) :: Sx2_n(_Npg,3), Sy2_n(_Npg,3)
       real(_prec) :: Sx1(_Npg,2),Sx2(_Npg,3),DSx(_Npg,3)
       real(_prec) :: Sy1(_Npg,2),Sy2(_Npg,3),DSy(_Npg,3)
@@ -1039,11 +1039,11 @@ c     Find E
 c     Find B
 
       !Prepare vector potential at nu+1/2
-      dum1 = 0.5d0*(-2d0*dtp+dt+dtau)
+      dt_nuh = 0.5d0*(-2d0*dtp+dt+dtau)
 
       !VECTOR SIMD
       do i=1,_Npg
-         Az_nuh(i,:,:) = A_3(i,:,:) + DtA_3(i,:,:)*dum1(i)
+         Az_nuh(i,:,:) = A_3(i,:,:) + DtA_3(i,:,:)*dt_nuh(i)
       enddo
 
       call opt_matvec_tr_pcle(Sx2,Az_nuh,dum3)
@@ -1056,7 +1056,7 @@ c     Find B
 
       !VECTOR SIMD
       do i=1,_Npg
-         Ay_nuh(i,:,:) = A_2(i,:,:) + DtA_2(i,:,:)*dum1(i)
+         Ay_nuh(i,:,:) = A_2(i,:,:) + DtA_2(i,:,:)*dt_nuh(i)
       enddo
 
       call opt_matvec_2_pcle (DSx,Ay_nuh,dum2)
@@ -1065,7 +1065,7 @@ c     Find B
 
       !VECTOR SIMD
       do i=1,_Npg
-         Ax_nuh(i,:,:) = A_1(i,:,:) + DtA_1(i,:,:)*dum1(i)
+         Ax_nuh(i,:,:) = A_1(i,:,:) + DtA_1(i,:,:)*dt_nuh(i)
       enddo
 
       call opt_matvec_22_pcle(Sx1,Ax_nuh,dum3)
@@ -1097,7 +1097,7 @@ c     Local variables
       real(_prec) :: xhp(_Npg,3),xnp(_Npg,3)
      .              ,x_nh(_Npg,3),cov(_Npg,3,3),cnv(_Npg,3,3)
      .              ,xlog(_Npg,3),x0p(_Npg,3)
-     .              ,dum1(_Npg),dum2(_Npg,2),dum3(_Npg,3)
+     .              ,dum1(_Npg),dum2(_Npg,2),dum3(_Npg,3),dt_nuh(_Npg)
       real(_prec) :: Sx2_n(_Npg,3), Sy2_n(_Npg,3)
       real(_prec) :: Sx1(_Npg,2),Sx2(_Npg,3),DSx(_Npg,3)
       real(_prec) :: Sy1(_Npg,2),Sy2(_Npg,3),DSy(_Npg,3)
@@ -1154,11 +1154,11 @@ c     Find E
 c     Find B
 
       !Prepare vector potential at nu+1/2
-      dum1 = 0.5d0*(-2d0*dtp+dt+dtau)
+      dt_nuh = 0.5d0*(-2d0*dtp+dt+dtau)
 
       !VECTOR SIMD
       do i=1,_Npg
-         Az_nuh(i,:,:) = A_3(i,:,:) + DtA_3(i,:,:)*dum1(i)
+         Az_nuh(i,:,:) = A_3(i,:,:) + DtA_3(i,:,:)*dt_nuh(i)
       enddo
 
       call opt_matvec_tr_pcle(Sx2,Az_nuh,dum3)
@@ -1171,7 +1171,7 @@ c     Find B
 
       !VECTOR SIMD
       do i=1,_Npg
-         Ay_nuh(i,:,:) = A_2(i,:,:) + DtA_2(i,:,:)*dum1(i)
+         Ay_nuh(i,:,:) = A_2(i,:,:) + DtA_2(i,:,:)*dt_nuh(i)
       enddo
 
       call opt_matvec_2_pcle (DSx,Ay_nuh,dum2)
@@ -1180,7 +1180,7 @@ c     Find B
 
       !VECTOR SIMD
       do i=1,_Npg
-         Ax_nuh(i,:,:) = A_1(i,:,:) + DtA_1(i,:,:)*dum1(i)
+         Ax_nuh(i,:,:) = A_1(i,:,:) + DtA_1(i,:,:)*dt_nuh(i)
       enddo
 
       call opt_matvec_22_pcle(Sx1,Ax_nuh,dum3)
@@ -1944,7 +1944,8 @@ c     Update moments
 
       momsn = moms
 
-      if (init) return
+cc      if (init) return
+      if (.not.init) then
 
 c     Update particle info
 
@@ -2065,9 +2066,11 @@ c     Update particle info
 
       end select
 
+      endif
+
 c     Dump particles for restart
 
-      if (TS_chk_dump().and.(.not.tst_flg)) then
+      if ((TS_chk_dump().or.itime==0).and.(.not.tst_flg)) then
         ierr = pic_dump_pcles(time)
       endif
 

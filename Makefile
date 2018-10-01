@@ -148,7 +148,8 @@ contrib_pack: ;
 
 #Define dependencies
 
-$(OBJS) : $(MODS) $(COMMON_MODS)
+$(MODS): make.inc
+$(OBJS): $(MODS) $(COMMON_MODS)
 
 #Define patterns
 
