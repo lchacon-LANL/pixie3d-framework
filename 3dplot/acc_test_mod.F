@@ -60,7 +60,7 @@ c     Call variables
 c     Local variables
 
       integer        :: i,j,k,ig,jg,kg,nx,ny,nz,ivar
-      integer        :: ierr,system,nplot,igx,igy,igz
+      integer        :: ierr,system,igx,igy,igz
 
       real(8)        :: mag,mag0,jac,tref,tsol,lmax
       real(8),allocatable,dimension(:,:,:,:) :: pos 
@@ -314,7 +314,7 @@ c     Call variables
 c     Local variables
 
       integer :: i,j,k,ig,jg,kg,nx,ny,nz,ivar,nxs,nys,nzs
-      integer :: ierr,system,nplot,igx,igy,igz,ufile
+      integer :: ierr,system,igx,igy,igz,ufile
 
       real(8) :: mag,mag0,jac,tref,tsol,lmax
       real(8),allocatable,dimension(:,:,:,:) :: pos 

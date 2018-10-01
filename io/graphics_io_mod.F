@@ -48,7 +48,7 @@ c ######################################################################
         integer    :: sel_diag (xdraw_cont_lim)
      .               ,sel_graph(xdraw_cont_lim)
 
-        integer    :: ndplot
+        integer    :: ndplot,nplot
         real(8)    :: dplot,tmplot
 
         integer    :: iplot,jplot,kplot

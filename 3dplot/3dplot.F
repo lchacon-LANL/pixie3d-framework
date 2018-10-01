@@ -1,7 +1,7 @@
       program plot3d
 
 c##########################################################################
-c     Postprocess output information from 3DMHD and creates graphics
+c     Postprocess output information from driver and creates graphics
 c     in various formats.
 c##########################################################################
 
@@ -28,7 +28,7 @@ c##########################################################################
 c Local variables
 
       integer        :: i,j,k,ig,jg,kg
-      integer        :: ierr,gierr,nplot
+      integer        :: ierr,gierr
       character*(40) :: command
       logical        :: exitloop,petsc_flg
 
@@ -104,7 +104,7 @@ cc          endif
 
 c     Output per time step
 
-        call output(nplot)
+        call output
 
 c     Store previous record (for time derivatives in diagnostics)
 
@@ -112,8 +112,6 @@ c     Store previous record (for time derivatives in diagnostics)
 
 c     Check for tmax
 
-cc        if ((tmax > 0d0 .and. time.ge.tmax*0.99999)
-cc     .      .or. (tmax < 0d0 .and. itime == numtime))  exit
         if ((tmax > 0d0 .and. time.ge.tmax))  exit
 
       enddo       !End of time loop
@@ -143,13 +141,13 @@ c End program
 
 c output
 c######################################################################
-      subroutine output(nplot)
+      subroutine output
 
 c----------------------------------------------------------------------
 c     Writes program output to standard output
 c----------------------------------------------------------------------
 
-      use ts_setup
+      use ts_io
 
       use variables
 
@@ -158,8 +156,6 @@ c----------------------------------------------------------------------
       implicit none
 
 c Call variables
-
-      integer :: nplot
 
 c Local variables
 
@@ -178,14 +174,12 @@ c Interfaces
 
 c Begin program
 
-      plot = ( nplot        == ndplot       .and. nplot > 0)
-     .   .or.((time-tmplot) >= dplot-0.9*dt .and. dplot > 0d0)
-     .   .or.(time         == 0d0)
-
 c Post-process solution for diagnostics and dump plots
 
       if (.not.skip_diag)
      .       call evaluateDiagnostics(u_np,1,1,1,.false.)
+
+      plot = TS_chk_plot_dump(.true.)
 
       if (plot) then
 
@@ -193,8 +187,6 @@ c Post-process solution for diagnostics and dump plots
      .       call evaluateDiagnostics(u_np,1,1,1,.false.)
 
         !Dump time step plots
-        nplot = 0
-        if (itime.gt.0) tmplot = time
         call dumpTimeStepPlots
 
       endif
@@ -259,7 +251,7 @@ c Call variables
 
 c Local variables
 
-      integer :: ierr,igx,igy,igz,nplot
+      integer :: ierr,igx,igy,igz
       logical :: petsc_flg
 
 c Interfaces
@@ -390,9 +382,6 @@ c Initialize diagnostics and related variables
 c Initialize graphics
 
       call initializeGraphics
-
-c$$$      nplot = 0
-c$$$      call output(nplot)
 
 c End program
 

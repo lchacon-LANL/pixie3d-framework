@@ -37,45 +37,58 @@ c     Local variables
 
 c     Begin program
 
-        locl = abs(mod(ibc,2)-2)-1
-        diml = 1 + (ibc-1-locl)/2
+cc        locl = abs(mod(ibc,2)-2)-1
+cc        diml = 1 + (ibc-1-locl)/2
+        diml = (ibc+1)/2
+        locl = ibc + 1 - 2*diml
 
-        if (.not.associated(gl_def)) then
-          write (*,*) 'Grid def struct not associated'
-          write (*,*) 'Aborting in routine isBdry'
-          stop
-        endif
+        isBdry = isBdry2(gl_def,i,igr,diml,locl)
+
+      end function isBdry
+
+c     isBdry2
+c     #################################################################
+      function isBdry2(gl_def,i,igr,diml,locl)
+
+c     -----------------------------------------------------------------
+c     Detects whether we are at a PHYSICAL boundary or not. Boundary is
+c     identified by dim, loc.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer :: i,igr
+        logical :: isBdry2
+
+        integer :: diml,locl
+
+        type(grid_mg_def),pointer :: gl_def
+
+c     Local variables
+
+        integer :: ilog,itst
+
+c     Begin program
+
+        itst = 1
 
         select case(diml)
         case(1)
           ilog = gl_def%ilo(igr)
-          select case(locl)
-          case (0)
-            itst = 1
-          case (1)
-            itst = gl_def%nxgl(igr)
-          end select
+          if (locl == 1) itst = gl_def%nxgl(igr)
         case(2)
           ilog = gl_def%jlo(igr)
-          select case(locl)
-          case (0)
-            itst = 1
-          case (1)
-            itst = gl_def%nygl(igr)
-          end select
+          if (locl == 1) itst = gl_def%nygl(igr)
         case(3)
           ilog = gl_def%klo(igr)
-          select case(locl)
-          case (0)
-            itst = 1
-          case (1)
-            itst = gl_def%nzgl(igr)
-          end select
+          if (locl == 1) itst = gl_def%nzgl(igr)
         end select
 
-        isBdry = (i+ilog-1 == itst)
+        isBdry2 = (i+ilog-1 == itst)
 
-      end function isBdry
+      end function isBdry2
 
 c     isBC
 c     #################################################################
@@ -113,7 +126,7 @@ c     Begin program
           bcc = bcond
         endif
 
-        isBC = (isBdry(g_def,i,igr,ibc) .and. abs(bcc(ibc)) == BC)
+        isBC = (isBdry(g_def,i,igr,ibc).and.abs(bcc(ibc)) == BC)
 
       end function isBC
 
@@ -134,17 +147,55 @@ c     Begin program
 
         if (.not.associated(gl_def)) then
           write (*,*) 'Grid def struct not associated'
-          write (*,*) 'Aborting in routine isBdry'
+          write (*,*) 'Aborting in routine isSP'
           stop
         endif
 
-        sing_point = (i+gl_def%ilo(igx)-1==1).and.bcSP()
+        sing_point = (i+gl_def%ilo(igx)-1==1).and.(abs(bcond(1)) == SP)
 
       end function isSP
 
+c$$$c     isSP2
+c$$$c     #################################################################
+c$$$      function isSP2(g_def,i,igr,dim,loc,ibc)
+c$$$
+c$$$c     -----------------------------------------------------------------
+c$$$c     Checks whether point at grid level igr, dimension dim(=1,2,3)
+c$$$c     and location loc(=0,1) is at SP boundary.
+c$$$c     -----------------------------------------------------------------
+c$$$
+c$$$        implicit none
+c$$$
+c$$$        integer    :: i,igr
+c$$$        logical    :: isSP2
+c$$$        integer,optional :: dim,loc,ibc
+c$$$
+c$$$        type(grid_mg_def),pointer :: g_def
+c$$$
+c$$$        integer    :: ibcl,ilog,itst,diml,locl
+c$$$
+c$$$        if (PRESENT(dim) .and.PRESENT(loc)) then
+c$$$          diml = dim
+c$$$          locl = loc
+c$$$          ibcl = (1+locl)+2*(diml-1)
+c$$$        elseif (PRESENT(ibc)) then
+c$$$          ibcl = ibc
+c$$$        else
+c$$$          ibcl = 1
+c$$$        endif
+c$$$
+c$$$        if (ibcl < 1 .or. ibcl > 6) then
+c$$$          isSP2 = .false.
+c$$$          return
+c$$$        else
+c$$$          isSP2 = isBC(g_def,i,igr,ibcl,SP)
+c$$$        endif
+c$$$
+c$$$      end function isSP2
+
 c     isSP2
 c     #################################################################
-      function isSP2(g_def,i,igr,dim,loc,ibc)
+      function isSP2(g_def,i,igr)
 
 c     -----------------------------------------------------------------
 c     Checks whether point at grid level igr, dimension dim(=1,2,3)
@@ -155,28 +206,10 @@ c     -----------------------------------------------------------------
 
         integer    :: i,igr
         logical    :: isSP2
-        integer,optional :: dim,loc,ibc
 
         type(grid_mg_def),pointer :: g_def
 
-        integer    :: ibcl,ilog,itst,diml,locl
-
-        if (PRESENT(dim) .and.PRESENT(loc)) then
-          diml = dim
-          locl = loc
-          ibcl = (1+locl)+2*(diml-1)
-        elseif (PRESENT(ibc)) then
-          ibcl = ibc
-        else
-          ibcl = 1
-        endif
-
-        if (ibcl < 1 .or. ibcl > 6) then
-          isSP2 = .false.
-          return
-        else
-          isSP2 = isBC(g_def,i,igr,ibcl,SP)
-        endif
+        isSP2 = (i+g_def%ilo(igr)-1==1).and.(abs(bcond(1)) == SP)
 
       end function isSP2
 
@@ -205,8 +238,10 @@ c     -----------------------------------------------------------------
           ibcl = (1+locl)+2*(diml-1)
         elseif (PRESENT(ibc)) then
           ibcl = ibc
-          locl = abs(mod(ibcl,2)-2)-1
-          diml = 1 + (ibcl-1-locl)/2
+cc          locl = abs(mod(ibcl,2)-2)-1
+cc          diml = 1 + (ibcl-1-locl)/2
+          diml = (ibcl+1)/2
+          locl =  ibcl+1 - 2*diml
         else
           write (*,*) 'Error in isSYM'
           write (*,*) 'Aborting...'
@@ -217,67 +252,67 @@ c     -----------------------------------------------------------------
 
       end function isSYM
 
-c     isSYMBdry
-c     #################################################################
-      function isSYMBdry(gl_def,dim,loc,ibc)
-
-c     -----------------------------------------------------------------
-c     Checks whether boundary at dimension dim(=1,2,3)
-c     and location loc(=0,1) is a SYM boundary
-c     -----------------------------------------------------------------
-
-        implicit none
-
-        logical    :: isSYMBdry
-        integer,optional :: dim,loc,ibc
-
-        integer    :: ibcl,ilog,itst,diml,locl,igr
-
-        type(grid_mg_def),pointer :: gl_def
-
-        if (PRESENT(dim) .and.PRESENT(loc)) then
-          diml = dim
-          locl = loc
-          ibcl = (1+locl)+2*(diml-1)
-        elseif (PRESENT(ibc)) then
-          ibcl = ibc
-          locl = abs(mod(ibcl,2)-2)-1
-          diml = 1 + (ibcl-1-locl)/2
-        else
-          write (*,*) 'Error in isSYMBdry'
-          write (*,*) 'Aborting...'
-          stop
-        endif
-
-        igr = 1 !Use fine grid for test
-
-        select case(diml)
-        case(1)
-          select case(locl)
-          case (0)
-            itst = 1
-          case (1)
-            itst = gl_def%nxv(igr)
-          end select
-        case(2)
-          select case(locl)
-          case (0)
-            itst = 1
-          case (1)
-            itst = gl_def%nyv(igr)
-          end select
-        case(3)
-          select case(locl)
-          case (0)
-            itst = 1
-          case (1)
-            itst = gl_def%nzv(igr)
-          end select
-        end select
-
-        isSYMBdry = isBC(gl_def,itst,igr,ibcl,SYM)
-
-      end function isSYMBdry
+c$$$c     isSYMBdry
+c$$$c     #################################################################
+c$$$      function isSYMBdry(gl_def,dim,loc,ibc)
+c$$$
+c$$$c     -----------------------------------------------------------------
+c$$$c     Checks whether boundary at dimension dim(=1,2,3)
+c$$$c     and location loc(=0,1) is a SYM boundary
+c$$$c     -----------------------------------------------------------------
+c$$$
+c$$$        implicit none
+c$$$
+c$$$        logical    :: isSYMBdry
+c$$$        integer,optional :: dim,loc,ibc
+c$$$
+c$$$        integer    :: ibcl,ilog,itst,diml,locl,igr
+c$$$
+c$$$        type(grid_mg_def),pointer :: gl_def
+c$$$
+c$$$        if (PRESENT(dim) .and.PRESENT(loc)) then
+c$$$          diml = dim
+c$$$          locl = loc
+c$$$          ibcl = (1+locl)+2*(diml-1)
+c$$$        elseif (PRESENT(ibc)) then
+c$$$          ibcl = ibc
+c$$$          locl = abs(mod(ibcl,2)-2)-1
+c$$$          diml = 1 + (ibcl-1-locl)/2
+c$$$        else
+c$$$          write (*,*) 'Error in isSYMBdry'
+c$$$          write (*,*) 'Aborting...'
+c$$$          stop
+c$$$        endif
+c$$$
+c$$$        igr = 1 !Use fine grid for test
+c$$$
+c$$$        select case(diml)
+c$$$        case(1)
+c$$$          select case(locl)
+c$$$          case (0)
+c$$$            itst = 1
+c$$$          case (1)
+c$$$            itst = gl_def%nxv(igr)
+c$$$          end select
+c$$$        case(2)
+c$$$          select case(locl)
+c$$$          case (0)
+c$$$            itst = 1
+c$$$          case (1)
+c$$$            itst = gl_def%nyv(igr)
+c$$$          end select
+c$$$        case(3)
+c$$$          select case(locl)
+c$$$          case (0)
+c$$$            itst = 1
+c$$$          case (1)
+c$$$            itst = gl_def%nzv(igr)
+c$$$          end select
+c$$$        end select
+c$$$
+c$$$        isSYMBdry = isBC(gl_def,itst,igr,ibcl,SYM)
+c$$$
+c$$$      end function isSYMBdry
 
       end module bc_ops
 

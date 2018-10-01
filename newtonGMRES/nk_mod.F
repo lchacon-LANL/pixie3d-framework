@@ -186,7 +186,7 @@ c     Local variables
 
       real(8) :: f0,fkm,fk,fkp,fm,flimit,theta,dampm
 
-      logical :: vol_wgt,convergence,failure,left_pc
+      logical :: vol_wgt,convergence,failure,left_pc,is_ieee_exception
 
 c     Begin program
 
@@ -378,8 +378,12 @@ c     Check Anderson convergence/failure
         if (out.ge.3) then
           call dumpResidualNorms(neq,-rk,vol_wgt)
         endif
-
+        
         convergence = (fkp <= flimit.or.(dxnorm<=stol.and.(.not.init)))
+
+        is_ieee_exception = is_NAN(fkp).or.is_INF(fkp)
+        convergence = convergence.and.(.not.is_ieee_exception)
+        
         failure     = (check > check_lim .or. jit == ntit_max_rej)
      .               .and.(.not.convergence)
 
@@ -515,7 +519,7 @@ c     Local variables
 
       real(8) :: f0,fkm,fk,fkp,fm,flimit,etak,etakm,theta,dampm
 
-      logical :: convergence,failure,vol_wgt
+      logical :: convergence,failure,vol_wgt,is_ieee_exception
 
 c     Begin program
 
@@ -629,11 +633,11 @@ cc      flimit= atol + rtol*f0
 
         if (PRESENT(matvec)) then
           call gmresDriver(matvec
-     .                    ,ntot,-nk_conf%rk,ddx,itk,etak,ksmax,gmmax
+     .                    ,ntot,nk_conf%rk,ddx,itk,etak,ksmax,gmmax
      .                    ,iguess,iout,ierr)
         else
           call gmresDriver(matrixFreeMatVec
-     .                    ,ntot,-nk_conf%rk,ddx,itk,etak,ksmax,gmmax
+     .                    ,ntot,nk_conf%rk,ddx,itk,etak,ksmax,gmmax
      .                    ,iguess,iout,ierr)
         endif
 
@@ -658,7 +662,7 @@ cc      flimit= atol + rtol*f0
         if (global >= 1) then
           call linesearch(ntot,x,ddx,etak,fk,damp)
         else
-          x = x + damp*ddx
+          x = x - damp*ddx  !Minus sign comes from residual
         endif
 
         !Save current Newton state
@@ -801,7 +805,7 @@ c     Start quadratic linesearch backtracking
       do idamp = 1,100
 
         !Find residual norm |F(xk+dxk)| --> fkp
-        dummy = x + damp*ddx
+        dummy = x - damp*ddx  !Minus sign comes from residual
         call evaluateNewtonResidual(ntot,dummy,b)
         fkp = ntgl*rms(b)
 
@@ -815,7 +819,7 @@ c     Start quadratic linesearch backtracking
           dampm = sigma1*damp
 
           !Evaluate residual norm |F(xk+lambda*dxk)| --> fm
-          dummy = x + dampm*ddx
+          dummy = x - dampm*ddx  !Minus sign comes from residual
           call evaluateNewtonResidual(ntot,dummy,b)
           fm = ntgl*rms(b)
 
@@ -889,6 +893,10 @@ c     Check Anderson convergence/failure
         endif
 
         convergence = (fkp <= flimit.or.(dxnorm<=stol.and.(.not.init)))
+
+        is_ieee_exception = is_NAN(fkp).or.is_INF(fkp)
+        convergence = convergence.and.(.not.is_ieee_exception)
+
         failure     = (check > check_lim .or. jit == ntit_max_rej)
      .               .and.(.not.convergence)
 
@@ -1049,7 +1057,14 @@ c     Call variables
       integer    :: itk,ierr,nn,ksmax,iguess,iout,maxitgm
       real(8)    :: b(nn),x(nn),etak
 
-      external   :: matvec
+cc      external   :: matvec
+
+      INTERFACE
+        subroutine matvec(nn,z,y)
+        integer    :: nn
+        real(8)    :: z(nn),y(nn)
+        end subroutine matvec
+      END INTERFACE
 
 c     Local variables
 
@@ -1128,9 +1143,9 @@ c     ----------------------------------------------------------------------*
 c                                                                           *
 c      work arrays:                                                         *
 c     =============                                                         *
-c      vv    == work array of length  n x (im+1) (used to store the Arnoli  *
+c      vv    == work array of length  n x (im+1) (used to store the Arnoldi *
 c               basis)                                                      *
-c      zz    == work array of length  n x (im+1) (used to store the Arnoli  *
+c      zz    == work array of length  n x (im+1) (used to store the Arnoldi *
 c               basis times the preconditioner operator (FGMRES))
 c     ----------------------------------------------------------------------*
 c      arnoldi size should not exceed im=50 in this version.                *
@@ -1143,7 +1158,14 @@ c     Call variables
       integer    :: ntot,im,maxits,iout,ierr,its
       real(8)    :: rhs(ntot),sol(ntot),eps
 
-      external   matvec
+cc      external   matvec
+
+      INTERFACE
+        subroutine matvec(nn,z,y)
+        integer    :: nn
+        real(8)    :: z(nn),y(nn)
+        end subroutine matvec
+      END INTERFACE
 
 c     Local variables
 
@@ -1153,10 +1175,12 @@ c     Local variables
      .             ,smx_est,smn_est,smx_new,smn_new,snmx,snmn,csmx,csmn
       integer    :: i,j,i1,k,k1,ii,jj,rstrt,irstrt,precout
 
-      logical    :: sing_mat=.false.
+      logical    :: sing_mat
 
 c     Begin program
 
+      sing_mat=.false.
+      
       precout = iout - 2
 
       its = 0
@@ -1460,7 +1484,7 @@ c     ----------------------------------------------------------------------*
 c                                                                           *
 c      work arrays:                                                         *
 c     =============                                                         *
-c      vv    == work array of length  n x (im+1) (used to store the Arnoli  *
+c      vv    == work array of length  n x (im+1) (used to store the Arnoldi *
 c               basis)                                                      *
 c     ----------------------------------------------------------------------*
 c      arnoldi size should not exceed im=50 in this version.                *
@@ -1473,7 +1497,14 @@ c     Call variables
       integer    :: ntot,im,maxits,iout,ierr,its
       real(8)    :: rhs(ntot),sol(ntot),eps
 
-      external   matvec
+cc      external   matvec
+
+      INTERFACE
+        subroutine matvec(nn,z,y)
+        integer    :: nn
+        real(8)    :: z(nn),y(nn)
+        end subroutine matvec
+      END INTERFACE
 
 c     Local variables
 
@@ -1483,9 +1514,11 @@ c     Local variables
      .             ,smx_est,smn_est,smx_new,smn_new,snmx,snmn,csmx,csmn
       integer    :: i,j,i1,k,k1,ii,jj,rstrt,irstrt,precout
 
-      logical    :: sing_mat=.false.
+      logical    :: sing_mat
 
 c     Begin program
+
+      sing_mat=.false.
 
       precout = iout - 2
 

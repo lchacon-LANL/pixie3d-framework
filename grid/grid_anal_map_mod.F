@@ -206,7 +206,7 @@ c     Begin program
 ! y = (R0 + r*a1*cos(theta)+r^2*sum_i(ai*cos(i*theta))*sin(-phi)
 !! x = (R0 + r*sum_i(r^(i-1)*ai*cos(i*theta))*cos(-phi)
 !! y = (R0 + r*sum_i(r^(i-1)*ai*cos(i*theta))*sin(-phi)
-! z = r*sum_i(bi*sin(i*theta)
+! z = r*sum_i(bi*sin(i*theta) <<< INCORRECT???
 
           major_r = gp(1)  !Major radius
 

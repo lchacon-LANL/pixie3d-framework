@@ -41,6 +41,54 @@
 
       contains
 
+c     is_NAN
+c     #################################################################
+      function is_NAN(a)
+
+c     -----------------------------------------------------------------
+c     Perform cross product of vectors vec1 and vec2: vec3 = vec1 x vec2,
+c     where the vectors are in Cartesian coordinates.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        logical :: is_NAN
+        real(8) :: a
+
+c     Local variables
+
+c     Begin program
+
+        is_NAN = (a /= a)
+
+      end function is_NAN
+
+c     is_INF
+c     #################################################################
+      function is_INF(a)
+
+c     -----------------------------------------------------------------
+c     Perform cross product of vectors vec1 and vec2: vec3 = vec1 x vec2,
+c     where the vectors are in Cartesian coordinates.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        logical :: is_INF
+        real(8) :: a
+
+c     Local variables
+
+c     Begin program
+
+        is_INF = (abs(a) > HUGE(a))
+
+      end function is_INF
+      
 c     cross_product
 c     #################################################################
       function cross_product(vec1,vec2) result(vec3)

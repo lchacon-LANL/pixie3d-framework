@@ -541,6 +541,13 @@ c     find_polar_coords
 c     ########################################################################
       subroutine find_polar_coords(g_def,igrid,i,j,k,rr,th,zz,coords)
 
+c     ------------------------------------------------------------------------
+c     In helical, cylindrical, and toroidal geometries, it finds polar coords
+c     (r,theta,z) or (r,theta,phi) from Cartesian components. This routine
+c     is needed because, when packing is used in radius, the logical coordinate
+c     xi no longer corresponds to the real radial coordinate, r(xi).
+c     ------------------------------------------------------------------------
+      
       implicit none
 
 c     Call variables
@@ -555,7 +562,11 @@ c     Call variables
 c     Local variables
 
       integer :: ig,jg,kg
-      real(8) :: x1,x2,x3,x,y,z,gp(ngparams),mm,kk,aa,bb,R0,R2
+      real(8) :: x1,x2,x3,x,y,z,gp(ngparams),mm,kk,aa,bb,R0,R2,dR2
+     .          ,Jac,rhs,da,db,Z2,dZ2,iaa,ibb,da_a,db_b,rold,Rs
+
+      integer :: m,n
+      real(8) :: ai(10),bi(10)
 
 c     Begin program
 
@@ -586,6 +597,136 @@ c     Begin program
         zz =-atan2(y,x)                          !Toroidal angle
         th = atan2(z/bb,sqrt(R2))                !Poloidal angle
         
+        if (rr < 0d0) th = th + pi
+
+      case('sha')
+! Shaped toroidal coordinates system
+! x = (R0 + r*sum_i(ai*cos(i*theta))*cos(-phi)
+! y = (R0 + r*sum_i(ai*cos(i*theta))*sin(-phi)
+! z = r*sum_i(bi*sin(i*theta)
+
+        R0    = g_def%params(1) !Major radius
+        ai(1) = g_def%params(2) !Horizontal radius
+        bi(1) = g_def%params(3) !Vertical   radius
+
+        do m=2,10
+          ai(m) = g_def%params(7+m)  ! Higher order cosine coefficients are stored in gp(9) to gp(17)
+          bi(m) = g_def%params(16+m) ! Higher order sine coefficients are stored in gp(18) to gp(26)
+        enddo
+
+        !Poloidal angle
+        th = x2           !Don't expect packing in poloidal angle, so we can trust logical coord
+        
+        !Toroidal angle
+        zz =-atan2(y,x)   !Or x3, for same reason
+
+        !Poloidal radius
+        aa = 0d0 ; bb = 0d0
+        do m=1,10
+          aa = aa + ai(m)*cos(m*th)
+          bb = bb + bi(m)*sin(m*th)
+        enddo
+        aa = aa/cos(th)
+        bb = bb/sin(th)
+        
+        R2 = ((sqrt(x*x+y*y)-R0)/aa)**2          !In-plane radius
+        
+        rr = sign(1d0,x1)*sqrt(R2+z*z/(bb*bb))
+        
+        if (rr < 0d0) th = th + pi
+
+      case('sh2')
+! Shaped toroidal coordinates system
+! x = (R0 + r*a1*cos(theta)+r^2*sum_i(ai*cos(i*theta))*cos(-phi)
+! y = (R0 + r*a1*cos(theta)+r^2*sum_i(ai*cos(i*theta))*sin(-phi)
+!! x = (R0 + r*sum_i(r^(i-1)*ai*cos(i*theta))*cos(-phi)
+!! y = (R0 + r*sum_i(r^(i-1)*ai*cos(i*theta))*sin(-phi)
+! z = r*sum_i(bi*sin(i*theta) <<< INCORRECT???
+
+        R0    = g_def%params(1) !Major radius
+        ai(1) = g_def%params(2) !Horizontal radius
+        bi(1) = g_def%params(3) !Vertical   radius
+
+        do m=2,10
+          ai(m) = g_def%params(7+m)  ! Higher order cosine coefficients are stored in gp(9) to gp(17)
+          bi(m) = g_def%params(16+m) ! Higher order sine coefficients are stored in gp(18) to gp(26)
+        enddo
+
+        !Poloidal angle
+        th = x2           !Don't expect packing in poloidal angle, so we can trust logical coord
+        
+        !Toroidal angle
+        zz =-atan2(y,x)   !Or x3, for same reason
+
+        !Poloidal radius (requires iteration!)
+        Rs = (sqrt(x*x+y*y)-R0)  !Save for efficiency
+
+        aa = ai(1)
+        bb = bi(1)
+        R2 = Rs/aa ; R2 = R2*R2  !In-plane radius
+        Z2 = z/bb  ; Z2 = Z2*Z2
+        rr = sqrt(R2+Z2)
+
+c$$$        do n=1,30   !Picard iteration
+c$$$          rold = rr
+c$$$          aa = ai(1)*cos(th)
+c$$$          bb = bi(1)*sin(th)
+c$$$          do m=2,10
+c$$$            aa = aa + rr*ai(m)*cos(m*th)
+c$$$            bb = bb + rr*bi(m)*sin(m*th)  !THIS IS NOT WHAT IS STATED IN COMMENTS ABOVE
+c$$$          enddo
+c$$$          iaa = cos(th)/aa
+c$$$          ibb = sin(th)/bb
+c$$$
+c$$$          !Compute Jacobian
+c$$$          R2 = Rs*iaa ; R2 = R2*R2 !In-plane radius
+c$$$          Z2 = z*z*ibb*ibb
+c$$$          rr = sqrt(R2+Z2)
+c$$$          write (*,*) "iter",n,"conv",abs(rr-rold)
+c$$$          if (abs(rr-rold) < 1d-5) exit
+c$$$        enddo
+c$$$        write (*,*)
+
+        do n=1,30  !Newton iteration
+          aa = ai(1)*cos(th)
+          bb = bi(1)*sin(th)
+          da = 0d0
+          db = 0d0
+          do m=2,10
+            aa = aa + rr*ai(m)*cos(m*th)
+            bb = bb + rr*bi(m)*sin(m*th)  !THIS IS NOT WHAT IS STATED IN COMMENTS ABOVE
+            da = da +    ai(m)*cos(m*th)
+            db = db +    bi(m)*sin(m*th)
+          enddo
+          iaa = 1d0/aa
+          ibb = 1d0/bb
+          da_a = da*iaa
+          db_b = db*ibb
+          iaa = cos(th)*iaa
+          ibb = sin(th)*ibb
+
+          !Compute Jacobian
+          R2 = Rs*iaa ; R2 = R2*R2 !In-plane radius
+          Z2 = z*ibb  ; Z2 = Z2*Z2 !Z coord
+          dR2 = -2*R2*da_a
+          dZ2 = -2*Z2*db_b
+          Jac = (2*rr - dR2 - dZ2) !(1d0-0.5/sqrt(R2+Z2)*(dR2+dZ2))
+
+          !Compute residual
+          rhs = rr*rr - R2 - Z2  !rr-sqrt(R2+Z2)
+
+          !Update solution
+          rr = rr - rhs/Jac
+cc          write (*,*) n,"rr",rr,"res",rhs,"Jac",Jac,da/aa,db/bb
+          if (abs(rhs) < 1d-5) exit
+        enddo
+cc        write (*,*)
+
+        if (n > 30) call pstop("find_polar_coords"
+     .                        ,"Coordinate iteration did not converge")
+        
+        rr = sign(1d0,x1)*rr
+
         if (rr < 0d0) th = th + pi
 
 c$$$      case('hel')

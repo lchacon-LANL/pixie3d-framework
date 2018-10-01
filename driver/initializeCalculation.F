@@ -30,7 +30,7 @@ c Local variables
 
       integer :: ierr
 
-      integer :: mgcf
+      integer :: mgcf,mgcs
 
       logical :: petsc_flg
      .          ,bc_debg=.false.
@@ -83,6 +83,10 @@ c Read PETSc runtime options
       call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-mgcf',mgcf
      .                       ,petsc_flg,ierr)
       if (petsc_flg) call MG_set_proc_coarsen_factor(mgcf)
+
+      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-mgcs',mgcs
+     .                       ,petsc_flg,ierr)
+      if (petsc_flg) call MG_set_coarse_size(mgcs)
 #endif
 
       call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-ilevel',ilevel
