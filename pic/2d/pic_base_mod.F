@@ -460,56 +460,6 @@ c     End program
 
       end subroutine defineBCs_pcles
 
-c$$$c     defineBCs_pcles
-c$$$c     ###############################################################
-c$$$      subroutine defineBCs_pcles(test)
-c$$$c     ---------------------------------------------------------------
-c$$$c     Defines boundary conditions of particles.
-c$$$c     ---------------------------------------------------------------
-c$$$
-c$$$      implicit none
-c$$$
-c$$$c     Call variables
-c$$$
-c$$$      character(*) :: test
-c$$$
-c$$$c     Local variables
-c$$$
-c$$$c     Begin program
-c$$$
-c$$$      pbcond = pPER
-c$$$
-c$$$      select case(trim(test))
-c$$$      case ('slow_shock')
-c$$$
-c$$$        !set pbcond(2) for particle b.c.
-c$$$        pbcond(1)   = pOPN
-c$$$
-c$$$      case ('ic','tm')
-c$$$ 
-c$$$        pbcond(3)   = pREF
-c$$$        pbcond(4)   = pREF
-c$$$
-c$$$      case('bpnch')
-c$$$
-c$$$        pbcond(1)   = pSP
-c$$$        pbcond(2)   = pREF
-c$$$
-c$$$      case ('wbl_bc')
-c$$$ 
-c$$$        pbcond(1)   = pREF
-c$$$        pbcond(2)   = pREF
-c$$$
-c$$$      case default
-c$$$
-c$$$        call p_stop("defineBCs_pcles","Pcle BCs undefined")
-c$$$
-c$$$      end select
-c$$$
-c$$$c     End program
-c$$$
-c$$$      end subroutine defineBCs_pcles
-
       end module pic_BCs
 
 c pic_shape_f
@@ -4537,6 +4487,9 @@ c     Load particles
         case('slow_shock')
           call pstop("load_pcles_offset"
      .              ,"Slow shock quiet start not implemented")
+        case('plasma_exp')
+          call pstop("load_pcles_offset"
+     .              ,"Plasma Expansion quiet start not implemented")
         case('kaw_ii')
 #include "problem_init/kawiiLoadPartls_qs.f"
         case('landau','2strm','iaw')!,'langdon')
@@ -4552,6 +4505,8 @@ c     Load particles
 #include "problem_init/icLoadPartls.f"
         case('slow_shock')
 #include "problem_init/slowShockLoadPartls.f"
+cc        case('plasma_exp')
+cc#include "problem_init/plasmaExpLoadPartls.f"
         case('kaw_ii')   
 #include "problem_init/kawiiLoadPartls.f"
         case('landau','2strm','iaw')!,'langdon')
@@ -4751,7 +4706,7 @@ C    perturb particles after matching given equilibrium
       select case(trim(test))
       case('ic','tm')
 #include "problem_init/icPerturb.f"
-      case('slow_shock')
+      case('slow_shock','plasma_exp')
 #include "problem_init/slowShockPerturb.f"
       case('kaw_ii')
         if(quiet_start) then
