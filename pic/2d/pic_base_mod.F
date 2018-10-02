@@ -5311,11 +5311,16 @@ c$$$
 c$$$      end function canon_moment_exchg
 #endif
 
-c     find vd T parallel and perpendicular to B0 as a function of x
+c     find_vdTx
 c     ###################################################################
       subroutine find_vdTx(nxg,NDim,nS,theta,vd,T)
 
       implicit none
+
+c     -------------------------------------------------------------------
+c     Find vd, T parallel and perpendicular to B0 as a function of x
+c     using NGP interpolation.
+c     -------------------------------------------------------------------
 
 c     Call variables
 
@@ -5342,7 +5347,7 @@ c     Begin program
       
       do isp = 1,n_sp
         ms(isp) = spcs(isp)%m
-        Np(isp) = size(spcs(isp)%pcles)
+        Np(isp) = _Npg*size(spcs(isp)%pcles)
         do ip = nip+1, size(spcs(isp)%pcles)
           ci = spcs(isp)%pcles(ip)%ijk_np
           vx = spcs(isp)%pcles(ip)%v_np(:,1)
@@ -5353,9 +5358,9 @@ c     Begin program
           v(:,3) = vz*cos(theta) - vx*sin(theta) !perpendicular
           !Do NOT vectorize: Memory race issues
           do k=1,_Npg
-            Npc(ci(k),isp) = Npc(ci(k),isp)+1
-            vd(ci(k),:,isp) = vd(ci(k),:,isp) + v(k,:)
-            T (ci(k),:,isp) = T (ci(k),:,isp) + v(k,:)*v(k,:)
+            Npc(ci(k),isp)  = Npc(ci(k),isp)+spcs(isp)%pcles(ip)%w_np(k)
+            vd(ci(k),:,isp) = vd (ci(k),:,isp) + v(k,:)
+            T (ci(k),:,isp) = T  (ci(k),:,isp) + v(k,:)*v(k,:)
           enddo
         end do                  !ip
       end do                    !isp
@@ -5385,10 +5390,15 @@ c     Begin program
 #endif
 
       do i=1,nxg
-        do j=1,NDim        
-          vd(i,j,1:n_sp) = vd(i,j,1:n_sp)/Npc(i,1:n_sp)
-          T (i,j,1:n_sp) =(T (i,j,1:n_sp)/Npc(i,1:n_sp)
-     .                    -vd(i,j,1:n_sp)*vd(i,j,1:n_sp))*ms(1:n_sp)
+        do j=1,NDim
+          where(Npc(i,:) > 0) 
+            vd(i,j,1:n_sp) = vd(i,j,1:n_sp)/Npc(i,1:n_sp)
+            T (i,j,1:n_sp) =(T (i,j,1:n_sp)/Npc(i,1:n_sp)
+     .           -vd(i,j,1:n_sp)*vd(i,j,1:n_sp))*ms(1:n_sp)
+          elsewhere
+            vd(i,j,1:n_sp) = 0d0
+            T (i,j,1:n_sp) = 0d0
+          end where
         end do                  !j
       end do                    !i
 
