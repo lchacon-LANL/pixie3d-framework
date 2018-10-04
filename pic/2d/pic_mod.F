@@ -166,9 +166,6 @@ c     Move particles
 
            it = 0
 
-           ! Use local registers for performance (C. Mikida)
-           w_pcle = spcs(isp)%pcles(ipc)%w_n
-
 #if defined(PIC_CM_DIAG)
            d_x = 0d0
 #endif
@@ -178,11 +175,14 @@ c     Move particles
              it = it+1
 
              !Perform pcle substep
-             call ACC_CN_incell_offset(spcs(isp)%q_m
-     .                                ,spcs(isp)%pcles(ipc),pcle_nu
+             call ACC_CN_incell_offset(spcs(isp)%q_m,pcle_nu
+     .                                ,spcs(isp)%pcles(ipc)
      $                                ,dt,dtp,dt_sub
      $                                ,DtA,B0,A,phi,dx
      $                                ,psts,pits)
+
+             !Use local registers for performance (C. Mikida)
+             w_pcle = spcs(isp)%pcles(ipc)%w_np
 
              !Update pcle counters
              pst_sum = pst_sum + 1      !Particle substep counter
@@ -280,6 +280,7 @@ c     Move particles
              pcle_nu%ijk_n = spcs(isp)%pcles(ipc)%ijk_np
              pcle_nu%x_n   = spcs(isp)%pcles(ipc)%x_np
              pcle_nu%v_n   = spcs(isp)%pcles(ipc)%v_np
+             pcle_nu%w_n   = spcs(isp)%pcles(ipc)%w_np
 
              dtp = dtp-dt_sub
 
@@ -444,14 +445,15 @@ c     End program
 
 c     ACC_CN_incell_offset
 c     ##################################################################
-      subroutine ACC_CN_incell_offset (q_m,pcle,pcle_nu,dt,dtp,dt_sub
+      subroutine ACC_CN_incell_offset (q_m,pcle_nu,pcle,dt,dtp,dt_sub
      $                                ,DtA,B0,A,phi,dx,substeps,it)
 
       implicit none
       
 c     Call variables
 
-      type(particle), intent(inout) :: pcle,pcle_nu
+      type(particle), intent(inout) :: pcle_nu
+      type(particle), intent(inout) :: pcle
 
       real(8),intent(in) :: dt,q_m
       real(8),intent(in) :: A(0:,0:,:),phi(0:,0:),DtA(0:,0:,:),B0(3)
@@ -495,7 +497,7 @@ c     Local variables
       real(_prec) :: E_1   (_Npg,2,3),E_2   (_Npg,3,2),E_3   (_Npg,3,3)
 
       real(_prec) :: phi_loc(_Npg,3,3),xnp_loc(_Npg,3),vnp_loc(_Npg,3)
-      real(_prec) :: x0_loc(_Npg,3),v0_loc(_Npg,3)
+      real(_prec) :: x0_loc(_Npg,3),v0_loc(_Npg,3),wp_loc(_Npg)
       real(_prec) :: x0p(_Npg),y0p(_Npg)
       real(_prec) :: Sx2_o(_Npg,3),Sy2_o(_Npg,3)
       real(_prec) :: dteq0(_Npg)
@@ -505,11 +507,6 @@ c     Begin program
       qm = q_m
 
       dteq0 = 0d0
-
-      pcle%x_np = pcle_nu%x_n
-      pcle%v_np = pcle_nu%v_n
-      pcle%ijk_np = pcle_nu%ijk_n
-      pcle%w_np = pcle_nu%w_n
 
       call get_global_grid_size(nxg,nyg,nzg)
       call get_inverse_h(ihx,ihy,ihz)
@@ -521,6 +518,7 @@ c     Initialize local registers
 
       x0_loc = pcle_nu%x_n
       v0_loc = pcle_nu%v_n
+      wp_loc = pcle_nu%w_n
 
 c     Also define some insets of arrays for later use (C. Mikida)
 
@@ -551,7 +549,7 @@ c     Estimate sub-time-step
 
 c     Initialize Picard
 
-      call initialize_it(dt_sub,dx,vh)
+      call initialize_it(v0_loc,dt_sub,dx)
 
       it=0
 
@@ -604,7 +602,7 @@ c     Update particle quantities
 
 c     Cell crossing and particle b.c.
 
-      call cell_crossing(dx,xnp_loc,vnp_loc,inp_loc,jnp_loc)
+      call cell_crossing(dx,xnp_loc,vnp_loc,inp_loc,jnp_loc,wp_loc)
 
 c     Back to the global registers now:
 
@@ -612,6 +610,7 @@ c     Back to the global registers now:
 
       pcle%v_np = vnp_loc
       pcle%x_np = xnp_loc
+      pcle%w_np = wp_loc
 
 c     End program
 
@@ -619,7 +618,7 @@ c     End program
 
 c     initialize_it
 c     ######################################################################
-      subroutine initialize_it(dts,dx,vh)
+      subroutine initialize_it(vh,dts,dx)
 
       implicit none
 
@@ -634,10 +633,6 @@ c     Local variables
 cc      real(_prec) :: Chrtof2(_Npg,3,3,3),ainert(_Npg,3)
 
 c     Begin program
-
-c     Find vh
-
-      vh = (v0_loc+pcle%v_np)*0.5d0 
 
 c     Find dx
 
@@ -1962,8 +1957,10 @@ c     Update particle info
         if (particle_sort) then
           allocate(Npcle_cell(nxg,nyg,nzg,numspcs))
           call sort_particles(Npart_cell=Npcle_cell)
-          isp = 2 !Electrons
-          npc1 = Npcle_cell(1,1,1,isp)+Npcle_cell(2,1,1,isp) !Sum first two cells
+          do isp=1,n_sp
+            if (spcs(isp)%q<0d0) cycle !Monitor ions
+            npc1 = npc1 + Npcle_cell(1,1,1,isp)+Npcle_cell(2,1,1,isp) !Sum first two cells
+          enddo
           deallocate(Npcle_cell)
         else
           do isp=1,numspcs
@@ -1981,7 +1978,7 @@ c     Update particle info
               call xform_pcle_idx(spcs(isp)%pcles(ipc)%ijk_n
      .                           ,nxg,i_n,j_n)
               do i=1, _Npg
-                if((i_n(i).eq.1.or.i_n(i).eq.2).and.(isp.eq.2)) then
+                if((i_n(i)==1.or.i_n(i)==2).and.(spcs(isp)%q>0d0))then !Monitor ions
                   npc1 = npc1 + 1
                 end if
               end do
@@ -1991,7 +1988,7 @@ c     Update particle info
           end do
         endif
 
-        !Calculate inflow np filling
+        !Calculate inflow np filling for ALL species
         if(nip>0) then
           !keep the first cell particle number constant
           npl = (npc1/_Npg-npc1_0(1))
