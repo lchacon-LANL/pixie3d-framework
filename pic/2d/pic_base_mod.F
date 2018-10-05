@@ -38,7 +38,8 @@ c ######################################################################
       integer,parameter :: Imass=1,Imom=2,Ien=3,Icmx=4,Icmy=5,Icmz=6
       real(8) :: m_np(_Dim+3),m_n(_Dim+3),PoynFlux,cm_ex(3)
 
-      integer :: nip=0         !Number of inactive particles
+      integer :: nip      =0   !Number of inactive particles
+     .          ,nip_cell =0   !Number of inactive particles per cell
      .          ,npc1_0(6)=0   !Number of initial particles at open bdry
  
       integer :: gnip,pgroup
@@ -432,6 +433,8 @@ c ######################################################################
       !B.C.
       integer, parameter :: pPER=PER,pSP=SP,pOPN=OPN,pREF=-2
 
+      logical :: opnbc_is_vacuum = .false.
+
       integer :: pbcond(6)
       real(8) :: vinject(3,2*_Dimx)=0d0  !flow speed at boundaries for open b.c.
 
@@ -481,7 +484,6 @@ c     ##################################################################
 
       j = (ijk-1)/nx + 1
       i = ijk - nx*(j-1)
-cc      i  = mod(ijk, nx) + 1
 
       end subroutine xform_pcle_idx_scl
 
@@ -492,11 +494,9 @@ c     ##################################################################
       implicit none
 
       integer :: ijk(_Npg),nx,i(_Npg),j(_Npg)
-c$$$      integer :: ijk(:),nx,i(:),j(:)
 
       j = (ijk-1)/nx + 1
       i = ijk - nx*(j-1)
-cc      i  = mod(ijk, nx) + 1
 
       end subroutine xform_pcle_idx
 
@@ -3995,9 +3995,7 @@ c ######################################################################
 
       use pic_mass_matrix
 
-cc      use pic_io
-
-      use grid, ONLY: npx,npy,npz,gparams,np,destroyGrid
+      use grid, ONLY: npx,npy,npz,np,destroyGrid
 #if defined(petsc)
      .               ,add_profile_stage
 #endif
@@ -4048,12 +4046,10 @@ cc      use pic_io
      .          ,v0_z (nsp_max)=0d0        !Drift velocity
 
       real(8) :: nsubstep(nsp_max)=1       !for fixed number of substeps
-cc     .          ,eps_omg=0d0               !Perturbation frequency 
      .          ,eps_pic=0d0               !Perturbation of particle positions
  
       logical :: phase_space_plot =.false. !Whether to plot phase space or not
      .          ,quiet_start      =.false. !For using quiet start 
-cc     .          ,eps_prop         =.false. !Perturbation propagate
      .          ,particle_sort    =.true.  !Whether to sort particles
 
       contains
@@ -4077,17 +4073,14 @@ c     Call variables
 c     Local variables
 
       integer :: uinput=1234,isp
-      real(8) :: lam
 
 c     Namelists
 
       namelist /picdef/ npcles,v0_x,v0_y,v0_z,v_thx,v_thy,v_thz
-     .     ,n_sp,omega_p,q_m,min_pcles,npcles_cell
+     .     ,n_sp,omega_p,q_m,min_pcles,npcles_cell,nip,nip_cell
      .     ,quiet_start,nsubstep,eps_pic
-     .     ,n_b,i_b,r_b,nip,vinject,C_bkgrnd
+     .     ,n_b,i_b,r_b,vinject,C_bkgrnd,opnbc_is_vacuum
      .     ,phase_space_plot,mass_matrix_solve,particle_sort
-     .     !Legacy
-cc     .     ,eps_prop,eps_omg
 
 c     Begin program
 
@@ -4114,19 +4107,7 @@ c     Read initialization parameters
 
 c     Consistency check
 
-      !>>Numbers
       if (n_sp == 0) call pstop('readInput','Zero number of species')
-
-      select case(test)
-      case('tm')
-        lam = gparams(2)
-        write (*,*) v0_z(1),v0_z(2)
-c$$$        if (v0_z(2) /= v_thz(2)/lam .or. v0_z(1) /= -v0_z(2)
-c$$$     .      .or. v0_z(1) == 0d0 .or. v0_z(2) == 0d0) then
-c$$$          if (my_rank_pic == 0)
-c$$$     .         write (*,*) "WARNING: problem with v0_z setup"
-c$$$        endif
-      end select
 
 c$$$      if (min_pcles > 0) then
 c$$$        call pstop('readInput','min_pcles > 0; '//
@@ -4275,7 +4256,10 @@ c     Initialize mesh lengths and volumes
 
 c     Initialize pcle accounting qtys
 
-      if (sum(npcles) == 0) npcles = npcles_cell*nxg*nyg*nzg
+      if (sum(npcles) == 0) then
+        npcles = npcles_cell*nxg*nyg*nzg
+        nip = nip_cell*nxg*nyg*nzg
+      endif
 
       gnip = nip
 
@@ -4838,7 +4822,8 @@ c     Begin program
         end do
 
         call cell_crossing(dx,spcs(isp)%pcles(ip)%x_n
-     .                       ,spcs(isp)%pcles(ip)%v_n,i_np,j_np)
+     .                       ,spcs(isp)%pcles(ip)%v_n,i_np,j_np
+     .                       ,spcs(isp)%pcles(ip)%w_n)
 
         spcs(isp)%pcles(ip)%ijk_n = i_np + nxg*(j_np - 1)        
 
@@ -4852,15 +4837,14 @@ c     Begin program
 
 c     cell_crossing
 c     ##################################################################
-      subroutine cell_crossing(dx,xnp,vnp,inp,jnp)
+      subroutine cell_crossing(dx,xnp,vnp,inp,jnp,wp)
 
       implicit none
 
 c     Call variables
 
       real(_prec),intent(in)    :: dx(_Npg,3)
-      real(_prec),intent(inout) :: xnp(_Npg,3)
-      real(_prec),intent(inout) :: vnp(_Npg,3)
+      real(_prec),intent(inout) :: xnp(_Npg,3),vnp(_Npg,3),wp(_Npg)
       integer,intent(inout) :: inp(_Npg),jnp(_Npg)
 
 c     Local variables
@@ -4891,7 +4875,7 @@ c     Impose BCs
             enddo
             if(in0(i,dim)>nsize(dim)) !BC @ location=1
      .         call pcles_bc_offset(dim,1,pbcond,nsize(dim),xnp(i,:)
-     .                             ,vnp(i,:),in0(i,:))
+     .                             ,vnp(i,:),in0(i,:),wp(i))
           else if(dx(i,dim)<0.and. xnp(i,dim).le.0) then
             do while(xnp(i,dim).le.0d0)
               in0(i,dim) = in0(i,dim)-1
@@ -4899,7 +4883,7 @@ c     Impose BCs
             enddo
             if(in0(i,dim)<1)         !BC @ location=0
      .         call pcles_bc_offset(dim,0,pbcond,nsize(dim),xnp(i,:)
-     .                             ,vnp(i,:),in0(i,:))
+     .                             ,vnp(i,:),in0(i,:),wp(i))
           end if
         enddo
       end do
@@ -4913,7 +4897,7 @@ c     Transfer location info
 
 c     pcles_bc_offset
 c     ##################################################################
-      subroutine pcles_bc_offset(dim,loc,pbc,nn,xp,vp,ip)
+      subroutine pcles_bc_offset(dim,loc,pbc,nn,xp,vp,ip,wp)
 
       implicit none
 
@@ -4925,7 +4909,7 @@ c     ------------------------------------------------------------------
 c     Call variables
 
       integer,intent(in)   :: pbc(6),dim,loc,nn
-      real(8),intent(inout):: xp(3),vp(3)
+      real(8),intent(inout):: xp(3),vp(3),wp
       integer,intent(inout):: ip(3)
 
 c     Local variables
@@ -4981,6 +4965,7 @@ cc           if (vdn*(-1)**loc < 0d0) vp = vp - 2d0*vdn*cov(dim,:)*inmag ! vp = 
          vp(dim) = 2d0*vinject(dim,ibc) - vp(dim) !assuming a symmetric distribution
          vp(dim1) = -vp(dim1)
          vp(dim2) = -vp(dim2)
+         if (opnbc_is_vacuum) wp = 0d0  !Pcle no longer contributes to moments
       case default
          print *, "Specify the particle BC, quit"
          stop
@@ -5311,11 +5296,16 @@ c$$$
 c$$$      end function canon_moment_exchg
 #endif
 
-c     find vd T parallel and perpendicular to B0 as a function of x
+c     find_vdTx
 c     ###################################################################
       subroutine find_vdTx(nxg,NDim,nS,theta,vd,T)
 
       implicit none
+
+c     -------------------------------------------------------------------
+c     Find vd, T parallel and perpendicular to B0 as a function of x
+c     using NGP interpolation.
+c     -------------------------------------------------------------------
 
 c     Call variables
 
@@ -5327,7 +5317,7 @@ c     Local variables
 
       integer :: i,j,k,isp,ip,Np(nS),ci(_Npg),Npc(nxg,nS),n_sp
       real(8) :: vx(_Npg),vy(_Npg),vz(_Npg)
-      real(8) :: v(_Npg,3)
+      real(8) :: v(_Npg,3),wp(_Npg)
       real(8) :: ms(nS)
 
       real(8),allocatable,dimension(:) :: send_buf,rec_buf
@@ -5342,20 +5332,21 @@ c     Begin program
       
       do isp = 1,n_sp
         ms(isp) = spcs(isp)%m
-        Np(isp) = size(spcs(isp)%pcles)
+        Np(isp) = _Npg*size(spcs(isp)%pcles)
         do ip = nip+1, size(spcs(isp)%pcles)
           ci = spcs(isp)%pcles(ip)%ijk_np
           vx = spcs(isp)%pcles(ip)%v_np(:,1)
           vy = spcs(isp)%pcles(ip)%v_np(:,2)
           vz = spcs(isp)%pcles(ip)%v_np(:,3)
+          wp = spcs(isp)%pcles(ip)%w_np(:)
           v(:,1) = vx*cos(theta) + vz*sin(theta) !parallel
           v(:,2) = vy
           v(:,3) = vz*cos(theta) - vx*sin(theta) !perpendicular
           !Do NOT vectorize: Memory race issues
           do k=1,_Npg
-            Npc(ci(k),isp) = Npc(ci(k),isp)+1
-            vd(ci(k),:,isp) = vd(ci(k),:,isp) + v(k,:)
-            T (ci(k),:,isp) = T (ci(k),:,isp) + v(k,:)*v(k,:)
+            Npc(ci(k),isp)  = Npc(ci(k),isp)+wp(k)
+            vd(ci(k),:,isp) = vd (ci(k),:,isp) + v(k,:)*wp(k)
+            T (ci(k),:,isp) = T  (ci(k),:,isp) + v(k,:)*v(k,:)*wp(k)
           enddo
         end do                  !ip
       end do                    !isp
@@ -5385,10 +5376,15 @@ c     Begin program
 #endif
 
       do i=1,nxg
-        do j=1,NDim        
-          vd(i,j,1:n_sp) = vd(i,j,1:n_sp)/Npc(i,1:n_sp)
-          T (i,j,1:n_sp) =(T (i,j,1:n_sp)/Npc(i,1:n_sp)
-     .                    -vd(i,j,1:n_sp)*vd(i,j,1:n_sp))*ms(1:n_sp)
+        do j=1,NDim
+          where(Npc(i,:) > 0) 
+            vd(i,j,1:n_sp) = vd(i,j,1:n_sp)/Npc(i,1:n_sp)
+            T (i,j,1:n_sp) =(T (i,j,1:n_sp)/Npc(i,1:n_sp)
+     .           -vd(i,j,1:n_sp)*vd(i,j,1:n_sp))*ms(1:n_sp)
+          elsewhere
+            vd(i,j,1:n_sp) = 0d0
+            T (i,j,1:n_sp) = 0d0
+          end where
         end do                  !j
       end do                    !i
 
