@@ -72,7 +72,5 @@ c$$$!$OMP END PARALLEL
              ipc0 = ipc0 + npc_int(ii,is)    
            end do               !cell x
          end do                 !cell y
-c$$$       print *,v_tot,vx2,vt2
+cc       print *,"isp=",is,v_tot(is,:)/ipc0,sqrt((vx2+vt2)/3./_Npg/ipc0)  !Drift, vth
        end do                    !species
-
-c$$$       stop
