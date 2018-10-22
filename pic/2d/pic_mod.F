@@ -2067,7 +2067,8 @@ c     Update particle info
 
 c     Dump particles for restart
 
-      if ((TS_chk_dump().or.itime==0).and.(.not.tst_flg)) then
+      if ((TS_chk_dump().or.itime==0.or.TS_chk_end())
+     .    .and.(.not.tst_flg)) then
         ierr = pic_dump_pcles(time)
       endif
 

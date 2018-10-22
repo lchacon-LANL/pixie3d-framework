@@ -4000,6 +4000,8 @@ c ######################################################################
      .               ,add_profile_stage
 #endif
 
+      use ts_base, ONLY: TS_chk_end
+      
       use ts_io, ONLY:time,dt,ts_chk_dump,itime
 
       use var_io, ONLY: tst_flg
