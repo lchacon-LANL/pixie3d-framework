@@ -70,6 +70,8 @@ endif
 
 ifeq ($(HOST),jetta)
 
+#  CPPFLAGS += $(PREPROC)RFX
+  
   override MACHINE = jetta
 
   FC ?= gfortran
