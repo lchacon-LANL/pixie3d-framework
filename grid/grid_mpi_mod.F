@@ -1470,6 +1470,86 @@ c     Begin program
 
       end function rms
 
+c     pmax
+c     ###################################################################
+      function pmax(val,mpi_comm)
+
+c     -------------------------------------------------------------------
+c     Performs parallel maximum value.
+c     -------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      real(8) :: pmax,val
+      integer,optional :: mpi_comm
+
+c     Local variables
+
+      integer :: mpicomm
+      real(8) :: dum
+
+c     Begin program
+
+#if defined(petsc)
+      if (PRESENT(mpi_comm)) then
+        mpicomm = mpi_comm
+      else
+        mpicomm = MPI_COMM_WORLD
+      endif
+
+      if (.not.asm) then
+        dum = val
+        call MPI_Allreduce(dum,val,1,MPI_DOUBLE_PRECISION
+     .                    ,MPI_MAX,mpicomm,mpierr)
+      endif
+#else
+      pmax = val
+#endif
+
+      end function pmax
+
+c     pmin
+c     ###################################################################
+      function pmin(val,mpi_comm)
+
+c     -------------------------------------------------------------------
+c     Performs parallel maximum value.
+c     -------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      real(8) :: pmin,val
+      integer,optional :: mpi_comm
+
+c     Local variables
+
+      integer :: mpicomm
+      real(8) :: dum
+
+c     Begin program
+
+#if defined(petsc)
+      if (PRESENT(mpi_comm)) then
+        mpicomm = mpi_comm
+      else
+        mpicomm = MPI_COMM_WORLD
+      endif
+
+      if (.not.asm) then
+        dum = val
+        call MPI_Allreduce(dum,val,1,MPI_DOUBLE_PRECISION
+     .                    ,MPI_MIN,mpicomm,mpierr)
+      endif
+#else
+      pmin = val
+#endif
+
+      end function pmin
+
 c     isProc
 c     #################################################################
       function isProc(proc_id)
