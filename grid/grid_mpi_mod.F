@@ -1488,7 +1488,6 @@ c     Call variables
 c     Local variables
 
       integer :: mpicomm
-      real(8) :: dum
 
 c     Begin program
 
@@ -1499,11 +1498,8 @@ c     Begin program
         mpicomm = MPI_COMM_WORLD
       endif
 
-      if (.not.asm) then
-        dum = val
-        call MPI_Allreduce(dum,val,1,MPI_DOUBLE_PRECISION
-     .                    ,MPI_MAX,mpicomm,mpierr)
-      endif
+      call MPI_Allreduce(val,pmax,1,MPI_DOUBLE_PRECISION
+     .                  ,MPI_MAX,mpicomm,mpierr)
 #else
       pmax = val
 #endif
@@ -1528,7 +1524,6 @@ c     Call variables
 c     Local variables
 
       integer :: mpicomm
-      real(8) :: dum
 
 c     Begin program
 
@@ -1539,11 +1534,8 @@ c     Begin program
         mpicomm = MPI_COMM_WORLD
       endif
 
-      if (.not.asm) then
-        dum = val
-        call MPI_Allreduce(dum,val,1,MPI_DOUBLE_PRECISION
-     .                    ,MPI_MIN,mpicomm,mpierr)
-      endif
+      call MPI_Allreduce(val,pmin,1,MPI_DOUBLE_PRECISION
+     .                  ,MPI_MIN,mpicomm,mpierr)
 #else
       pmin = val
 #endif
