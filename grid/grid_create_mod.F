@@ -950,14 +950,16 @@ c     Coordinate-specific checks
             write (*,*) 'Aborting...'
             stop
           endif
-        case ('tor','sha','sh2','stl')
+        case ('tor','sha','sh2','stl','tsq')
           if (xmin /= 0d0 .and. bcSP()) then
             write (*,*) 'Error in setup: xmin =/0 is not singular point'
             write (*,*) 'Aborting...'
             stop
           endif
 
-          if (coords=='sh2'.or.coords=='stl') numerical_grid = .true.
+          if (    coords=='sh2'
+     .        .or.coords=='stl'
+     .        .or.coords=='tsq') numerical_grid = .true.
 
           major_r = gdef%params(1)
 
@@ -1474,8 +1476,8 @@ c     Output
         write(*  ,*)
       endif
 
-      dump_diff = anal_map.and.numerical_grid.and.(.not.map_grid_pack)
-cc      dump_diff = .false.
+cc      dump_diff = anal_map.and.numerical_grid.and.(.not.map_grid_pack)
+      dump_diff = .false.
 
       if (dump_diff) then
         if (my_rank == 0)
@@ -1760,8 +1762,8 @@ c     Output
         write(*  ,*)
       endif
 
-      dump_diff = anal_map.and.numerical_grid.and.(.not.map_grid_pack)
-cc      dump_diff = .false.
+cc      dump_diff = anal_map.and.numerical_grid.and.(.not.map_grid_pack)
+      dump_diff = .false.
 
       if (dump_diff) then
         if (my_rank == 0)
