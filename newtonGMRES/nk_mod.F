@@ -70,6 +70,7 @@ c ###################################################################
         logical      :: vol_wgt=.true.
         logical      :: deferred_correction=.false.
         logical      :: implicit_mid_point=.false.
+        logical      :: gmres_only=.false.
 
         !FPA setup
         type (fpa_state) :: fpas
@@ -617,9 +618,6 @@ cc      flimit= atol + rtol*f0
         !Determine inexact Newton constant
         call find_etak(fk,fkm,flimit,eta0,etak,etakm,etak_meth)
 
-        !Setup preconditioner
-        call setupPC(ntot,x)
-
         !Jacobian-free solve
         if (nk_conf%deferred_correction) then
           is_matvec = .true.
@@ -633,16 +631,13 @@ cc      flimit= atol + rtol*f0
 
         if (PRESENT(matvec)) then
           call gmresDriver(matvec
-     .                    ,ntot,nk_conf%rk,ddx,itk,etak,ksmax,gmmax
+     .                    ,ntot,x,nk_conf%rk,ddx,itk,etak,ksmax,gmmax
      .                    ,iguess,iout,ierr)
         else
           call gmresDriver(matrixFreeMatVec
-     .                    ,ntot,nk_conf%rk,ddx,itk,etak,ksmax,gmmax
+     .                    ,ntot,x,nk_conf%rk,ddx,itk,etak,ksmax,gmmax
      .                    ,iguess,iout,ierr)
         endif
-
-        !Kill preconditioner
-        call killPC
 
         !Update counters
         nk_conf%gm_it_out  = nk_conf%gm_it_out + itk
@@ -652,10 +647,10 @@ cc      flimit= atol + rtol*f0
         if (ierr == 1) then
           if (prnt) write(*,'(a,i3,a)') 
      .       '   WARNING: Exceeded maximum GMRES iterations (',gmmax,')'
-          ierr = 0              !Use GMRES solution for Newton update regardless
-        elseif (ierr.eq.-1) then !Got to atol in the Newton residual
+          ierr = 0               !Use GMRES solution for Newton update regardless
+        elseif (ierr.eq.-1) then !Residual is zero
           ierr = 0
-          exit                  !Do not continue Newton iteration
+          exit                   !Do not continue Newton iteration
         endif
 
         !Globalization procedure
@@ -1037,8 +1032,8 @@ cc      end subroutine updateNewtonSolution
 
 c     gmresDriver
 c     ################################################################
-      subroutine gmresDriver(matvec,nn,b,x,itk,etak,ksmax,maxitgm,iguess
-     .                      ,iout,ierr)
+      subroutine gmresDriver(matvec,nn,x0,b,x,itk,etak,ksmax,maxitgm
+     .                      ,iguess,iout,ierr)
 c     ----------------------------------------------------------------
 c     This subroutine solves the linear system
 c
@@ -1055,7 +1050,7 @@ c     ----------------------------------------------------------------
 c     Call variables
 
       integer    :: itk,ierr,nn,ksmax,iguess,iout,maxitgm
-      real(8)    :: b(nn),x(nn),etak
+      real(8)    :: b(nn),x(nn),etak,x0(nn)
 
 cc      external   :: matvec
 
@@ -1072,6 +1067,10 @@ c     Local variables
       real(8)    :: eps
 
 c     Begin program
+
+c     Setup preconditioner
+      
+        call setupPC(nn,x0)
 
 c     Compute the initial guess x
 
@@ -1093,6 +1092,10 @@ c     Call the preconditioned GMRES(k) algorithm
       else
         call  gmres(matvec,nn,b,x,eps,ksmax,maxitgm,iout,ierr,itk)
       endif
+
+c     Kill preconditioner
+      
+        call killPC
 
 c     End program
 
