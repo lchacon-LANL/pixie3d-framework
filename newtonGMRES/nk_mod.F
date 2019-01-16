@@ -925,6 +925,203 @@ c     ###############################################################
       
       end subroutine jfnk
 
+c     kgm
+c     ###############################################################
+      subroutine kgm(neq,ntot,x,iguess,out,ierr)
+c     ---------------------------------------------------------------
+c     Performs Jacobian-free inexact Newton iteration on res(x) = 0, 
+c     where res is calculated in 'evaluateNonlinearResidual' (provided
+c     by user). 
+c
+c     Call parameters:
+c       * neq: number of equations
+c       * ntot: dimension of vector of unknowns.
+c       * x: on input, initial guess; on output, solution.
+c       * iguess: whether to use preconditioner to provide initial guess
+c                 (iguess = 1).
+c       * out: level of output:
+c              out = 0 --> No output
+c              out = 1 --> Newton convergence output
+c              out = 2 --> Previous plus GMRES convergence output
+c              out = 3 --> Previous plus residual information output
+c              out > 4 --> Previous plus preconditioner output (controlled
+c                          in preconditioner routine).
+c       * ierr: error flag:
+c              ierr = EXACT  --> Initial guess is exact solution
+c              ierr = NOERR  --> No error
+c              ierr = NOCONV --> No Newton convergence to prescribed tolerance in
+c                                prescribed number of iterations (ntit_max_rej)
+c              ierr = CUTDT  --> Newton converged, but took too many iterations
+c                                (>  ntit_max_acc)
+c
+c     Configuration parameters (input via nk_options type):
+c       * ksmax: dimension of krylov subspace for restarted GMRES(Ksmax)
+c       * gmmax: maximum number of GMRES its. (restart if > ksmax)
+c       * atol: Newton absolute convergence tolerance
+c       * gmit_out: on output, actual number of gmres its.
+c       * ntit_out: on output, actual number of newton its.
+c     ---------------------------------------------------------------
+
+      implicit none   !For safe fortran
+
+c     Call variables
+
+      integer :: ntot,neq,out,iguess,ierr
+
+      real(8) :: x(ntot)
+
+c     Local variables
+
+      integer :: itk,i,j,ig,iout,ksmax,gmmax,ntgl
+
+      real(8) :: check_lim,ddx(ntot),tol,atol,leps
+
+      real(8) :: f0,fk,fkp,fm,flimit,theta
+
+      logical :: convergence,failure,vol_wgt,is_ieee_exception
+
+c     Begin program
+
+      prnt = (my_rank == 0)
+
+      ntgl = 1
+      if (nk_conf%vol_wgt) ntgl = ntot*npx*npy*npz
+
+c     Find machine round-off
+
+      if (epsmac == 0d0) epsmac = findRoundOff()  !Used for RMS norm measures
+
+#if defined(petsc)
+      leps = epsmac
+      call MPI_Allreduce(leps,epsmac,1,MPI_DOUBLE_PRECISION
+     .                  ,MPI_MAX,MPI_COMM_WORLD,mpierr)
+#endif
+
+      roundoff = sqrt(1d0*ntot*npx*npy*npz)*epsmac  !Used for standard norm measures
+
+c     Initialize variables
+
+      ksmax   = nk_conf%ksmax
+      gmmax   = nk_conf%gmmax
+
+      tol     = nk_conf%eta0
+      atol    = nk_conf%atol
+
+      vol_wgt = nk_conf%vol_wgt
+
+      nk_conf%gm_it_out  = 0
+      nk_conf%nwt_it_out = 0
+
+      ierr    = 0
+      itk     = 0
+
+      check_lim = 1d30
+
+      if (atol == 0d0) atol = 1d3*epsmac !Set absolute tolerance to roundoff
+      
+c     Evaluate rhs and norms
+
+      ddx = 0d0
+      
+      allocate (nk_conf%xk(ntot),nk_conf%rkstar(ntot))
+
+      nk_conf%xk = x  !Take initial guess into account
+
+      call evaluateNewtonResidual(ntot,x,nk_conf%rkstar)
+
+      if (chk_convergence(nk_conf%rkstar)) then
+        ierr = -1
+        call destroy_kgm
+        return
+      endif
+
+c     GMRES iteration
+
+      call gmresDriver(matrixFreeMatvec
+     .                ,ntot,x,nk_conf%rkstar,ddx,itk,tol,ksmax,gmmax
+     .                ,iguess,out,ierr)
+        
+      x = x - ddx
+
+c     Update counters
+      
+      nk_conf%gm_it_out  = itk
+
+      !Check for error in GMRES
+      if (ierr == 1) then
+        if (prnt) write(*,'(a,i3,a)') 
+     .     '   WARNING: Exceeded maximum GMRES iterations (',gmmax,')'
+        ierr = 0
+      endif
+
+c     End program
+
+      call destroy_kgm
+
+      contains
+
+c     chk_convergence
+c     ###################################################################
+      function chk_convergence(rk) result(exit_lp)
+
+        real(8) :: rk(ntot)
+        logical :: exit_lp
+
+c     Check Anderson convergence/failure
+
+        fkp = ntgl*rms(rk)
+
+        check = 1d0
+        flimit= atol
+
+        if (out.ge.1 .and. prnt) write(*,*)
+
+        if (out.ge.3) then
+          call dumpResidualNorms(neq,-rk,vol_wgt)
+        endif
+
+        convergence = (fkp <= flimit)
+
+        is_ieee_exception = is_NAN(fkp).or.is_INF(fkp)
+        convergence = convergence.and.(.not.is_ieee_exception)
+
+        failure     = (check > check_lim).and.(.not.convergence)
+
+        exit_lp = (convergence .or. failure)
+
+      end function chk_convergence
+
+c     chk_err
+c     ###############################################################
+      function chk_err() result(ierr)
+
+      integer :: ierr
+
+      !No convergence: reject solution
+      if (failure) then 
+cc        if (jit == ntit_max_rej .and. prnt) write (*,220) check
+        if (check > check_lim .and. prnt) write (*,230) check,check_lim
+        ierr = 1
+      else
+        ierr = 0
+      endif
+
+ 220  format ('    WARNING: Max newton its. exceeded; rel. residual: '
+     .       ,1p,1e10.2)
+ 230  format ('    Relative residual =',f7.2,' >',f7.2)
+
+      end function chk_err
+
+c     destroy_kgm
+c     ###############################################################
+      subroutine destroy_kgm
+
+      deallocate(nk_conf%xk,nk_conf%rkstar)
+
+      end subroutine destroy_kgm
+      
+      end subroutine kgm
+
 c     dumpResidualNorms
 c     ###############################################################
       subroutine dumpResidualNorms(neq,b,vw)

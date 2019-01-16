@@ -33,7 +33,9 @@ c ######################################################################
 
         logical :: mf_first_order=.true.  !Whether to use first or second-order MF formula
 
-        logical :: nk_def_corr=.false. !Whether we use deferred correction or not
+        logical :: nk_def_corr=.false.    !Whether we use deferred correction or not
+
+        logical :: nk_is_gmres=.false.    !Whether we use deferred correction or not
 
         !FPA configuration
         logical :: fpa=.false.            !Whether to use Carlson's Fixed-Point-Accelerator instead of JFNK
