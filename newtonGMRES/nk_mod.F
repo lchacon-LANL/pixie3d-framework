@@ -70,7 +70,6 @@ c ###################################################################
         logical      :: vol_wgt=.true.
         logical      :: deferred_correction=.false.
         logical      :: implicit_mid_point=.false.
-        logical      :: gmres_only=.false.
 
         !FPA setup
         type (fpa_state) :: fpas
@@ -110,7 +109,7 @@ c     anderson
 c     ###############################################################
       subroutine anderson(neq,ntot,x,iguess,out,ierr,matvec)
 c     ---------------------------------------------------------------
-c     Performs Jacobian-free inexact Newton iteration on res(x) = 0, 
+c     Performs Anderson iteration on quasi-newton iteration of res(x)=0, 
 c     where res is calculated in 'evaluateNonlinearResidual' (provided
 c     by user). 
 c
@@ -122,7 +121,7 @@ c       * iguess: whether to use preconditioner to provide initial guess
 c                 (iguess = 1).
 c       * out: level of output:
 c              out = 0 --> No output
-c              out = 1 --> Newton convergence output
+c              out = 1 --> Anderson convergence output
 c              out = 2 --> Previous plus GMRES convergence output
 c              out = 3 --> Previous plus residual information output
 c              out > 4 --> Previous plus preconditioner output (controlled
@@ -130,32 +129,21 @@ c                          in preconditioner routine).
 c       * ierr: error flag:
 c              ierr = EXACT  --> Initial guess is exact solution
 c              ierr = NOERR  --> No error
-c              ierr = NOCONV --> No Newton convergence to prescribed tolerance in
+c              ierr = NOCONV --> No Anderson convergence to prescribed tolerance in
 c                                prescribed number of iterations (ntit_max_rej)
-c              ierr = CUTDT  --> Newton converged, but took too many iterations
+c              ierr = CUTDT  --> Anderson converged, but took too many iterations
 c                                (>  ntit_max_acc)
 c       * matvec: optional matrix-vector multiplication routine
 c
 c     Configuration parameters (input via nk_options type):
-c       * etak_meth: specifies method to determine inexact Newton forcing 
-c           parameter. Currently:
-c               etak_meth = 0 --> constant
-c               etak_meth > 0 --> power law adaptive strategy
-c       * damp  : damping parameter for Newton update
-c       * global_meth: determines the globalization procedure:
-c               global_meth = 0 --> no globalization
-c               global_meth = 1 --> linesearch backtracking 
-c               global_meth = 2 --> pseudo-transient
-c       * pdt0: initial time step for pseudo-transient
-c       * eta0: initial inexact Newton parameter (GMRES convergence tolerance)
 c       * ksmax: dimension of krylov subspace for restarted GMRES(Ksmax)
 c       * gmmax: maximum number of GMRES its. (restart if > ksmax)
-c       * rtol: Newton relative convergence tolerance
-c       * atol: Newton absolute convergence tolerance
-c       * stol: Newton update convergence tolerance
-c       * ntit_max_acc: maximum number of Newton its. to accept
+c       * rtol: Anderson relative convergence tolerance
+c       * atol: Anderson absolute convergence tolerance
+c       * stol: Anderson update convergence tolerance
+c       * ntit_max_acc: maximum number of Anderson its. to accept
 c                       solution without subcycling time step
-c       * ntit_max_rej: maximum number of Newton its. to reject solution
+c       * ntit_max_rej: maximum number of Anderson its. to reject solution
 c       * gmit_out: on output, actual number of gmres its.
 c       * ntit_out: on output, actual number of newton its.
 c     ---------------------------------------------------------------
@@ -179,13 +167,13 @@ c     Call variables
 
 c     Local variables
 
-      integer :: itk,i,j,ig,iout,etak_meth,ksmax,gmmax,ntit_max_acc
-     .          ,ntit_max_rej,global,ntgl
+      integer :: itk,i,j,ig,iout,ksmax,gmmax,ntit_max_acc
+     .          ,ntit_max_rej,ntgl
 
       real(8) :: dxnorm,check_lim,y(ntot),ddx(ntot)
-     .          ,eta0,atol,rtol,stol,damp,pdt0,leps
+     .          ,atol,rtol,stol,leps
 
-      real(8) :: f0,fkm,fk,fkp,fm,flimit,theta,dampm
+      real(8) :: f0,fkm,fk,fkp,fm,flimit,theta
 
       logical :: vol_wgt,convergence,failure,left_pc,is_ieee_exception
 
@@ -214,11 +202,7 @@ c     Initialize variables
       gmmax        = nk_conf%gmmax
       ntit_max_acc = nk_conf%nwt_max_it_acc
       ntit_max_rej = nk_conf%nwt_max_it_rej
-      global       = nk_conf%global_meth
 
-      eta0         = nk_conf%eta0
-      damp         = nk_conf%damp
-      pdt0         = nk_conf%pdt0
       atol         = nk_conf%atol
       rtol         = nk_conf%rtol
       stol         = nk_conf%stol
@@ -232,7 +216,7 @@ c     Initialize variables
 
       if (ntit_max_acc > ntit_max_rej) then
         call pstop('anderson'
-     $            ,'Error in Newton input: ntit_max_acc > ntit_max_rej')
+     $          ,'Error in Anderson input: ntit_max_acc > ntit_max_rej')
       endif
 
       ntit_max_rej =  ntit_max_rej*2
@@ -256,7 +240,7 @@ c     Evaluate rhs and norms
       
       allocate (nk_conf%xk(ntot),nk_conf%rk(ntot),nk_conf%rkstar(ntot))
 
-      nk_conf%xk = x    !Save previous Newton state
+      nk_conf%xk = x    !Save previous Anderson state
 
       call evaluateNewtonResidual(ntot,x,nk_conf%rk) !Initial residual
 
@@ -303,7 +287,7 @@ cc      flimit= atol + rtol*f0
           call killPC
 
           ddx = x - nk_conf%xk
-          nk_conf%xk = x        !Save current Newton state
+          nk_conf%xk = x        !Save current Anderson state
 
           !Check convergence
           if (chk_convergence(ddx,nk_conf%rk,.false.)) exit
@@ -312,7 +296,7 @@ cc          nk_conf%rk = -nk_conf%rk !Minus sign important for Anderson
           call fpa_correction(nk_conf%fpas,nk_conf%rk,dp=dot2)
 
           !Update solution
-          y = y - damp*nk_conf%rk
+          y = y - nk_conf%rk
         else
           !Left PC
           call applyPC(ntot,-nk_conf%rk,ddx,iout-1)
@@ -324,8 +308,8 @@ cc          nk_conf%rk = -nk_conf%rk !Minus sign important for Anderson
           call fpa_correction(nk_conf%fpas,ddx,dp=dot2)
 
           !Update solution
-          x = x - damp*ddx
-          nk_conf%xk = x        !Save current Newton state
+          x = x - ddx
+          nk_conf%xk = x        !Save current Anderson state
 
           !Evaluate rhs and norms and check convergence
           call evaluateNewtonResidual(ntot,x,nk_conf%rk)
@@ -340,7 +324,7 @@ cc          nk_conf%rk = -nk_conf%rk !Minus sign important for Anderson
 
       enddo       !End of iteration
 
-c     Check for errors in Newton convergence
+c     Check for errors in Anderson convergence
 
       ierr = chk_err()
 
@@ -349,7 +333,7 @@ c     End program
       call destroy_anderson
 
  205  format 
-     .   (/,' FPA_it   Av_updt    Abs_res   Rel_res     Damping')
+     .   (/,' FPA_it   Av_updt    Abs_res   Rel_res')
 
       contains
 
@@ -374,7 +358,7 @@ c     Check Anderson convergence/failure
 
         dxnorm = rms(dx)
 
-        if (out.ge.1.and.prnt) write(*,215) jit,dxnorm,fkp,check,damp
+        if (out.ge.1.and.prnt) write(*,215) jit,dxnorm,fkp,check
 
         if (out.ge.3) then
           call dumpResidualNorms(neq,-rk,vol_wgt)
@@ -390,7 +374,7 @@ c     Check Anderson convergence/failure
 
         exit_lp = (convergence .or. failure)
 
- 215    format (i4,3x,1p,4e11.3)
+ 215    format (i4,3x,1p,3e11.3)
 
       end function chk_convergence
 
@@ -1196,12 +1180,12 @@ c     Calculate magnitude of nonlinear residual
 
       rold = sqrt(dot2(rhs,rhs))
 
-      eps1=eps*rold
-
       if (rold < roundoff) then
         ierr = -1
         return
       endif
+
+      eps1=max(eps*rold,1d3*roundoff)
 
 c     Compute initial residual vector
 
@@ -1296,7 +1280,7 @@ c       Get next plane rotation
           c(i)   = hh(i ,i)/gam
           s(i)   = hh(i1,i)/gam
 
-          hh(i,i)= c(i)*hh(i,i) + s(i)*hh(i1,i)
+          hh(i ,i) = c(i)*hh(i,i) + s(i)*hh(i1,i)
           hh(i1,i) = 0d0
 
 c       Estimate condition number of hh
@@ -1531,13 +1515,13 @@ c     Calculate magnitude of nonlinear residual
 
       rold = sqrt(dot2(rhs,rhs))
 
-      eps1=eps*rold
-
       if (rold < roundoff) then
         ierr = -1
         return
       endif
 
+      eps1=max(eps*rold,1d3*roundoff)
+ 
 c     Compute initial residual vector
 
       call matvec(ntot,sol,vv(:,1))

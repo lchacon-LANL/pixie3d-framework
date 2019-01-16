@@ -38,15 +38,6 @@ c     Begin program
 
       nn = size(x)
 
-c     Evaluate old-time NLF
-
-c$$$      old_time_eval = .true. !This informs nlfunction that we are processing
-c$$$                             !  n time level info
-c$$$
-c$$$      call evaluateNonlinearFunction(igrid,nn,x,fold)
-c$$$
-c$$$      old_time_eval = .false.
-
 c     Newton-Krylov iteration
 
       nk_conf%etak_meth      = method
