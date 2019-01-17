@@ -1037,7 +1037,7 @@ c     Evaluate rhs and norms
 
 c     GMRES iteration
 
-      call gmresDriver(matrixFreeMatvec
+      call gmresDriver(matrixFreeMatvecGM
      .                ,ntot,x,nk_conf%rkstar,ddx,itk,tol,ksmax,gmmax
      .                ,iguess,out,ierr)
         
@@ -1977,7 +1977,7 @@ c     Begin program
 
 c     Calculate J.x
 
-      if (sqrt(modz) == 0d0) then  !Failsafe for the case z=0
+      if (modz == 0d0) then  !Failsafe for the case z=0
 
         y = 0d0
 
@@ -2023,6 +2023,66 @@ cc        ipert = 1d0/pert
 c     End
 
       end subroutine matrixFreeMatVec
+
+c     matrixFreeMatVecGM
+c     #############################################################
+      subroutine matrixFreeMatVecGM(nn,z,y)
+
+c     -------------------------------------------------------------
+c     This subroutine computes
+c
+c       y = A*z,
+c
+c     where A is given as F(x)=Ax-b. Hence, we compute
+c
+c       y = (F(x+z) - F(x))
+c
+c     where e is some small perturbation constant
+c     -------------------------------------------------------------
+
+      implicit none       !For safe fortran
+
+c     Call variables
+
+      integer :: nn
+      real(8) :: z(nn),y(nn)
+
+c     Local variables
+
+      integer :: i
+      real(8) :: dummy(nn),modz
+
+c     Begin program
+
+      is_matvec = .true.
+
+      modz = dot2(z,z)
+
+c     Calculate J.x
+
+      if (modz == 0d0) then  !Failsafe for the case z=0
+
+        y = 0d0
+
+      else
+
+c       Nonlinear function evaluation --> y
+
+        dummy = nk_conf%xk + z
+
+        call evaluateNewtonResidual(nn,z,y)
+
+c       Compute the product J.x
+
+        y = (y-nk_conf%rkstar)
+
+      endif
+
+      is_matvec = .false.
+
+c     End
+
+      end subroutine matrixFreeMatVecGM
 
 c     evaluateNewtonResidual
 c     ###############################################################
