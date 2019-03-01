@@ -1768,13 +1768,7 @@ c     Find local cartesian components
 
         allocate(bcar(0:nx+1,0:ny+1,0:nz+1,3))
 
-        bcar = bb
-
-        call transformVector(g_def,igrid,igrid,igrid
-     .                      ,0,nx+1,0,ny+1,0,nz+1
-     .                      ,bcar(:,:,:,1)
-     .                      ,bcar(:,:,:,2)
-     .                      ,bcar(:,:,:,3),'cnv','car')
+        bcar = XformToCar(g_def,igrid,bb,.false.)
 
 c     Fill global arrays
 
@@ -1835,11 +1829,11 @@ c$$$          call contour(log10(b0(1:nx,1:ny,1)),nx,ny,0d0,xmax,0d0,ymax,1
 c$$$     .                ,110)
 c$$$          b0 = b0*sum(bcar(:,:,:,:)**2,dim=4)
 c$$$          call contour(b0(1:nx,1:ny,1),nx,ny,0d0,xmax,0d0,ymax,1,110)
-c$$$          if (have_chi) then
-c$$$            b0 = chi*dt/b0*sum(bcar(:,:,:,:)**2,dim=4)
-c$$$          else
+c$$$c$$$          if (have_chi) then
+c$$$c$$$            b0 = chi*dt/b0*sum(bcar(:,:,:,:)**2,dim=4)
+c$$$c$$$          else
 c$$$            b0 = sum(bcar(:,:,:,:)**2,dim=4)
-c$$$          endif
+c$$$c$$$          endif
 c$$$          call contour(b0(1:nx,1:ny,1),nx,ny,0d0,xmax,0d0,ymax,1,110)
 c$$$          close(110)
 c$$$          stop
