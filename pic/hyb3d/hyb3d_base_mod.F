@@ -3987,7 +3987,7 @@ c     Define current
 
       rho(:,:,:) = 0d0
       do isp = 1,n_sp
-        rho = rho + spcs(isp)%m*moms(:,:,:,isp,Ins)*idlvol
+        rho = rho + spcs(isp)%q*moms(:,:,:,isp,Ins)*idlvol
       enddo
 
       end subroutine find_rho_from_pcles
@@ -4016,11 +4016,11 @@ c     Define current
       pcnv = 0d0
       do isp = 1,n_sp
         pcnv(:,:,:,1) = pcnv(:,:,:,1)
-     .                + spcs(isp)%m*moms(:,:,:,isp,Ipx)*idlvol
+     .                + spcs(isp)%q*moms(:,:,:,isp,Ipx)*idlvol
         pcnv(:,:,:,2) = pcnv(:,:,:,2)
-     .                + spcs(isp)%m*moms(:,:,:,isp,Ipy)*idlvol
+     .                + spcs(isp)%q*moms(:,:,:,isp,Ipy)*idlvol
         pcnv(:,:,:,3) = pcnv(:,:,:,3)
-     .                + spcs(isp)%m*moms(:,:,:,isp,Ipz)*idlvol
+     .                + spcs(isp)%q*moms(:,:,:,isp,Ipz)*idlvol
       enddo
 
       end subroutine find_P_from_pcles
