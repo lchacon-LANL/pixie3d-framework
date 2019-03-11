@@ -239,13 +239,13 @@ c     Time step update
         call findGuess(u_nm,u_n,vnp)
 cc        call AXPYDerivedType(-cn/cnp,u_n,-cnm/cnp,u_nm,vnp)
 
-        if (.not.implicit_mid_point) then
+!        if (.not.implicit_mid_point) then
           old_time_eval = .true. !Processing n time level info
           call evaluate_NLF(1,vnp,fold)
           old_time_eval = .false.
-        else
-          fold = 0d0
-        endif
+!        else
+!          fold = 0d0
+!        endif
         
         call mapStructureToVector(gv%gparams,x,vnp) !BDF2 ref
 
