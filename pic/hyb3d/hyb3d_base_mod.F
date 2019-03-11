@@ -3681,9 +3681,9 @@ c     Begin program
           if (no_map) then
              vcurv = spcs(isp)%pcles(ip)%v_np
           else
-             call pstop('gather_3d_moments', 'No curvilinear yet')
-!             vcurv = find_vcurv(i_np,j_np,k_np,spcs(isp)%pcles(ip)%x_n
-!     .                                   ,spcs(isp)%pcles(ip)%v_n)
+!             call pstop('gather_3d_moments', 'No curvilinear yet')
+             vcurv = find_vcurv(i_np,j_np,k_np,spcs(isp)%pcles(ip)%x_n
+     .                                   ,spcs(isp)%pcles(ip)%v_n)
           endif
 
           do i=1,_Npg

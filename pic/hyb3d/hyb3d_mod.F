@@ -802,8 +802,8 @@ c     ######################################################################
       if (no_map) then
         call scatter_fields_nomap(x0_loc,scatter_zeroes,dx,Ep,Bp)
       else
-       call pstop('initialize_it','No curvilinear currently')
-!        call scatter_fields_curv (x0_loc,scatter_zeroes,dx,Ep,Bp)
+!       call pstop('initialize_it','No curvilinear currently')
+        call scatter_fields_curv (x0_loc,scatter_zeroes,dx,Ep,Bp)
       endif
 
       am(:,1) = qm*(Ep(:,1) + vh(:,2)*Bp(:,3) - vh(:,3)*Bp(:,2))
@@ -893,8 +893,8 @@ c     Initial acceleration
         if (no_map) then
           call scatter_fields_nomap(x0_loc,scatter_zeroes,dx,Ep,Bp)
         else
-          call pstop('estimate_dtp','No curvilinear currently')
-!          call scatter_fields_curv (x0_loc,scatter_zeroes,dx,Ep,Bp)
+!          call pstop('estimate_dtp','No curvilinear currently')
+          call scatter_fields_curv (x0_loc,scatter_zeroes,dx,Ep,Bp)
         endif
         vh = v0_loc
 
@@ -924,8 +924,8 @@ c     test for dts (presumably no cell-crossing with a small timestep)
         if (no_map) then
            vhcurv = vh
         else
-           call pstop('estimate_dtp','No curvilinear currently')
-!           vhcurv = find_vcurv(i0,j0,k0,x0_loc,vh)
+!           call pstop('estimate_dtp','No curvilinear currently')
+           vhcurv = find_vcurv(i0,j0,k0,x0_loc,vh)
         endif
         v0curv = vhcurv
 
@@ -936,8 +936,8 @@ c     test for dts (presumably no cell-crossing with a small timestep)
         if (no_map) then
           call scatter_fields_nomap(x0_loc,dts,dx,Ep,Bp) !mid-point
         else
-          call pstop('estimate_dtp','No curvilinear currently')
-!          call scatter_fields_curv (x0_loc,dts,dx,Ep,Bp) !mid-point
+!          call pstop('estimate_dtp','No curvilinear currently')
+          call scatter_fields_curv (x0_loc,dts,dx,Ep,Bp) !mid-point
         endif
         
         !Velocity update
@@ -972,10 +972,10 @@ c     test for dts (presumably no cell-crossing with a small timestep)
           vhcurv = vh
         else
 
-          call pstop('estimate_dtp','No curvilinear currently')
+!          call pstop('estimate_dtp','No curvilinear currently')
 
-!          xp_vhcurv = x0_loc + 0.5*dx
-!          vhcurv = find_vcurv(i0,j0,k0,xp_vhcurv,vh) ! ADAM: Modified for 3D
+          xp_vhcurv = x0_loc + 0.5*dx
+          vhcurv = find_vcurv(i0,j0,k0,xp_vhcurv,vh) ! ADAM: Modified for 3D
 
 c WARNING: CHRISTOFFEL SYMBOL NOT IMPLEMENTED IN 3D.
 
@@ -1033,8 +1033,8 @@ c     Begin program
         if (no_map) then
           call scatter_fields_nomap(x0,dt_sub,dx,Ep,Bp)
         else
-           call pstop('Boris_solve','No curvilinear currently')
-!          call scatter_fields_curv (x0,dt_sub,dx,Ep,Bp)
+!           call pstop('Boris_solve','No curvilinear currently')
+          call scatter_fields_curv (x0,dt_sub,dx,Ep,Bp)
         endif
 
         !Velocity update
@@ -1065,9 +1065,9 @@ c     Begin program
         if (no_map) then
           vhcurv = vh
         else
-           call pstop('Boris_solve','No curvilinear currently')
-!          xp_vhcurv = x0 + 0.5*dx
-!          vhcurv = find_vcurv(i0,j0,k0,xp_vhcurv,vh) 
+!           call pstop('Boris_solve','No curvilinear currently')
+          xp_vhcurv = x0 + 0.5*dx
+          vhcurv = find_vcurv(i0,j0,k0,xp_vhcurv,vh) 
         endif
 
         dx(:,1) = dt_sub*vhcurv(:,1)
@@ -1216,22 +1216,44 @@ c     Call variables
 
 c     Local variables
 
-      integer :: i
-      real(_prec) :: xhp(_Npg,3),xnp(_Npg,3)
+      integer :: i,j
+      real(_prec) :: Exp,Eyp,Ezp,Bxp,Byp,Bzp
+     .              ,xhp(_Npg,3),xnp(_Npg,3),x0p(_Npg,3)
      .              ,x_nh(_Npg,3),cov(_Npg,3,3),cnv(_Npg,3,3)
-     .              ,xlog(_Npg,3),x0p(_Npg,3)
-     .              ,dum1(_Npg),dum2(_Npg,2),dum3(_Npg,3)
-     .              ,dum33(_Npg,3,3),dumA(_Npg,3,1),dumB(_Npg,1,3)
-     .              ,dumC(_Npg,1,3)
+     .              ,xlog(_Npg,3)
 
-      real(_prec) :: Sx2_n(_Npg,3),Sy2_n(_Npg,3),Sz2_n(_Npg,3)
-      real(_prec) :: Sx1(_Npg,2),Sx2(_Npg,3),DSx(_Npg,3)
-      real(_prec) :: Sy1(_Npg,2),Sy2(_Npg,3),DSy(_Npg,3)
-      real(_prec) :: Sz1(_Npg,2),Sz2(_Npg,3),DSz(_Npg,3)
-!      real(_prec) :: Sxd(_Npg,3),Syd(_Npg,3)
-      real(_prec) :: Sx2_o(_Npg,3),Sy2_o(_Npg,3),Sz2_o(_Npg,3)
+      real(_prec) :: Sx2(_Npg,3,1,1),Sy2(_Npg,1,3,1),Sz2(_Npg,1,1,3)
+      real(_prec) :: dum333(_Npg,3,3,3)
 
-c$$$c     Begin program
+c     Begin program
+
+      x_nh = x0 + dx*0.5d0
+      xhp(:,1) = x_nh(:,1)*ihx
+      xhp(:,2) = x_nh(:,2)*ihy
+      xhp(:,3) = x_nh(:,3)*ihz
+
+      call shape2_offset(xhp(:,1),Sx2(:,1:3,1,1))
+      call shape2_offset(xhp(:,2),Sy2(:,1,1:3,1))
+      call shape2_offset(xhp(:,3),Sz2(:,1,1,1:3))
+
+      dum333 = opt_vecvecvec_3_pcle(Sx2,Sy2,Sz2)
+
+c     Calculate Ep
+
+      Ep(:,1) = opt_matmat_333_xyz_pcle(dum333,E_1)
+      Ep(:,2) = opt_matmat_333_xyz_pcle(dum333,E_2)
+      Ep(:,3) = opt_matmat_333_xyz_pcle(dum333,E_3)
+
+c     Calculate Bp
+
+      Bp(:,1) = opt_matmat_333_xyz_pcle(dum333,B_1)
+      Bp(:,2) = opt_matmat_333_xyz_pcle(dum333,B_2)
+      Bp(:,3) = opt_matmat_333_xyz_pcle(dum333,B_3)
+
+
+
+
+
 c$$$
 c$$$      x0p(:,1) = x0(:,1)*ihx
 c$$$      x0p(:,2) = x0(:,2)*ihy
@@ -1439,28 +1461,28 @@ c$$$c$$$      Bp(:,3) = dum1
 c$$$c$$$      call dot_product_3_pcle(dum3,DSy,dum1)
 c$$$c$$$      Bp(:,3) = Bp(:,3) - dum1
 c$$$
-c$$$c     Transform to Cartesian
-c$$$
-c$$$      xlog(:,1) = x_nh(:,1)*ihx
-c$$$      xlog(:,2) = x_nh(:,2)*ihy
-c$$$      xlog(:,3) = x_nh(:,3)*ihz
-c$$$      call transf_vector_Bspl(i0,j0,k0,xlog,cov,cnv=cnv)
-c$$$      !VECTOR SIMD
-c$$$      do i=1, _Npg
-c$$$#ifdef __GNU
-c$$$        Ep(i,:) = opt_matvec_tr(Ep(i,:),cov(i,:,:))
-c$$$        Bp(i,:) = opt_matvec_tr(Bp(i,:),cnv(i,:,:))
-c$$$#else        
-c$$$        Ep(i,:) = matmul(Ep(i,:),cov(i,:,:))
-c$$$        Bp(i,:) = matmul(Bp(i,:),cnv(i,:,:))
-c$$$#endif
-c$$$      end do
-c$$$
-c$$$      Bp(:,1) = Bp(:,1) + B0(1)
-c$$$      Bp(:,2) = Bp(:,2) + B0(2)
-c$$$      Bp(:,3) = Bp(:,3) + B0(3)
-c$$$
-c$$$c     End program
+
+! ADAM: DON'T NEED TO DO THIS STEP WHEN SUPPLYING CARTESIAN FIELDS (IN NEWEST CURVILINEAR DERIVATION).
+
+      xlog(:,1) = x_nh(:,1)*ihx
+      xlog(:,2) = x_nh(:,2)*ihy
+      xlog(:,3) = x_nh(:,3)*ihz
+      call transf_vector_Bspl(i0,j0,k0,xlog,cov,cnv=cnv)
+
+      !VECTOR SIMD
+      do i=1, _Npg
+#ifdef __GNU
+        Ep(i,:) = opt_matvec_tr(Ep(i,:),cov(i,:,:))
+        Bp(i,:) = opt_matvec_tr(Bp(i,:),cnv(i,:,:))
+#else
+        Ep(i,:) = matmul(Ep(i,:),cov(i,:,:))
+        Bp(i,:) = matmul(Bp(i,:),cnv(i,:,:))
+#endif
+      end do
+
+!      Bp(:,1) = Bp(:,1) + B0(1)
+!      Bp(:,2) = Bp(:,2) + B0(2)
+!      Bp(:,3) = Bp(:,3) + B0(3)
 
       end subroutine scatter_fields_curv
 
