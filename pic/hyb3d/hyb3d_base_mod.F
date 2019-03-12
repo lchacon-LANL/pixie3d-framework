@@ -5291,9 +5291,10 @@ c     Find PIC physical quantities
      $        ,Jpz(0:nxg+1,0:nyg+1,0:nzg+1,n_sp)
      $        ,Jpx(0:nxg+1,0:nyg+1,0:nzg+1,n_sp))
 
-      do isp=1,n_sp
-        Jns(:,:,:,isp)  = moms_g(:,:,:,isp,Ins)*jac(:,:,:)
-      enddo
+!      do isp=1,n_sp
+!        Jns(:,:,:,isp)  = moms_g(:,:,:,isp,Ins)*jac(:,:,:)
+!      enddo
+      Jns = moms_g(:,:,:,:,Ins) !ADAM: PIX3D has moms=J*n already.
       Jpz = moms_g(:,:,:,:,IPz)
       Jpx = moms_g(:,:,:,:,IPx)
 
