@@ -1025,23 +1025,25 @@ c     Evaluate rhs and norms
       
       allocate (nk_conf%xk(ntot),nk_conf%rkstar(ntot))
 
-      nk_conf%xk = x  !Take initial guess into account
-
-      call evaluateNewtonResidual(ntot,x,nk_conf%rkstar)
-
-      if (chk_convergence(nk_conf%rkstar)) then
-        ierr = -1
-        call destroy_kgm
-        return
-      endif
+      nk_conf%xk = 0d0
+      call evaluateNewtonResidual(ntot,nk_conf%xk,nk_conf%rkstar)
+c$$$      nk_conf%xk = x  !Take initial guess into account
+c$$$
+c$$$      call evaluateNewtonResidual(ntot,x,nk_conf%rkstar)
+c$$$
+c$$$      if (chk_convergence(nk_conf%rkstar)) then
+c$$$        ierr = -1
+c$$$        call destroy_kgm
+c$$$        return
+c$$$      endif
 
 c     GMRES iteration
 
-      call gmresDriver(matrixFreeMatvecGM
-     .                ,ntot,x,nk_conf%rkstar,ddx,itk,tol,ksmax,gmmax
+      call gmresDriver(matrixFreeMatvecGM,ntot,x
+     .                ,nk_conf%rkstar,ddx,itk,tol,ksmax,gmmax
      .                ,iguess,out,ierr)
         
-      x = x - ddx
+      x = nk_conf%xk - ddx
 
 c     Update counters
       
@@ -2036,8 +2038,6 @@ c
 c     where A is given as F(x)=Ax-b. Hence, we compute
 c
 c       y = (F(x+z) - F(x))
-c
-c     where e is some small perturbation constant
 c     -------------------------------------------------------------
 
       implicit none       !For safe fortran
