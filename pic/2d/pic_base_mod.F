@@ -4000,8 +4000,6 @@ c ######################################################################
      .               ,add_profile_stage
 #endif
 
-      use ts_base, ONLY: TS_chk_end
-      
       use ts_io, ONLY:time,dt,ts_chk_dump,itime
 
       use var_io, ONLY: tst_flg
@@ -5497,7 +5495,7 @@ c     ------------------------------------------------------------------
 
 c     Call variables
 
-      integer,optional,intent(out) :: Npart_cell(:,:,:,:)
+      integer,optional,intent(out) :: Npart_cell(:,:)
      .                               ,pcle_cell_idx(:,:)
 
 c     Local variables
@@ -5510,7 +5508,7 @@ c     Local variables
       real(8) :: vnp
       integer :: nthreads,tid,ct
 
-      integer,allocatable,dimension(:,:,:,:) :: Np_cell
+      integer,allocatable,dimension(:,:) :: Np_cell
 
 c     Begin program
 
@@ -5526,7 +5524,7 @@ c     Begin program
 
       allocate(part_cell_index(nng),locl_cell_index(nng))
 
-      allocate(Np_cell(nxg,nyg,nzg,n_sp))
+      allocate(Np_cell(nng,n_sp))
 
       Np_cell = 0
 
@@ -5603,20 +5601,20 @@ c     Begin program
 
             locl_cell_index(ijk(k))=locl_cell_index(ijk(k))+1
 
-            call xform_pcle_idx_scl(ijk(k),nxg,i,j)
-
-            Np_cell(i,j,1,isp) = Np_cell(i,j,1,isp)+1
+c$$$            call xform_pcle_idx_scl(ijk(k),nxg,i,j)
+c$$$
+c$$$            Np_cell(i,j,1,isp) = Np_cell(i,j,1,isp)+1
          
           enddo
         end do
 !$OMP END DO
 !$OMP END PARALLEL 
-
+        if(present(Npart_cell)) Npart_cell(:,isp) = part_cell_index
         if(present(pcle_cell_idx)) pcle_cell_idx(:,isp)=part_cell_index
 
       end do !species
 
-      if(present(Npart_cell)) Npart_cell = Np_cell
+cc      if(present(Npart_cell)) Npart_cell = Np_cell
 
       if (my_rank_pic == 0.and.(.not.tst_flg)) write (*,*) "Done!"
 
