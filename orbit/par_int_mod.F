@@ -1648,7 +1648,8 @@ cc!$        write (*,'(a,i3,a1,i3)')
 cc!$   .     'OMP thread num/tot',thr_num+1,'/',thr_tot
 cc!$      endif
         
-!$OMP DO PRIVATE(i,j,k,ig,jg,kg,x0,y0,z0,lsode_out)
+!$OMP DO PRIVATE(i,j,k,ig,jg,kg,x0,y0,z0,lsode_out) 
+!$OMP.     FIRSTPRIVATE(sp_coef)
 !$OMP.     COLLAPSE(3) SCHEDULE(DYNAMIC)
         do k=1,nz
           do j=1,ny
@@ -4784,7 +4785,7 @@ c Call additional integrators
 
       s1 = abs(y(5))
 
-      flds = evalFlds(x1,y1,z1,sp_coef)
+      call evalFlds(x1,y1,z1,sp_coef,flds)
 
       !Tn
       tk = tkernel_3d(s1,ieps*dt,exl1)*ydot(5)
@@ -4846,7 +4847,7 @@ c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
 
 c Call additional integrators
 
-      flds = evalFlds(x1,y1,z1,sp_coef)
+      call evalFlds(x1,y1,z1,sp_coef,flds)
 
       !Tn
       tk = tkernel_3d(s1,ieps*dt,exl1)*ydot(5)
@@ -4911,7 +4912,7 @@ c Call additional integrators
 
       s1 = abs(y(5))
 
-      flds = evalFlds(x1,y1,z1,sp_coef)
+      call evalFlds(x1,y1,z1,sp_coef,flds)
 
       !Src @ dt
       ydot(6) = flds(1)*skernel_3d(s1,ieps*dt,exl1)*ydot(5)
@@ -4971,7 +4972,7 @@ c Call additional integrators
 
       s1 = abs(y(5))
 
-      flds = evalFlds(x1,y1,z1,sp_coef)
+      call evalFlds(x1,y1,z1,sp_coef,flds)
 
       !Tn
       ydot(6) = flds(1)*tkernel_3d(s1,ieps*dt,exl1)
@@ -5040,7 +5041,7 @@ c Call additional integrators
 
       s1 = abs(y(5))
 
-      flds = evalFlds(x1,y1,z1,sp_coef)
+      call evalFlds(x1,y1,z1,sp_coef,flds)
 
       !Src @ dt
       ydot(6) = flds(1)*skernel_3d(s1,ieps*dt,exl1)*ydot(5)
@@ -5106,7 +5107,7 @@ c Call additional integrators
 
       s1 = abs(y(5))
 
-      flds = evalFlds(x1,y1,z1,sp_coef)
+      call evalFlds(x1,y1,z1,sp_coef,flds)
 
       !Tn
       ydot(6) = flds(1)*tkernel_3d(s1,ieps*dt,exl1)*ydot(5)
@@ -5184,7 +5185,7 @@ c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
 
 c Call additional integrators
 
-      flds = evalFlds(x1,y1,z1,sp_coef)
+      call evalFlds(x1,y1,z1,sp_coef,flds)
 
       !Tn
       ydot(4) = flds(1)*tkernel_per(t,ieps*dt)
@@ -5245,7 +5246,7 @@ c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
 
 c Call additional integrators
 
-      flds = evalFlds(x1,y1,z1,sp_coef)
+      call evalFlds(x1,y1,z1,sp_coef,flds)
 
       !Src @ dt
       sk1 = skernel_per(t,ieps*dt)
@@ -5303,7 +5304,7 @@ c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
 
 c Call additional integrators
 
-      flds = evalFlds(x1,y1,z1,sp_coef)
+      call evalFlds(x1,y1,z1,sp_coef,flds)
 
       !Src @ dt
       sk = skernel_per(t,ieps*dt)
@@ -5359,7 +5360,7 @@ c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
 
 c Call additional integrators
 
-      flds = evalFlds(x1,y1,z1,sp_coef)
+      call evalFlds(x1,y1,z1,sp_coef,flds)
 
       !Tn
       ydot(4) = flds(1)*tkernel_per(t,ieps*dt)
@@ -5434,7 +5435,7 @@ c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
 
 c Call additional integrators
 
-      flds = evalFlds(x1,y1,z1,sp_coef)
+      call evalFlds(x1,y1,z1,sp_coef,flds)
 
       !Tn
       tkernel = tkernel_per(t,ieps*dt)
@@ -5492,7 +5493,7 @@ c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
 
 c Call additional integrators
 
-      flds = evalFlds(x1,y1,z1,sp_coef)
+      call evalFlds(x1,y1,z1,sp_coef,flds)
 
       !Tn
       tkernel = tkernel_per(t,ieps*dt)

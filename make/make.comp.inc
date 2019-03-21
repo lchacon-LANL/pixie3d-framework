@@ -50,6 +50,7 @@ ifeq ($(findstring ifort,$(FC)),ifort)
   OPTIMIZATION ?= -O3 -g -ip -qopenmp-simd  -align all -march=$(M_ARCH) -fma
 #  DEBUG        = -g -check bounds -traceback
   DEBUG        = -g -check noarg_temp_created,bounds,format,pointers,stack -traceback -fpe0 #-warn interfaces
+#For threading debugging  DEBUG        = -g -check none -shared-intel #-warn interfaces
   PROFILE      = -O2 -g -p
   STATIC       =
   MODFLAG      = -I

@@ -1266,8 +1266,17 @@ ifeq ($(findstring gr,$(HOST)),gr)
       SPRNG_PAR_HOME = /turquoise/usr/projects/magreconn/soft/sprng5
       SPRNG_LIBS = $(SPRNG_PAR_HOME)/lib/grizzly-intel17.0.1-openmpi1.10.5/lib -lsprng -lstdc++ -lm
       SPRNG_INC  = $(SPRNG_PAR_HOME)/include
+     else
+      LIBS += -L/usr/lib -llapack -lblas
+
+      HDF5 = f
+
+      ADIOS = f
+
+      SPRNG = f
 
      endif
+
     endif
 
     ifeq ($(MPI_NAME),intel-mpi)
