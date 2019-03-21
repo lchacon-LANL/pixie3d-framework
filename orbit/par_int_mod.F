@@ -130,7 +130,7 @@ c     Local variables
 
 c     Begin program
 
-      smax = orbit_conf%ode_conf%smax
+      smax = orbit_conf%ode_conf%smax(thr_num)
       ismax = 1d0/smax
 
       twopi_L = 2d0*pi*ismax
@@ -239,7 +239,7 @@ c     Local variables
 
 c     Begin program
 
-      smax = orbit_conf%ode_conf%smax
+      smax = orbit_conf%ode_conf%smax(thr_num)
       ismax = 1d0/smax
 
       twopi_L = 2d0*pi*ismax
@@ -352,7 +352,7 @@ c     Local variables
 
 c     Begin program
 
-      smax = orbit_conf%ode_conf%smax
+      smax = orbit_conf%ode_conf%smax(thr_num)
       ismax = 1d0/smax
 
       twopi_L = 2d0*pi*ismax
@@ -525,6 +525,7 @@ cc        integer :: n_lag_ints=0        !Number of lagrangian integrals
      .                    ,CHI_LIMIT =1d-4     !Lower bound for chi*dt (delta-function limit)
 
         real(8),private :: lsode_out(LSODE_ACC_DIM),dx0,dy0,dz0
+!$OMP THREADPRIVATE(dx0,dy0,dz0)
 
         logical,private :: x_per,y_per,z_per,solenoidal
 !$OMP THREADPRIVATE(x_per,y_per,z_per)
@@ -1952,6 +1953,15 @@ c     Integrate length
         if (my_rank == 0.and.iout > 0)
      .       write (*,*) '--> LSODE 2D length integral...'
 
+c-----------------------------------------------
+c BEGIN OMP PARALLEL REGION
+c-----------------------------------------------
+!$      if (my_rank == 0.and.iout == 1) write (*,*)
+!$OMP PARALLEL
+        call set_omp_thread_id()  !Initializes thr_tot,thr_num
+
+!$OMP DO PRIVATE(i,j,k,ig,jg,kg,x0,y0,z0,length_s,b0_s)
+!$OMP.     COLLAPSE(3) SCHEDULE(DYNAMIC)
         do k=1,nz
           do j=1,ny
             do i=1,nx
@@ -1975,6 +1985,11 @@ c     Integrate length
             enddo
           enddo
         enddo
+!$OMP END DO
+!$OMP END PARALLEL
+c-----------------------------------------------
+c END OMP PARALLEL REGION
+c-----------------------------------------------
 
         call orbit_destroy
 

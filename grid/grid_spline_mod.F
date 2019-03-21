@@ -1384,8 +1384,9 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      real(8) :: spcoef(:,:,:,:)
-      real(8) :: x1,x2,x3,vec(size(spcoef,4))
+      real(8),intent(in) :: spcoef(:,:,:,:)
+      real(8),intent(in) :: x1,x2,x3
+      real(8) :: vec(size(spcoef,4))
 
 c     Local variables
 
