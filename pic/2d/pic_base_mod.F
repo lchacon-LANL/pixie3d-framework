@@ -2964,11 +2964,13 @@ c     Assign particle weights and perform particle accounting
           if(ip.le.nip) then    !reserved inflow particles
             spcs(isp)%pcles(ip)%w_n = 1d0
           else
-            call xform_pcle_idx(spcs(isp)%pcles(ip)%ijk_n,nxg,i_n,j_n)
-            do i=1,_Npg
-              spcs(isp)%pcles(ip)%w_n(i) = spcs(isp)%pcles(ip)%w_n(i)
-     .                                    +solg(i_n(i),j_n(i),1,isp)
-              sump(isp) = sump(isp)+spcs(isp)%pcles(ip)%w_n(i)
+             call xform_pcle_idx(spcs(isp)%pcles(ip)%ijk_n,nxg,i_n,j_n)
+             do i=1,_Npg
+                if(spcs(isp)%pcles(ip)%w_n(i)>0) then
+                spcs(isp)%pcles(ip)%w_n(i) = spcs(isp)%pcles(ip)%w_n(i)
+     .               +solg(i_n(i),j_n(i),1,isp)
+                sump(isp) = sump(isp)+spcs(isp)%pcles(ip)%w_n(i)
+                end if
             enddo
           end if
         end do
