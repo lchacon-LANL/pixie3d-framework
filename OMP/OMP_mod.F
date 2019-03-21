@@ -34,9 +34,10 @@ c     Begin program
         if (PRESENT(thrtot)) then
           thr_tot = thrtot
         else
-          thr_tot = 1
 #ifdef _OPENMP
           thr_tot = omp_get_num_threads()
+#else
+          thr_tot = 1
 #endif
         endif
 
@@ -101,7 +102,7 @@ c     Local variables
         integer :: omp_get_num_threads
 
 c     Begin program
-        
+
 #ifdef _OPENMP
 !$omp parallel
         thr_tot = omp_get_num_threads()
