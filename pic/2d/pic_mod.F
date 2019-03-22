@@ -1931,7 +1931,7 @@ c     Local variables
       integer :: i0(_Npg), j0(_Npg)
       integer :: i, i_n(_Npg),j_n(_Npg)
 
-      integer,pointer,dimension(:,:) :: Npcle_cell
+      integer,pointer,dimension(:,:,:,:) :: Npcle_cell
 
 c     Begin program
 
@@ -1955,11 +1955,11 @@ c     Update particle info
         npc1 = 0
 
         if (particle_sort) then
-          allocate(Npcle_cell(nng,numspcs))
+          allocate(Npcle_cell(nxg,nyg,nzg,numspcs))
           call sort_particles(Npart_cell=Npcle_cell)
           do isp=1,n_sp
             if (spcs(isp)%q<0d0) cycle !Monitor ions
-            npc1 = npc1 + Npcle_cell(1,isp)+Npcle_cell(2,isp) !Sum first two cells (1d only?)
+            npc1 = npc1 + Npcle_cell(1,1,1,isp)+Npcle_cell(2,1,1,isp) !Sum first two cells
           enddo
           deallocate(Npcle_cell)
         else
@@ -2067,7 +2067,8 @@ c     Update particle info
 
 c     Dump particles for restart
 
-      if ((TS_chk_dump().or.itime==0).and.(.not.tst_flg)) then
+      if ((TS_chk_dump().or.itime==0.or.TS_chk_end())
+     .    .and.(.not.tst_flg)) then
         ierr = pic_dump_pcles(time)
       endif
 
