@@ -1961,7 +1961,7 @@ c-----------------------------------------------
 !$OMP PARALLEL
         call set_omp_thread_id()  !Initializes thr_tot,thr_num
 
-!$OMP DO PRIVATE(i,j,k,ig,jg,kg,x0,y0,z0,length_s,b0_s)
+!$OMP DO PRIVATE(i,j,k,ig,jg,kg,x0,y0,z0)
 !$OMP.     COLLAPSE(3) SCHEDULE(DYNAMIC)
         do k=1,nz
           do j=1,ny
