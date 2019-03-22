@@ -2841,7 +2841,7 @@ c     Begin program
 
 c     Build GLOBAL 9-point stencil Mass Matrix
 
-      call build_mass_matrix(.false.)
+      call build_mass_matrix(.true.)
 
 c     Build LOCAL rhs taking Jacobian into account
 
@@ -2966,11 +2966,11 @@ c     Assign particle weights and perform particle accounting
           else
             call xform_pcle_idx(spcs(isp)%pcles(ip)%ijk_n,nxg,i_n,j_n)
             do i=1,_Npg
-              if(spcs(isp)%pcles(ip)%w_n(i)>0) then
+cc              if(spcs(isp)%pcles(ip)%w_n(i)>0) then
                 spcs(isp)%pcles(ip)%w_n(i) = spcs(isp)%pcles(ip)%w_n(i)
-     .               +solg(i_n(i),j_n(i),1,isp)
+     .                                      +solg(i_n(i),j_n(i),1,isp)
                 sump(isp) = sump(isp)+spcs(isp)%pcles(ip)%w_n(i)
-              end if
+cc              end if
             enddo
           end if
         end do
@@ -2985,11 +2985,12 @@ c     Assign particle weights and perform particle accounting
      .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
 #endif
 
-      sump(1:n_sp) = sump(1:n_sp)/npcles(1:n_sp)
+      sump(1:n_sp) = sump(1:n_sp)!/npcles(1:n_sp)
 
       if (my_rank_pic == 0) then
         write (*,*) 
         write (*,*) 'Particle weight accounting:',sump
+        write (*,*) 'Particle weight accounting:',npcles
       endif
 
 c     Free work space
