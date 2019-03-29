@@ -2967,8 +2967,8 @@ c     Assign particle weights and perform particle accounting
             call xform_pcle_idx(spcs(isp)%pcles(ip)%ijk_n,nxg,i_n,j_n)
             do i=1,_Npg
 cc              if(spcs(isp)%pcles(ip)%w_n(i)>0) then
-                spcs(isp)%pcles(ip)%w_n(i) = spcs(isp)%pcles(ip)%w_n(i)
-     .                                      +solg(i_n(i),j_n(i),1,isp)
+                spcs(isp)%pcles(ip)%w_n(i) = spcs(isp)%pcles(ip)%w_n(i)*
+     .                                     (1+solg(i_n(i),j_n(i),1,isp))
                 sump(isp) = sump(isp)+spcs(isp)%pcles(ip)%w_n(i)
 cc              end if
             enddo
@@ -2985,12 +2985,12 @@ cc              end if
      .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
 #endif
 
-      sump(1:n_sp) = sump(1:n_sp)!/npcles(1:n_sp)
+cc      sump(1:n_sp) = sump(1:n_sp)/npcles(1:n_sp)
 
       if (my_rank_pic == 0) then
         write (*,*) 
-        write (*,*) 'Particle weight accounting:',sump
-        write (*,*) 'Particle weight accounting:',npcles
+        write (*,*) 'Particle weight accounting:',sump(1:numspcs)
+        write (*,*) 'Original total particle #:',npcles(1:numspcs)
       endif
 
 c     Free work space
