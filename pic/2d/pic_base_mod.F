@@ -2820,7 +2820,7 @@ c     ######################################################################
 
 c     find_pcle_weights
 c     ######################################################################
-      subroutine find_pcle_weights(mments,dens_given)
+      subroutine find_pcle_weights(mments,w_accnt,dens_given)
 
       implicit none
 
@@ -2828,7 +2828,10 @@ c     Call variables
 
       real(8), intent(in) :: mments(0:,0:,:)
       real(8), intent(in),optional :: dens_given(0:,0:,:)
-
+      logical :: w_accnt
+      
+c     Local variables
+      
       integer :: bcs(6,n_sp),igl,jgl,kgl,i,j,k,ii,ip,isp,numspcs
      .          ,numpcles
 
@@ -2841,7 +2844,7 @@ c     Begin program
 
 c     Build GLOBAL 9-point stencil Mass Matrix
 
-      call build_mass_matrix(.true.)
+      call build_mass_matrix(w_accnt)  !False to prevent singularity with no particles
 
 c     Build LOCAL rhs taking Jacobian into account
 
@@ -2954,29 +2957,51 @@ c$$$      endif
 
 c     Assign particle weights and perform particle accounting
 
-      sump = 0d0
-      do isp=1, numspcs
-        numpcles = size(spcs(isp)%pcles)
+      if (.not.w_accnt) then
+        sump = 0d0
+        do isp=1, numspcs
+          numpcles = size(spcs(isp)%pcles)
 !$OMP PARALLEL DEFAULT(SHARED) private(ip,i,i_n,j_n)
 !$OMP DO
 !$OMP.reduction(+:sump)
-        do ip=1,numpcles
-          if(ip.le.nip) then    !reserved inflow particles
-            spcs(isp)%pcles(ip)%w_n = 1d0
-          else
-            call xform_pcle_idx(spcs(isp)%pcles(ip)%ijk_n,nxg,i_n,j_n)
-            do i=1,_Npg
-cc              if(spcs(isp)%pcles(ip)%w_n(i)>0) then
+          do ip=1,numpcles
+            if(ip.le.nip) then  !reserved inflow particles
+              spcs(isp)%pcles(ip)%w_n = 1d0
+            else
+              call xform_pcle_idx(spcs(isp)%pcles(ip)%ijk_n,nxg,i_n,j_n)
+              do i=1,_Npg
+                spcs(isp)%pcles(ip)%w_n(i) = spcs(isp)%pcles(ip)%w_n(i)
+     .                                      +solg(i_n(i),j_n(i),1,isp)
+                sump(isp) = sump(isp)+spcs(isp)%pcles(ip)%w_n(i)
+              enddo
+            end if
+          end do
+!$OMP END DO
+!$OMP END PARALLEL
+        end do
+      else
+        sump = 0d0
+        do isp=1, numspcs
+          numpcles = size(spcs(isp)%pcles)
+!$OMP PARALLEL DEFAULT(SHARED) private(ip,i,i_n,j_n)
+!$OMP DO
+!$OMP.reduction(+:sump)
+          do ip=1,numpcles
+            if(ip.le.nip) then  !reserved inflow particles
+              spcs(isp)%pcles(ip)%w_n = 1d0
+            else
+              call xform_pcle_idx(spcs(isp)%pcles(ip)%ijk_n,nxg,i_n,j_n)
+              do i=1,_Npg
                 spcs(isp)%pcles(ip)%w_n(i) = spcs(isp)%pcles(ip)%w_n(i)*
      .                                     (1+solg(i_n(i),j_n(i),1,isp))
                 sump(isp) = sump(isp)+spcs(isp)%pcles(ip)%w_n(i)
-cc              end if
-            enddo
-          end if
-        end do
+              enddo
+            end if
+          end do
 !$OMP END DO
 !$OMP END PARALLEL
-      end do
+        end do
+      endif
 
 #if defined(petsc)
       lsump = sump
@@ -2984,8 +3009,6 @@ cc              end if
      $                  ,MPI_DOUBLE_PRECISION
      .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
 #endif
-
-cc      sump(1:n_sp) = sump(1:n_sp)/npcles(1:n_sp)
 
       if (my_rank_pic == 0) then
         write (*,*) 
@@ -4678,7 +4701,7 @@ c     Find particle weights and drift velocities
 
         call setup_mass_matrix(nxl,nyl,nzl,nxg,nyg,nzg)
 
-        call find_pcle_weights(moms(:,:,1,1:n_sp,Ins))
+        call find_pcle_weights(moms(:,:,1,1:n_sp,Ins),.false.)
 
         !Check GY
         call gather_moments(gpicdef)
