@@ -202,7 +202,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: isp,ip,np,ufile,nsp
+      integer :: isp,ip,np,ufile,nsp,nfiles
       integer(8) :: npcl(nsp_max)
       character(30) :: pcle_rstrt_file
       real(8) :: pcle_time
@@ -216,18 +216,29 @@ c     Begin program
         tchk = .true.
       endif
 
-      ierror = 0
-
       if (PRESENT(file)) then
-        pcle_rstrt_file=trim(file)//trim(int2char(my_rank_pic))//'.bin'
+        pcle_rstrt_file=trim(file)
       else
-        pcle_rstrt_file='pcle_rstrt_proc'//trim(int2char(my_rank_pic))
-     .                //'.bin'
+        pcle_rstrt_file='pcle_rstrt_proc'
       endif
-      
-      if (.not.is_file(pcle_rstrt_file)) then
-        call p_stop("pic_read_pcles","PCLE restart file does not exist")
+
+c     Failsafes for restart
+
+      nfiles = 0
+      do while
+     .  (is_file(trim(pcle_rstrt_file)//trim(int2char(nfiles))//'.bin'))
+        nfiles = nfiles+1
+      enddo
+
+      if (nfiles /= nproc) then
+        call p_stop("pic_read_pcles"
+     .             ,"Incorrect # of PCLE restart files")
       endif
+
+c     Read restart PCLE data
+
+      pcle_rstrt_file=
+     .     trim(pcle_rstrt_file)//trim(int2char(my_rank_pic))//'.bin'
 
       ufile = find_unit(1234)
 
@@ -4365,6 +4376,8 @@ c     Initialize particles
         call gather_moments(gpicdef)
         momsn = moms
       else
+        ierr = rm_files("pcle_rstrt")
+
         numspcs = size(spcs)
         do isp=1,numspcs
           spcs(isp)%q   = charge(isp)
