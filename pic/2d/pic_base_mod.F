@@ -2346,8 +2346,7 @@ c     Begin program
 
 c     Wrap moments around boundaries
 
-      call wrap_moments_nodes(mments,wrap_currents=.false.
-     .                       ,wrap_density=.true.)
+      call wrap_moments_nodes(mments,wrap_currents=.false.)
 
 c     End program
 
@@ -2436,7 +2435,7 @@ c$$$     .                           +mments(nxg+1,:,:,Ipz)
      .                         +mments(0    ,:,:,Ins)
         endif
 
-        if (wdens.or.(bcond(2) == FSYM).or.(pbcond(2) == pOPN)) then 
+        if (wdens.or.(bcond(2) == FSYM).or.(pbcond(2) == pOPN)) then
           mments(nxg,:,:,Ins) = mments(nxg  ,:,:,Ins)
      .                         +mments(nxg+1,:,:,Ins)
         endif
@@ -2559,7 +2558,7 @@ c     Local variables
 
       integer :: im,isp,nx,ny,nz,igrid,order,icomp
       real(8),pointer,dimension(:,:,:) :: dummy
-
+      
 c     Begin program
 
       igrid = 1
@@ -2604,7 +2603,7 @@ c     Begin program
       enddo
 
       deallocate(dummy)
-
+ 
       end subroutine applyBC_moms
 
 c     find_rho_from_pcles
