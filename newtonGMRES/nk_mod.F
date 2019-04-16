@@ -252,7 +252,7 @@ cc        y = 0d0
       endif
 
       if (chk_convergence(ddx,nk_conf%rk,.true.)) then
-        ierr = -1
+        ierr = EXACT
         call destroy_anderson
         return
       endif
@@ -388,7 +388,7 @@ c     ###############################################################
       if (failure) then 
         if (jit == ntit_max_rej .and. prnt) write (*,220) check
         if (check > check_lim .and. prnt) write (*,230) check,check_lim
-        ierr = 1
+        ierr = NOCONV
       !Accept solution, but warn user
       elseif (((jit-1).ge.ntit_max_acc).and.(ntit_max_acc > 0)) then 
         if (prnt) then
@@ -398,9 +398,9 @@ c     ###############################################################
             write (*,240) ntit_max_acc
           endif
         endif
-        ierr = 2
+        ierr = CUTDT
       else
-        ierr = 0
+        ierr = NOERR
       endif
 
  220  format ('    WARNING: Max FPA its. exceeded; rel. residual: '
@@ -583,7 +583,7 @@ c     Evaluate rhs and norms
       call evaluateNewtonResidual(ntot,x,nk_conf%rk)
 
       if (chk_convergence(ddx,nk_conf%rk,.true.)) then
-        ierr = -1
+        ierr = EXACT
         call destroy_jfnk
         return
       endif
@@ -628,12 +628,13 @@ cc      flimit= atol + rtol*f0
         nk_conf%nwt_it_out = jit
 
         !Check for error in GMRES
-        if (ierr == 1) then
+        if (ierr == NOCONV) then
           if (prnt) write(*,'(a,i3,a)') 
      .       '   WARNING: Exceeded maximum GMRES iterations (',gmmax,')'
-          ierr = 0               !Use GMRES solution for Newton update regardless
-        elseif (ierr.eq.-1) then !Residual is zero
-          ierr = 0
+          ierr = NOERR           !Use GMRES solution for Newton update regardless
+        elseif (ierr.eq.EXACT) then !Residual is below roundoff
+          if (prnt) write(*,'(a)') '   GMRES residual at round-off'
+          ierr = NOERR
           exit                   !Do not continue Newton iteration
         endif
 
@@ -897,15 +898,15 @@ c     ###############################################################
         if (check > check_lim .and. prnt) write (*,230) check,check_lim
         if (damp  < 1d-4 .and. prnt)
      $       write (*,*) 'Damping parameter too small'
-        ierr = 1
+        ierr = NOCONV
       !Accept solution, but warn user
       elseif (((jit-1).ge.ntit_max_acc).and.(ntit_max_acc > 0)) then 
         if (prnt) then
           write (*,240) ntit_max_acc
         endif
-        ierr = 2
+        ierr = CUTDT
       else
-        ierr = 0
+        ierr = NOERR
       endif
 
  220  format ('    WARNING: Max newton its. exceeded; rel. residual: '
@@ -1050,10 +1051,10 @@ c     Update counters
       nk_conf%gm_it_out  = itk
 
       !Check for error in GMRES
-      if (ierr == 1) then
+      if (ierr == NOCONV) then
         if (prnt) write(*,'(a,i3,a)') 
      .     '   WARNING: Exceeded maximum GMRES iterations (',gmmax,')'
-        ierr = 0
+        ierr = NOERR
       endif
 
 c     End program
@@ -1103,9 +1104,9 @@ c     ###############################################################
       if (failure) then 
 cc        if (jit == ntit_max_rej .and. prnt) write (*,220) check
         if (check > check_lim .and. prnt) write (*,230) check,check_lim
-        ierr = 1
+        ierr = NOCONV
       else
-        ierr = 0
+        ierr = NOERR
       endif
 
  220  format ('    WARNING: Max newton its. exceeded; rel. residual: '
@@ -1253,7 +1254,7 @@ c     Begin program
 
 c     Setup preconditioner
       
-        call setupPC(nn,x0)
+      call setupPC(nn,x0)
 
 c     Compute the initial guess x
 
@@ -1380,7 +1381,7 @@ c     Calculate magnitude of nonlinear residual
       rold = sqrt(dot2(rhs,rhs))
 
       if (rold < roundoff) then
-        ierr = -1
+        ierr = EXACT
         return
       endif
 
@@ -1418,7 +1419,10 @@ c     Restarted FGMRES loop
           endif
         endif
 
-        if (ro.le.eps1) exit
+c$$$        if (ro <= eps1) then
+c$$$          if (ro <= 1d3*roundoff) ierr = EXACT
+c$$$          exit
+c$$$        endif
 
         t = 1d0/ro
         vv(:,1) = vv(:,1)*t
@@ -1591,12 +1595,12 @@ c diag *****
 c     Check convergence and restart outer loop if necessary
 
         if (ro <= eps1) then
-          ierr = 0
+          ierr = NOERR
           exit
         endif
 
         if (its >= maxits) then
-          ierr = 1
+          ierr = NOCONV
           exit
         endif
 
@@ -1715,7 +1719,7 @@ c     Calculate magnitude of nonlinear residual
       rold = sqrt(dot2(rhs,rhs))
 
       if (rold < roundoff) then
-        ierr = -1
+        ierr = EXACT
         return
       endif
 
@@ -1735,7 +1739,7 @@ c     Calculate number of restarting loops
         rstrt = 0
       endif
 
-c     Restarted FGMRES loop
+c     Restarted GMRES loop
 
       do irstrt = 1,rstrt
 
@@ -1749,7 +1753,10 @@ c     Restarted FGMRES loop
           endif
         endif
 
-        if (ro.le.eps1) exit
+c$$$        if (ro <= eps1) then
+c$$$          if (ro <= 1d3*roundoff) ierr = EXACT
+c$$$          exit
+c$$$        endif
 
         t = 1d0/ro
         vv(:,1) = vv(:,1)*t
@@ -1908,12 +1915,12 @@ c     Update solution
 c     Check convergence and restart outer loop if necessary
 
         if (ro <= eps1) then
-          ierr = 0
+          ierr = NOERR
           exit
         endif
 
         if (its >= maxits) then
-          ierr = 1
+          ierr = NOCONV
           exit
         endif
 
