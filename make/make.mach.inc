@@ -354,9 +354,9 @@ ifeq ($(findstring quevedo,$(HOST)),quevedo)
     PETSC_DIR =$(HOME)/Software/petsc-3.0.0-p7
 
     ifeq ($(BOPT),O)
-      PETSC_ARCH = macosx_gcc6.4.0_openmpi3.0.0_O
+      PETSC_ARCH = macosx_gcc6.5.0_openmpi3.0.0_O
     else
-      PETSC_ARCH = macosx_gcc6.4.0_openmpi3.0.0_g
+      PETSC_ARCH = macosx_gcc6.5.0_openmpi3.0.0_g
     endif
 
     HDF5 = t
