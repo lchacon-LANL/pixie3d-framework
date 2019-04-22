@@ -1385,7 +1385,7 @@ c     Calculate magnitude of nonlinear residual
         return
       endif
 
-      eps1=max(eps*rold,1d3*roundoff)
+      eps1=max(eps*rold,roundoff)
 
 c     Compute initial residual vector
 
@@ -1723,7 +1723,7 @@ c     Calculate magnitude of nonlinear residual
         return
       endif
 
-      eps1=max(eps*rold,1d3*roundoff)
+      eps1=max(eps*rold,roundoff)
  
 c     Compute initial residual vector
 
