@@ -1468,7 +1468,7 @@ cc        write (*,*) 'LSODE -- limiting time step'
       if (ITASK==4) then
         IOPT = 1                !Whether optional inputs are needed
         RWORK(1) = TOUT         !TCRIT: not to be overshot
-        IWORK(6) = 100000        !Maximum number of steps
+        IWORK(6) = 100000000    !Maximum number of steps
       endif
 
       MF = 10       !Specifies non-stiff problem: implicit Adams-Moulton method

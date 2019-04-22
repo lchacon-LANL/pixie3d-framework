@@ -356,6 +356,7 @@ c     Begin program
           grid_st%iline = 0
           grid_st%jline = 0
           grid_st%kline = 0
+          grid_st%params = 0d0
 
           grid_st%g_pack(1)%pack = .false.
           grid_st%g_pack(2)%pack = .false.
