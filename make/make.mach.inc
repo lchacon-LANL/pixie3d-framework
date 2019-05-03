@@ -338,7 +338,7 @@ endif
 
 ifeq ($(findstring quevedo,$(HOST)),quevedo)
 
-  CPPFLAGS += $(PREPROC)RFX
+#  CPPFLAGS += $(PREPROC)RFX
 
   FC=gfortran
 
