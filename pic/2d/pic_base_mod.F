@@ -94,6 +94,8 @@ c     Allocate pcle quantities
       allocate(spcs(n_sp))
 
       do is=1,n_sp
+c$$$        spcs(is)%q = 0d0 ; spcs(is)%m = 0d0 ; spcs(is)%q_m = 0d0
+        
         np_s = n_p(is)
         if(    mod(np_s,pgroup).ne.0) then
           print *, "adjust Np (", np_s ,") of species ", is,
@@ -108,6 +110,14 @@ c     Allocate pcle quantities
           np_l = np_l+1
         end if
         allocate(spcs(is)%pcles((np_l*pgroup/_Npg)))
+c$$$        spcs(is)%pcles(:)%x_np = 0d0
+c$$$        spcs(is)%pcles(:)%x_n  = 0d0
+c$$$        spcs(is)%pcles(:)%v_np = 0d0
+c$$$        spcs(is)%pcles(:)%v_n  = 0d0
+c$$$        spcs(is)%pcles(:)%w_np = 0d0
+c$$$        spcs(is)%pcles(:)%w_n  = 0d0
+c$$$        spcs(is)%pcles(:)%ijk_np = 0
+c$$$        spcs(is)%pcles(:)%ijk_n  = 0
       enddo
 
       !Change pcle buffer pointer to local storage
@@ -339,6 +349,7 @@ c     Begin program
       open(ufile,file=trim(pcle_rstrt_file),form='unformatted'
      .    ,status='unknown')
 
+      npcl = 0
       nsp = size(spcs)
       do isp=1,nsp
         npcl(isp) = size(spcs(isp)%pcles)
@@ -4542,10 +4553,6 @@ cc#include "problem_init/plasmaExpLoadPartls.f"
       end if                    !without quiet_start
 
       call free_random_seed()
-
-c$$$      contains
-c$$$
-c$$$      include 'problem_init/qsRandn.f'
 
       end subroutine load_pcles_offset
 

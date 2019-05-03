@@ -100,7 +100,7 @@ c     Begin program
 
 c     Close current record files
 
-      call closeRecordFiles
+      call closeGraphicsFiles
 
 c     Read reference grid info
 
@@ -239,17 +239,17 @@ c Calculate difference
         enddo
 
 c diag ****
-        write (*,*) 'DIAG -- dumping error file'
-        debugfile = 'debug_var='//trim(int2char(ivar))//'.bin'
-        open(unit=110,file=debugfile,form='unformatted'
-     .      ,status='replace')
-
-        call contour(array(1:nx,1:ny,1),nx,ny
-     .              ,0d0,1d0,0d0,1d0,0,110)
-        call contour(log10(array(1:nx,1:ny,1)),nx,ny
-     .              ,0d0,1d0,0d0,1d0,1,110)
-
-        close(110)
+c$$$        write (*,*) 'DIAG -- dumping error file'
+c$$$        debugfile = 'debug_var='//trim(int2char(ivar))//'.bin'
+c$$$        open(unit=110,file=debugfile,form='unformatted'
+c$$$     .      ,status='replace')
+c$$$
+c$$$        call contour(array(1:nx,1:ny,1),nx,ny
+c$$$     .              ,0d0,1d0,0d0,1d0,0,110)
+c$$$        call contour(log10(array(1:nx,1:ny,1)),nx,ny
+c$$$     .              ,0d0,1d0,0d0,1d0,1,110)
+c$$$
+c$$$        close(110)
 c diag ****
 
         !L1 norm
@@ -343,7 +343,7 @@ c     Begin program
       nys = nyd
       nzs = nzd
 
-      call closeRecordFiles
+      call closeGraphicsFiles
 
       time = 0d0
 

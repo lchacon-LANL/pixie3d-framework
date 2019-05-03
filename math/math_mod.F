@@ -34,8 +34,6 @@
 
 #ifdef _SPRNG
 #include "sprng_f.h"
-
-        integer ::junk
         SPRNG_POINTER stream
 #endif
 
@@ -1446,7 +1444,7 @@ c     -------------------------------------------------------------------------
         integer,INTENT(IN),optional :: seed
 
 #ifdef _SPRNG
-        integer :: nstreams, junk,sd
+        integer :: nstreams,junk,sd
         integer :: gtype
         real(8) :: rn
 
@@ -1491,7 +1489,7 @@ c     #########################################################################
         implicit none
 
 #ifdef _SPRNG
-        integer ::junk
+        integer :: junk
 
         junk = free_sprng(stream)
 #endif
@@ -1517,7 +1515,7 @@ c     Local variables
 
       REAL(8) :: t,z
 
-c     Begin progra
+c     Begin program
 
       z=abs(x)
 
