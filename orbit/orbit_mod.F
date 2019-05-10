@@ -1,4 +1,3 @@
-
 c module orbit
 c ######################################################################
       module orbit
@@ -16,6 +15,7 @@ c ######################################################################
         !Diagnostics
         integer,private :: nunitd(4)
         logical,private :: flux = .false.
+!$OMP THREADPRIVATE(flux)
 
         !B field diagnostics private variables
         logical,private :: bdiag=.false.
@@ -37,8 +37,8 @@ c ######################################################################
           real(8) :: atol      !Absolute convergence tolerance
           real(8) :: rtol      !Relative convergence tolerance
           real(8) :: dtime     !Time step
-          real(8) :: tmax      !Maximum pseudotime
-          real(8) :: smax      !Maximum arc length
+          real(8) :: tmax(0:max_thr) !Maximum pseudotime (thread-based)
+          real(8) :: smax(0:max_thr) !Maximum arc length (thread-based)
           logical :: solen     !Whether use solenoidal version or LSODE
           logical :: picard    !Whether to use picard or Newton
           logical :: ds_is_Bds !Whether we use B.ds instead of ds as independent variable
@@ -61,12 +61,15 @@ c ######################################################################
 
         type(orbit_def),target  :: orbit_conf
         type(ode_solver),pointer :: ode_conf
+cc!$OMP THREADPRIVATE(ode_conf,orbit_conf)
 
         integer,private :: ssorder=0,obcnd(6),HIST_LIM=20!,iterror,itime
+!$OMP THREADPRIVATE(ssorder)
 
         real(8),private :: tmax,smax
 !$OMP THREADPRIVATE(tmax,smax)
         real(8),private :: xss0,yss0,zss0
+!$OMP THREADPRIVATE(xss0,yss0,zss0)
         real(8),private :: rmin
 
         real(8),private :: xmin,xmax,ymin,ymax,zmin,zmax
@@ -686,16 +689,16 @@ c     Local variables
         real(8) :: temp_s,xh,yh,zh,sh
         logical :: chk_ss,integral,non_fatal_err
 !#!     Marco, to deal with connection length in the backward case
-        logical :: cnc_back
+        logical :: cnc_back,exit_loop
 
 c     Begin program
-
-        thr_tot = 1
 
 #ifdef _OPENMP
 !$omp parallel
         thr_tot = omp_get_num_threads()
 !$omp end parallel                                                             
+#else
+        thr_tot = 1
 #endif
 
         iiout = iout
@@ -711,16 +714,18 @@ c     Begin program
         !Override maximum limits
         if (PRESENT(t_max)) then
           tmax = t_max
-          ode_conf%tmax = tmax
+          ode_conf%tmax(thr_num) = tmax
+cc          ode_conf%tmax = tmax
         else
-          tmax = ode_conf%tmax 
+          tmax = ode_conf%tmax(thr_num) 
         endif
 
         if (PRESENT(s_max)) then
           smax = s_max
-          ode_conf%smax = smax
+          ode_conf%smax(thr_num) = smax
+cc          ode_conf%smax = smax
         else
-          smax = ode_conf%smax
+          smax = ode_conf%smax(thr_num)
         endif
 
         if (PRESENT(lsode_f).and.(.not.PRESENT(lsode_sum))
@@ -1463,7 +1468,7 @@ cc        write (*,*) 'LSODE -- limiting time step'
       if (ITASK==4) then
         IOPT = 1                !Whether optional inputs are needed
         RWORK(1) = TOUT         !TCRIT: not to be overshot
-        IWORK(6) = 100000        !Maximum number of steps
+        IWORK(6) = 100000000    !Maximum number of steps
       endif
 
       MF = 10       !Specifies non-stiff problem: implicit Adams-Moulton method

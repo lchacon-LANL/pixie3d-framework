@@ -1374,7 +1374,7 @@ c     End program
 
 c     evalFlds
 c     #################################################################
-      function evalFlds(x1,x2,x3,spcoef) result(vec)
+      subroutine evalFlds(x1,x2,x3,spcoef,vec)
 c     -----------------------------------------------------------------
 c     This evaluates cartesian position (x,y,z) at logical position
 c     (x1,x2,x3).
@@ -1384,8 +1384,9 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      real(8) :: spcoef(:,:,:,:)
-      real(8) :: x1,x2,x3,vec(size(spcoef,4))
+      real(8),pointer,intent(in) :: spcoef(:,:,:,:)
+      real(8),intent(in) :: x1,x2,x3
+      real(8),intent(out):: vec(*)  !No assumed-shape array for openMP threading
 
 c     Local variables
 
@@ -1400,7 +1401,7 @@ c     Begin program
 !     .                 ,work(1+thr_num*dim:(thr_num+1)*dim))
       enddo
 
-      end function evalFlds
+      end subroutine evalFlds
 
 c     evalX
 c     #################################################################

@@ -70,6 +70,8 @@ endif
 
 ifeq ($(HOST),jetta)
 
+  CPPFLAGS += $(PREPROC)RFX
+  
   override MACHINE = jetta
 
   FC ?= gfortran
@@ -336,6 +338,8 @@ endif
 
 ifeq ($(findstring quevedo,$(HOST)),quevedo)
 
+#  CPPFLAGS += $(PREPROC)RFX
+
   FC=gfortran
 
   NETCDF=t
@@ -350,9 +354,9 @@ ifeq ($(findstring quevedo,$(HOST)),quevedo)
     PETSC_DIR =$(HOME)/Software/petsc-3.0.0-p7
 
     ifeq ($(BOPT),O)
-      PETSC_ARCH = macosx_gcc6.4.0_openmpi3.0.0_O
+      PETSC_ARCH = macosx_gcc6.5.0_openmpi3.0.0_O
     else
-      PETSC_ARCH = macosx_gcc6.4.0_openmpi3.0.0_g
+      PETSC_ARCH = macosx_gcc6.5.0_openmpi3.0.0_g
     endif
 
     HDF5 = t
@@ -1262,8 +1266,17 @@ ifeq ($(findstring gr,$(HOST)),gr)
       SPRNG_PAR_HOME = /turquoise/usr/projects/magreconn/soft/sprng5
       SPRNG_LIBS = $(SPRNG_PAR_HOME)/lib/grizzly-intel17.0.1-openmpi1.10.5/lib -lsprng -lstdc++ -lm
       SPRNG_INC  = $(SPRNG_PAR_HOME)/include
+     else
+      LIBS += -L/usr/lib -llapack -lblas
+
+      HDF5 = f
+
+      ADIOS = f
+
+      SPRNG = f
 
      endif
+
     endif
 
     ifeq ($(MPI_NAME),intel-mpi)

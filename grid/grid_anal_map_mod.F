@@ -35,7 +35,7 @@ c     Begin program
 
         select case(coords)
         case('car','cyl','hel','hl2','tor','sin','lpk','s3d','hsn'
-     .      ,'sha','sh2','stl')
+     .      ,'sha','sh2','stl','tsq')
 
           anal_map = .true.
 
@@ -233,6 +233,15 @@ c$$$          enddo
           car(1) = (major_r + aa*xlog(1))*cos(-xlog(3))
           car(2) = (major_r + aa*xlog(1))*sin(-xlog(3))
           car(3) = bb*xlog(1)
+
+        case ('tsq')  !Square torus
+          major_r = gp(1)  !Major radius
+          aa      = gp(2)  !Horizontal dimension
+          bb      = gp(3)  !Vertical   dimension
+
+          car(1) = (major_r + aa*(xlog(1)-0.5))*cos(-xlog(3))
+          car(2) = (major_r + aa*(xlog(1)-0.5))*sin(-xlog(3))
+          car(3) =            bb*(xlog(2)-0.5)
 
         case ('sin')
           eps = gp(1)

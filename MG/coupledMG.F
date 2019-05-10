@@ -1462,7 +1462,7 @@ c     Local variables
 
 c     Begin program
 
-      flg = 0
+      flg = 0  !Let spline routine find interpolation knots
 
       nx = size(bcoef,1)
       ny = size(bcoef,2)

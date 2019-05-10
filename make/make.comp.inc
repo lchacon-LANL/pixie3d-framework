@@ -49,7 +49,8 @@ endif
 ifeq ($(findstring ifort,$(FC)),ifort)
   OPTIMIZATION ?= -O3 -g -ip -qopenmp-simd  -align all -march=$(M_ARCH) -fma
 #  DEBUG        = -g -check bounds -traceback
-  DEBUG        = -g -check noarg_temp_created,bounds,format,pointers,stack -traceback
+  DEBUG        = -g -check noarg_temp_created,bounds,format,pointers,stack -traceback -fpe0 #-warn interfaces
+#For threading debugging  DEBUG        = -g -check none -shared-intel #-warn interfaces
   PROFILE      = -O2 -g -p
   STATIC       =
   MODFLAG      = -I
@@ -81,7 +82,8 @@ ifeq ($(findstring gfortran,$(FC)),gfortran)
   else
     OPTIMIZATION ?= -O3 -g -march=$(M_ARCH) -fopenmp-simd #-fopt-info  -ffast-math
   endif
-  DEBUG        = -g -fbounds-check -fbacktrace -ffpe-trap=invalid,zero,denormal -ftrapv #-finit-real=snan #-finit-local-zero #-ggdb3
+  DEBUG        = -g -fbounds-check -fbacktrace -ffpe-trap=invalid,zero -ftrapv #-finit-real=snan #-finit-local-zero #-ggdb3
+#  DEBUG        = -g -fbounds-check -fbacktrace -ffpe-trap=invalid,zero,denormal -ftrapv #-finit-real=snan #-finit-local-zero #-ggdb3
   PROFILE      = -O2 -pg -g
   STATIC       = -fno-automatic
   MODFLAG      = -I

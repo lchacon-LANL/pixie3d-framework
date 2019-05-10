@@ -11,6 +11,8 @@ c ######################################################################
       integer :: itot
 !$OMP THREADPRIVATE(itot)
   
+      integer,parameter :: max_thr = 300
+
       contains
 
 c     set_omp_thread_id
@@ -32,9 +34,10 @@ c     Begin program
         if (PRESENT(thrtot)) then
           thr_tot = thrtot
         else
-          thr_tot = 1
 #ifdef _OPENMP
           thr_tot = omp_get_num_threads()
+#else
+          thr_tot = 1
 #endif
         endif
 
@@ -94,20 +97,18 @@ c     Global variables
 
 c     Local variables
 
-        integer :: thr_tot
-cc        character*10 :: ev
+        integer,save :: thr_tot
+!$OMP THREADPRIVATE(thr_tot)
         integer :: omp_get_num_threads
 
 c     Begin program
 
-        thr_tot = 1
-        
-c$$$!$      call getenv('OMP_NUM_THREADS',ev)
-c$$$!$      read(ev,'(i2)') thr_tot
 #ifdef _OPENMP
 !$omp parallel
         thr_tot = omp_get_num_threads()
-!$omp end parallel                                                             
+!$omp end parallel
+#else
+        thr_tot = 1
 #endif
 
         if (thr_tot == 0) then
