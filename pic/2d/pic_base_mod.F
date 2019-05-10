@@ -94,6 +94,8 @@ c     Allocate pcle quantities
       allocate(spcs(n_sp))
 
       do is=1,n_sp
+c$$$        spcs(is)%q = 0d0 ; spcs(is)%m = 0d0 ; spcs(is)%q_m = 0d0
+        
         np_s = n_p(is)
         if(    mod(np_s,pgroup).ne.0) then
           print *, "adjust Np (", np_s ,") of species ", is,
@@ -108,6 +110,14 @@ c     Allocate pcle quantities
           np_l = np_l+1
         end if
         allocate(spcs(is)%pcles((np_l*pgroup/_Npg)))
+c$$$        spcs(is)%pcles(:)%x_np = 0d0
+c$$$        spcs(is)%pcles(:)%x_n  = 0d0
+c$$$        spcs(is)%pcles(:)%v_np = 0d0
+c$$$        spcs(is)%pcles(:)%v_n  = 0d0
+c$$$        spcs(is)%pcles(:)%w_np = 0d0
+c$$$        spcs(is)%pcles(:)%w_n  = 0d0
+c$$$        spcs(is)%pcles(:)%ijk_np = 0
+c$$$        spcs(is)%pcles(:)%ijk_n  = 0
       enddo
 
       !Change pcle buffer pointer to local storage
@@ -202,7 +212,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: isp,ip,np,ufile,nsp
+      integer :: isp,ip,np,ufile,nsp,nfiles
       integer(8) :: npcl(nsp_max)
       character(30) :: pcle_rstrt_file
       real(8) :: pcle_time
@@ -216,18 +226,29 @@ c     Begin program
         tchk = .true.
       endif
 
-      ierror = 0
-
       if (PRESENT(file)) then
-        pcle_rstrt_file=trim(file)//trim(int2char(my_rank_pic))//'.bin'
+        pcle_rstrt_file=trim(file)
       else
-        pcle_rstrt_file='pcle_rstrt_proc'//trim(int2char(my_rank_pic))
-     .                //'.bin'
+        pcle_rstrt_file='pcle_rstrt_proc'
       endif
-      
-      if (.not.is_file(pcle_rstrt_file)) then
-        call p_stop("pic_read_pcles","PCLE restart file does not exist")
+
+c     Failsafes for restart
+
+      nfiles = 0
+      do while
+     .  (is_file(trim(pcle_rstrt_file)//trim(int2char(nfiles))//'.bin'))
+        nfiles = nfiles+1
+      enddo
+
+      if (nfiles /= nproc) then
+        call p_stop("pic_read_pcles"
+     .             ,"Incorrect # of PCLE restart files")
       endif
+
+c     Read restart PCLE data
+
+      pcle_rstrt_file=
+     .     trim(pcle_rstrt_file)//trim(int2char(my_rank_pic))//'.bin'
 
       ufile = find_unit(1234)
 
@@ -328,6 +349,7 @@ c     Begin program
       open(ufile,file=trim(pcle_rstrt_file),form='unformatted'
      .    ,status='unknown')
 
+      npcl = 0
       nsp = size(spcs)
       do isp=1,nsp
         npcl(isp) = size(spcs(isp)%pcles)
@@ -2346,8 +2368,7 @@ c     Begin program
 
 c     Wrap moments around boundaries
 
-      call wrap_moments_nodes(mments,wrap_currents=.false.
-     .                       ,wrap_density=.true.)
+      call wrap_moments_nodes(mments,wrap_currents=.false.)
 
 c     End program
 
@@ -2436,7 +2457,7 @@ c$$$     .                           +mments(nxg+1,:,:,Ipz)
      .                         +mments(0    ,:,:,Ins)
         endif
 
-        if (wdens.or.(bcond(2) == FSYM).or.(pbcond(2) == pOPN)) then 
+        if (wdens.or.(bcond(2) == FSYM).or.(pbcond(2) == pOPN)) then
           mments(nxg,:,:,Ins) = mments(nxg  ,:,:,Ins)
      .                         +mments(nxg+1,:,:,Ins)
         endif
@@ -2559,7 +2580,7 @@ c     Local variables
 
       integer :: im,isp,nx,ny,nz,igrid,order,icomp
       real(8),pointer,dimension(:,:,:) :: dummy
-
+      
 c     Begin program
 
       igrid = 1
@@ -2604,7 +2625,7 @@ c     Begin program
       enddo
 
       deallocate(dummy)
-
+ 
       end subroutine applyBC_moms
 
 c     find_rho_from_pcles
@@ -2820,7 +2841,7 @@ c     ######################################################################
 
 c     find_pcle_weights
 c     ######################################################################
-      subroutine find_pcle_weights(mments,dens_given)
+      subroutine find_pcle_weights(mments,w_accnt,dens_given)
 
       implicit none
 
@@ -2828,7 +2849,10 @@ c     Call variables
 
       real(8), intent(in) :: mments(0:,0:,:)
       real(8), intent(in),optional :: dens_given(0:,0:,:)
-
+      logical :: w_accnt
+      
+c     Local variables
+      
       integer :: bcs(6,n_sp),igl,jgl,kgl,i,j,k,ii,ip,isp,numspcs
      .          ,numpcles
 
@@ -2841,7 +2865,7 @@ c     Begin program
 
 c     Build GLOBAL 9-point stencil Mass Matrix
 
-      call build_mass_matrix(.false.)
+      call build_mass_matrix(w_accnt)  !False to prevent singularity with no particles
 
 c     Build LOCAL rhs taking Jacobian into account
 
@@ -2954,27 +2978,51 @@ c$$$      endif
 
 c     Assign particle weights and perform particle accounting
 
-      sump = 0d0
-      do isp=1, numspcs
-        numpcles = size(spcs(isp)%pcles)
+      if (.not.w_accnt) then
+        sump = 0d0
+        do isp=1, numspcs
+          numpcles = size(spcs(isp)%pcles)
 !$OMP PARALLEL DEFAULT(SHARED) private(ip,i,i_n,j_n)
 !$OMP DO
 !$OMP.reduction(+:sump)
-        do ip=1,numpcles
-          if(ip.le.nip) then    !reserved inflow particles
-            spcs(isp)%pcles(ip)%w_n = 1d0
-          else
-            call xform_pcle_idx(spcs(isp)%pcles(ip)%ijk_n,nxg,i_n,j_n)
-            do i=1,_Npg
-              spcs(isp)%pcles(ip)%w_n(i) = spcs(isp)%pcles(ip)%w_n(i)
-     .                                    +solg(i_n(i),j_n(i),1,isp)
-              sump(isp) = sump(isp)+spcs(isp)%pcles(ip)%w_n(i)
-            enddo
-          end if
-        end do
+          do ip=1,numpcles
+            if(ip.le.nip) then  !reserved inflow particles
+              spcs(isp)%pcles(ip)%w_n = 1d0
+            else
+              call xform_pcle_idx(spcs(isp)%pcles(ip)%ijk_n,nxg,i_n,j_n)
+              do i=1,_Npg
+                spcs(isp)%pcles(ip)%w_n(i) = spcs(isp)%pcles(ip)%w_n(i)
+     .                                      +solg(i_n(i),j_n(i),1,isp)
+                sump(isp) = sump(isp)+spcs(isp)%pcles(ip)%w_n(i)
+              enddo
+            end if
+          end do
 !$OMP END DO
 !$OMP END PARALLEL
-      end do
+        end do
+      else
+        sump = 0d0
+        do isp=1, numspcs
+          numpcles = size(spcs(isp)%pcles)
+!$OMP PARALLEL DEFAULT(SHARED) private(ip,i,i_n,j_n)
+!$OMP DO
+!$OMP.reduction(+:sump)
+          do ip=1,numpcles
+            if(ip.le.nip) then  !reserved inflow particles
+              spcs(isp)%pcles(ip)%w_n = 1d0
+            else
+              call xform_pcle_idx(spcs(isp)%pcles(ip)%ijk_n,nxg,i_n,j_n)
+              do i=1,_Npg
+                spcs(isp)%pcles(ip)%w_n(i) = spcs(isp)%pcles(ip)%w_n(i)*
+     .                                     (1+solg(i_n(i),j_n(i),1,isp))
+                sump(isp) = sump(isp)+spcs(isp)%pcles(ip)%w_n(i)
+              enddo
+            end if
+          end do
+!$OMP END DO
+!$OMP END PARALLEL
+        end do
+      endif
 
 #if defined(petsc)
       lsump = sump
@@ -2983,11 +3031,10 @@ c     Assign particle weights and perform particle accounting
      .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
 #endif
 
-      sump(1:n_sp) = sump(1:n_sp)/npcles(1:n_sp)
-
       if (my_rank_pic == 0) then
         write (*,*) 
-        write (*,*) 'Particle weight accounting:',sump
+        write (*,*) 'Particle weight accounting:',sump(1:numspcs)
+        write (*,*) 'Original total particle #:',npcles(1:numspcs)
       endif
 
 c     Free work space
@@ -4000,6 +4047,8 @@ c ######################################################################
      .               ,add_profile_stage
 #endif
 
+      use ts_base, ONLY: TS_chk_end
+      
       use ts_io, ONLY:time,dt,ts_chk_dump,itime
 
       use var_io, ONLY: tst_flg
@@ -4338,6 +4387,8 @@ c     Initialize particles
         call gather_moments(gpicdef)
         momsn = moms
       else
+        ierr = rm_files("pcle_rstrt")
+
         numspcs = size(spcs)
         do isp=1,numspcs
           spcs(isp)%q   = charge(isp)
@@ -4502,10 +4553,6 @@ cc#include "problem_init/plasmaExpLoadPartls.f"
       end if                    !without quiet_start
 
       call free_random_seed()
-
-c$$$      contains
-c$$$
-c$$$      include 'problem_init/qsRandn.f'
 
       end subroutine load_pcles_offset
 
@@ -4673,7 +4720,7 @@ c     Find particle weights and drift velocities
 
         call setup_mass_matrix(nxl,nyl,nzl,nxg,nyg,nzg)
 
-        call find_pcle_weights(moms(:,:,1,1:n_sp,Ins))
+        call find_pcle_weights(moms(:,:,1,1:n_sp,Ins),.false.)
 
         !Check GY
         call gather_moments(gpicdef)

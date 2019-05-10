@@ -1580,9 +1580,10 @@ c     Local variables
 
 c     Begin program
 
-        inProc =igl>=gl_def%ilo(igx).and.igl<=gl_def%ihi(igx)
-     .     .and.jgl>=gl_def%jlo(igy).and.jgl<=gl_def%jhi(igy)
-     .     .and.kgl>=gl_def%klo(igz).and.kgl<=gl_def%khi(igz)
+        inProc =
+     .       (igl<0.or.(igl>=gl_def%ilo(igx).and.igl<=gl_def%ihi(igx)))
+     .  .and.(jgl<0.or.(jgl>=gl_def%jlo(igy).and.jgl<=gl_def%jhi(igy)))
+     .  .and.(kgl<0.or.(kgl>=gl_def%klo(igz).and.kgl<=gl_def%khi(igz)))
 
 c     End program
 

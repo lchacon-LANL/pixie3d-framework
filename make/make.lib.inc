@@ -40,7 +40,7 @@ endif
 
 ifeq ($(HDF5),t)
   CONTRIBLIBS += $(HDF5_LIBS) 
-  CPPFLAGS    += $(PREPROC)hdf5 $(PREPROC)H5_USE_16_API -I$(HDF5_INC)
+  CPPFLAGS    += $(PREPROC)hdf5 -I$(HDF5_INC)
   MODPATH     += $(ADDMODFLAG)$(HDF5_MOD)
 endif
 

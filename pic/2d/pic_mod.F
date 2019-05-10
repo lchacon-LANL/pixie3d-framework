@@ -392,9 +392,7 @@ c     Append to particle pusher timer/counters
 
 c     Synchronize moments
 
-      call wrap_moments_nodes(moms_g(:,:,1,:,:),wrap_density=.false.)
-      moms_g(:,:,0,:,:) = moms_g(:,:,1,:,:)
-      moms_g(:,:,2,:,:) = moms_g(:,:,1,:,:)
+      call wrap_moments_nodes(moms_g(:,:,1,:,:))
 
 c     Scatter moments to local mesh
 
@@ -2067,7 +2065,8 @@ c     Update particle info
 
 c     Dump particles for restart
 
-      if ((TS_chk_dump().or.itime==0).and.(.not.tst_flg)) then
+      if ((TS_chk_dump().or.itime==0.or.TS_chk_end())
+     .    .and.(.not.tst_flg)) then
         ierr = pic_dump_pcles(time)
       endif
 

@@ -149,6 +149,16 @@ c     Finalize XDRAW
 
 c     Finalize HDF5
 
+#if defined(hdf5)
+cc        if (hdf_plot) ...
+#endif
+
+c     Finalize ADIOS
+
+#if defined(adios)
+cc        if (adios_plot) ...
+#endif
+
 c     Deallocate memory
 
         call deallocateGraphicsVariables
