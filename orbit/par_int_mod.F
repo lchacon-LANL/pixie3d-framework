@@ -3047,6 +3047,124 @@ c     Begin program
 
       end subroutine lag_xport_res
 
+c Modification added by O. Koshkarov, Apr 1, 2019      
+c     lag_xport_P_prop
+c     ##############################################################
+      subroutine lag_xport_P_prop(g_def,igrid,in_flds,out_flds,chi,iout)
+
+      implicit none
+
+c     --------------------------------------------------------------
+c     Performs Lagrangian temperature integration according to B
+c     field (bx,by,bz).
+c     --------------------------------------------------------------
+
+c     Call variables
+
+        type(grid_mg_def),pointer :: g_def
+
+        integer :: igrid,iout
+
+        real(8) :: chi(:,:,:),in_flds(:,:,:,:),out_flds(:,:,:,:)
+
+c     Local variables
+
+        INTERFACE
+          subroutine lsode_2d_P_prop(neq,t,y,ydot)
+          integer :: neq
+          real(8) :: t,y(neq),ydot(neq)
+          end subroutine lsode_2d_P_prop
+        END INTERFACE
+
+c     Begin program
+
+        if (l2d) then
+          call lag_2d_new(g_def,igrid,in_flds,out_flds,chi,iout
+     .                   ,lsode_2d_P_prop)
+        else
+          call pstop('lag_xport_P_prop','3D not yet implemented')
+        endif
+
+      end subroutine lag_xport_P_prop
+
+
+c     lag_P_prop
+c     ###############################################################
+      subroutine lag_P_prop(g_def,igrid,in,out,chi,iout)
+
+c     ---------------------------------------------------------------
+c     Computes P propogetor action                                    
+c
+c     >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+c     MUST BE PRECEEDED BY A CALL TO lag_init
+c     WORKSPACE FREED  BY A CALL TO lag_destroy
+c     >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+c
+c     On call sequence:
+c       * igrid: grid level
+c       * chi: parallel transport coeff
+c       * in: input field
+c       * out: "in" propagated by P propagator;
+c       * iout: output diagnostics level
+c     ---------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
+
+      integer :: igrid,iout
+      real(8),dimension(0:,0:,0:) :: in,out,chi
+
+c     Local variables
+
+      integer :: nx,ny,nz
+      real(8) :: gamma,sgamma,dT_error,b0_diag
+
+      real(8),dimension(:,:,:,:),pointer :: flds,integrals
+
+      real(8),dimension(:,:,:),pointer :: chi_local
+
+c     Begin program
+
+      if (.not.init_lag) then
+        call pstop('lag_P_prop'
+     .            ,'Lagrangian integrator uninitialized')
+      endif
+
+      nx = size(in,1)-2
+      ny = size(in,2)-2
+      nz = size(in,3)-2
+
+c     Lagrangian step
+
+      allocate(flds     (0:nx+1,0:ny+1,0:nz+1,1)
+     .        ,integrals(0:nx+1,0:ny+1,0:nz+1,1)
+     .        ,chi_local(0:nx+1,0:ny+1,0:nz+1))
+
+c     Find rhs
+
+      flds(:,:,:,1) = in
+
+      chi_local = 0d0
+      where (b0 > 0d0) chi_local = chi/b0  !Divide by beta
+
+      integrals = 0d0
+
+      call lag_xport_P_prop(g_def,igrid,flds,integrals,chi_local,iout)
+
+      out = integrals(:,:,:,1)
+
+c     Free workspace
+
+      deallocate(flds,integrals,chi_local)
+
+      end subroutine lag_P_prop
+
+
+c End of modification added by O. Koshkarov, Apr 1, 2019      
+
 c     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 c     PUBLIC ROUTINES
 c     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -5599,3 +5717,59 @@ c End program
 
       end subroutine lsode_3d_beta
 
+
+c Modification added by O. Koshkarov, Apr 1, 2019      
+c lsode_2d_P_prop
+c #########################################################################
+      subroutine lsode_2d_P_prop(neq,t,y,ydot)
+
+c -------------------------------------------------------------------------
+c     Driver routine for LSODE integration: ydot = ff(y,t)
+c -------------------------------------------------------------------------
+
+      use par_int
+
+      implicit none
+
+c Call variables
+
+      integer :: neq
+      real(8) :: t,y(neq),ydot(neq)
+
+c Local variables
+
+      integer :: ierror
+      real(8) :: x1,y1,z1,s1,it_max=0d0,flds(size(sp_coef,4)),B2,iB2
+     .          ,sk,sk2
+      save :: it_max
+
+c Begin program
+
+      if (neq /= 4) then
+        call pstop('lsode_2d_P_prop','Wrong number of equations')
+      endif
+
+c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
+
+      call lsode_orbit_f_3eq(3,t,y(1:3),ydot(1:3),xx1=x1,yy1=y1,zz1=z1
+     .                      ,B2=B2)
+
+      if (.not.bwgt) then
+        iB2=1d0
+      else
+        iB2=1d0/B2
+      endif
+
+c Call additional integrators
+
+      call evalFlds(x1,y1,z1,sp_coef,flds)
+
+      !Src @ dt
+      sk = skernel_per(t,ieps*dt)
+      ydot(4) = flds(1)*sk*iB2
+
+c End program
+
+      end subroutine lsode_2d_P_prop
+
+c End of modification added by O. Koshkarov, Apr 1, 2019      
