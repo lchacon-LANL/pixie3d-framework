@@ -250,8 +250,8 @@ c$$$          enddo
 
           bb = aa*kappa
           
-          cs = cos(xlog(2)+asin(delta*abs(xlog(1))*sin(xlog(2))))
-          sn = sin(xlog(2)+zeta*abs(xlog(1))*sin(2*xlog(2)))
+          cs = cos(xlog(2)+asin(delta*xlog(1)**2*sin(xlog(2))))
+          sn = sin(xlog(2)+zeta*xlog(1)**2*sin(2*xlog(2)))
           
           car(1)=(major_r + aa*xlog(1)*cs)*cos(-xlog(3))
           car(2)=(major_r + aa*xlog(1)*cs)*sin(-xlog(3))
