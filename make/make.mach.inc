@@ -70,7 +70,7 @@ endif
 
 ifeq ($(HOST),jetta)
 
-  CPPFLAGS += $(PREPROC)RFX
+#  CPPFLAGS += $(PREPROC)RFX
   
   override MACHINE = jetta
 
@@ -110,12 +110,12 @@ ifeq ($(HOST),jetta)
       HDF5_INC  = $(PHDF5_INC)
 
       ifeq ($(PIT),t)
-        ADIOS = f      !ADIOS not ready for parallel-in-time yet
+        ADIOS = f      #ADIOS not ready for parallel-in-time yet
       else
         ADIOS = t
       endif
 
-      ADIOS_BUFFER_MB = 10
+      ADIOS_BUFFER_MB = 100
       ADIOS_METHOD = MPI
 
       ADIOS_HOME = /nh/u/lchacon/lib/adios-1.10.0
@@ -169,7 +169,7 @@ ifeq ($(HOST),jetta)
       HDF5_INC  = $(PHDF5_INC)
 
       ifeq ($(PIT),t)
-        ADIOS = f      !ADIOS not ready for parallel-in-time yet
+        ADIOS = f      #ADIOS not ready for parallel-in-time yet
       else
         ADIOS = f
       endif

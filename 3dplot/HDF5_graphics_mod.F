@@ -67,8 +67,6 @@ cc        character(strlength)                   :: attr_name
 
         character(20) :: hdf5_fname
 
-        logical :: hdf_debug=.false.
-        
       contains 
 
 c     initializeHDF5
@@ -162,9 +160,9 @@ c     Create VISIT expressions (to identify vectors)
 c     Create groups for coordinate data
 
       if (.not.moving_mesh) then
-        if (hdf_debug) 
-     .   write(*,'("3dplot.F:165: Create HDF5 groups ",a," and ",a)') 
-     .         cell_coords_gname, node_coords_gname
+        if (hdf_debug) write(*,'
+     .("HDF5_graphics_mod.F:165: Create HDF5 groups ",a
+     .," and ",a)') cell_coords_gname, node_coords_gname
         !Cell center positions
         call h5gcreate_f(file_id,cell_coords_gname,group_id,hdferr)
         call h5gclose_f(group_id,hdferr)
@@ -275,14 +273,14 @@ c     Open .h5 file using default properties.
 
 c     Create groups for computation data
 
-      if (hdf_debug)
-     .     write(*,'("3dplot.F:281: Create HDF5 group ",a)') groupname
+      if (hdf_debug) write(*,'
+     .("HDF5_graphics_mod.F:281: Create HDF5 group ",a)') groupname
       call h5gcreate_f(file_id,groupname,group_id,hdferr)
 
       do igrp=1,ngroups
-      if (hdf_debug)
-     .     write(*,'("3dplot.F:276: Create HDF5 group ",a,"/",a)') 
-     .       groupname,graph(igrp)%descr
+        if (hdf_debug) write(*,'
+     .("HDF5_graphics_mod.F:276: Create HDF5 group ",a,"
+     ./",a)') groupname,graph(igrp)%descr
         call h5gcreate_f(group_id,graph(igrp)%descr,subgroup_id,hdferr)
         call h5gclose_f(subgroup_id, hdferr)
       enddo
@@ -290,16 +288,16 @@ c     Create groups for computation data
 c     Create a group for coordinates data
 
       if (moving_mesh) then
-      if (hdf_debug)
-     .     write(*,'("3dplot.F:298: Create HDF5 groups ",a,"/",a)') 
-     .         groupname,cell_coords_gname
+        if (hdf_debug) write(*,'
+     .("HDF5_graphics_mod.F:298: Create HDF5 groups ",a
+     .,"/",a)') groupname,cell_coords_gname
         !Cell center positions
         call h5gcreate_f(group_id,cell_coords_gname,subgroup_id,hdferr)
         call h5gclose_f(subgroup_id,hdferr)
 
-      if (hdf_debug)
-     .     write(*,'("3dplot.F:293: Create HDF5 groups ",a,"/",a)') 
-     .         groupname,node_coords_gname
+        if (hdf_debug) write(*,'
+     .("HDF5_graphics_mod.F:293: Create HDF5 groups ",a
+     .,"/",a)') groupname,node_coords_gname
         !Node positions
         call h5gcreate_f(group_id,node_coords_gname,subgroup_id,hdferr)
         call h5gclose_f(subgroup_id,hdferr)

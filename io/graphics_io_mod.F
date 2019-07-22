@@ -29,9 +29,11 @@ c ######################################################################
         logical    :: skip_diag=.false.
 
 #if defined(petsc)
-        logical    :: hdf_plot=.true.,xdraw_plot=.true.
+        logical    :: hdf_plot=.true.,hdf_debug=.false.
+     .               ,xdraw_plot=.true.
 #else
-        logical    :: hdf_plot=.false.,xdraw_plot=.true.
+        logical    :: hdf_plot=.false.,hdf_debug=.false.
+     .               ,xdraw_plot=.true.
 #endif
 
 #if defined(adios)
@@ -95,7 +97,7 @@ c     Local variables
 
       namelist /graphics/ sel_diag,sel_graph
      .                   ,ndplot,dplot
-     .                   ,hdf_plot,xdraw_plot,adios_plot
+     .                   ,hdf_plot,hdf_debug,xdraw_plot,adios_plot
      .                   ,prof_conf,cont_conf
      .                   ,iplot,jplot,kplot,no_graphics_io
      .                   ,skip_diag
