@@ -160,6 +160,8 @@ c     Global variables
 
       integer :: ierr
 
+      if (adios_debug) write (*,*) "Terminating ADIOS IO..."
+
       call MPI_Comm_free(adios_world_comm,ierr)
       call ADIOS_finalize(my_rank, ierr)
 
