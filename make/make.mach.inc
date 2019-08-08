@@ -70,7 +70,7 @@ endif
 
 ifeq ($(HOST),jetta)
 
-  CPPFLAGS += $(PREPROC)RFX
+#  CPPFLAGS += $(PREPROC)RFX
   
   override MACHINE = jetta
 
@@ -110,12 +110,12 @@ ifeq ($(HOST),jetta)
       HDF5_INC  = $(PHDF5_INC)
 
       ifeq ($(PIT),t)
-        ADIOS = f      !ADIOS not ready for parallel-in-time yet
+        ADIOS = f      #ADIOS not ready for parallel-in-time yet
       else
         ADIOS = t
       endif
 
-      ADIOS_BUFFER_MB = 10
+      ADIOS_BUFFER_MB = 100
       ADIOS_METHOD = MPI
 
       ADIOS_HOME = /nh/u/lchacon/lib/adios-1.10.0
@@ -169,7 +169,7 @@ ifeq ($(HOST),jetta)
       HDF5_INC  = $(PHDF5_INC)
 
       ifeq ($(PIT),t)
-        ADIOS = f      !ADIOS not ready for parallel-in-time yet
+        ADIOS = f      #ADIOS not ready for parallel-in-time yet
       else
         ADIOS = f
       endif
@@ -1401,4 +1401,36 @@ ifeq ($(findstring marconi_work,$(WORK)),marconi_work)
 #    NETCDF_INC = -I/cineca/prod/opt/libraries/netcdf/4.4.1/intel--pe-xe-2017--binary/include
 
  MACHINE = marconi
+endif
+
+###############################
+#  (Koshkarov O.  ) #
+###############################
+
+ifeq ($(HOST),cascabel)
+    FC=gfortran
+    #FC=mpif90
+    #CC=mpicc
+    #CXX=mpic++
+    HDF5 = f
+    HDF5_HOME = /home/koshmar/.local/hdf5
+    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+    HDF5_MOD  = $(HDF5_HOME)/lib
+    HDF5_INC  = $(HDF5_HOME)/include
+    LIBS +=  -llapack -lblas
+endif
+
+ifeq ($(HOST),kigal)
+    FC=gfortran
+    #FC=mpif90
+    #CC=mpicc
+    #CXX=mpic++
+    HDF5 = t
+    HDF5_HOME = /home/koshmar/.local/hdf5
+    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+    HDF5_MOD  = $(HDF5_HOME)/lib
+    HDF5_INC  = $(HDF5_HOME)/include
+    LIBS +=  -llapack -lblas
+    
+    # What is CPPFLAGS? is it FFLAGS?
 endif

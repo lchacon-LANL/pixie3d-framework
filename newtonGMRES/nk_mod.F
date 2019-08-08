@@ -1380,12 +1380,14 @@ c     Calculate magnitude of nonlinear residual
 
       rold = sqrt(dot2(rhs,rhs))
 
-      if (rold < roundoff) then
-        ierr = EXACT
-        return
-      endif
+c$$$      if (rold < roundoff) then
+c$$$        ierr = EXACT
+c$$$        return
+c$$$      endif
+c$$$
+c$$$      eps1=max(eps*rold,roundoff)
 
-      eps1=max(eps*rold,roundoff)
+      eps1 = eps*rold
 
 c     Compute initial residual vector
 
@@ -1718,13 +1720,15 @@ c     Calculate magnitude of nonlinear residual
 
       rold = sqrt(dot2(rhs,rhs))
 
-      if (rold < roundoff) then
-        ierr = EXACT
-        return
-      endif
+c$$$      if (rold < roundoff) then
+c$$$        ierr = EXACT
+c$$$        return
+c$$$      endif
+c$$$
+c$$$      eps1=max(eps*rold,roundoff)
 
-      eps1=max(eps*rold,roundoff)
- 
+      eps1 = eps*rold
+
 c     Compute initial residual vector
 
       call matvec(ntot,sol,vv(:,1))
