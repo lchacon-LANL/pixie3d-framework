@@ -432,7 +432,7 @@ c$$$          dpert_nh = integral(1,1,1,nxl,nyl,nzl,array,average=.true.)
 c$$$
 c$$$          dpert_nh = sqrt(dpert_nh)
 
-          if (dpert > 0d0 .and. dpert_n > 0d0 .and. time > tn) then
+          if (dpert > 1d-12 .and. dpert_n > 1d-12 .and. time > tn) then
             mag(ieq) = (log(dpert)-log(dpert_n))/(time-tn)
 c$$$          if (dpert /= dpert_n.and.dpert_nh /=0d0.and.time > tn) then
 c$$$            mag(ieq) = .5*(time-tn)*dpert_nh/(dpert-dpert_n)
