@@ -1381,6 +1381,10 @@ c     ##################################################################
       ihy = 1d0/hy
       ihz = 1d0/hz
 
+      h_x = hx
+      h_y = hy
+      h_z = hz
+      
       call setup_pic_shape_f(hx,hy,hz)
 
       end subroutine set_inverse_h
@@ -4449,6 +4453,7 @@ c     ##################################################################
       use F_call_C
 
       use hammersley_seq
+      use mv_normal
 
       implicit none
 c     ------------------------------------------------------------------
@@ -4540,8 +4545,6 @@ c     Load particles
 #include "problem_init/icLoadPartls.f"
         case('slow_shock')
 #include "problem_init/slowShockLoadPartls.f"
-cc        case('plasma_exp')
-cc#include "problem_init/plasmaExpLoadPartls.f"
         case('kaw_ii')   
 #include "problem_init/kawiiLoadPartls.f"
         case('landau','2strm','iaw')!,'langdon')
