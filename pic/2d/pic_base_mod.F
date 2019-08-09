@@ -3445,7 +3445,7 @@ c     Assign particle drift velocity vy (Stardard curvilinear convention, i.e., 
 
       do isp=1, numspcs 
         numpcles = size(spcs(isp)%pcles)
-!$OMP PARALLEL DEFAULT(SHARED) private(ip,i,i_n,j_n,imp)
+!$OMP PARALLEL DEFAULT(SHARED) private(ip,i,i_n,j_n,jmp)
 !$OMP DO
         do ip=1,numpcles
           if(ip > nip) then    !reserved inflow particles
