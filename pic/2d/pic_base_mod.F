@@ -274,9 +274,14 @@ c     Read restart PCLE data
       read(ufile,iostat=ierror,end=100) m_np,m_n,cm_ex,PoynFlux
       if (ierror /= 0) goto 200
 
-      npcles(1:nsp) = npcl(1:nsp)*_Npg
+      npcles(1:nsp) = npcl(1:nsp)*_Npg*nproc
       
-      if (.not.allocated(spcs)) call alloc_pcles(nsp,npcles(1:nsp))
+      if (.not.allocated(spcs)) then
+        allocate(spcs(nsp))
+        do isp = 1,nsp
+          allocate(spcs(isp)%pcles(npcl(isp)))
+        enddo
+      endif
 
       do isp=1,nsp
          read (ufile,iostat=ierror,end=100) spcs(isp)%q
