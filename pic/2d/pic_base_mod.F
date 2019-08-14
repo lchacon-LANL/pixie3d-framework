@@ -256,7 +256,8 @@ c     Read restart PCLE data
      .    ,status='unknown')
 
       if (my_rank_pic == 0)
-     .     write (*,*) ' Reading PCLES restart file(s)...'
+     .   write (*,'(a)',ADVANCE = "NO")
+     .     ' Reading PCLES restart file(s)...'
 
       read(ufile,iostat=ierror,end=100) pcle_time
       if (ierror /= 0) goto 200
@@ -300,7 +301,7 @@ c     Read restart PCLE data
 
       close(ufile)
 
-      if (my_rank_pic == 0) write (*,*) ' Done!'
+      if (my_rank_pic == 0) write (*,*) 'Done!'
 
       return
 
@@ -5568,7 +5569,7 @@ c     Local variables
 c     Begin program
 
       if (my_rank_pic == 0.and.(.not.tst_flg)) then
-        write (*,'(a)',ADVANCE = "NO") "Sorting particles..."
+        write (*,'(a)',ADVANCE = "NO") " Sorting particles..."
       endif
 
       call get_global_grid_size(nxg,nyg,nzg)
@@ -5706,7 +5707,7 @@ c------------------------------------------------------------------
 
       use mg_Xfer, ONLY: fillArray
 
-      use pic_mass_matrix, ONLY: MM2l
+      use pic_mass_matrix !, ONLY: MM2l
 
       implicit none
 
@@ -5785,14 +5786,14 @@ c$$$     .                               + xarr(i+1,j-1,k,:)*MM2(ijkgl,3,:)
 c$$$     .                               + xarr(i-1,j+1,k,:)*MM2(ijkgl,7,:)
 c$$$     .                               + xarr(i+1,j+1,k,:)*MM2(ijkgl,9,:)
 
-            y(neq*(ijk-1)+1:neq*ijk) = xarr(i  ,j  ,k,:)*MM2l(ijk,5,:)
-     .                               + xarr(i+1,j  ,k,:)*MM2l(ijk,6,:)
-     .                               + xarr(i-1,j  ,k,:)*MM2l(ijk,4,:)
-     .                               + xarr(i  ,j+1,k,:)*MM2l(ijk,8,:)
+            y(neq*(ijk-1)+1:neq*ijk) = xarr(i-1,j-1,k,:)*MM2l(ijk,1,:)
      .                               + xarr(i  ,j-1,k,:)*MM2l(ijk,2,:)
-     .                               + xarr(i-1,j-1,k,:)*MM2l(ijk,1,:)
      .                               + xarr(i+1,j-1,k,:)*MM2l(ijk,3,:)
+     .                               + xarr(i-1,j  ,k,:)*MM2l(ijk,4,:)
+     .                               + xarr(i  ,j  ,k,:)*MM2l(ijk,5,:)
+     .                               + xarr(i+1,j  ,k,:)*MM2l(ijk,6,:)
      .                               + xarr(i-1,j+1,k,:)*MM2l(ijk,7,:)
+     .                               + xarr(i  ,j+1,k,:)*MM2l(ijk,8,:)
      .                               + xarr(i+1,j+1,k,:)*MM2l(ijk,9,:)
           enddo
         enddo
