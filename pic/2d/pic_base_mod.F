@@ -2196,27 +2196,42 @@ c     ##################################################################
 
 c     gather_moments
 c     ##################################################################
-      subroutine gather_moments(gdef)
+      subroutine gather_moments(gdef,ngp,moms_out)
 
       implicit none
 
 c     Call variables
 
       type(grid_mg_def),pointer :: gdef
-
+      logical,optional :: ngp
+      real(8),optional,dimension(:,:,:,:,:),INTENT(OUT) :: moms_out
+      
 c     Call variables
 
       integer :: im
-
+      logical :: ngpl
+      
 c     Begin program
 
-      call gather_2d_moments(moms_g(:,:,1,1:n_sp,:))
+      if (PRESENT(ngp)) then
+        ngpl = ngp
+      else
+        ngpl = .false.
+      endif
 
+      if (ngpl) then
+        call gather_2d_moments_ngp(moms_g(:,:,1,1:n_sp,:))
+      else
+        call gather_2d_moments    (moms_g(:,:,1,1:n_sp,:))
+      endif
+      
       do im=0,size(moms,5)-1
-       call find_local(gdef,1,moms_g(:,:,:,:,im),moms(:,:,:,:,im))
+        call find_local(gdef,1,moms_g(:,:,:,:,im),moms(:,:,:,:,im))
       enddo
 
       call applyBC_moms(gdef)
+
+      if (PRESENT(moms_out)) moms_out = moms
 
 c     End program
 
@@ -2383,6 +2398,155 @@ c     Wrap moments around boundaries
 c     End program
 
       end subroutine gather_2d_moments
+
+c     gather_2d_moments_ngp
+c     ##################################################################
+      subroutine gather_2d_moments_ngp(mments)
+
+      implicit none
+
+c     Call variables
+
+      real(8), intent(out) :: mments(0:,0:,:,0:)
+
+c     Local variables
+
+      integer :: isp,ip,ii,jj,i,j,numspcs,numpcles
+      integer :: i_np(_Npg), j_np(_Npg)
+
+      real(8) :: garr_n  (0:nxg+1,0:nyg+1)
+     $          ,garr_vx (0:nxg+1,0:nyg+1)
+     $          ,garr_vy (0:nxg+1,0:nyg+1)
+     $          ,garr_vz (0:nxg+1,0:nyg+1)
+     $          ,garr_vx2(0:nxg+1,0:nyg+1)
+     $          ,garr_vy2(0:nxg+1,0:nyg+1)
+     $          ,garr_vz2(0:nxg+1,0:nyg+1)
+
+      real(_prec) :: xp(_Npg),yp(_Npg),v2,w_pcle(_Npg)
+      real(8) :: vcurv(_Npg,3)
+      real(8) :: ihx,ihy,ihz
+
+c     Begin program
+
+      call get_inverse_h(ihx,ihy,ihz)
+
+      idlvol = ihx*ihy*ihz
+
+      numspcs = size(spcs)
+
+      do isp=1,numspcs
+        numpcles = size(spcs(isp)%pcles)
+
+        garr_n = 0d0
+        garr_vx = 0d0
+        garr_vy = 0d0
+        garr_vz = 0d0
+
+        garr_vx2= 0d0
+        garr_vy2= 0d0
+        garr_vz2= 0d0
+        
+!     note that there is some issue with valgrind and libgomp.
+!$omp parallel DEFAULT(SHARED) private(ip,xp,yp,i_np,j_np,vcurv,i
+!$omp.                                ,v2,w_pcle)
+!$      call set_omp_thread_id()
+!$omp DO 
+!$omp.reduction(+:garr_n,garr_vx,garr_vy,garr_vz
+!$omp.           ,garr_vx2,garr_vy2,garr_vz2
+!$omp.         ) 
+        do ip=nip+1,numpcles
+
+          xp = spcs(isp)%pcles(ip)%x_n(:,1)*ihx
+          yp = spcs(isp)%pcles(ip)%x_n(:,2)*ihy
+
+          w_pcle = spcs(isp)%pcles(ip)%w_n
+
+          call xform_pcle_idx(spcs(isp)%pcles(ip)%ijk_n,nxg,i_np,j_np)   
+          
+          if (no_map) then
+             vcurv = spcs(isp)%pcles(ip)%v_n
+          else
+             vcurv = find_vcurv(i_np,j_np,spcs(isp)%pcles(ip)%x_n
+     .                                   ,spcs(isp)%pcles(ip)%v_n)
+          endif
+
+          do i=1,_Npg
+
+             !accumulate n (quadratic in x,y)
+             garr_n(i_np(i),j_np(i)) = 
+     .       garr_n(i_np(i),j_np(i)) + w_pcle(i)
+
+#ifdef __GNU
+             !accumulate vx (linear in x, 2nd in y)
+             garr_vx(i_np(i),j_np(i)) = 
+     .       garr_vx(i_np(i),j_np(i)) + vcurv(i,1)*w_pcle(i)
+
+             !accumulate vy (2nd in x, linear in y)
+             garr_vy(i_np(i),j_np(i)) = 
+     .       garr_vy(i_np(i),j_np(i)) + vcurv(i,2)*w_pcle(i)
+#else
+             !accumulate vx (linear in x, 2nd in y)
+             garr_vx(i_np(i),j_np(i)) = 
+     .       garr_vx(i_np(i),j_np(i)) + vcurv(i,1)*w_pcle(i)
+
+             !accumulate vy (2nd in x, linear in y)
+             garr_vy(i_np(i),j_np(i)) = 
+     .       garr_vy(i_np(i),j_np(i)) + vcurv(i,2)*w_pcle(i)
+#endif
+
+             !accumulate vz (2nd in x,y)
+             garr_vz(i_np(i),j_np(i)) =
+     .       garr_vz(i_np(i),j_np(i)) + vcurv(i,3)*w_pcle(i)
+          
+             !accumulate v^2 (2nd in x,y, cell-centered)
+             v2 = spcs(isp)%pcles(ip)%v_n(i,1)
+     .           *spcs(isp)%pcles(ip)%v_n(i,1)
+             garr_vx2(i_np(i),j_np(i)) = 
+     .       garr_vx2(i_np(i),j_np(i)) + v2*w_pcle(i)
+
+             v2 = spcs(isp)%pcles(ip)%v_n(i,2)
+     .           *spcs(isp)%pcles(ip)%v_n(i,2)
+             garr_vy2(i_np(i),j_np(i)) = 
+     .       garr_vy2(i_np(i),j_np(i)) + v2*w_pcle(i)  
+
+             v2 = spcs(isp)%pcles(ip)%v_n(i,3)
+     .           *spcs(isp)%pcles(ip)%v_n(i,3)
+             garr_vz2(i_np(i),j_np(i)) = 
+     .       garr_vz2(i_np(i),j_np(i)) + v2*w_pcle(i)
+          
+          end do
+
+        enddo
+!$omp end do 
+!$omp end parallel 
+
+!       just the moments without b.c., the b.c. should be done where needed.
+        mments(:,:,isp,IS11) = garr_vx2
+        mments(:,:,isp,IS22) = garr_vy2
+        mments(:,:,isp,IS33) = garr_vz2
+        mments(:,:,isp,Ipx ) = garr_vx
+        mments(:,:,isp,Ipy ) = garr_vy
+        mments(:,:,isp,Ipz ) = garr_vz
+        mments(:,:,isp,Ins ) = garr_n
+
+      enddo
+
+c     Wrap moments around boundaries
+
+#if defined(petsc)
+      allocate(send_buf(size(mments))
+     $        ,rec_buf (size(mments)))
+      send_buf = reshape(mments, (/size(mments)/))
+      call MPI_Allreduce(send_buf,rec_buf,size(send_buf)
+     $                  ,MPI_DOUBLE_PRECISION
+     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+      mments(0:,0:,:,0:) = reshape(rec_buf,shape(mments))
+      deallocate(send_buf,rec_buf)
+#endif
+
+c     End program
+
+      end subroutine gather_2d_moments_ngp
 
 c     wrap_moments_nodes
 c     ##################################################################
