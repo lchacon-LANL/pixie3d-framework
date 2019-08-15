@@ -2196,15 +2196,15 @@ c     ##################################################################
 
 c     gather_moments
 c     ##################################################################
-      subroutine gather_moments(gdef,ngp,moms_out)
+      subroutine gather_moments(gdef,moms,ngp)
 
       implicit none
 
 c     Call variables
 
       type(grid_mg_def),pointer :: gdef
+      real(8),dimension(0:,0:,0:,:,0:) :: moms
       logical,optional :: ngp
-      real(8),optional,dimension(:,:,:,:,:),INTENT(OUT) :: moms_out
       
 c     Call variables
 
@@ -2229,9 +2229,7 @@ c     Begin program
         call find_local(gdef,1,moms_g(:,:,:,:,im),moms(:,:,:,:,im))
       enddo
 
-      call applyBC_moms(gdef)
-
-      if (PRESENT(moms_out)) moms_out = moms
+      call applyBC_moms(gdef,moms)
 
 c     End program
 
@@ -2425,6 +2423,8 @@ c     Local variables
       real(_prec) :: xp(_Npg),yp(_Npg),v2,w_pcle(_Npg)
       real(8) :: vcurv(_Npg,3)
       real(8) :: ihx,ihy,ihz
+
+      real(8),allocatable,dimension(:) :: send_buf,rec_buf
 
 c     Begin program
 
@@ -2742,13 +2742,14 @@ c     end program
 
 c     applyBC_moms
 c     ##################################################################
-      subroutine applyBC_moms(gdef)
+      subroutine applyBC_moms(gdef,moms)
 
       implicit none
 
 c     Call variables
 
       type(grid_mg_def),pointer :: gdef
+      real(8),dimension(0:,0:,0:,:,0:) :: moms
 
 c     Local variables
 
@@ -4558,7 +4559,7 @@ c     Initialize particles
           stop
         endif
 
-        call gather_moments(gpicdef)
+        call gather_moments(gpicdef,moms)
         momsn = moms
       else
         ierr = rm_files("pcle_rstrt")
@@ -4889,14 +4890,14 @@ c     Find particle weights and drift velocities
           write (*,*) '******************'
         endif
 
-        call gather_moments(gpicdef)
+        call gather_moments(gpicdef,moms)
 
         call setup_mass_matrix(nxl,nyl,nzl,nxg,nyg,nzg)
 
         call find_pcle_weights(moms(:,:,1,1:n_sp,Ins),.false.)
 
         !Check GY
-        call gather_moments(gpicdef)
+        call gather_moments(gpicdef,moms)
 
         call find_pcle_drift_velocity_x(moms(:,:,1,1:n_sp,Ipx))
         call find_pcle_drift_velocity_y(moms(:,:,1,1:n_sp,Ipy))
@@ -4945,7 +4946,7 @@ cc        end if
 
 c     Gather moments
 
-      call gather_moments(gpicdef)
+      call gather_moments(gpicdef,moms)
 
 c$$$      !Check GY
 c$$$      ierr = pic_dump_pcles(time)

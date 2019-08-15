@@ -11281,7 +11281,7 @@ cc              dvol = g_def%gmetric%grid(igx)%dvol(i,j,k)
 #if defined(petsc)
       send_buf = (/ integral, volume /)
       call MPI_Allreduce(send_buf,rec_buf,2,MPI_DOUBLE_PRECISION
-     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+     .                  ,MPI_SUM,g_def%mpi_comm,mpierr)
       integral = rec_buf(1)
       volume = rec_buf(2)
 #endif
@@ -11434,7 +11434,7 @@ c     Integrate
 #if defined(petsc)
       send_buf = (/ integral, volume /)
       call MPI_Allreduce(send_buf,rec_buf,2,MPI_DOUBLE_PRECISION
-     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+     .                  ,MPI_SUM,g_def%mpi_comm,mpierr)
       integral = rec_buf(1)
       volume = rec_buf(2)
 #endif

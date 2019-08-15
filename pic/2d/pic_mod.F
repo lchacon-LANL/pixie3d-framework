@@ -402,7 +402,7 @@ c     Scatter moments to local mesh
 
 c     Apply BCs to moments
 
-      call applyBC_moms(gpicdef)
+      call applyBC_moms(gpicdef,moms)
 
 c     Output info
 
