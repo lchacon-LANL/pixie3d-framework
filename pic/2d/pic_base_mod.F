@@ -5196,6 +5196,51 @@ c     End program
 
       end subroutine pcles_bc_offset
 
+c     pic_activate_pcle
+c     ##################################################################
+      subroutine pic_activate_pcle(is,ijk)
+
+      implicit none
+
+c     Call variables
+      
+      integer :: is,ijk
+
+c     Local variables
+      
+      integer :: ip
+      real(8) :: hx,hy,hz
+
+c     Begin program
+      
+      if (nip > 0) then
+
+        call get_h(hx,hy,hz)
+
+        ip = nip
+        
+        nip = nip - 1
+
+        !Place it at center of cell
+        spcs(is)%pcles(ip)%x_n(:,1) = 0.5*hx
+        spcs(is)%pcles(ip)%x_n(:,2) = 0.5*hy
+
+        !No velocity so that it does not contribute energy or momentum
+        spcs(is)%pcles(ip)%v_n  = 0d0
+
+        spcs(is)%pcles(ip)%ijk_n = ijk
+
+        spcs(is)%pcles(ip)%w_n(:) = 1d0
+
+        spcs(is)%pcles(ip)%x_np   = spcs(is)%pcles(ip)%x_n
+        spcs(is)%pcles(ip)%v_np   = spcs(is)%pcles(ip)%v_n
+        spcs(is)%pcles(ip)%ijk_np = spcs(is)%pcles(ip)%ijk_n
+        spcs(is)%pcles(ip)%w_np   = spcs(is)%pcles(ip)%w_n
+
+      endif
+      
+      end subroutine pic_activate_pcle
+
       end module pic_setup
 
 c pic_diag
