@@ -5884,7 +5884,7 @@ c     Begin program
 
       if (my_rank_pic == 0.and.(.not.tst_flg)) write (*,*) "Done!"
 
-      deallocate(part_cell_index,locl_cell_index)
+      deallocate(part_cell_index,locl_cell_index,Np_cell)
 
       end subroutine sort_particles
 
