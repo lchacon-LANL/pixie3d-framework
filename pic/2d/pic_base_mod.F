@@ -256,7 +256,8 @@ c     Read restart PCLE data
      .    ,status='unknown')
 
       if (my_rank_pic == 0)
-     .     write (*,*) ' Reading PCLES restart file(s)...'
+     .   write (*,'(a)',ADVANCE = "NO")
+     .     ' Reading PCLES restart file(s)...'
 
       read(ufile,iostat=ierror,end=100) pcle_time
       if (ierror /= 0) goto 200
@@ -274,9 +275,14 @@ c     Read restart PCLE data
       read(ufile,iostat=ierror,end=100) m_np,m_n,cm_ex,PoynFlux
       if (ierror /= 0) goto 200
 
-      npcles(1:nsp) = npcl(1:nsp)*_Npg
+      npcles(1:nsp) = npcl(1:nsp)*_Npg*nproc
       
-      if (.not.allocated(spcs)) call alloc_pcles(nsp,npcles(1:nsp))
+      if (.not.allocated(spcs)) then
+        allocate(spcs(nsp))
+        do isp = 1,nsp
+          allocate(spcs(isp)%pcles(npcl(isp)))
+        enddo
+      endif
 
       do isp=1,nsp
          read (ufile,iostat=ierror,end=100) spcs(isp)%q
@@ -295,7 +301,7 @@ c     Read restart PCLE data
 
       close(ufile)
 
-      if (my_rank_pic == 0) write (*,*) ' Done!'
+      if (my_rank_pic == 0) write (*,*) 'Done!'
 
       return
 
@@ -1381,6 +1387,10 @@ c     ##################################################################
       ihy = 1d0/hy
       ihz = 1d0/hz
 
+      h_x = hx
+      h_y = hy
+      h_z = hz
+      
       call setup_pic_shape_f(hx,hy,hz)
 
       end subroutine set_inverse_h
@@ -2186,27 +2196,40 @@ c     ##################################################################
 
 c     gather_moments
 c     ##################################################################
-      subroutine gather_moments(gdef)
+      subroutine gather_moments(gdef,moms,ngp)
 
       implicit none
 
 c     Call variables
 
       type(grid_mg_def),pointer :: gdef
-
+      real(8),dimension(0:,0:,0:,:,0:) :: moms
+      logical,optional :: ngp
+      
 c     Call variables
 
       integer :: im
-
+      logical :: ngpl
+      
 c     Begin program
 
-      call gather_2d_moments(moms_g(:,:,1,1:n_sp,:))
+      if (PRESENT(ngp)) then
+        ngpl = ngp
+      else
+        ngpl = .false.
+      endif
 
+      if (ngpl) then
+        call gather_2d_moments_ngp(moms_g(:,:,1,1:n_sp,:))
+      else
+        call gather_2d_moments    (moms_g(:,:,1,1:n_sp,:))
+      endif
+      
       do im=0,size(moms,5)-1
-       call find_local(gdef,1,moms_g(:,:,:,:,im),moms(:,:,:,:,im))
+        call find_local(gdef,1,moms_g(:,:,:,:,im),moms(:,:,:,:,im))
       enddo
 
-      call applyBC_moms(gdef)
+      call applyBC_moms(gdef,moms)
 
 c     End program
 
@@ -2373,6 +2396,157 @@ c     Wrap moments around boundaries
 c     End program
 
       end subroutine gather_2d_moments
+
+c     gather_2d_moments_ngp
+c     ##################################################################
+      subroutine gather_2d_moments_ngp(mments)
+
+      implicit none
+
+c     Call variables
+
+      real(8), intent(out) :: mments(0:,0:,:,0:)
+
+c     Local variables
+
+      integer :: isp,ip,ii,jj,i,j,numspcs,numpcles
+      integer :: i_np(_Npg), j_np(_Npg)
+
+      real(8) :: garr_n  (0:nxg+1,0:nyg+1)
+     $          ,garr_vx (0:nxg+1,0:nyg+1)
+     $          ,garr_vy (0:nxg+1,0:nyg+1)
+     $          ,garr_vz (0:nxg+1,0:nyg+1)
+     $          ,garr_vx2(0:nxg+1,0:nyg+1)
+     $          ,garr_vy2(0:nxg+1,0:nyg+1)
+     $          ,garr_vz2(0:nxg+1,0:nyg+1)
+
+      real(_prec) :: xp(_Npg),yp(_Npg),v2,w_pcle(_Npg)
+      real(8) :: vcurv(_Npg,3)
+      real(8) :: ihx,ihy,ihz
+
+      real(8),allocatable,dimension(:) :: send_buf,rec_buf
+
+c     Begin program
+
+      call get_inverse_h(ihx,ihy,ihz)
+
+      idlvol = ihx*ihy*ihz
+
+      numspcs = size(spcs)
+
+      do isp=1,numspcs
+        numpcles = size(spcs(isp)%pcles)
+
+        garr_n = 0d0
+        garr_vx = 0d0
+        garr_vy = 0d0
+        garr_vz = 0d0
+
+        garr_vx2= 0d0
+        garr_vy2= 0d0
+        garr_vz2= 0d0
+        
+!     note that there is some issue with valgrind and libgomp.
+!$omp parallel DEFAULT(SHARED) private(ip,xp,yp,i_np,j_np,vcurv,i
+!$omp.                                ,v2,w_pcle)
+!$      call set_omp_thread_id()
+!$omp DO 
+!$omp.reduction(+:garr_n,garr_vx,garr_vy,garr_vz
+!$omp.           ,garr_vx2,garr_vy2,garr_vz2
+!$omp.         ) 
+        do ip=nip+1,numpcles
+
+          xp = spcs(isp)%pcles(ip)%x_n(:,1)*ihx
+          yp = spcs(isp)%pcles(ip)%x_n(:,2)*ihy
+
+          w_pcle = spcs(isp)%pcles(ip)%w_n
+
+          call xform_pcle_idx(spcs(isp)%pcles(ip)%ijk_n,nxg,i_np,j_np)   
+          
+          if (no_map) then
+             vcurv = spcs(isp)%pcles(ip)%v_n
+          else
+             vcurv = find_vcurv(i_np,j_np,spcs(isp)%pcles(ip)%x_n
+     .                                   ,spcs(isp)%pcles(ip)%v_n)
+          endif
+
+          do i=1,_Npg
+
+             !accumulate n (quadratic in x,y)
+             garr_n(i_np(i),j_np(i)) = 
+     .       garr_n(i_np(i),j_np(i)) + w_pcle(i)
+
+#ifdef __GNU
+             !accumulate vx (linear in x, 2nd in y)
+             garr_vx(i_np(i),j_np(i)) = 
+     .       garr_vx(i_np(i),j_np(i)) + vcurv(i,1)*w_pcle(i)
+
+             !accumulate vy (2nd in x, linear in y)
+             garr_vy(i_np(i),j_np(i)) = 
+     .       garr_vy(i_np(i),j_np(i)) + vcurv(i,2)*w_pcle(i)
+#else
+             !accumulate vx (linear in x, 2nd in y)
+             garr_vx(i_np(i),j_np(i)) = 
+     .       garr_vx(i_np(i),j_np(i)) + vcurv(i,1)*w_pcle(i)
+
+             !accumulate vy (2nd in x, linear in y)
+             garr_vy(i_np(i),j_np(i)) = 
+     .       garr_vy(i_np(i),j_np(i)) + vcurv(i,2)*w_pcle(i)
+#endif
+
+             !accumulate vz (2nd in x,y)
+             garr_vz(i_np(i),j_np(i)) =
+     .       garr_vz(i_np(i),j_np(i)) + vcurv(i,3)*w_pcle(i)
+          
+             !accumulate v^2 (2nd in x,y, cell-centered)
+             v2 = spcs(isp)%pcles(ip)%v_n(i,1)
+     .           *spcs(isp)%pcles(ip)%v_n(i,1)
+             garr_vx2(i_np(i),j_np(i)) = 
+     .       garr_vx2(i_np(i),j_np(i)) + v2*w_pcle(i)
+
+             v2 = spcs(isp)%pcles(ip)%v_n(i,2)
+     .           *spcs(isp)%pcles(ip)%v_n(i,2)
+             garr_vy2(i_np(i),j_np(i)) = 
+     .       garr_vy2(i_np(i),j_np(i)) + v2*w_pcle(i)  
+
+             v2 = spcs(isp)%pcles(ip)%v_n(i,3)
+     .           *spcs(isp)%pcles(ip)%v_n(i,3)
+             garr_vz2(i_np(i),j_np(i)) = 
+     .       garr_vz2(i_np(i),j_np(i)) + v2*w_pcle(i)
+          
+          end do
+
+        enddo
+!$omp end do 
+!$omp end parallel 
+
+!       just the moments without b.c., the b.c. should be done where needed.
+        mments(:,:,isp,IS11) = garr_vx2
+        mments(:,:,isp,IS22) = garr_vy2
+        mments(:,:,isp,IS33) = garr_vz2
+        mments(:,:,isp,Ipx ) = garr_vx
+        mments(:,:,isp,Ipy ) = garr_vy
+        mments(:,:,isp,Ipz ) = garr_vz
+        mments(:,:,isp,Ins ) = garr_n
+
+      enddo
+
+c     Wrap moments around boundaries
+
+#if defined(petsc)
+      allocate(send_buf(size(mments))
+     $        ,rec_buf (size(mments)))
+      send_buf = reshape(mments, (/size(mments)/))
+      call MPI_Allreduce(send_buf,rec_buf,size(send_buf)
+     $                  ,MPI_DOUBLE_PRECISION
+     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+      mments(0:,0:,:,0:) = reshape(rec_buf,shape(mments))
+      deallocate(send_buf,rec_buf)
+#endif
+
+c     End program
+
+      end subroutine gather_2d_moments_ngp
 
 c     wrap_moments_nodes
 c     ##################################################################
@@ -2568,13 +2742,14 @@ c     end program
 
 c     applyBC_moms
 c     ##################################################################
-      subroutine applyBC_moms(gdef)
+      subroutine applyBC_moms(gdef,moms)
 
       implicit none
 
 c     Call variables
 
       type(grid_mg_def),pointer :: gdef
+      real(8),dimension(0:,0:,0:,:,0:) :: moms
 
 c     Local variables
 
@@ -3441,7 +3616,7 @@ c     Assign particle drift velocity vy (Stardard curvilinear convention, i.e., 
 
       do isp=1, numspcs 
         numpcles = size(spcs(isp)%pcles)
-!$OMP PARALLEL DEFAULT(SHARED) private(ip,i,i_n,j_n,imp)
+!$OMP PARALLEL DEFAULT(SHARED) private(ip,i,i_n,j_n,jmp)
 !$OMP DO
         do ip=1,numpcles
           if(ip > nip) then    !reserved inflow particles
@@ -4384,7 +4559,7 @@ c     Initialize particles
           stop
         endif
 
-        call gather_moments(gpicdef)
+        call gather_moments(gpicdef,moms)
         momsn = moms
       else
         ierr = rm_files("pcle_rstrt")
@@ -4449,6 +4624,7 @@ c     ##################################################################
       use F_call_C
 
       use hammersley_seq
+      use mv_normal
 
       implicit none
 c     ------------------------------------------------------------------
@@ -4540,8 +4716,6 @@ c     Load particles
 #include "problem_init/icLoadPartls.f"
         case('slow_shock')
 #include "problem_init/slowShockLoadPartls.f"
-cc        case('plasma_exp')
-cc#include "problem_init/plasmaExpLoadPartls.f"
         case('kaw_ii')   
 #include "problem_init/kawiiLoadPartls.f"
         case('landau','2strm','iaw')!,'langdon')
@@ -4716,14 +4890,14 @@ c     Find particle weights and drift velocities
           write (*,*) '******************'
         endif
 
-        call gather_moments(gpicdef)
+        call gather_moments(gpicdef,moms)
 
         call setup_mass_matrix(nxl,nyl,nzl,nxg,nyg,nzg)
 
         call find_pcle_weights(moms(:,:,1,1:n_sp,Ins),.false.)
 
         !Check GY
-        call gather_moments(gpicdef)
+        call gather_moments(gpicdef,moms)
 
         call find_pcle_drift_velocity_x(moms(:,:,1,1:n_sp,Ipx))
         call find_pcle_drift_velocity_y(moms(:,:,1,1:n_sp,Ipy))
@@ -4772,7 +4946,7 @@ cc        end if
 
 c     Gather moments
 
-      call gather_moments(gpicdef)
+      call gather_moments(gpicdef,moms)
 
 c$$$      !Check GY
 c$$$      ierr = pic_dump_pcles(time)
@@ -5021,6 +5195,51 @@ cc           if (vdn*(-1)**loc < 0d0) vp = vp - 2d0*vdn*cov(dim,:)*inmag ! vp = 
 c     End program
 
       end subroutine pcles_bc_offset
+
+c     pic_activate_pcle
+c     ##################################################################
+      subroutine pic_activate_pcle(is,ijk)
+
+      implicit none
+
+c     Call variables
+      
+      integer :: is,ijk
+
+c     Local variables
+      
+      integer :: ip
+      real(8) :: hx,hy,hz
+
+c     Begin program
+      
+      if (nip > 0) then
+
+        call get_h(hx,hy,hz)
+
+        ip = nip
+        
+        nip = nip - 1
+
+        !Place it at center of cell
+        spcs(is)%pcles(ip)%x_n(:,1) = 0.5*hx
+        spcs(is)%pcles(ip)%x_n(:,2) = 0.5*hy
+
+        !No velocity so that it does not contribute energy or momentum
+        spcs(is)%pcles(ip)%v_n  = 0d0
+
+        spcs(is)%pcles(ip)%ijk_n = ijk
+
+        spcs(is)%pcles(ip)%w_n(:) = 1d0
+
+        spcs(is)%pcles(ip)%x_np   = spcs(is)%pcles(ip)%x_n
+        spcs(is)%pcles(ip)%v_np   = spcs(is)%pcles(ip)%v_n
+        spcs(is)%pcles(ip)%ijk_np = spcs(is)%pcles(ip)%ijk_n
+        spcs(is)%pcles(ip)%w_np   = spcs(is)%pcles(ip)%w_n
+
+      endif
+      
+      end subroutine pic_activate_pcle
 
       end module pic_setup
 
@@ -5560,7 +5779,7 @@ c     Local variables
 c     Begin program
 
       if (my_rank_pic == 0.and.(.not.tst_flg)) then
-        write (*,'(a)',ADVANCE = "NO") "Sorting particles..."
+        write (*,'(a)',ADVANCE = "NO") " Sorting particles..."
       endif
 
       call get_global_grid_size(nxg,nyg,nzg)
@@ -5665,7 +5884,7 @@ c     Begin program
 
       if (my_rank_pic == 0.and.(.not.tst_flg)) write (*,*) "Done!"
 
-      deallocate(part_cell_index,locl_cell_index)
+      deallocate(part_cell_index,locl_cell_index,Np_cell)
 
       end subroutine sort_particles
 
@@ -5698,7 +5917,7 @@ c------------------------------------------------------------------
 
       use mg_Xfer, ONLY: fillArray
 
-      use pic_mass_matrix, ONLY: MM2l
+      use pic_mass_matrix !, ONLY: MM2l
 
       implicit none
 
@@ -5777,14 +5996,14 @@ c$$$     .                               + xarr(i+1,j-1,k,:)*MM2(ijkgl,3,:)
 c$$$     .                               + xarr(i-1,j+1,k,:)*MM2(ijkgl,7,:)
 c$$$     .                               + xarr(i+1,j+1,k,:)*MM2(ijkgl,9,:)
 
-            y(neq*(ijk-1)+1:neq*ijk) = xarr(i  ,j  ,k,:)*MM2l(ijk,5,:)
-     .                               + xarr(i+1,j  ,k,:)*MM2l(ijk,6,:)
-     .                               + xarr(i-1,j  ,k,:)*MM2l(ijk,4,:)
-     .                               + xarr(i  ,j+1,k,:)*MM2l(ijk,8,:)
+            y(neq*(ijk-1)+1:neq*ijk) = xarr(i-1,j-1,k,:)*MM2l(ijk,1,:)
      .                               + xarr(i  ,j-1,k,:)*MM2l(ijk,2,:)
-     .                               + xarr(i-1,j-1,k,:)*MM2l(ijk,1,:)
      .                               + xarr(i+1,j-1,k,:)*MM2l(ijk,3,:)
+     .                               + xarr(i-1,j  ,k,:)*MM2l(ijk,4,:)
+     .                               + xarr(i  ,j  ,k,:)*MM2l(ijk,5,:)
+     .                               + xarr(i+1,j  ,k,:)*MM2l(ijk,6,:)
      .                               + xarr(i-1,j+1,k,:)*MM2l(ijk,7,:)
+     .                               + xarr(i  ,j+1,k,:)*MM2l(ijk,8,:)
      .                               + xarr(i+1,j+1,k,:)*MM2l(ijk,9,:)
           enddo
         enddo
