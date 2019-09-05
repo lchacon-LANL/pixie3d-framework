@@ -2247,18 +2247,18 @@ c     Call variables
 
 c     Local variables
 
-      integer :: isp,ip,ii,jj,i,j,numspcs,numpcles
+      integer :: isp,ip,ii,jj,i,j,numspcs,numpcles,il,jl
       integer :: i_np(_Npg), j_np(_Npg)
 
-      real(8) :: garr_n  (0:nxg+1,0:nyg+1)
-     $          ,garr_vx (0:nxg+1,0:nyg+1)
-     $          ,garr_vy (0:nxg+1,0:nyg+1)
-     $          ,garr_vz (0:nxg+1,0:nyg+1)
-     $          ,garr_vx2(0:nxg+1,0:nyg+1)
-     $          ,garr_vy2(0:nxg+1,0:nyg+1)
-     $          ,garr_vz2(0:nxg+1,0:nyg+1)
+c$$$      real(8) :: garr_n  (0:nxg+1,0:nyg+1)
+c$$$     $          ,garr_vx (0:nxg+1,0:nyg+1)
+c$$$     $          ,garr_vy (0:nxg+1,0:nyg+1)
+c$$$     $          ,garr_vz (0:nxg+1,0:nyg+1)
+c$$$     $          ,garr_vx2(0:nxg+1,0:nyg+1)
+c$$$     $          ,garr_vy2(0:nxg+1,0:nyg+1)
+c$$$     $          ,garr_vz2(0:nxg+1,0:nyg+1)
 
-      real(8) :: My2(1,3),Mx2(3,1),My1(1,2)
+      real(8) :: My2(1,3),Mx2(3,1),My1(1,2),dum23(2,3),dum32(3,2)
       real(8) :: Mx1(2,1),Mxy2(3,3),My1_int(1,2)
       real(_prec) :: xp(_Npg),yp(_Npg),v2,w_pcle(_Npg)
       real(8) :: vcurv(_Npg,3)
@@ -2272,26 +2272,29 @@ c     Begin program
 
       numspcs = size(spcs)
 
+      mments = 0d0
+      
       do isp=1,numspcs
         numpcles = size(spcs(isp)%pcles)
 
-        garr_n = 0d0
-        garr_vx = 0d0
-        garr_vy = 0d0
-        garr_vz = 0d0
-
-        garr_vx2= 0d0
-        garr_vy2= 0d0
-        garr_vz2= 0d0
+c$$$        garr_n = 0d0
+c$$$        garr_vx = 0d0
+c$$$        garr_vy = 0d0
+c$$$        garr_vz = 0d0
+c$$$
+c$$$        garr_vx2= 0d0
+c$$$        garr_vy2= 0d0
+c$$$        garr_vz2= 0d0
         
 !     note that there is some issue with valgrind and libgomp.
-!$omp parallel DEFAULT(SHARED) private(ip,xp,yp,i_np,j_np,vcurv,i
-!$omp.                                ,Mx1,Mx2,My1,My2,Mxy2,v2,w_pcle)
+!$omp parallel DEFAULT(SHARED) private(ip,xp,yp,i_np,j_np,vcurv,i,il,jl
+!$omp.                                ,Mx1,Mx2,My1,My2,Mxy2,v2,w_pcle
+!$omp.                                ,dum23,dum32)
 !$      call set_omp_thread_id()
 !$omp DO 
-!$omp.reduction(+:garr_n,garr_vx,garr_vy,garr_vz
-!$omp.           ,garr_vx2,garr_vy2,garr_vz2
-!$omp.         ) 
+c$$$!$omp.reduction(+:garr_n,garr_vx,garr_vy,garr_vz
+c$$$!$omp.           ,garr_vx2,garr_vy2,garr_vz2
+c$$$!$omp.         ) 
         do ip=nip+1,numpcles
 
           xp = spcs(isp)%pcles(ip)%x_n(:,1)*ihx
@@ -2321,57 +2324,122 @@ c     Begin program
              Mxy2(:,:)= matmul(Mx2,My2)
 #endif
 
-             !accumulate n (quadratic in x,y)
-             garr_n(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)+1) = 
-     .       garr_n(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)+1)
-     .       + Mxy2*w_pcle(i)
+c$$$             !accumulate n (quadratic in x,y)
+c$$$             garr_n(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)+1) = 
+c$$$     .       garr_n(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)+1)
+c$$$     .       + Mxy2*w_pcle(i)
+c$$$
+c$$$#ifdef __GNU
+c$$$             !accumulate vx (linear in x, 2nd in y)
+c$$$             garr_vx(i_np(i)-1:i_np(i),j_np(i)-1:j_np(i)+1) = 
+c$$$     .       garr_vx(i_np(i)-1:i_np(i),j_np(i)-1:j_np(i)+1) + 
+c$$$     .         vcurv(i,1)*opt_vecvec_23(Mx1,My2)*w_pcle(i)
+c$$$
+c$$$             !accumulate vy (2nd in x, linear in y)
+c$$$             garr_vy(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)) = 
+c$$$     .       garr_vy(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)) + 
+c$$$     .         vcurv(i,2)*opt_vecvec_32(Mx2,My1)*w_pcle(i)
+c$$$#else
+c$$$             !accumulate vx (linear in x, 2nd in y)
+c$$$             garr_vx(i_np(i)-1:i_np(i),j_np(i)-1:j_np(i)+1) = 
+c$$$     .       garr_vx(i_np(i)-1:i_np(i),j_np(i)-1:j_np(i)+1) + 
+c$$$     .         vcurv(i,1)*matmul(Mx1,My2)*w_pcle(i)
+c$$$
+c$$$             !accumulate vy (2nd in x, linear in y)
+c$$$             garr_vy(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)) = 
+c$$$     .       garr_vy(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)) + 
+c$$$     .         vcurv(i,2)*matmul(Mx2,My1)*w_pcle(i)
+c$$$#endif
+c$$$
+c$$$             !accumulate vz (2nd in x,y)
+c$$$             garr_vz(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)+1) =
+c$$$     .       garr_vz(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)+1) + 
+c$$$     .         vcurv(i,3)*Mxy2*w_pcle(i)
+c$$$          
+c$$$             !accumulate v^2 (2nd in x,y, cell-centered)
+c$$$             v2 = spcs(isp)%pcles(ip)%v_n(i,1)
+c$$$     .           *spcs(isp)%pcles(ip)%v_n(i,1)
+c$$$             garr_vx2(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)+1) = 
+c$$$     .       garr_vx2(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)+1) + 
+c$$$     .         v2*(Mxy2*w_pcle(i))
+c$$$
+c$$$             v2 = spcs(isp)%pcles(ip)%v_n(i,2)
+c$$$     .           *spcs(isp)%pcles(ip)%v_n(i,2)
+c$$$             garr_vy2(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)+1) = 
+c$$$     .       garr_vy2(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)+1) + 
+c$$$     .         v2*(Mxy2*w_pcle(i))     
+c$$$
+c$$$             v2 = spcs(isp)%pcles(ip)%v_n(i,3)
+c$$$     .           *spcs(isp)%pcles(ip)%v_n(i,3)
+c$$$             garr_vz2(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)+1) = 
+c$$$     .       garr_vz2(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)+1) + 
+c$$$     .         v2*(Mxy2*w_pcle(i))    
 
 #ifdef __GNU
-             !accumulate vx (linear in x, 2nd in y)
-             garr_vx(i_np(i)-1:i_np(i),j_np(i)-1:j_np(i)+1) = 
-     .       garr_vx(i_np(i)-1:i_np(i),j_np(i)-1:j_np(i)+1) + 
-     .         vcurv(i,1)*opt_vecvec_23(Mx1,My2)*w_pcle(i)
-
-             !accumulate vy (2nd in x, linear in y)
-             garr_vy(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)) = 
-     .       garr_vy(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)) + 
-     .         vcurv(i,2)*opt_vecvec_32(Mx2,My1)*w_pcle(i)
-#else
-             !accumulate vx (linear in x, 2nd in y)
-             garr_vx(i_np(i)-1:i_np(i),j_np(i)-1:j_np(i)+1) = 
-     .       garr_vx(i_np(i)-1:i_np(i),j_np(i)-1:j_np(i)+1) + 
-     .         vcurv(i,1)*matmul(Mx1,My2)*w_pcle(i)
-
-             !accumulate vy (2nd in x, linear in y)
-             garr_vy(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)) = 
-     .       garr_vy(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)) + 
-     .         vcurv(i,2)*matmul(Mx2,My1)*w_pcle(i)
+             dum23 = opt_vecvec_23(Mx1,My2)
+             dum32 = opt_vecvec_32(Mx2,My1)
+#else                
+             dum23 = matmul(Mx1,My2)
+             dum32 = matmul(Mx2,My1)
 #endif
+             !accumulate vx (linear in x, 2nd in y)
+             do jl=1,3
+               do il=1,2
+!$omp atomic update
+                 mments(i_np(i)-2+il,j_np(i)-2+jl,isp,Ipx) = 
+     .           mments(i_np(i)-2+il,j_np(i)-2+jl,isp,Ipx)
+     .                   + vcurv(i,1)*dum23(il,jl)*w_pcle(i)
+               enddo
+             enddo
 
-             !accumulate vz (2nd in x,y)
-             garr_vz(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)+1) =
-     .       garr_vz(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)+1) + 
-     .         vcurv(i,3)*Mxy2*w_pcle(i)
-          
-             !accumulate v^2 (2nd in x,y, cell-centered)
-             v2 = spcs(isp)%pcles(ip)%v_n(i,1)
-     .           *spcs(isp)%pcles(ip)%v_n(i,1)
-             garr_vx2(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)+1) = 
-     .       garr_vx2(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)+1) + 
-     .         v2*(Mxy2*w_pcle(i))
+             !accumulate vy (linear in y, 2nd in x)
+             do jl=1,2
+               do il=1,3
+!$omp atomic update
+                 mments(i_np(i)-2+il,j_np(i)-2+jl,isp,Ipy) = 
+     .           mments(i_np(i)-2+il,j_np(i)-2+jl,isp,Ipy)
+     .                   + vcurv(i,2)*dum32(il,jl)*w_pcle(i)
+               enddo
+             enddo
 
-             v2 = spcs(isp)%pcles(ip)%v_n(i,2)
-     .           *spcs(isp)%pcles(ip)%v_n(i,2)
-             garr_vy2(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)+1) = 
-     .       garr_vy2(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)+1) + 
-     .         v2*(Mxy2*w_pcle(i))     
+             do jl=1,3
+               do il=1,3
+                 !accumulate n (2nd in x,y)
+!$omp atomic update
+                 mments(i_np(i)-2+il,j_np(i)-2+jl,isp,Ins) = 
+     .           mments(i_np(i)-2+il,j_np(i)-2+jl,isp,Ins)
+     .                + Mxy2(il,jl)*w_pcle(i)
 
-             v2 = spcs(isp)%pcles(ip)%v_n(i,3)
-     .           *spcs(isp)%pcles(ip)%v_n(i,3)
-             garr_vz2(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)+1) = 
-     .       garr_vz2(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)+1) + 
-     .         v2*(Mxy2*w_pcle(i))    
-          
+                 !accumulate vz (2nd in x,y)
+!$omp atomic update
+                 mments(i_np(i)-2+il,j_np(i)-2+jl,isp,Ipz) = 
+     .           mments(i_np(i)-2+il,j_np(i)-2+jl,isp,Ipz)
+     .                + vcurv(i,3)*Mxy2(il,jl)*w_pcle(i)
+
+                 !accumulate v^2 (2nd in x,y)
+                 v2 = spcs(isp)%pcles(ip)%v_n(i,1)
+     .               *spcs(isp)%pcles(ip)%v_n(i,1)
+!$omp atomic update
+                 mments(i_np(i)-2+il,j_np(i)-2+jl,isp,IS11) = 
+     .           mments(i_np(i)-2+il,j_np(i)-2+jl,isp,IS11)
+     .                +v2*Mxy2(il,jl)*w_pcle(i)
+
+                 v2 = spcs(isp)%pcles(ip)%v_n(i,2)
+     .               *spcs(isp)%pcles(ip)%v_n(i,2)
+!$omp atomic update
+                 mments(i_np(i)-2+il,j_np(i)-2+jl,isp,IS22) = 
+     .           mments(i_np(i)-2+il,j_np(i)-2+jl,isp,IS22)
+     .                +v2*Mxy2(il,jl)*w_pcle(i)
+
+                 v2 = spcs(isp)%pcles(ip)%v_n(i,3)
+     .               *spcs(isp)%pcles(ip)%v_n(i,3)
+!$omp atomic update
+                 mments(i_np(i)-2+il,j_np(i)-2+jl,isp,IS33) = 
+     .           mments(i_np(i)-2+il,j_np(i)-2+jl,isp,IS33)
+     .                +v2*Mxy2(il,jl)*w_pcle(i)
+               enddo
+             enddo
+
           end do
 
         enddo
@@ -2379,13 +2447,13 @@ c     Begin program
 !$omp end parallel 
 
 !       just the moments without b.c., the b.c. should be done where needed.
-        mments(:,:,isp,IS11) = garr_vx2
-        mments(:,:,isp,IS22) = garr_vy2
-        mments(:,:,isp,IS33) = garr_vz2
-        mments(:,:,isp,Ipx ) = garr_vx
-        mments(:,:,isp,Ipy ) = garr_vy
-        mments(:,:,isp,Ipz ) = garr_vz
-        mments(:,:,isp,Ins ) = garr_n
+c$$$        mments(:,:,isp,IS11) = garr_vx2
+c$$$        mments(:,:,isp,IS22) = garr_vy2
+c$$$        mments(:,:,isp,IS33) = garr_vz2
+c$$$        mments(:,:,isp,Ipx ) = garr_vx
+c$$$        mments(:,:,isp,Ipy ) = garr_vy
+c$$$        mments(:,:,isp,Ipz ) = garr_vz
+c$$$        mments(:,:,isp,Ins ) = garr_n
 
       enddo
 
@@ -2412,13 +2480,13 @@ c     Local variables
       integer :: isp,ip,ii,jj,i,j,numspcs,numpcles
       integer :: i_np(_Npg), j_np(_Npg)
 
-      real(8) :: garr_n  (0:nxg+1,0:nyg+1)
-     $          ,garr_vx (0:nxg+1,0:nyg+1)
-     $          ,garr_vy (0:nxg+1,0:nyg+1)
-     $          ,garr_vz (0:nxg+1,0:nyg+1)
-     $          ,garr_vx2(0:nxg+1,0:nyg+1)
-     $          ,garr_vy2(0:nxg+1,0:nyg+1)
-     $          ,garr_vz2(0:nxg+1,0:nyg+1)
+c$$$      real(8) :: garr_n  (0:nxg+1,0:nyg+1)
+c$$$     $          ,garr_vx (0:nxg+1,0:nyg+1)
+c$$$     $          ,garr_vy (0:nxg+1,0:nyg+1)
+c$$$     $          ,garr_vz (0:nxg+1,0:nyg+1)
+c$$$     $          ,garr_vx2(0:nxg+1,0:nyg+1)
+c$$$     $          ,garr_vy2(0:nxg+1,0:nyg+1)
+c$$$     $          ,garr_vz2(0:nxg+1,0:nyg+1)
 
       real(_prec) :: xp(_Npg),yp(_Npg),v2,w_pcle(_Npg)
       real(8) :: vcurv(_Npg,3)
@@ -2434,26 +2502,28 @@ c     Begin program
 
       numspcs = size(spcs)
 
+      mments = 0d0
+      
       do isp=1,numspcs
         numpcles = size(spcs(isp)%pcles)
 
-        garr_n = 0d0
-        garr_vx = 0d0
-        garr_vy = 0d0
-        garr_vz = 0d0
-
-        garr_vx2= 0d0
-        garr_vy2= 0d0
-        garr_vz2= 0d0
+c$$$        garr_n  = 0d0
+c$$$        garr_vx = 0d0
+c$$$        garr_vy = 0d0
+c$$$        garr_vz = 0d0
+c$$$
+c$$$        garr_vx2= 0d0
+c$$$        garr_vy2= 0d0
+c$$$        garr_vz2= 0d0
         
 !     note that there is some issue with valgrind and libgomp.
 !$omp parallel DEFAULT(SHARED) private(ip,xp,yp,i_np,j_np,vcurv,i
 !$omp.                                ,v2,w_pcle)
 !$      call set_omp_thread_id()
 !$omp DO 
-!$omp.reduction(+:garr_n,garr_vx,garr_vy,garr_vz
-!$omp.           ,garr_vx2,garr_vy2,garr_vz2
-!$omp.         ) 
+c$$$!$omp.reduction(+:garr_n,garr_vx,garr_vy,garr_vz
+c$$$!$omp.           ,garr_vx2,garr_vy2,garr_vz2
+c$$$!$omp.         ) 
         do ip=nip+1,numpcles
 
           xp = spcs(isp)%pcles(ip)%x_n(:,1)*ihx
@@ -2472,47 +2542,44 @@ c     Begin program
 
           do i=1,_Npg
 
-             !accumulate n (quadratic in x,y)
-             garr_n(i_np(i),j_np(i)) = 
-     .       garr_n(i_np(i),j_np(i)) + w_pcle(i)
+             !accumulate n
+!$omp atomic update
+             mments(i_np(i),j_np(i),isp,Ins ) = 
+     .       mments(i_np(i),j_np(i),isp,Ins ) + w_pcle(i)
 
-#ifdef __GNU
-             !accumulate vx (linear in x, 2nd in y)
-             garr_vx(i_np(i),j_np(i)) = 
-     .       garr_vx(i_np(i),j_np(i)) + vcurv(i,1)*w_pcle(i)
+             !accumulate vx
+!$omp atomic update
+             mments(i_np(i),j_np(i),isp,Ipx ) = 
+     .       mments(i_np(i),j_np(i),isp,Ipx ) + vcurv(i,1)*w_pcle(i)
 
-             !accumulate vy (2nd in x, linear in y)
-             garr_vy(i_np(i),j_np(i)) = 
-     .       garr_vy(i_np(i),j_np(i)) + vcurv(i,2)*w_pcle(i)
-#else
-             !accumulate vx (linear in x, 2nd in y)
-             garr_vx(i_np(i),j_np(i)) = 
-     .       garr_vx(i_np(i),j_np(i)) + vcurv(i,1)*w_pcle(i)
+             !accumulate vy
+!$omp atomic update
+             mments(i_np(i),j_np(i),isp,Ipy ) = 
+     .       mments(i_np(i),j_np(i),isp,Ipy ) + vcurv(i,2)*w_pcle(i)
 
-             !accumulate vy (2nd in x, linear in y)
-             garr_vy(i_np(i),j_np(i)) = 
-     .       garr_vy(i_np(i),j_np(i)) + vcurv(i,2)*w_pcle(i)
-#endif
-
-             !accumulate vz (2nd in x,y)
-             garr_vz(i_np(i),j_np(i)) =
-     .       garr_vz(i_np(i),j_np(i)) + vcurv(i,3)*w_pcle(i)
+             !accumulate vz
+!$omp atomic update
+             mments(i_np(i),j_np(i),isp,Ipz ) =
+     .       mments(i_np(i),j_np(i),isp,Ipz ) + vcurv(i,3)*w_pcle(i)
           
-             !accumulate v^2 (2nd in x,y, cell-centered)
+             !accumulate v^2
              v2 = spcs(isp)%pcles(ip)%v_n(i,1)
      .           *spcs(isp)%pcles(ip)%v_n(i,1)
-             garr_vx2(i_np(i),j_np(i)) = 
-     .       garr_vx2(i_np(i),j_np(i)) + v2*w_pcle(i)
+!$omp atomic update
+             mments(i_np(i),j_np(i),isp,IS11) = 
+     .       mments(i_np(i),j_np(i),isp,IS11) + v2*w_pcle(i)
 
              v2 = spcs(isp)%pcles(ip)%v_n(i,2)
      .           *spcs(isp)%pcles(ip)%v_n(i,2)
-             garr_vy2(i_np(i),j_np(i)) = 
-     .       garr_vy2(i_np(i),j_np(i)) + v2*w_pcle(i)  
+!$omp atomic update
+             mments(i_np(i),j_np(i),isp,IS22) = 
+     .       mments(i_np(i),j_np(i),isp,IS22) + v2*w_pcle(i)  
 
              v2 = spcs(isp)%pcles(ip)%v_n(i,3)
      .           *spcs(isp)%pcles(ip)%v_n(i,3)
-             garr_vz2(i_np(i),j_np(i)) = 
-     .       garr_vz2(i_np(i),j_np(i)) + v2*w_pcle(i)
+!$omp atomic update
+             mments(i_np(i),j_np(i),isp,IS33) = 
+     .       mments(i_np(i),j_np(i),isp,IS33) + v2*w_pcle(i)
           
           end do
 
@@ -2521,13 +2588,13 @@ c     Begin program
 !$omp end parallel 
 
 !       just the moments without b.c., the b.c. should be done where needed.
-        mments(:,:,isp,IS11) = garr_vx2
-        mments(:,:,isp,IS22) = garr_vy2
-        mments(:,:,isp,IS33) = garr_vz2
-        mments(:,:,isp,Ipx ) = garr_vx
-        mments(:,:,isp,Ipy ) = garr_vy
-        mments(:,:,isp,Ipz ) = garr_vz
-        mments(:,:,isp,Ins ) = garr_n
+c$$$        mments(:,:,isp,IS11) = garr_vx2
+c$$$        mments(:,:,isp,IS22) = garr_vy2
+c$$$        mments(:,:,isp,IS33) = garr_vz2
+c$$$        mments(:,:,isp,Ipx ) = garr_vx
+c$$$        mments(:,:,isp,Ipy ) = garr_vy
+c$$$        mments(:,:,isp,Ipz ) = garr_vz
+c$$$        mments(:,:,isp,Ins ) = garr_n
 
       enddo
 
@@ -3688,7 +3755,7 @@ c     Begin program
 !$omp.         ,ijkipjp,Mx2,My2,Mxy2,xp,yp,i_npg,w_pcle)
 !$         call set_omp_thread_id()
 !$omp DO 
-!$omp.reduction(+:MM2) 
+!!$omp.reduction(+:MM2) 
          do ipcl=nip+1,numpcles
            do i_npg=1,_Npg
               w_pcle = spcs(isp)%pcles(ipcl)%w_n(i_npg)
@@ -3773,16 +3840,25 @@ c     Begin program
               ijkimjp = ijk + im-i + (jp-j)*nxg
               ijkipjp = ijk + ip-i + (jp-j)*nxg
 
+!$omp atomic update
               MM2(ijkipjp,ci(9),isp)=MM2(ijkipjp,ci(9),isp)+Mxy2(3,3)
+!$omp atomic update
               MM2(ijkjp  ,ci(8),isp)=MM2(ijkjp  ,ci(8),isp)+Mxy2(2,3)
+!$omp atomic update
               MM2(ijkimjp,ci(7),isp)=MM2(ijkimjp,ci(7),isp)+Mxy2(1,3)
                                                      
+!$omp atomic update
               MM2(ijkip  ,ci(6),isp)=MM2(ijkip  ,ci(6),isp)+Mxy2(3,2)
+!$omp atomic update
               MM2(ijk    ,ci(5),isp)=MM2(ijk    ,ci(5),isp)+Mxy2(2,2)
+!$omp atomic update
               MM2(ijkim  ,ci(4),isp)=MM2(ijkim  ,ci(4),isp)+Mxy2(1,2)
                                                      
+!$omp atomic update
               MM2(ijkipjm,ci(3),isp)=MM2(ijkipjm,ci(3),isp)+Mxy2(3,1)
+!$omp atomic update
               MM2(ijkjm  ,ci(2),isp)=MM2(ijkjm  ,ci(2),isp)+Mxy2(2,1)
+!$omp atomic update
               MM2(ijkimjm,ci(1),isp)=MM2(ijkimjm,ci(1),isp)+Mxy2(1,1)
             end do
          end do
@@ -3861,7 +3937,7 @@ c     Begin program
 !$omp.         ,ijkipjp,Mx1,My2,Mx1y2,xp,yp,i_npg,w_pcle)
 !$         call set_omp_thread_id()
 !$omp DO 
-!$omp.reduction(+:MM2) 
+!!$omp.reduction(+:MM2) 
          do ipcl=nip+1,numpcles
            do i_npg=1,_Npg
               w_pcle = spcs(isp)%pcles(ipcl)%w_n(i_npg)
@@ -3950,35 +4026,47 @@ c     Begin program
               ijkipjp = ijk + ip-i + (jp-j)*nxg
 
               if(xp>0.5d0) then   !    J=j
+!$omp atomic update
                 MM2(ijkjp  ,ci(8),isp) = MM2(ijkjp  ,ci(8),isp)
      .                                 + Mx1y2(2,3)
+!$omp atomic update
                 MM2(ijkimjp,ci(7),isp) = MM2(ijkimjp,ci(7),isp)
      .                                 + Mx1y2(1,3)
                                                            
+!$omp atomic update
                 MM2(ijk    ,ci(5),isp) = MM2(ijk    ,ci(5),isp)
      .                                 + Mx1y2(2,2)
+!$omp atomic update
                 MM2(ijkim  ,ci(4),isp) = MM2(ijkim  ,ci(4),isp)
      .                                 + Mx1y2(1,2)
                                                            
+!$omp atomic update
                 MM2(ijkjm  ,ci(2),isp) = MM2(ijkjm  ,ci(2),isp)
      .                                 + Mx1y2(2,1)
+!$omp atomic update
                 MM2(ijkimjm,ci(1),isp) = MM2(ijkimjm,ci(1),isp)
      .                                 + Mx1y2(1,1)
 
               else               !     J=j-1
 
+!$omp atomic update
                 MM2(ijkjp  ,ci(8)-1,isp) = MM2(ijkjp  ,ci(8)-1,isp)
      .                                   + Mx1y2(2,3)
+!$omp atomic update
                 MM2(ijkimjp,ci(7)-1,isp) = MM2(ijkimjp,ci(7)-1,isp)
      .                                   + Mx1y2(1,3)
                                                            
+!$omp atomic update
                 MM2(ijk    ,ci(5)-1,isp) = MM2(ijk    ,ci(5)-1,isp)
      .                                   + Mx1y2(2,2)
+!$omp atomic update
                 MM2(ijkim  ,ci(4)-1,isp) = MM2(ijkim  ,ci(4)-1,isp)
      .                                   + Mx1y2(1,2)
                                                            
+!$omp atomic update
                 MM2(ijkjm  ,ci(2)-1,isp) = MM2(ijkjm  ,ci(2)-1,isp)
      .                                   + Mx1y2(2,1)
+!$omp atomic update
                 MM2(ijkimjm,ci(1)-1,isp) = MM2(ijkimjm,ci(1)-1,isp)
      .                                   + Mx1y2(1,1)
                           
@@ -4061,7 +4149,7 @@ c     Begin program
 !$omp.         ,ijkipjp,Mx2,My1,Mx2y1,xp,yp,i_npg,w_pcle)
 !$         call set_omp_thread_id()
 !$omp DO 
-!$omp.reduction(+:MM2) 
+!!$omp.reduction(+:MM2) 
          do ipcl=nip+1,numpcles
            do i_npg=1,_Npg
               w_pcle = spcs(isp)%pcles(ipcl)%w_n(i_npg)
@@ -4150,25 +4238,37 @@ c     Begin program
               ijkipjp = ijk + ip-i + (jp-j)*nxg
 
               if(yp>0.5d0) then   !    J=j
+!$omp atomic update
                 MM2(ijkip  ,ci(6),isp)=MM2(ijkip  ,ci(6),isp)+Mx2y1(3,2)
+!$omp atomic update
                 MM2(ijk    ,ci(5),isp)=MM2(ijk    ,ci(5),isp)+Mx2y1(2,2)
+!$omp atomic update
                 MM2(ijkim  ,ci(4),isp)=MM2(ijkim  ,ci(4),isp)+Mx2y1(1,2)
                                                      
+!$omp atomic update
                 MM2(ijkipjm,ci(3),isp)=MM2(ijkipjm,ci(3),isp)+Mx2y1(3,1)
+!$omp atomic update
                 MM2(ijkjm  ,ci(2),isp)=MM2(ijkjm  ,ci(2),isp)+Mx2y1(2,1)
+!$omp atomic update
                 MM2(ijkimjm,ci(1),isp)=MM2(ijkimjm,ci(1),isp)+Mx2y1(1,1)
               else               !     J=j-1
+!$omp atomic update
                 MM2(ijkip  ,ci(6)-3,isp) = MM2(ijkip  ,ci(6)-3,isp)
      $                                   + Mx2y1(3,2)
+!$omp atomic update
                 MM2(ijk    ,ci(5)-3,isp) = MM2(ijk    ,ci(5)-3,isp)
      $                                   + Mx2y1(2,2)
+!$omp atomic update
                 MM2(ijkim  ,ci(4)-3,isp) = MM2(ijkim  ,ci(4)-3,isp)
      $                                   + Mx2y1(1,2)
                                                        
+!$omp atomic update
                 MM2(ijkipjm,ci(3)-3,isp) = MM2(ijkipjm,ci(3)-3,isp)
      $                                   + Mx2y1(3,1)
+!$omp atomic update
                 MM2(ijkjm  ,ci(2)-3,isp) = MM2(ijkjm  ,ci(2)-3,isp)
      $                                   + Mx2y1(2,1)
+!$omp atomic update
                 MM2(ijkimjm,ci(1)-3,isp) = MM2(ijkimjm,ci(1)-3,isp)
      $                                   + Mx2y1(1,1)
               end if
@@ -4482,9 +4582,12 @@ c     Initialize pcle accounting qtys
 
       if (sum(npcles) == 0) then
         npcles = npcles_cell*nxg*nyg*nzg
-        nip = nip_cell*nxg*nyg*nzg
       endif
 
+      if (nip == 0.and.nip_cell /= 0) then
+        nip = nip_cell*nxg*nyg*nzg
+      endif
+      
       gnip = nip
 
       do isp = 1,n_sp
@@ -5845,7 +5948,7 @@ c     Begin program
 
         !Copy next
 !$OMP DO PRIVATE(ijk,ip,ipl,k,kl,i,j) schedule(static,2)
-!$OMP.REDUCTION (+:Np_cell)
+!!$OMP.REDUCTION (+:Np_cell)
         do ipc=nip+1,Np
           ijk = spcs(isp)%pcles(ipc)%ijk_np
             
@@ -5869,6 +5972,7 @@ c     Begin program
 
             call xform_pcle_idx_scl(ijk(k),nxg,i,j)
 
+!$OMP ATOMIC UPDATE
             Np_cell(i,j,1,isp) = Np_cell(i,j,1,isp)+1
          
           enddo
