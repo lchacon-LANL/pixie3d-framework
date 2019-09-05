@@ -5369,7 +5369,7 @@ c ######################################################################
 
 c     plotPDF_xv
 c     ##################################################################
-      subroutine plotPDF_xv(nv) 
+      subroutine plotPDF_xv(nv,label) 
 
 c     ------------------------------------------------------------------
 c     Accumulates particles on mesh, returning result in mesh array garr.
@@ -5382,6 +5382,7 @@ c     ------------------------------------------------------------------
 c     Call variables
 
       integer :: nv
+      character(*) :: label
       
 c     Local variables
 
@@ -5395,6 +5396,8 @@ c     Local variables
 
       real(8),allocatable,dimension(:,:) :: garr
       real(8),allocatable,dimension(:) :: send_buf,rec_buf
+
+      character(100) :: suffix
 
 c     Begin program
 
@@ -5441,10 +5444,6 @@ c     Gather 1d-1v PDF
 #endif
 
         !Construct velocity domain (CHECK)
-c$$$        v(1) = vmin
-c$$$        do i = 2,nv
-c$$$          v(i) = v(i-1) + hv
-c$$$        enddo
         if (vmax==vmin) then
 cc          vmax = 1.1*vmax
 cc          vmin = 0.9*vmin
@@ -5457,7 +5456,7 @@ cc          hv = (vmax-vmin)/nv
         endif
 
         ihv = 1d0/hv
-        write (*,*) isp,vmin,vmax
+c$$$        write (*,*) isp,vmin,vmax
         
 !     note that there is some issue with valgrind and libgomp.
 !$omp parallel DEFAULT(SHARED) private(ip,xp,vp,i_np,j_np,i,iv,il,jl
@@ -5519,14 +5518,15 @@ c$$$     .       + Mxy2*w_pcle(i)
 
         !Dump contour plots
         if (my_rank_pic == 0) then
+          suffix = 'sp'//trim(int2char(isp))//"_"//trim(label)
           call createDrawInCfile(1
-     .          ,'xvPDF'//trim(int2char(isp))//'.bin'
+     .          ,'xvPDF'//trim(suffix)//'.bin'
      .          ,'XV PDF'
      .          ,'t','x','y'
-     .          ,(/'PDF'//trim(int2char(isp))/)
+     .          ,(/'PDF'//trim(suffix)/)
      .          ,'-c -X0 -L57'
-     .          ,'drawxvpdf'//trim(int2char(isp))//'.in')
-          open(unit=110,file='xvPDF'//trim(int2char(isp))//'.bin'
+     .          ,'drawxvpdf'//trim(suffix)//'.in')
+          open(unit=110,file='xvPDF'//trim(suffix)//'.bin'
      .        ,form='unformatted',status='replace')
           call contour(garr(1:nxg,1:nv),nxg,nv
      .                ,xmin,xmax,vmin,vmax,0,110)
