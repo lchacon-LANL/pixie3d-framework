@@ -502,6 +502,18 @@ c ######################################################################
 
       contains
 
+c     find_pcle_idx
+c     ##################################################################
+      subroutine find_pcle_idx(nx,i,j,ijk)
+
+      implicit none
+
+      integer :: ijk,nx,i,j
+
+      ijk = i + nx*(j-1)
+
+      end subroutine find_pcle_idx
+
 c     xform_pcle_idx_scl
 c     ##################################################################
       subroutine xform_pcle_idx_scl(ijk,nx,i,j)
@@ -4349,9 +4361,6 @@ c ######################################################################
 
       logical :: exp_pic
 
-      !Diagnostics
-      integer :: npa_int
- 
       !Input parameters defaults
       integer :: n_sp=nsp_max              !Number of species
      .          ,min_pcles=0               !Minimun number of particles per cell
@@ -5299,7 +5308,7 @@ c     End program
 
 c     pic_activate_pcle
 c     ##################################################################
-      subroutine pic_activate_pcle(is,ijk)
+      subroutine pic_activate_pcle(is,ijk,fresh)
 
       implicit none
 
@@ -5311,6 +5320,7 @@ c     Local variables
       
       integer :: ip
       real(8) :: hx,hy,hz
+      logical :: fresh
 
 c     Begin program
       
@@ -5322,21 +5332,23 @@ c     Begin program
         
         nip = nip - 1
 
-        !Place it at center of cell
-        spcs(is)%pcles(ip)%x_n(:,1) = 0.5*hx
-        spcs(is)%pcles(ip)%x_n(:,2) = 0.5*hy
-
-        !No velocity so that it does not contribute energy or momentum
-        spcs(is)%pcles(ip)%v_n  = 0d0
-
         spcs(is)%pcles(ip)%ijk_n = ijk
 
-        spcs(is)%pcles(ip)%w_n(:) = 1d0
+        if (fresh) then
+          !Place it at center of cell
+          spcs(is)%pcles(ip)%x_n(:,1) = 0.5*hx
+          spcs(is)%pcles(ip)%x_n(:,2) = 0.5*hy
 
-        spcs(is)%pcles(ip)%x_np   = spcs(is)%pcles(ip)%x_n
-        spcs(is)%pcles(ip)%v_np   = spcs(is)%pcles(ip)%v_n
-        spcs(is)%pcles(ip)%ijk_np = spcs(is)%pcles(ip)%ijk_n
-        spcs(is)%pcles(ip)%w_np   = spcs(is)%pcles(ip)%w_n
+          !No velocity so that it does not contribute energy or momentum
+          spcs(is)%pcles(ip)%v_n  = 0d0
+
+          spcs(is)%pcles(ip)%w_n(:) = 1d0
+      
+          spcs(is)%pcles(ip)%x_np   = spcs(is)%pcles(ip)%x_n
+          spcs(is)%pcles(ip)%v_np   = spcs(is)%pcles(ip)%v_n
+          spcs(is)%pcles(ip)%ijk_np = spcs(is)%pcles(ip)%ijk_n
+          spcs(is)%pcles(ip)%w_np   = spcs(is)%pcles(ip)%w_n
+        endif
 
       endif
       
