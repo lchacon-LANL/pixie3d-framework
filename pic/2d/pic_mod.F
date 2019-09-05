@@ -2062,11 +2062,12 @@ c     Update particle info
         if(nip>0) then
           !keep the first cell particle number constant
           npl = (npc1/_Npg-npc1_0(1))
-           
-          do while(npl<0) 
-            nip = nip - 1
-            npl = npl + 1
-          end do
+
+          if (npl < 0) nip = nip + npl
+c$$$          do while(npl<0) 
+c$$$            nip = nip - 1
+c$$$            npl = npl + 1
+c$$$          end do
 
           if (my_rank_pic == 0.and.(.not.tst_flg)) then
             write (*,*) 'Particle buffer number',nip*_Npg
@@ -2078,7 +2079,7 @@ c     Update particle info
 !$OMP PARALLEL DEFAULT(SHARED) private(ipc,xp,yp,i0,j0,i)
 !$OMP DO 
 !$OMP.REDUCTION (+:v2,cm)
-            do ipc = nip+1,nip+npa_int  !What is npa_int for????
+            do ipc = nip+1,nip-npl
               xp = spcs(isp)%pcles(ipc)%x_np(:,1)*ihx 
               yp = spcs(isp)%pcles(ipc)%x_np(:,2)*ihy
               call xform_pcle_idx(spcs(isp)%pcles(ipc)%ijk_np,nxg,i0,j0)

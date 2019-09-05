@@ -2208,7 +2208,7 @@ c     ##################################################################
 
 c     gather_moments
 c     ##################################################################
-      subroutine gather_moments(gdef,moms,ngp)
+      subroutine gather_moments(gdef,moms,ngp,wrap_dens)
 
       implicit none
 
@@ -2216,7 +2216,7 @@ c     Call variables
 
       type(grid_mg_def),pointer :: gdef
       real(8),dimension(0:,0:,0:,:,0:) :: moms
-      logical,optional :: ngp
+      logical,optional :: ngp,wrap_dens
       
 c     Call variables
 
@@ -2234,7 +2234,8 @@ c     Begin program
       if (ngpl) then
         call gather_2d_moments_ngp(moms_g(:,:,1,1:n_sp,:))
       else
-        call gather_2d_moments    (moms_g(:,:,1,1:n_sp,:))
+        call gather_2d_moments    (moms_g(:,:,1,1:n_sp,:)
+     .                            ,wrap_dens=wrap_dens)
       endif
       
       do im=0,size(moms,5)-1
@@ -2249,13 +2250,14 @@ c     End program
 
 c     gather_2d_moments
 c     ##################################################################
-      subroutine gather_2d_moments(mments)
+      subroutine gather_2d_moments(mments,wrap_dens)
 
       implicit none
 
 c     Call variables
 
       real(8), intent(out) :: mments(0:,0:,:,0:)
+      logical, optional :: wrap_dens
 
 c     Local variables
 
@@ -2471,7 +2473,8 @@ c$$$        mments(:,:,isp,Ins ) = garr_n
 
 c     Wrap moments around boundaries
 
-      call wrap_moments_nodes(mments,wrap_currents=.false.)
+      call wrap_moments_nodes(mments,wrap_currents=.false.
+     .                              ,wrap_density=wrap_dens)
 
 c     End program
 
@@ -5002,7 +5005,7 @@ c     Find particle weights and drift velocities
           write (*,*) '******************'
         endif
 
-        call gather_moments(gpicdef,moms)
+        call gather_moments(gpicdef,moms,wrap_dens=.true.)
 
         call setup_mass_matrix(nxl,nyl,nzl,nxg,nyg,nzg)
 
