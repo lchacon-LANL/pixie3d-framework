@@ -5354,6 +5354,180 @@ c ######################################################################
 
       contains
 
+c     plotPDF_xv
+c     ##################################################################
+      subroutine plotPDF_xv(nv) 
+
+c     ------------------------------------------------------------------
+c     Accumulates particles on mesh, returning result in mesh array garr.
+c     Variable space="x","v" determines whether we are gathering in
+c     physical or velocity space.
+c     ------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: nv
+      
+c     Local variables
+
+      integer :: i,i0,im,ip,ipc,isp,ipp,imm,ip3,iv(_Npg),il,jl
+     .          ,nxg,nyg,nzg,i_np(_Npg),j_np(_Npg),numspcs,numpcles
+      real(8) :: ihx,ihy,ihz,hv,ihv
+     .          ,xmin,ymin,zmin,xmax,ymax,zmax
+     .          ,vmax,vmin,lscl
+      real(_prec) :: xp(_Npg),vp(_Npg),w_pcle(_Npg)
+      real(8) :: My2(1,3),Mx2(3,1),Mxy2(3,3)
+
+      real(8),allocatable,dimension(:,:) :: garr
+      real(8),allocatable,dimension(:) :: send_buf,rec_buf
+
+c     Begin program
+
+      call get_domain_limits(xmin,xmax,ymin,ymax,zmin,zmax)
+
+      call get_global_grid_size(nxg,nyg,nzg)
+      call get_inverse_h(ihx,ihy,ihz)
+
+      if (my_rank_pic == 0) then
+        write (*,*) 'Dumping PDFs...'
+      endif
+
+c     Gather 1d-1v PDF
+
+      allocate(garr(0:nxg+1,0:nv+1))
+
+      numspcs = size(spcs)
+
+      do isp=1,numspcs
+        numpcles = size(spcs(isp)%pcles)
+
+        garr = 0d0
+
+        !Find velocity domain per species
+        vmax = -1d10 ; vmin = 1d10
+!$omp parallel DEFAULT(SHARED) private(ip)
+!$      call set_omp_thread_id()
+!$omp DO 
+!$omp.reduction(max:vmax) 
+!$omp.reduction(min:vmin) 
+        do ip=nip+1,numpcles
+          vmax = max(vmax,maxval(spcs(isp)%pcles(ip)%v_n(:,1)))   
+          vmin = min(vmin,minval(spcs(isp)%pcles(ip)%v_n(:,1)))
+        enddo
+!$omp end do 
+!$omp end parallel
+#if defined(petsc)
+        lscl = vmax
+        call MPI_Allreduce(lscl,vmax,1,MPI_DOUBLE_PRECISION
+     .                    ,MPI_MAX,MPI_COMM_WORLD,mpierr)
+        lscl = vmin
+        call MPI_Allreduce(lscl,vmin,1,MPI_DOUBLE_PRECISION
+     .                    ,MPI_MIN,MPI_COMM_WORLD,mpierr)
+#endif
+
+        !Construct velocity domain (CHECK)
+c$$$        v(1) = vmin
+c$$$        do i = 2,nv
+c$$$          v(i) = v(i-1) + hv
+c$$$        enddo
+        if (vmax==vmin) then
+cc          vmax = 1.1*vmax
+cc          vmin = 0.9*vmin
+cc          hv = (vmax-vmin)/nv
+          cycle
+        else
+          hv = (vmax-vmin)/(nv-4)
+          vmin = vmin-2*hv
+          vmax = vmax+2*hv
+        endif
+
+        ihv = 1d0/hv
+        write (*,*) isp,vmin,vmax
+        
+!     note that there is some issue with valgrind and libgomp.
+!$omp parallel DEFAULT(SHARED) private(ip,xp,vp,i_np,j_np,i,iv,il,jl
+!$omp.                                ,Mx2,My2,Mxy2,w_pcle)
+!$      call set_omp_thread_id()
+!$omp DO 
+!!$omp.reduction(+:garr)
+        do ip=nip+1,numpcles
+
+          xp = spcs(isp)%pcles(ip)%x_n(:,1)*ihx
+
+          !Velocity index of particle and offset
+          iv = int((spcs(isp)%pcles(ip)%v_n(:,1)-vmin)*ihv)
+          vp = spcs(isp)%pcles(ip)%v_n(:,1)- (vmin + iv*hv)
+          iv = iv + 1
+c$$$          write (*,*) vp
+c$$$          write (*,*) iv
+
+          w_pcle = spcs(isp)%pcles(ip)%w_n
+
+          call xform_pcle_idx(spcs(isp)%pcles(ip)%ijk_n,nxg,i_np,j_np)   
+
+          do i=1,_Npg
+
+             Mx2(:,1) = shape2_offset_scalar(xp(i))
+             My2(1,:) = shape2_offset_scalar(vp(i))
+#ifdef __GNU
+             Mxy2(:,:)= opt_vecvec_3(Mx2,My2)
+#else
+             Mxy2(:,:)= matmul(Mx2,My2)
+#endif
+             !accumulate n (quadratic in x,y)
+c$$$             garr(i_np(i)-1:i_np(i)+1,iv(i)-1:iv(i)+1) = 
+c$$$     .       garr(i_np(i)-1:i_np(i)+1,iv(i)-1:iv(i)+1)
+c$$$     .       + Mxy2*w_pcle(i)
+             do jl=1,3
+               do il=1,3
+!$omp atomic update
+                 garr(i_np(i)-2+il,iv(i)-2+jl) = 
+     .           garr(i_np(i)-2+il,iv(i)-2+jl) + Mxy2(il,jl)*w_pcle(i)
+               enddo
+             enddo
+          
+          end do
+
+        enddo
+!$omp end do 
+!$omp end parallel 
+#if defined(petsc)
+        allocate(send_buf(size(g_arr))
+     $          ,rec_buf (size(g_arr)))
+        send_buf = reshape(mments, (/size(g_arr)/))
+        call MPI_Allreduce(send_buf,rec_buf,size(send_buf)
+     $                    ,MPI_DOUBLE_PRECISION
+     .                    ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+        g_arr(0:,0:) = reshape(rec_buf,shape(g_arr))
+        deallocate(send_buf,rec_buf)
+#endif
+
+        !Dump contour plots
+        if (my_rank_pic == 0) then
+          call createDrawInCfile(1
+     .          ,'xvPDF'//trim(int2char(isp))//'.bin'
+     .          ,'XV PDF'
+     .          ,'t','x','y'
+     .          ,(/'PDF'//trim(int2char(isp))/)
+     .          ,'-c -X0 -L57'
+     .          ,'drawxvpdf'//trim(int2char(isp))//'.in')
+          open(unit=110,file='xvPDF'//trim(int2char(isp))//'.bin'
+     .        ,form='unformatted',status='replace')
+          call contour(garr(1:nxg,1:nv),nxg,nv
+     .                ,xmin,xmax,vmin,vmax,0,110)
+          close(110)
+        endif
+
+      enddo
+
+      deallocate(garr)
+
+c     End program
+
+      end subroutine plotPDF_xv
+
 c     init_pcle_diag
 c     ###################################################################
       subroutine init_pcle_diag(Acovg,B0,cm,lm)
