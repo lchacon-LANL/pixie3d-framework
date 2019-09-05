@@ -4999,7 +4999,7 @@ c     Find particle weights and drift velocities
 
         call find_pcle_weights(moms(:,:,1,1:n_sp,Ins),.false.)
 
-        !Check GY
+        !Re-gather high-order moments with new weights
         call gather_moments(gpicdef,moms)
 
         call find_pcle_drift_velocity_x(moms(:,:,1,1:n_sp,Ipx))
@@ -5047,26 +5047,24 @@ cc        end if
         stop
       end select
 
-c     Gather moments
+c     Gather moments (for particle accounting)
 
-      call gather_moments(gpicdef,moms)
-
-c$$$      !Check GY
-c$$$      ierr = pic_dump_pcles(time)
-
-c     Diagnostics and memory freeing
+      call gather_moments(gpicdef,moms,ngp=.true.)
 
       if (my_rank_pic == 0) then
          write (*,*)
-         print *,'Total number of particles (npcles-nip)',
+         write (*,*) 'Total number of particles (npcles-nip)',
      .           ' calculated from zeroth moment:'
          do isp=1,n_sp
-cc            print *,size(spcs(isp)%pcles),charge(isp),mass(isp)            
            write (*,'(a,i3,f20.10,a,f20.10)')
      .          '  >>Species=',isp,sum(moms_g(1:nxg,1:nyg,1,isp,Ins))
      .         ,' vs. expected',(1+c_bkgrnd(isp))*nps(isp)
          enddo
       end if
+
+c     Gather final moments
+
+      call gather_moments(gpicdef,moms)
 
 c     End program
 
