@@ -3290,9 +3290,9 @@ c     Assign particle weights and perform particle accounting
 
       if (my_rank_pic == 0) then
         write (*,*) 
-        write (*,'(i12)') 'Particle weight accounting:'
+        write (*,'(a,10i12)') 'Particle weight accounting:'
      .                    ,nint(sump(1:numspcs))
-        write (*,'(i12)') 'Original total particle #:'
+        write (*,'(a,10i12)') 'Original total particle # :'
      .                    ,npcles(1:numspcs)
       endif
 
