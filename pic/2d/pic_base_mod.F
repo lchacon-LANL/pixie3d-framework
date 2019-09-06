@@ -10,7 +10,7 @@ c ######################################################################
       
 #if defined(petsc)
       use grid, ONLY: MPI_COMM_WORLD,MPI_DOUBLE_PRECISION,MPI_SUM
-     .               ,MPI_INTEGER,mpierr
+     .               ,MPI_INTEGER,mpierr,MPI_MAX,MPI_MIN
 #endif
 
       integer, parameter :: nsp_max=5,Npg=_Npg
@@ -5511,13 +5511,13 @@ c$$$     .       + Mxy2*w_pcle(i)
 !$omp end do 
 !$omp end parallel 
 #if defined(petsc)
-        allocate(send_buf(size(g_arr))
-     $          ,rec_buf (size(g_arr)))
-        send_buf = reshape(mments, (/size(g_arr)/))
+        allocate(send_buf(size(garr))
+     $          ,rec_buf (size(garr)))
+        send_buf = reshape(garr,(/size(garr)/))
         call MPI_Allreduce(send_buf,rec_buf,size(send_buf)
      $                    ,MPI_DOUBLE_PRECISION
      .                    ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-        g_arr(0:,0:) = reshape(rec_buf,shape(g_arr))
+        garr(0:,0:) = reshape(rec_buf,shape(garr))
         deallocate(send_buf,rec_buf)
 #endif
 
