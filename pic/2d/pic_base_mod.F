@@ -3195,7 +3195,7 @@ c$$$      stop 'after weight solve'
       if (my_rank_pic == 0) then
         if (iiout == 0) then
           write (*,*)
-          write (*,'(a,i3,a,1pe10.0)')
+          write (*,'(a,i3,a,1pe8.1)')
      .     ' Density mass matrix solve converged in ',it_count,' its'
      .    //' at tol=',tol_out
         endif
@@ -3400,7 +3400,7 @@ c$$$      stop 'after drift vel solve'
       if (my_rank_pic == 0) then
         if (iiout == 0) then
           write (*,*)
-          write (*,'(a,i3,a,1pe10.0)')
+          write (*,'(a,i3,a,1pe8.1)')
      .        ' Current mass matrix solve converged in ',it_count,' its'
      .       //' at tol=',tol_out
         endif
@@ -3541,7 +3541,7 @@ c$$$      stop 'after drift vel solve'
       if (my_rank_pic == 0) then
         if (iiout == 0) then
           write (*,*)
-          write (*,'(a,i3,a,1pe10.0)')
+          write (*,'(a,i3,a,1pe8.1)')
      .        ' Current mass matrix solve converged in ',it_count,' its'
      .       //' at tol=',tol_out
         endif
@@ -3686,7 +3686,7 @@ c$$$      stop 'after drift vel solve'
       if (my_rank_pic == 0) then
         if (iiout == 0) then
           write (*,*)
-          write (*,'(a,i3,a,1pe10.0)')
+          write (*,'(a,i3,a,1pe8.1)')
      .        ' Current mass matrix solve converged in ',it_count,' its'
      .       //' at tol=',tol_out
         endif
@@ -6313,4 +6313,4 @@ c End program
 
       end subroutine massmat_mtvc
 
-#endif  !Plotting
+#endif
