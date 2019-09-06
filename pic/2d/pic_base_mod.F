@@ -3290,8 +3290,10 @@ c     Assign particle weights and perform particle accounting
 
       if (my_rank_pic == 0) then
         write (*,*) 
-        write (*,*) 'Particle weight accounting:',sump(1:numspcs)
-        write (*,*) 'Original total particle #:',npcles(1:numspcs)
+        write (*,'(i12)') 'Particle weight accounting:'
+     .                    ,nint(sump(1:numspcs))
+        write (*,'(i12)') 'Original total particle #:'
+     .                    ,npcles(1:numspcs)
       endif
 
 c     Free work space
@@ -5068,9 +5070,12 @@ c     Gather moments (for particle accounting)
          write (*,*) 'Total number of particles (npcles-nip)',
      .           ' calculated from zeroth moment:'
          do isp=1,n_sp
-           write (*,'(a,i3,f20.10,a,f20.10)')
-     .          '  >>Species=',isp,sum(moms_g(1:nxg,1:nyg,1,isp,Ins))
-     .         ,' vs. expected',(1+c_bkgrnd(isp))*nps(isp)
+c$$$           write (*,'(a,i3,f20.10,a,f20.10)')
+c$$$     .       '  >>Species=',isp,sum(moms_g(1:nxg,1:nyg,1,isp,Ins))
+c$$$     .      ,' vs. expected',(1+c_bkgrnd(isp))*nps(isp)
+           write (*,'(a,i3,i12,a,i12)')
+     .       '  >>Species=',isp,nint(sum(moms_g(1:nxg,1:nyg,1,isp,Ins)))
+     .      ,' vs. expected',nint((1+c_bkgrnd(isp))*nps(isp))
          enddo
       end if
 
@@ -5369,7 +5374,7 @@ c ######################################################################
 
 c     plotPDF_xv
 c     ##################################################################
-      subroutine plotPDF_xv(nv) 
+      subroutine plotPDF_xv(nv,label) 
 
 c     ------------------------------------------------------------------
 c     Accumulates particles on mesh, returning result in mesh array garr.
@@ -5382,6 +5387,7 @@ c     ------------------------------------------------------------------
 c     Call variables
 
       integer :: nv
+      character(*) :: label
       
 c     Local variables
 
@@ -5395,6 +5401,8 @@ c     Local variables
 
       real(8),allocatable,dimension(:,:) :: garr
       real(8),allocatable,dimension(:) :: send_buf,rec_buf
+
+      character(100) :: suffix
 
 c     Begin program
 
@@ -5441,10 +5449,6 @@ c     Gather 1d-1v PDF
 #endif
 
         !Construct velocity domain (CHECK)
-c$$$        v(1) = vmin
-c$$$        do i = 2,nv
-c$$$          v(i) = v(i-1) + hv
-c$$$        enddo
         if (vmax==vmin) then
 cc          vmax = 1.1*vmax
 cc          vmin = 0.9*vmin
@@ -5457,7 +5461,7 @@ cc          hv = (vmax-vmin)/nv
         endif
 
         ihv = 1d0/hv
-        write (*,*) isp,vmin,vmax
+c$$$        write (*,*) isp,vmin,vmax
         
 !     note that there is some issue with valgrind and libgomp.
 !$omp parallel DEFAULT(SHARED) private(ip,xp,vp,i_np,j_np,i,iv,il,jl
@@ -5519,14 +5523,15 @@ c$$$     .       + Mxy2*w_pcle(i)
 
         !Dump contour plots
         if (my_rank_pic == 0) then
+          suffix = 'sp'//trim(int2char(isp))//"_"//trim(label)
           call createDrawInCfile(1
-     .          ,'xvPDF'//trim(int2char(isp))//'.bin'
+     .          ,'xvPDF'//trim(suffix)//'.bin'
      .          ,'XV PDF'
      .          ,'t','x','y'
-     .          ,(/'PDF'//trim(int2char(isp))/)
+     .          ,(/'PDF'//trim(suffix)/)
      .          ,'-c -X0 -L57'
-     .          ,'drawxvpdf'//trim(int2char(isp))//'.in')
-          open(unit=110,file='xvPDF'//trim(int2char(isp))//'.bin'
+     .          ,'drawxvpdf'//trim(suffix)//'.in')
+          open(unit=110,file='xvPDF'//trim(suffix)//'.bin'
      .        ,form='unformatted',status='replace')
           call contour(garr(1:nxg,1:nv),nxg,nv
      .                ,xmin,xmax,vmin,vmax,0,110)
