@@ -10,7 +10,7 @@ c ######################################################################
       
 #if defined(petsc)
       use grid, ONLY: MPI_COMM_WORLD,MPI_DOUBLE_PRECISION,MPI_SUM
-     .               ,MPI_INTEGER,mpierr
+     .               ,MPI_INTEGER,mpierr,MPI_MAX,MPI_MIN
 #endif
 
       integer, parameter :: nsp_max=5,Npg=_Npg
@@ -3195,7 +3195,7 @@ c$$$      stop 'after weight solve'
       if (my_rank_pic == 0) then
         if (iiout == 0) then
           write (*,*)
-          write (*,'(a,i3,a,1pe10.3)')
+          write (*,'(a,i3,a,1pe8.1)')
      .     ' Density mass matrix solve converged in ',it_count,' its'
      .    //' at tol=',tol_out
         endif
@@ -3290,8 +3290,10 @@ c     Assign particle weights and perform particle accounting
 
       if (my_rank_pic == 0) then
         write (*,*) 
-        write (*,*) 'Particle weight accounting:',sump(1:numspcs)
-        write (*,*) 'Original total particle #:',npcles(1:numspcs)
+        write (*,'(a,10i12)') 'Particle weight accounting:'
+     .                    ,nint(sump(1:numspcs))
+        write (*,'(a,10i12)') 'Original total particle # :'
+     .                    ,npcles(1:numspcs)
       endif
 
 c     Free work space
@@ -3398,7 +3400,7 @@ c$$$      stop 'after drift vel solve'
       if (my_rank_pic == 0) then
         if (iiout == 0) then
           write (*,*)
-          write (*,'(a,i3,a,1pe10.3)')
+          write (*,'(a,i3,a,1pe8.1)')
      .        ' Current mass matrix solve converged in ',it_count,' its'
      .       //' at tol=',tol_out
         endif
@@ -3539,7 +3541,7 @@ c$$$      stop 'after drift vel solve'
       if (my_rank_pic == 0) then
         if (iiout == 0) then
           write (*,*)
-          write (*,'(a,i3,a,1pe10.3)')
+          write (*,'(a,i3,a,1pe8.1)')
      .        ' Current mass matrix solve converged in ',it_count,' its'
      .       //' at tol=',tol_out
         endif
@@ -3684,7 +3686,7 @@ c$$$      stop 'after drift vel solve'
       if (my_rank_pic == 0) then
         if (iiout == 0) then
           write (*,*)
-          write (*,'(a,i3,a,1pe10.3)')
+          write (*,'(a,i3,a,1pe8.1)')
      .        ' Current mass matrix solve converged in ',it_count,' its'
      .       //' at tol=',tol_out
         endif
@@ -5068,9 +5070,12 @@ c     Gather moments (for particle accounting)
          write (*,*) 'Total number of particles (npcles-nip)',
      .           ' calculated from zeroth moment:'
          do isp=1,n_sp
-           write (*,'(a,i3,f20.10,a,f20.10)')
-     .          '  >>Species=',isp,sum(moms_g(1:nxg,1:nyg,1,isp,Ins))
-     .         ,' vs. expected',(1+c_bkgrnd(isp))*nps(isp)
+c$$$           write (*,'(a,i3,f20.10,a,f20.10)')
+c$$$     .       '  >>Species=',isp,sum(moms_g(1:nxg,1:nyg,1,isp,Ins))
+c$$$     .      ,' vs. expected',(1+c_bkgrnd(isp))*nps(isp)
+           write (*,'(a,i3,i12,a,i12)')
+     .       '  >>Species=',isp,nint(sum(moms_g(1:nxg,1:nyg,1,isp,Ins)))
+     .      ,' vs. expected',nint((1+c_bkgrnd(isp))*nps(isp))
          enddo
       end if
 
@@ -5506,13 +5511,13 @@ c$$$     .       + Mxy2*w_pcle(i)
 !$omp end do 
 !$omp end parallel 
 #if defined(petsc)
-        allocate(send_buf(size(g_arr))
-     $          ,rec_buf (size(g_arr)))
-        send_buf = reshape(mments, (/size(g_arr)/))
+        allocate(send_buf(size(garr))
+     $          ,rec_buf (size(garr)))
+        send_buf = reshape(garr,(/size(garr)/))
         call MPI_Allreduce(send_buf,rec_buf,size(send_buf)
      $                    ,MPI_DOUBLE_PRECISION
      .                    ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-        g_arr(0:,0:) = reshape(rec_buf,shape(g_arr))
+        garr(0:,0:) = reshape(rec_buf,shape(garr))
         deallocate(send_buf,rec_buf)
 #endif
 
@@ -6308,4 +6313,4 @@ c End program
 
       end subroutine massmat_mtvc
 
-#endif  !Plotting
+#endif
