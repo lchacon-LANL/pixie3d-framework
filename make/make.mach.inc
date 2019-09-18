@@ -1207,9 +1207,9 @@ ifeq ($(findstring gr,$(HOST)),gr)
 
      HDF5 = t
 
-     HDF5_HOME = /usr/projects/hpcsoft/toss3/grizzly/hdf5/1.8.16_gcc-5.3.0_openmpi-1.10.5
-     HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
-     HDF5_MOD  = $(HDF5_HOME)/include
+#     HDF5_ROOT = /usr/projects/hpcsoft/toss3/grizzly/hdf5/1.8.16_gcc-5.3.0_openmpi-1.10.5
+     HDF5_LIBS =-L$(HDF5_ROOT)/lib -lhdf5_fortran -lhdf5 -lz -lm
+     HDF5_MOD  = $(HDF5_ROOT)/include
      HDF5_INC  = $(HDF5_MOD)
 
      ADIOS = t
@@ -1240,19 +1240,19 @@ ifeq ($(findstring gr,$(HOST)),gr)
       PETSC_DIR =/turquoise/usr/projects/magreconn/soft/petsc-3.0.0-p7
 
       ifeq ($(BOPT),O)
-       PETSC_ARCH = linux64_grizzly_intel17.0.1_openmpi1.10.5
+       PETSC_ARCH = linux64_grizzly_intel-17.0.4_openmpi-2.1.2
       else
-       PETSC_ARCH = linux64_grizzly_intel17.0.1_openmpi1.10.5_dbg
+       PETSC_ARCH = linux64_grizzly_intel-17.0.4_openmpi-2.1.2_dbg
       endif
 
       HDF5 = t
 
-      HDF5_HOME = /usr/projects/hpcsoft/toss3/grizzly/hdf5/1.8.16_intel-17.0.1_openmpi-1.10.5
-      HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
-      HDF5_MOD  = $(HDF5_HOME)/include
+#      HDF5_ROOT = /usr/projects/hpcsoft/toss3/grizzly/hdf5/1.8.16_intel-17.0.4_openmpi-2.1.2
+      HDF5_LIBS =-L$(HDF5_ROOT)/lib -lhdf5_fortran -lhdf5 -lz -lm
+      HDF5_MOD  = $(HDF5_ROOT)/include
       HDF5_INC  = $(HDF5_MOD)
 
-      ADIOS = t
+      ADIOS = f
 
       ADIOS_BUFFER_MB = 1000
       ADIOS_METHOD = MPI_LUSTRE
@@ -1291,9 +1291,9 @@ ifeq ($(findstring gr,$(HOST)),gr)
 
       HDF5 = f
 
-#      HDF5_HOME = /usr/projects/hpcsoft/toss3/grizzly/hdf5/1.8.16_gcc-5.3.0_openmpi-1.10.3
-#      HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
-#      HDF5_MOD  = $(HDF5_HOME)/include
+#      HDF5_ROOT = /usr/projects/hpcsoft/toss3/grizzly/hdf5/1.8.16_gcc-5.3.0_openmpi-1.10.3
+#      HDF5_LIBS =-L$(HDF5_ROOT)/lib -lhdf5_fortran -lhdf5 -lz -lm
+#      HDF5_MOD  = $(HDF5_ROOT)/include
 #      HDF5_INC  = $(HDF5_MOD)
 
       ADIOS = f
