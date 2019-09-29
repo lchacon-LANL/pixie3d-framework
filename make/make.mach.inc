@@ -457,7 +457,7 @@ ifeq ($(findstring Marias,$(HOST)),Marias)
 
   MACHINE=Macbook-Air
 
-  NETCDF=t
+  NETCDF=f
   NETCDF_LIBS = -L/opt/local/lib -lnetcdff -lnetcdf
   NETCDF_INC  = -I/opt/local/include
 
@@ -471,21 +471,21 @@ ifeq ($(findstring Marias,$(HOST)),Marias)
     PETSC_DIR =$(WORKDIR)/lib/petsc-3.0.0-p7
 
     ifeq ($(BOPT),O)
-      PETSC_ARCH = macosx_openmpi_gcc6_O
+      PETSC_ARCH = macosx_openmpi2.1.2_gcc6_0
     else
-      PETSC_ARCH = macosx_openmpi_gcc6_g
+      PETSC_ARCH = macosx_openmpi2.1.2_gcc6_g
     endif
 
     HDF5 = t
 
-    HDF5_HOME =/opt/local
+    HDF5_HOME = $(WORKDIR)/lib/hdf5-1.8.7/gcc6/parallel
     HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
     HDF5_MOD  = $(HDF5_HOME)/include
     HDF5_INC  = $(HDF5_MOD)
 
     ADIOS = $(HDF5)
 
-    ADIOS_HOME = $(WORKDIR)/lib/adios-1.10.0
+    ADIOS_HOME = $(WORKDIR)/lib/adios-1.10.0/openmpi2.1.2_gcc6
     ADIOS_LIBS = -L$(ADIOS_HOME)/lib -ladiosf_v1
     ADIOS_INC  = $(ADIOS_HOME)/include
     ADIOS_VER  = 1.10.0
