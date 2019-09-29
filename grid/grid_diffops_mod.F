@@ -10034,8 +10034,8 @@ c     Call variables
 
 c     Local variables
 
-      real(8)  :: bx2,by2,bz2,bxby,dtx,dty,a1,a2,sgn,bb,flx0,flxp
-     .           ,jac_avg
+      real(8)  :: bx2,by2,bz2,bxby,bxbz,bybz,dtx,dty,dtz,a1,a2,sgn,bb
+     .           ,flx0,flxp,jac_avg
       integer  :: ig,jg,kg,ii,jj,kk
       logical  :: limit,symm
 
@@ -10061,46 +10061,122 @@ c     Begin program
             do ii = i-1,i
               call getMGmap(g_def,ii,jj,kk,igx,igy,igz,ig,jg,kg)
 
-              jac_avg = 0.25*(jac(ii  ,jj  ,kk)
-     .                       +jac(ii+1,jj  ,kk)
-     .                       +jac(ii  ,jj+1,kk)
-     .                       +jac(ii+1,jj+1,kk))
-
-              bx2 = 0d0
-              by2 = 0d0
-              bxby = 0d0
+              jac_avg = 0.125*(jac(ii  ,jj  ,kk  )
+     .                        +jac(ii+1,jj  ,kk  )
+     .                        +jac(ii  ,jj+1,kk  )
+     .                        +jac(ii+1,jj+1,kk  )
+     .                        +jac(ii  ,jj  ,kk+1)
+     .                        +jac(ii+1,jj  ,kk+1)
+     .                        +jac(ii  ,jj+1,kk+1)
+     .                        +jac(ii+1,jj+1,kk+1))
 
               if (jac_avg /= 0d0) then
-                bx2 = (0.25*(bx(ii  ,jj  ,kk)
-     .                      +bx(ii+1,jj  ,kk)
-     .                      +bx(ii  ,jj+1,kk)
-     .                      +bx(ii+1,jj+1,kk)))**2/jac_avg
+                bx2 = (.125*(bx(ii  ,jj  ,kk  )
+     .                      +bx(ii+1,jj  ,kk  )
+     .                      +bx(ii  ,jj+1,kk  )
+     .                      +bx(ii+1,jj+1,kk  )
+     .                      +bx(ii  ,jj  ,kk+1)
+     .                      +bx(ii+1,jj  ,kk+1)
+     .                      +bx(ii  ,jj+1,kk+1)
+     .                      +bx(ii+1,jj+1,kk+1)))**2/jac_avg
+                
+                bxby= (.125*(bx(ii  ,jj  ,kk  )
+     .                      +bx(ii+1,jj  ,kk  )
+     .                      +bx(ii  ,jj+1,kk  )
+     .                      +bx(ii+1,jj+1,kk  )
+     .                      +bx(ii  ,jj  ,kk+1)
+     .                      +bx(ii+1,jj  ,kk+1)
+     .                      +bx(ii  ,jj+1,kk+1)
+     .                      +bx(ii+1,jj+1,kk+1)))
+     .               *(.125*(by(ii  ,jj  ,kk  )
+     .                      +by(ii+1,jj  ,kk  )
+     .                      +by(ii  ,jj+1,kk  )
+     .                      +by(ii+1,jj+1,kk  )
+     .                      +by(ii  ,jj  ,kk+1)
+     .                      +by(ii+1,jj  ,kk+1)
+     .                      +by(ii  ,jj+1,kk+1)
+     .                      +by(ii+1,jj+1,kk+1)))/jac_avg
 
-                bxby= (.25*(bx(ii  ,jj  ,kk)
-     .                     +bx(ii+1,jj  ,kk)
-     .                     +bx(ii  ,jj+1,kk)
-     .                     +bx(ii+1,jj+1,kk)))
-     .               *(.25*(by(ii  ,jj  ,kk)
-     .                     +by(ii+1,jj  ,kk)
-     .                     +by(ii  ,jj+1,kk)
-     .                     +by(ii+1,jj+1,kk)))/jac_avg
+                bxbz= (.125*(bx(ii  ,jj  ,kk  )
+     .                      +bx(ii+1,jj  ,kk  )
+     .                      +bx(ii  ,jj+1,kk  )
+     .                      +bx(ii+1,jj+1,kk  )
+     .                      +bx(ii  ,jj  ,kk+1)
+     .                      +bx(ii+1,jj  ,kk+1)
+     .                      +bx(ii  ,jj+1,kk+1)
+     .                      +bx(ii+1,jj+1,kk+1)))
+     .               *(.125*(bz(ii  ,jj  ,kk  )
+     .                      +bz(ii+1,jj  ,kk  )
+     .                      +bz(ii  ,jj+1,kk  )
+     .                      +bz(ii+1,jj+1,kk  )
+     .                     +bz(ii  ,jj  ,kk+1)
+     .                      +bz(ii+1,jj  ,kk+1)
+     .                      +bz(ii  ,jj+1,kk+1)
+     .                      +bz(ii+1,jj+1,kk+1)))/jac_avg
 
-                by2 = (0.25*(by(ii  ,jj  ,kk)
-     .                      +by(ii+1,jj  ,kk)
-     .                      +by(ii  ,jj+1,kk)
-     .                      +by(ii+1,jj+1,kk)))**2/jac_avg
+                by2 = (.125*(by(ii  ,jj  ,kk  )
+     .                      +by(ii+1,jj  ,kk  )
+     .                      +by(ii  ,jj+1,kk  )
+     .                      +by(ii+1,jj+1,kk  )
+     .                      +by(ii  ,jj  ,kk+1)
+     .                      +by(ii+1,jj  ,kk+1)
+     .                      +by(ii  ,jj+1,kk+1)
+     .                      +by(ii+1,jj+1,kk+1)))**2/jac_avg
+
+                bybz= (.125*(by(ii  ,jj  ,kk  )
+     .                      +by(ii+1,jj  ,kk  )
+     .                      +by(ii  ,jj+1,kk  )
+     .                      +by(ii+1,jj+1,kk  )
+     .                      +by(ii  ,jj  ,kk+1)
+     .                      +by(ii+1,jj  ,kk+1)
+     .                      +by(ii  ,jj+1,kk+1)
+     .                      +by(ii+1,jj+1,kk+1)))
+     .               *(.125*(bz(ii  ,jj  ,kk  )
+     .                      +bz(ii+1,jj  ,kk  )
+     .                      +bz(ii  ,jj+1,kk  )
+     .                      +bz(ii+1,jj+1,kk  )
+     .                      +bz(ii  ,jj  ,kk+1)
+     .                      +bz(ii+1,jj  ,kk+1)
+     .                      +bz(ii  ,jj+1,kk+1)
+     .                      +bz(ii+1,jj+1,kk+1)))/jac_avg
+
+                bz2 = (.125*(bz(ii  ,jj  ,kk  )
+     .                      +bz(ii+1,jj  ,kk  )
+     .                      +bz(ii  ,jj+1,kk  )
+     .                      +bz(ii+1,jj+1,kk  )
+     .                      +bz(ii  ,jj  ,kk+1)
+     .                      +bz(ii+1,jj  ,kk+1)
+     .                      +bz(ii  ,jj+1,kk+1)
+     .                      +bz(ii+1,jj+1,kk+1)))**2/jac_avg
+
+              else
+                bx2 = 0d0
+                by2 = 0d0
+                bz2 = 0d0
+                bxby = 0d0
+                bxbz = 0d0
+                bybz = 0d0                
               endif
 
-              dtx = .5*(tmp(ii+1,jj  ,kk)-tmp(ii,jj  ,kk)
-     .                 +tmp(ii+1,jj+1,kk)-tmp(ii,jj+1,kk))
+              dtx =.25*(tmp(ii+1,jj  ,kk  )-tmp(ii,jj  ,kk  )
+     .                 +tmp(ii+1,jj+1,kk  )-tmp(ii,jj+1,kk  )
+     .                 +tmp(ii+1,jj  ,kk+1)-tmp(ii,jj  ,kk+1)
+     .                 +tmp(ii+1,jj+1,kk+1)-tmp(ii,jj+1,kk+1))
      .                 /g_def%dx(ig)
-              dty = .5*(tmp(ii  ,jj+1,kk)-tmp(ii  ,jj,kk)
-     .                 +tmp(ii+1,jj+1,kk)-tmp(ii+1,jj,kk))
+              dty =.25*(tmp(ii  ,jj+1,kk  )-tmp(ii  ,jj,kk  )
+     .                 +tmp(ii+1,jj+1,kk  )-tmp(ii+1,jj,kk  )
+     .                 +tmp(ii  ,jj+1,kk+1)-tmp(ii  ,jj,kk+1)
+     .                 +tmp(ii+1,jj+1,kk+1)-tmp(ii+1,jj,kk+1))
      .                 /g_def%dy(jg)
+              dtz =.25*(tmp(ii  ,jj  ,kk+1)-tmp(ii  ,jj  ,kk)
+     .                 +tmp(ii+1,jj  ,kk+1)-tmp(ii+1,jj  ,kk)
+     .                 +tmp(ii  ,jj+1,kk+1)-tmp(ii  ,jj+1,kk)
+     .                 +tmp(ii+1,jj+1,kk+1)-tmp(ii+1,jj+1,kk))
+     .                 /g_def%dz(kg)
 
-              Fluxx(ii,jj,kk) = bx2*dtx + bxby*dty
-              Fluxy(ii,jj,kk) = by2*dty + bxby*dtx
-              Fluxz(ii,jj,kk) = 0d0
+              Fluxx(ii,jj,kk) = bx2 *dtx + bxby*dty + bxbz*dtz
+              Fluxy(ii,jj,kk) = bxby*dtx + by2 *dty + bybz*dtz
+              Fluxz(ii,jj,kk) = bxbz*dtx + bxby*dty + bz2 *dtz
             enddo
           enddo
         enddo
@@ -10132,6 +10208,19 @@ c     Begin program
      .             ,tmp(ii+1,j+1,k)-tmp(ii+1,j  ,k))
 
           Fluxx(ii,j,k)= bxby/g_def%dyh(jg)*mc(flx0,flxp)
+
+          bxbz = 0.5*(bx(ii  ,j,k)/jac(ii  ,j,k)
+     .               *bz(ii  ,j,k)
+     .               +bx(ii+1,j,k)/jac(ii+1,j,k)
+     .               *bz(ii+1,j,k))
+
+          flx0 = mc(tmp(ii  ,j,k  )-tmp(ii  ,j,k-1)
+     .             ,tmp(ii  ,j,k+1)-tmp(ii  ,j,k  ))
+          flxp = mc(tmp(ii+1,j,k  )-tmp(ii+1,j,k-1)
+     .             ,tmp(ii+1,j,k+1)-tmp(ii+1,j,k  ))
+
+          Fluxx(ii,j,k)=Fluxx(ii,j,k) + bxbz/g_def%dzh(jg)*mc(flx0,flxp)
+
         enddo
 
         !Y-component cross flux 
@@ -10149,8 +10238,49 @@ c     Begin program
      .             ,tmp(i+1,jj+1,k)-tmp(i  ,jj+1,k))
 
           Fluxy(i,jj,k)= bxby/g_def%dxh(ig)*mc(flx0,flxp)
+
+          bybz = 0.5*(bz(i,jj  ,k)/jac(i,jj  ,k)
+     .               *by(i,jj  ,k)
+     .               +bz(i,jj+1,k)/jac(i,jj+1,k)
+     .               *by(i,jj+1,k))
+
+          flx0 = mc(tmp(i,jj  ,k  )-tmp(i,jj  ,k-1)
+     .             ,tmp(i,jj  ,k+1)-tmp(i,jj  ,k  ))
+          flxp = mc(tmp(i,jj+1,k  )-tmp(i,jj+1,k-1)
+     .             ,tmp(i,jj+1,k+1)-tmp(i,jj+1,k  ))
+
+          Fluxy(i,jj,k)=Fluxy(i,jj,k) + bybz/g_def%dzh(ig)*mc(flx0,flxp)
         enddo
 
+        !Z-component cross flux 
+        do kk = k-1,k
+          call getMGmap(g_def,i,j,kk,igx,igy,igz,ig,jg,kg)
+
+          bxbz = 0.5*(bx(i,j,kk  )/jac(i,j,kk  )
+     .               *bz(i,j,kk  )             
+     .               +bx(i,j,kk+1)/jac(i,j,kk+1)
+     .               *bz(i,j,kk+1))
+
+          flx0 = mc(tmp(i  ,j,kk  )-tmp(i-1,j,kk  )
+     .             ,tmp(i+1,j,kk  )-tmp(i  ,j,kk  ))
+          flxp = mc(tmp(i  ,j,kk+1)-tmp(i-1,j,kk+1)
+     .             ,tmp(i+1,j,kk+1)-tmp(i  ,j,kk+1))
+
+          Fluxz(i,j,kk)= bxbz/g_def%dxh(ig)*mc(flx0,flxp)
+
+          bybz = 0.5*(bz(i,j,kk  )/jac(i,j,kk  )
+     .               *by(i,j,kk  )             
+     .               +bz(i,j,kk+1)/jac(i,j,kk+1)
+     .               *by(i,j,kk+1))
+
+          flx0 = mc(tmp(i,j  ,kk  )-tmp(i,j-1,kk  )
+     .             ,tmp(i,j+1,kk  )-tmp(i,j  ,kk  ))
+          flxp = mc(tmp(i,j  ,kk+1)-tmp(i,j-1,kk+1)
+     .             ,tmp(i,j+1,kk+1)-tmp(i,j  ,kk+1))
+
+          Fluxz(i,j,kk)=Fluxz(i,j,kk) + bybz/g_def%dyh(ig)*mc(flx0,flxp)
+        enddo
+        
         !Add co-derivative terms: standard centered
         do ii = i-1,i
           if (isSP2(g_def,ii+1,igx)) cycle
@@ -10205,7 +10335,9 @@ cc     .               +bz(i,j,kk  )/jac(i,j,kk  )))**2
         endif
 
         do ii = i-1,i
-          Fluxx(ii,j,k) = Mimetic_D_flux_x(g_def,ii,j,k,igx,igy,igz
+          call getMGmap(g_def,ii,j,k,igx,igy,igz,ig,jg,kg)
+          Fluxx(ii,j,k) = Mimetic_D_flux_x(ii,j,k
+     .                 ,g_def%dxh(ig),g_def%dyh(jg)
      .                 ,bx(ii:ii+1,j,k)*bx(ii:ii+1,j,k)/jac(ii:ii+1,j,k)
      .                 ,bx(ii:ii+1,j,k)*by(ii:ii+1,j,k)/jac(ii:ii+1,j,k)
      .                 ,by(ii:ii+1,j,k)*by(ii:ii+1,j,k)/jac(ii:ii+1,j,k)
@@ -10213,16 +10345,22 @@ cc     .               +bz(i,j,kk  )/jac(i,j,kk  )))**2
         enddo
 
         do jj = j-1,j
-          Fluxy(i,jj,k) = Mimetic_D_flux_y(g_def,i,jj,k,igx,igy,igz
+          call getMGmap(g_def,i,jj,k,igx,igy,igz,ig,jg,kg)
+          Fluxy(i,jj,k) = Mimetic_D_flux_y(i,jj,k
+     .                 ,g_def%dyh(jg),g_def%dxh(ig)
      .                 ,bx(i,jj:jj+1,k)*bx(i,jj:jj+1,k)/jac(i,jj:jj+1,k)
      .                 ,bx(i,jj:jj+1,k)*by(i,jj:jj+1,k)/jac(i,jj:jj+1,k)
      .                 ,by(i,jj:jj+1,k)*by(i,jj:jj+1,k)/jac(i,jj:jj+1,k)
      .                 ,tmp,tmp_0)
         enddo
 
-        do kk = k-1,k
-          Fluxz(i,j,kk) = 0d0
-        enddo
+c$$$        do kk = k-1,k
+c$$$          Fluxz(i,j,kk) = Mimetic_D_flux_z(g_def,i,j,kk,igx,igy,igz
+c$$$     .                 ,bx(i,j,kk:kk+1)*bx(i,j,kk:kk+1)/jac(i,j,kk:kk+1)
+c$$$     .                 ,bx(i,j,kk:kk+1)*by(i,j,kk:kk+1)/jac(i,j,kk:kk+1)
+c$$$     .                 ,by(i,j,kk:kk+1)*by(i,j,kk:kk+1)/jac(i,j,kk:kk+1)
+c$$$     .                 ,tmp,tmp_0)
+c$$$        enddo
 
         nullify(tmp_0)
 
@@ -10921,8 +11059,7 @@ c     End Program
 
 c     Mimetic_D_flux_x
 c     ##################################################################
-      function Mimetic_D_flux_x(g_def,i,j,k,igx,igy,igz
-     .                         ,Dxx,Dxy,Dyy,f_in,f_pc)
+      function Mimetic_D_flux_x(i,j,k,dxh,dyh,Dxx,Dxy,Dyy,f_in,f_pc)
      .result(flux_x)
 c     ------------------------------------------------------------------
 c     This function will compute the X diffusion flux @ (i+1/2,j,k)
@@ -10932,12 +11069,10 @@ c     ------------------------------------------------------------------
       
 c     Call variables
 
-      type(grid_mg_def),pointer :: g_def
-
       real(8) :: f_in(0:,0:,0:), f_pc(0:,0:,0:)
       real(8) :: Dxx(i:i+1), Dxy(i:i+1), Dyy(i:i+1)
-      integer :: i,j,k,igx,igy,igz,ig,jg,kg
-      real(8) :: flux_x
+      integer :: i,j,k
+      real(8) :: flux_x,dxh,dyh
 
 c     Local variables
 
@@ -10955,7 +11090,6 @@ c     Local variables
 c     Begin program
 
       ! Get MGmap
-      call getMGmap(g_def,i,j,k,igx,igy,igz,ig,jg,kg)
 
       ! Compute covectors
       lvec_ij = G_covector_calc(Dxx(i  ), Dyy(i  ) 
@@ -10968,18 +11102,18 @@ c     Begin program
       !===============================================================
       ! Compute the displacement vector between cell centers
       ! Aligned diagonal term
-      tvec_ij  = (/ g_def%dxh(ig), 0d0/)
-      tvec_ipj = (/-g_def%dxh(ig), 0d0/)
+      tvec_ij  = (/ dxh, 0d0/)
+      tvec_ipj = (/-dxh, 0d0/)
       ! Off-diagonal term
       if (lvec_ij(2)  > 0d0) then
-         tvec_ijpm  = (/0d0, g_def%dyh(jg)/)
+         tvec_ijpm  = (/0d0, dyh/)
       else
-         tvec_ijpm  = (/0d0,-g_def%dyh(jg)/)
+         tvec_ijpm  = (/0d0,-dyh/)
       endif
       if (lvec_ipj(2) > 0d0) then
-         tvec_ipjpm = (/0d0, g_def%dyh(jg)/)
+         tvec_ipjpm = (/0d0, dyh/)
       else
-         tvec_ipjpm = (/0d0,-g_def%dyh(jg)/)
+         tvec_ipjpm = (/0d0,-dyh/)
       endif
 
       ! Compute the rotated diffusion coefficients
@@ -11041,8 +11175,7 @@ c     End program
 
 c     Mimetic_D_flux_y
 c     ##################################################################
-      function Mimetic_D_flux_y(g_def,i,j,k,igx,igy,igz
-     .                         ,Dxx,Dxy,Dyy,f_in,f_pc)
+      function Mimetic_D_flux_y(i,j,k,dyh,dxh,Dxx,Dxy,Dyy,f_in,f_pc)
      .result(flux_y)
 c     ------------------------------------------------------------------
 c     This function will compute the Y diffusion flux @ (i,j+1/2,k)
@@ -11052,12 +11185,10 @@ c     ------------------------------------------------------------------
       
 c     Call variables
 
-      type(grid_mg_def),pointer :: g_def
-
       real(8) :: f_in(0:,0:,0:), f_pc(0:,0:,0:)
       real(8) :: Dxx(j:j+1), Dxy(j:j+1), Dyy(j:j+1)
-      integer :: i,j,k,igx,igy,igz,ig,jg,kg
-      real(8) :: flux_y
+      integer :: i,j,k
+      real(8) :: flux_y,dyh,dxh
 
 c     Local variables
 
@@ -11074,9 +11205,6 @@ c     Local variables
 
 c     Begin program
 
-      ! Get MGmap
-      call getMGmap(g_def,i,j,k,igx,igy,igz,ig,jg,kg)
-
       ! Compute covectors
       lvec_ij = G_covector_calc(Dxx(j)  ,Dyy(j)  ,Dxy(j)  , 0d0, 1d0)
       lvec_ijp= G_covector_calc(Dxx(j+1),Dyy(j+1),Dxy(j+1), 0d0,-1d0)
@@ -11086,18 +11214,18 @@ c     Begin program
       !===============================================================
       ! Compute the displacement vector between cell centers
       ! Aligned diagonal term
-      tvec_ij  = (/ 0d0, g_def%dyh(jg)/)
-      tvec_ijp = (/ 0d0,-g_def%dyh(jg)/)
+      tvec_ij  = (/ 0d0, dyh/)
+      tvec_ijp = (/ 0d0,-dyh/)
       ! Off-diagonal term
       if (lvec_ij(1)  > 0d0) then
-         tvec_ipmj  = (/ g_def%dxh(ig), 0d0/)
+         tvec_ipmj  = (/ dxh, 0d0/)
       else
-         tvec_ipmj  = (/-g_def%dxh(ig), 0d0/)
+         tvec_ipmj  = (/-dxh, 0d0/)
       endif
       if (lvec_ijp(1) > 0d0) then
-         tvec_ipmjp = (/ g_def%dxh(ig), 0d0/)
+         tvec_ipmjp = (/ dxh, 0d0/)
       else
-         tvec_ipmjp = (/-g_def%dxh(ig), 0d0/)
+         tvec_ipmjp = (/-dxh, 0d0/)
       endif
 
       ! Compute the rotated diffusion coefficients
