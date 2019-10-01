@@ -1026,7 +1026,7 @@ c     Evaluate rhs and norms
       
       allocate (nk_conf%xk(ntot),nk_conf%rkstar(ntot))
 
-      nk_conf%xk = 0d0
+      nk_conf%xk = x !0d0
       call evaluateNewtonResidual(ntot,nk_conf%xk,nk_conf%rkstar)
 c$$$      nk_conf%xk = x  !Take initial guess into account
 c$$$
@@ -2046,7 +2046,7 @@ c     This subroutine computes
 c
 c       y = A*z,
 c
-c     where A is given as F(x)=Ax-b. Hence, we compute
+c     where A is linear and given as F(x)=Ax-b. Hence, we compute
 c
 c       y = (F(x+z) - F(x))
 c     -------------------------------------------------------------
