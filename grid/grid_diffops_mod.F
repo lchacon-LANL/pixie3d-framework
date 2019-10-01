@@ -2551,293 +2551,6 @@ c     End program
 
       end function lap_mesh
 
-c     lap_tnsr_flx_x_ijk
-c     ###############################################################
-      function lap_tnsr_flx_x_ijk(g_def,i,j,k,igrid,arr,tnsr)result(flx)
-c     ---------------------------------------------------------------
-c     Calculates X-flux for scalar laplacian at faces (i+1/2,j,k)
-c     in general non-orthogonal coordinates, preserving the SPD property.
-c     ---------------------------------------------------------------
-
-      implicit none           !For safe fortran
-
-c     Call variables
-
-      type(grid_mg_def),pointer :: g_def
-
-      integer :: i,j,k,igrid
-
-      real(8) :: arr (0:,0:,0:),flx
-      real(8),target :: tnsr(0:,0:,0:,:)
-
-c     Local variables
-
-      integer :: im,jm,km,ip,jp,kp,ig,jg,kg
-
-      real(8) :: d_xx_ip
-     .          ,d_xy_ipjp,d_xy_ipjm
-     .          ,d_xz_ipkp,d_xz_ipkm
-
-c     Begin program
-
-      call getMGmap(g_def,i,j,k,igrid,igrid,igrid,ig,jg,kg)
-
-      ip = i+1
-      im = i-1
-      jp = j+1
-      jm = j-1
-      kp = k+1
-      km = k-1
-
-      d_xx_ip = 0.5*(tnsr(i ,j,k,1)
-     .              +tnsr(ip,j,k,1))
-
-      d_xy_ipjp = 0.25*(tnsr(i ,j ,k,2)
-     .                 +tnsr(ip,j ,k,2)
-     .                 +tnsr(i ,jp,k,2)
-     .                 +tnsr(ip,jp,k,2))
-      d_xy_ipjm = 0.25*(tnsr(i ,j ,k,2)
-     .                 +tnsr(ip,j ,k,2)
-     .                 +tnsr(i ,jm,k,2)
-     .                 +tnsr(ip,jm,k,2))
-
-      d_xz_ipkp = 0.25*(tnsr(i ,j,k ,3)
-     .                 +tnsr(ip,j,k ,3)
-     .                 +tnsr(i ,j,kp,3)
-     .                 +tnsr(ip,j,kp,3))
-      d_xz_ipkm = 0.25*(tnsr(i ,j,k ,3)
-     .                 +tnsr(ip,j,k ,3)
-     .                 +tnsr(i ,j,km,3)
-     .                 +tnsr(ip,j,km,3))
-
-      flx   = d_xx_ip  *(arr(ip,j ,k)-arr(i,j ,k))/g_def%dx(ig)
-     .  +.25*(d_xy_ipjp*(arr(ip,jp,k)+arr(i,jp,k)               
-     .                  -arr(ip,j ,k)-arr(i,j ,k))/g_def%dy(jg)
-     .  +     d_xy_ipjm*(arr(ip,j ,k)+arr(i,j ,k)               
-     .                  -arr(ip,jm,k)-arr(i,jm,k))/g_def%dy(jg-1)
-     .  +     d_xz_ipkp*(arr(ip,j,kp)+arr(i,j,kp)               
-     .                  -arr(ip,j,k )-arr(i,j,k ))/g_def%dz(kg)
-     .  +     d_xz_ipkm*(arr(ip,j,k )+arr(i,j,k )               
-     .                  -arr(ip,j,km)-arr(i,j,km))/g_def%dz(kg-1))
-
-c     End program
-
-      end function lap_tnsr_flx_x_ijk
-
-c     lap_tnsr_flx_y_ijk
-c     ###############################################################
-      function lap_tnsr_flx_y_ijk(g_def,i,j,k,igrid,arr,tnsr)result(flx)
-c     ---------------------------------------------------------------
-c     Calculates Y-flux for scalar laplacian at faces (i,j+1/2,k)
-c     in general non-orthogonal coordinates, preserving the SPD property.
-c     ---------------------------------------------------------------
-
-      implicit none           !For safe fortran
-
-c     Call variables
-
-      type(grid_mg_def),pointer :: g_def
-
-      integer :: i,j,k,igrid
-
-      real(8) :: arr (0:,0:,0:),flx
-      real(8),target :: tnsr(0:,0:,0:,:)
-
-c     Local variables
-
-      integer    :: ip,im,jp,jm,kp,km,ig,jg,kg
-
-      real(8)    :: d_yy_jp
-     .             ,d_xy_ipjp,d_xy_imjp
-     .             ,d_yz_jpkp,d_yz_jpkm
-
-c     Begin program
-
-      call getMGmap(g_def,i,j,k,igrid,igrid,igrid,ig,jg,kg)
-
-      ip = i+1
-      im = i-1
-      jp = j+1
-      jm = j-1
-      kp = k+1
-      km = k-1
-
-      d_yy_jp = 0.5*(tnsr(i,j ,k,4)
-     .              +tnsr(i,jp,k,4))
-
-      d_xy_ipjp = 0.25*(tnsr(i ,j ,k,2)
-     .                 +tnsr(ip,j ,k,2)
-     .                 +tnsr(i ,jp,k,2)
-     .                 +tnsr(ip,jp,k,2))
-      d_xy_imjp = 0.25*(tnsr(i ,j ,k,2)
-     .                 +tnsr(im,j ,k,2)
-     .                 +tnsr(i ,jp,k,2)
-     .                 +tnsr(im,jp,k,2))
-
-      d_yz_jpkp = 0.25*(tnsr(i,j ,k ,5)
-     .                 +tnsr(i,jp,k ,5)
-     .                 +tnsr(i,j ,kp,5)
-     .                 +tnsr(i,jp,kp,5))
-      d_yz_jpkm = 0.25*(tnsr(i,j ,k ,5)
-     .                 +tnsr(i,jp,k ,5)
-     .                 +tnsr(i,j ,km,5)
-     .                 +tnsr(i,jp,km,5))
-                                                                       
-      flx =   d_yy_jp  *(arr(i ,jp,k)-arr(i ,j,k))/g_def%dy(jg)
-     .  +.25*(d_xy_ipjp*(arr(ip,jp,k)+arr(ip,j,k)               
-     .                  -arr(i ,jp,k)-arr(i ,j,k))/g_def%dx(ig)
-     .  +     d_xy_imjp*(arr(i ,jp,k)+arr(i ,j,k)               
-     .                  -arr(im,jp,k)-arr(im,j,k))/g_def%dx(ig-1)
-     .  +     d_yz_jpkp*(arr(i,jp,kp)+arr(i,j,kp)               
-     .                  -arr(i,jp,k )-arr(i,j,k ))/g_def%dz(kg)
-     .  +     d_yz_jpkm*(arr(i,jp,k )+arr(i,j,k )               
-     .                  -arr(i,jp,km)-arr(i,j,km))/g_def%dz(kg-1))
-
-c     End program
-
-      end function lap_tnsr_flx_y_ijk
-
-c     lap_tnsr_flx_z_ijk
-c     ###############################################################
-      function lap_tnsr_flx_z_ijk(g_def,i,j,k,igrid,arr,tnsr)result(flx)
-c     ---------------------------------------------------------------
-c     Calculates Z-flux for scalar laplacian at faces (i,j,k+1/2)
-c     in general non-orthogonal coordinates, preserving the SPD property.
-c     ---------------------------------------------------------------
-
-      implicit none           !For safe fortran
-
-c     Call variables
-
-      type(grid_mg_def),pointer :: g_def
-
-      integer :: i,j,k,igrid
-
-      real(8) :: arr (0:,0:,0:),flx
-      real(8),target :: tnsr(0:,0:,0:,:)
-
-c     Local variables
-
-      integer    :: ip,im,jp,jm,kp,km,ig,jg,kg
-
-      real(8)    :: d_zz_kp
-     .             ,d_xz_ipkp,d_xz_imkp
-     .             ,d_yz_jpkp,d_yz_jmkp
-
-c     Begin program
-
-      call getMGmap(g_def,i,j,k,igrid,igrid,igrid,ig,jg,kg)
-
-      ip = i+1
-      im = i-1
-      jp = j+1
-      jm = j-1
-      kp = k+1
-      km = k-1
-
-      d_zz_kp = 0.5*(tnsr(i,j,k ,6)
-     .              +tnsr(i,j,kp,6))
-
-      d_xz_ipkp = 0.25*(tnsr(i ,j,k ,3)
-     .                 +tnsr(ip,j,k ,3)
-     .                 +tnsr(i ,j,kp,3)
-     .                 +tnsr(ip,j,kp,3))
-      d_xz_imkp = 0.25*(tnsr(i ,j,k ,3)
-     .                 +tnsr(im,j,k ,3)
-     .                 +tnsr(i ,j,kp,3)
-     .                 +tnsr(im,j,kp,3))
-
-      d_yz_jpkp = 0.25*(tnsr(i,j ,k ,5)
-     .                 +tnsr(i,jp,k ,5)
-     .                 +tnsr(i,j ,kp,5)
-     .                 +tnsr(i,jp,kp,5))
-      d_yz_jmkp = 0.25*(tnsr(i,j ,k ,5)
-     .                 +tnsr(i,jm,k ,5)
-     .                 +tnsr(i,j ,kp,5)
-     .                 +tnsr(i,jm,kp,5))
-                                                                       
-      flx   = d_zz_kp  *(arr(i ,j,kp)-arr(i ,j,k))/g_def%dz(kg)
-     .  +.25*(d_xz_ipkp*(arr(ip,j,kp)+arr(ip,j,k)               
-     .                  -arr(i ,j,kp)-arr(i ,j,k))/g_def%dx(ig)
-     .  +     d_xz_imkp*(arr(i ,j,kp)+arr(i ,j,k)               
-     .                  -arr(im,j,kp)-arr(im,j,k))/g_def%dx(ig-1)
-     .  +     d_yz_jpkp*(arr(i,jp,kp)+arr(i,jp,k)               
-     .                  -arr(i,j ,kp)-arr(i,j ,k))/g_def%dy(jg)
-     .  +     d_yz_jmkp*(arr(i,j ,kp)+arr(i,j ,k)               
-     .                  -arr(i,jm,kp)-arr(i,jm,k))/g_def%dy(jg-1))
-
-c     End program
-
-      end function lap_tnsr_flx_z_ijk
-
-c     lap_tnsr
-c     ###############################################################
-      function lap_tnsr(g_def,i,j,k,nx,ny,nz,igx,igy,igz,tnsr,arr,vol)
-     .         result (laplacian)
-c     ---------------------------------------------------------------
-c     Calculates div(tensor*grad(arr)) at cell centers in general
-c     non-orthog. coordinates, preserving the SPD property. Tensor
-c     "tnsr" must be SPD. Only six components of "tnsr" are stored,
-c     in a lexicographic way. Convention:
-c
-c                 ( 1  2  3 )
-c                 ( -  4  5 )
-c                 ( -  -  6 )
-c     ---------------------------------------------------------------
-
-      implicit none           !For safe fortran
-
-c     Call variables
-
-      type(grid_mg_def),pointer :: g_def
-
-      integer :: i,j,k,nx,ny,nz,igx,igy,igz
-
-      real(8)        :: arr (0:nx+1,0:ny+1,0:nz+1),laplacian
-      real(8),target :: tnsr(0:nx+1,0:ny+1,0:nz+1,6)
-
-      logical,optional,intent(IN) :: vol
-
-c     Local variables
-
-      integer :: ip,im,jp,jm,kp,km,ig,jg,kg
-
-      real(8) :: flxip,flxim,flxjp,flxjm,flxkp,flxkm
-
-      logical :: vol_wgt
-
-c     Begin program
-
-      vol_wgt = .false.
-      if (PRESENT(vol)) vol_wgt = vol
-
-      call getMGmap(g_def,i,j,k,igx,igy,igz,ig,jg,kg)
-
-      im = i-1
-      jm = j-1
-      km = k-1
-
-      flxip=lap_tnsr_flx_x_ijk(g_def,i ,j,k,igx,arr,tnsr)
-      flxim=lap_tnsr_flx_x_ijk(g_def,im,j,k,igx,arr,tnsr)
-
-      flxjp=lap_tnsr_flx_y_ijk(g_def,i,j ,k,igx,arr,tnsr)
-      flxjm=lap_tnsr_flx_y_ijk(g_def,i,jm,k,igx,arr,tnsr)
-
-      flxkp=lap_tnsr_flx_z_ijk(g_def,i,j,k ,igx,arr,tnsr)
-      flxkm=lap_tnsr_flx_z_ijk(g_def,i,j,km,igx,arr,tnsr)
-
-      laplacian = ((flxip -flxim)/g_def%dxh(ig)
-     .            +(flxjp -flxjm)/g_def%dyh(jg)
-     .            +(flxkp -flxkm)/g_def%dzh(kg))
-     .            /g_def%gmetric%grid(igx)%jac(i,j,k)
-
-      if (vol_wgt)
-     .     laplacian=laplacian*g_def%gmetric%grid(igx)%dvol(i,j,k)
-
-c     End program
-
-      end function lap_tnsr
-
       end module grid_nabla2_ops
 
 c grid_tensor_ops
@@ -6766,6 +6479,7 @@ c     End program
 
       end module grid_tensor_ops
 
+
 c grid_advec_ops
 c ######################################################################
       module grid_advec_ops
@@ -9868,6 +9582,883 @@ c ######################################################################
 
       contains
 
+c     lap_tnsr_flx_x_ijk
+c     ###############################################################
+      function lap_tnsr_flx_x_ijk(g_def,i,j,k,igrid,arr,tnsr)result(flx)
+c     ---------------------------------------------------------------
+c     Calculates X-flux for scalar laplacian at faces (i+1/2,j,k)
+c     in general non-orthogonal coordinates, preserving the SPD property.
+c     ---------------------------------------------------------------
+
+      implicit none           !For safe fortran
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
+
+      integer :: i,j,k,igrid
+
+      real(8) :: arr (0:,0:,0:),flx
+      real(8),target :: tnsr(0:,0:,0:,:)
+
+c     Local variables
+
+      integer :: im,jm,km,ip,jp,kp,ig,jg,kg
+
+      real(8) :: d_xx_ip
+     .          ,d_xy_ipjp,d_xy_ipjm
+     .          ,d_xz_ipkp,d_xz_ipkm
+
+c     Begin program
+
+      call getMGmap(g_def,i,j,k,igrid,igrid,igrid,ig,jg,kg)
+
+      ip = i+1
+      im = i-1
+      jp = j+1
+      jm = j-1
+      kp = k+1
+      km = k-1
+
+      d_xx_ip = 0.5*(tnsr(i ,j,k,1)
+     .              +tnsr(ip,j,k,1))
+
+      d_xy_ipjp = 0.25*(tnsr(i ,j ,k,2)
+     .                 +tnsr(ip,j ,k,2)
+     .                 +tnsr(i ,jp,k,2)
+     .                 +tnsr(ip,jp,k,2))
+      d_xy_ipjm = 0.25*(tnsr(i ,j ,k,2)
+     .                 +tnsr(ip,j ,k,2)
+     .                 +tnsr(i ,jm,k,2)
+     .                 +tnsr(ip,jm,k,2))
+
+      d_xz_ipkp = 0.25*(tnsr(i ,j,k ,3)
+     .                 +tnsr(ip,j,k ,3)
+     .                 +tnsr(i ,j,kp,3)
+     .                 +tnsr(ip,j,kp,3))
+      d_xz_ipkm = 0.25*(tnsr(i ,j,k ,3)
+     .                 +tnsr(ip,j,k ,3)
+     .                 +tnsr(i ,j,km,3)
+     .                 +tnsr(ip,j,km,3))
+
+      flx   = d_xx_ip  *(arr(ip,j ,k)-arr(i,j ,k))/g_def%dx(ig)
+     .  +.25*(d_xy_ipjp*(arr(ip,jp,k)+arr(i,jp,k)               
+     .                  -arr(ip,j ,k)-arr(i,j ,k))/g_def%dy(jg)
+     .  +     d_xy_ipjm*(arr(ip,j ,k)+arr(i,j ,k)               
+     .                  -arr(ip,jm,k)-arr(i,jm,k))/g_def%dy(jg-1)
+     .  +     d_xz_ipkp*(arr(ip,j,kp)+arr(i,j,kp)               
+     .                  -arr(ip,j,k )-arr(i,j,k ))/g_def%dz(kg)
+     .  +     d_xz_ipkm*(arr(ip,j,k )+arr(i,j,k )               
+     .                  -arr(ip,j,km)-arr(i,j,km))/g_def%dz(kg-1))
+
+c     End program
+
+      end function lap_tnsr_flx_x_ijk
+
+c     lap_tnsr_flx_y_ijk
+c     ###############################################################
+      function lap_tnsr_flx_y_ijk(g_def,i,j,k,igrid,arr,tnsr)result(flx)
+c     ---------------------------------------------------------------
+c     Calculates Y-flux for scalar laplacian at faces (i,j+1/2,k)
+c     in general non-orthogonal coordinates, preserving the SPD property.
+c     ---------------------------------------------------------------
+
+      implicit none           !For safe fortran
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
+
+      integer :: i,j,k,igrid
+
+      real(8) :: arr (0:,0:,0:),flx
+      real(8),target :: tnsr(0:,0:,0:,:)
+
+c     Local variables
+
+      integer    :: ip,im,jp,jm,kp,km,ig,jg,kg
+
+      real(8)    :: d_yy_jp
+     .             ,d_xy_ipjp,d_xy_imjp
+     .             ,d_yz_jpkp,d_yz_jpkm
+
+c     Begin program
+
+      call getMGmap(g_def,i,j,k,igrid,igrid,igrid,ig,jg,kg)
+
+      ip = i+1
+      im = i-1
+      jp = j+1
+      jm = j-1
+      kp = k+1
+      km = k-1
+
+      d_yy_jp = 0.5*(tnsr(i,j ,k,4)
+     .              +tnsr(i,jp,k,4))
+
+      d_xy_ipjp = 0.25*(tnsr(i ,j ,k,2)
+     .                 +tnsr(ip,j ,k,2)
+     .                 +tnsr(i ,jp,k,2)
+     .                 +tnsr(ip,jp,k,2))
+      d_xy_imjp = 0.25*(tnsr(i ,j ,k,2)
+     .                 +tnsr(im,j ,k,2)
+     .                 +tnsr(i ,jp,k,2)
+     .                 +tnsr(im,jp,k,2))
+
+      d_yz_jpkp = 0.25*(tnsr(i,j ,k ,5)
+     .                 +tnsr(i,jp,k ,5)
+     .                 +tnsr(i,j ,kp,5)
+     .                 +tnsr(i,jp,kp,5))
+      d_yz_jpkm = 0.25*(tnsr(i,j ,k ,5)
+     .                 +tnsr(i,jp,k ,5)
+     .                 +tnsr(i,j ,km,5)
+     .                 +tnsr(i,jp,km,5))
+                                                                       
+      flx =   d_yy_jp  *(arr(i ,jp,k)-arr(i ,j,k))/g_def%dy(jg)
+     .  +.25*(d_xy_ipjp*(arr(ip,jp,k)+arr(ip,j,k)               
+     .                  -arr(i ,jp,k)-arr(i ,j,k))/g_def%dx(ig)
+     .  +     d_xy_imjp*(arr(i ,jp,k)+arr(i ,j,k)               
+     .                  -arr(im,jp,k)-arr(im,j,k))/g_def%dx(ig-1)
+     .  +     d_yz_jpkp*(arr(i,jp,kp)+arr(i,j,kp)               
+     .                  -arr(i,jp,k )-arr(i,j,k ))/g_def%dz(kg)
+     .  +     d_yz_jpkm*(arr(i,jp,k )+arr(i,j,k )               
+     .                  -arr(i,jp,km)-arr(i,j,km))/g_def%dz(kg-1))
+
+c     End program
+
+      end function lap_tnsr_flx_y_ijk
+
+c     lap_tnsr_flx_z_ijk
+c     ###############################################################
+      function lap_tnsr_flx_z_ijk(g_def,i,j,k,igrid,arr,tnsr)result(flx)
+c     ---------------------------------------------------------------
+c     Calculates Z-flux for scalar laplacian at faces (i,j,k+1/2)
+c     in general non-orthogonal coordinates, preserving the SPD property.
+c     ---------------------------------------------------------------
+
+      implicit none           !For safe fortran
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
+
+      integer :: i,j,k,igrid
+
+      real(8) :: arr (0:,0:,0:),flx
+      real(8),target :: tnsr(0:,0:,0:,:)
+
+c     Local variables
+
+      integer    :: ip,im,jp,jm,kp,km,ig,jg,kg
+
+      real(8)    :: d_zz_kp
+     .             ,d_xz_ipkp,d_xz_imkp
+     .             ,d_yz_jpkp,d_yz_jmkp
+
+c     Begin program
+
+      call getMGmap(g_def,i,j,k,igrid,igrid,igrid,ig,jg,kg)
+
+      ip = i+1
+      im = i-1
+      jp = j+1
+      jm = j-1
+      kp = k+1
+      km = k-1
+
+      d_zz_kp = 0.5*(tnsr(i,j,k ,6)
+     .              +tnsr(i,j,kp,6))
+
+      d_xz_ipkp = 0.25*(tnsr(i ,j,k ,3)
+     .                 +tnsr(ip,j,k ,3)
+     .                 +tnsr(i ,j,kp,3)
+     .                 +tnsr(ip,j,kp,3))
+      d_xz_imkp = 0.25*(tnsr(i ,j,k ,3)
+     .                 +tnsr(im,j,k ,3)
+     .                 +tnsr(i ,j,kp,3)
+     .                 +tnsr(im,j,kp,3))
+
+      d_yz_jpkp = 0.25*(tnsr(i,j ,k ,5)
+     .                 +tnsr(i,jp,k ,5)
+     .                 +tnsr(i,j ,kp,5)
+     .                 +tnsr(i,jp,kp,5))
+      d_yz_jmkp = 0.25*(tnsr(i,j ,k ,5)
+     .                 +tnsr(i,jm,k ,5)
+     .                 +tnsr(i,j ,kp,5)
+     .                 +tnsr(i,jm,kp,5))
+                                                                       
+      flx   = d_zz_kp  *(arr(i ,j,kp)-arr(i ,j,k))/g_def%dz(kg)
+     .  +.25*(d_xz_ipkp*(arr(ip,j,kp)+arr(ip,j,k)               
+     .                  -arr(i ,j,kp)-arr(i ,j,k))/g_def%dx(ig)
+     .  +     d_xz_imkp*(arr(i ,j,kp)+arr(i ,j,k)               
+     .                  -arr(im,j,kp)-arr(im,j,k))/g_def%dx(ig-1)
+     .  +     d_yz_jpkp*(arr(i,jp,kp)+arr(i,jp,k)               
+     .                  -arr(i,j ,kp)-arr(i,j ,k))/g_def%dy(jg)
+     .  +     d_yz_jmkp*(arr(i,j ,kp)+arr(i,j ,k)               
+     .                  -arr(i,jm,kp)-arr(i,jm,k))/g_def%dy(jg-1))
+
+c     End program
+
+      end function lap_tnsr_flx_z_ijk
+
+c     lap_tnsr_cross_flx_x_ijk
+c     ###############################################################
+      function lap_tnsr_cross_flx_x_ijk(g_def,i,j,k,igrid,arr,tnsr,meth)
+     .         result(flx)
+c     ---------------------------------------------------------------
+c     Calculates X-flux for scalar laplacian at faces (i+1/2,j,k)
+c     in general non-orthogonal coordinates, preserving the SPD property.
+c     ---------------------------------------------------------------
+
+      implicit none           !For safe fortran
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
+
+      integer :: i,j,k,igrid
+
+      real(8) :: arr (0:,0:,0:),flx
+      real(8),target :: tnsr(0:,0:,0:,:)
+
+      character(*) :: meth
+
+c     Local variables
+
+      integer :: im,jm,km,ip,jp,kp,ig,jg,kg,ii,jj,kk
+
+      real(8) :: d_xy,d_xz,avgt,dty,dtz
+     .          ,d_xy_ipjp,d_xy_ipjm
+     .          ,d_xz_ipkp,d_xz_ipkm
+
+c     Begin program
+
+      select case(meth)
+      case("symm_edge")
+        call getMGmap(g_def,i,j,k,igrid,igrid,igrid,ig,jg,kg)
+
+        ip = i+1
+        im = i-1
+        jp = j+1
+        jm = j-1
+        kp = k+1
+        km = k-1
+
+        d_xy_ipjp = 0d0
+        avgt = (arr (i ,j ,k)
+     .         +arr (ip,j ,k)
+     .         +arr (i ,jp,k)
+     .         +arr (ip,jp,k))
+        if (avgt > 0d0) then
+          d_xy_ipjp = (tnsr(i ,j ,k,2)
+     .                +tnsr(ip,j ,k,2)
+     .                +tnsr(i ,jp,k,2)
+     .                +tnsr(ip,jp,k,2))
+     .                /avgt
+        endif
+
+        d_xy_ipjm = 0d0
+        avgt = (arr (i ,j ,k)
+     .         +arr (ip,j ,k)
+     .         +arr (i ,jm,k)
+     .         +arr (ip,jm,k))
+        if (avgt > 0d0) then
+          d_xy_ipjm = (tnsr(i ,j ,k,2)
+     .                +tnsr(ip,j ,k,2)
+     .                +tnsr(i ,jm,k,2)
+     .                +tnsr(ip,jm,k,2))
+     .                /avgt
+        endif
+
+        d_xz_ipkp = 0d0
+        avgt = (arr (i ,j,k )
+     .         +arr (ip,j,k )
+     .         +arr (i ,j,kp)
+     .       +arr (ip,j,kp))
+        if (avgt > 0d0) then
+          d_xz_ipkp = (tnsr(i ,j,k ,3)
+     .                +tnsr(ip,j,k ,3)
+     .                +tnsr(i ,j,kp,3)
+     .                +tnsr(ip,j,kp,3))
+     .                /avgt
+        endif
+
+        d_xz_ipkm = 0d0
+        avgt = (arr (i ,j,k )
+     .         +arr (ip,j,k )
+     .         +arr (i ,j,km)
+     .         +arr (ip,j,km))
+        if (avgt > 0d0) then
+          d_xz_ipkm = (tnsr(i ,j,k ,3)
+     .                +tnsr(ip,j,k ,3)
+     .                +tnsr(i ,j,km,3)
+     .                +tnsr(ip,j,km,3))
+     .                /avgt
+        endif
+
+        flx   = 
+     .    +.25*(d_xy_ipjp*(arr(ip,jp,k)+arr(i,jp,k)               
+     .                    -arr(ip,j ,k)-arr(i,j ,k))/g_def%dy(jg)
+     .    +     d_xy_ipjm*(arr(ip,j ,k)+arr(i,j ,k)               
+     .                    -arr(ip,jm,k)-arr(i,jm,k))/g_def%dy(jg-1)
+     .    +     d_xz_ipkp*(arr(ip,j,kp)+arr(i,j,kp)               
+     .                    -arr(ip,j,k )-arr(i,j,k ))/g_def%dz(kg)
+     .    +     d_xz_ipkm*(arr(ip,j,k )+arr(i,j,k )               
+     .                    -arr(ip,j,km)-arr(i,j,km))/g_def%dz(kg-1))
+
+      case("symm_vrtx")
+
+        ii = i
+        
+        flx = 0d0
+        
+        do kk = k-1,k
+          do jj = j-1,j
+            if (isSP2(g_def,ii+1,igrid)) cycle
+              
+            call getMGmap(g_def,ii,jj,kk,igrid,igrid,igrid,ig,jg,kg)
+
+            d_xy = (tnsr(ii  ,jj  ,kk  ,2)
+     .             +tnsr(ii+1,jj  ,kk  ,2)
+     .             +tnsr(ii  ,jj+1,kk  ,2)
+     .             +tnsr(ii+1,jj+1,kk  ,2)
+     .             +tnsr(ii  ,jj  ,kk+1,2)
+     .             +tnsr(ii+1,jj  ,kk+1,2)
+     .             +tnsr(ii  ,jj+1,kk+1,2)
+     .             +tnsr(ii+1,jj+1,kk+1,2))
+
+            d_xz = (tnsr(ii  ,jj  ,kk  ,3)
+     .             +tnsr(ii+1,jj  ,kk  ,3)
+     .             +tnsr(ii  ,jj+1,kk  ,3)
+     .             +tnsr(ii+1,jj+1,kk  ,3)
+     .             +tnsr(ii  ,jj  ,kk+1,3)
+     .             +tnsr(ii+1,jj  ,kk+1,3)
+     .             +tnsr(ii  ,jj+1,kk+1,3)
+     .             +tnsr(ii+1,jj+1,kk+1,3))
+
+            avgt = (arr(ii  ,jj  ,kk  )
+     .             +arr(ii+1,jj  ,kk  )
+     .             +arr(ii  ,jj+1,kk  )
+     .             +arr(ii+1,jj+1,kk  )
+     .             +arr(ii  ,jj  ,kk+1)
+     .             +arr(ii+1,jj  ,kk+1)
+     .             +arr(ii  ,jj+1,kk+1)
+     .             +arr(ii+1,jj+1,kk+1))
+
+            dty =.25*(arr(ii  ,jj+1,kk  )-arr(ii  ,jj,kk  )
+     .               +arr(ii+1,jj+1,kk  )-arr(ii+1,jj,kk  )
+     .               +arr(ii  ,jj+1,kk+1)-arr(ii  ,jj,kk+1)
+     .               +arr(ii+1,jj+1,kk+1)-arr(ii+1,jj,kk+1))
+     .               /g_def%dy(jg)
+            dtz =.25*(arr(ii  ,jj  ,kk+1)-arr(ii  ,jj  ,kk)
+     .               +arr(ii+1,jj  ,kk+1)-arr(ii+1,jj  ,kk)
+     .               +arr(ii  ,jj+1,kk+1)-arr(ii  ,jj+1,kk)
+     .               +arr(ii+1,jj+1,kk+1)-arr(ii+1,jj+1,kk))
+     .               /g_def%dz(kg)
+
+            if (avgt > 0d0) flx = flx + (d_xy*dty + d_xz*dtz)/avgt
+          enddo
+        enddo
+
+        flx = -0.25*flx
+
+      case default
+
+        STOP "Cross flux not implemented"
+        
+      end select
+
+c     End program
+
+      end function lap_tnsr_cross_flx_x_ijk
+
+c     lap_tnsr_cross_flx_y_ijk
+c     ###############################################################
+      function lap_tnsr_cross_flx_y_ijk(g_def,i,j,k,igrid,arr,tnsr,meth)
+     .         result(flx)
+c     ---------------------------------------------------------------
+c     Calculates Y-flux for scalar laplacian at faces (i,j+1/2,k)
+c     in general non-orthogonal coordinates, preserving the SPD property.
+c     ---------------------------------------------------------------
+
+      implicit none           !For safe fortran
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
+
+      integer :: i,j,k,igrid
+
+      real(8) :: arr (0:,0:,0:),flx
+      real(8),target :: tnsr(0:,0:,0:,:)
+
+      character(*) :: meth
+
+c     Local variables
+
+      integer    :: ip,im,jp,jm,kp,km,ig,jg,kg,ii,jj,kk
+
+      real(8)    :: d_xy,d_yz,avgt,dtx,dtz
+     .             ,d_xy_ipjp,d_xy_imjp
+     .             ,d_yz_jpkp,d_yz_jpkm
+
+c     Begin program
+
+      select case(meth)
+      case('symm_edge')
+        call getMGmap(g_def,i,j,k,igrid,igrid,igrid,ig,jg,kg)
+
+        ip = i+1
+        im = i-1
+        jp = j+1
+        jm = j-1
+        kp = k+1
+        km = k-1
+
+        d_xy_ipjp = 0d0
+        avgt = (arr (i ,j ,k)
+     .         +arr (ip,j ,k)
+     .         +arr (i ,jp,k)
+     .         +arr (ip,jp,k))
+        if (avgt > 0d0) then
+          d_xy_ipjp = (tnsr(i ,j ,k,2)
+     .                +tnsr(ip,j ,k,2)
+     .                +tnsr(i ,jp,k,2)
+     .                +tnsr(ip,jp,k,2))
+     .                /avgt
+        endif
+
+        d_xy_imjp = 0d0
+        avgt = (arr (i ,j ,k)
+     .         +arr (im,j ,k)
+     .         +arr (i ,jp,k)
+     .         +arr (im,jp,k))
+        if (avgt > 0d0) then
+          d_xy_imjp = (tnsr(i ,j ,k,2)
+     .                +tnsr(im,j ,k,2)
+     .                +tnsr(i ,jp,k,2)
+     .                +tnsr(im,jp,k,2))
+     .                /avgt
+        endif
+
+        d_yz_jpkp = 0d0
+        avgt = (arr (i,j ,k )
+     .         +arr (i,jp,k )
+     .         +arr (i,j ,kp)
+     .         +arr (i,jp,kp))
+        if (avgt > 0d0) then
+          d_yz_jpkp = (tnsr(i,j ,k ,5)
+     .                +tnsr(i,jp,k ,5)
+     .                +tnsr(i,j ,kp,5)
+     .                +tnsr(i,jp,kp,5))
+     .               /avgt
+        endif
+
+        d_yz_jpkm = 0d0
+        avgt = (arr (i,j ,k )
+     .         +arr (i,jp,k )
+     .         +arr (i,j ,km)
+     .         +arr (i,jp,km))
+        if (avgt > 0d0) then
+          d_yz_jpkm = (tnsr(i,j ,k ,5)
+     .                +tnsr(i,jp,k ,5)
+     .                +tnsr(i,j ,km,5)
+     .                +tnsr(i,jp,km,5))
+     .                /avgt
+        endif
+                                                                         
+        flx =
+     .    +.25*(d_xy_ipjp*(arr(ip,jp,k)+arr(ip,j,k)               
+     .                    -arr(i ,jp,k)-arr(i ,j,k))/g_def%dx(ig)
+     .    +     d_xy_imjp*(arr(i ,jp,k)+arr(i ,j,k)               
+     .                    -arr(im,jp,k)-arr(im,j,k))/g_def%dx(ig-1)
+     .    +     d_yz_jpkp*(arr(i,jp,kp)+arr(i,j,kp)               
+     .                    -arr(i,jp,k )-arr(i,j,k ))/g_def%dz(kg)
+     .    +     d_yz_jpkm*(arr(i,jp,k )+arr(i,j,k )               
+     .                    -arr(i,jp,km)-arr(i,j,km))/g_def%dz(kg-1))
+      case('symm_vrtx')
+
+        jj = j
+
+        flx = 0d0
+        
+        do kk = k-1,k
+          do ii = i-1,i
+            if (isSP2(g_def,ii+1,igrid)) cycle
+            
+            call getMGmap(g_def,ii,jj,kk,igrid,igrid,igrid,ig,jg,kg)
+
+            d_xy = (tnsr(ii  ,jj  ,kk  ,2)
+     .             +tnsr(ii+1,jj  ,kk  ,2)
+     .             +tnsr(ii  ,jj+1,kk  ,2)
+     .             +tnsr(ii+1,jj+1,kk  ,2)
+     .             +tnsr(ii  ,jj  ,kk+1,2)
+     .             +tnsr(ii+1,jj  ,kk+1,2)
+     .             +tnsr(ii  ,jj+1,kk+1,2)
+     .             +tnsr(ii+1,jj+1,kk+1,2))
+
+            d_yz = (tnsr(ii  ,jj  ,kk  ,5)
+     .             +tnsr(ii+1,jj  ,kk  ,5)
+     .             +tnsr(ii  ,jj+1,kk  ,5)
+     .             +tnsr(ii+1,jj+1,kk  ,5)
+     .             +tnsr(ii  ,jj  ,kk+1,5)
+     .             +tnsr(ii+1,jj  ,kk+1,5)
+     .             +tnsr(ii  ,jj+1,kk+1,5)
+     .             +tnsr(ii+1,jj+1,kk+1,5))
+
+            avgt = (arr(ii  ,jj  ,kk  )
+     .             +arr(ii+1,jj  ,kk  )
+     .             +arr(ii  ,jj+1,kk  )
+     .             +arr(ii+1,jj+1,kk  )
+     .             +arr(ii  ,jj  ,kk+1)
+     .             +arr(ii+1,jj  ,kk+1)
+     .             +arr(ii  ,jj+1,kk+1)
+     .             +arr(ii+1,jj+1,kk+1))
+
+            dtx =.25*(arr(ii+1,jj  ,kk  )-arr(ii,jj  ,kk  )
+     .               +arr(ii+1,jj+1,kk  )-arr(ii,jj+1,kk  )
+     .               +arr(ii+1,jj  ,kk+1)-arr(ii,jj  ,kk+1)
+     .               +arr(ii+1,jj+1,kk+1)-arr(ii,jj+1,kk+1))
+     .               /g_def%dx(ig)
+
+            dtz =.25*(arr(ii  ,jj  ,kk+1)-arr(ii  ,jj  ,kk)
+     .               +arr(ii+1,jj  ,kk+1)-arr(ii+1,jj  ,kk)
+     .               +arr(ii  ,jj+1,kk+1)-arr(ii  ,jj+1,kk)
+     .               +arr(ii+1,jj+1,kk+1)-arr(ii+1,jj+1,kk))
+     .               /g_def%dz(kg)
+
+            if (avgt > 0d0) flx = flx + (d_xy*dtx + d_yz*dtz)/avgt
+          enddo
+        enddo
+
+        flx = -0.25*flx
+
+      case default
+
+        STOP "Cross flux not implemented"
+        
+      end select
+      
+c     End program
+
+      end function lap_tnsr_cross_flx_y_ijk
+
+c     lap_tnsr_cross_flx_z_ijk
+c     ###############################################################
+      function lap_tnsr_cross_flx_z_ijk(g_def,i,j,k,igrid,arr,tnsr,meth)
+     .         result(flx)
+c     ---------------------------------------------------------------
+c     Calculates Z-flux for scalar laplacian at faces (i,j,k+1/2)
+c     in general non-orthogonal coordinates, preserving the SPD property.
+c     ---------------------------------------------------------------
+
+      implicit none           !For safe fortran
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
+
+      integer :: i,j,k,igrid
+
+      real(8) :: arr (0:,0:,0:),flx
+      real(8),target :: tnsr(0:,0:,0:,:)
+
+      character(*) :: meth
+
+c     Local variables
+
+      integer    :: ip,im,jp,jm,kp,km,ig,jg,kg,ii,jj,kk
+
+      real(8)    :: d_xz,d_yz,avgt,dtx,dty
+     .             ,d_xz_ipkp,d_xz_imkp
+     .             ,d_yz_jpkp,d_yz_jmkp
+
+c     Begin program
+
+      select case(meth)
+      case('symm_edge')
+        call getMGmap(g_def,i,j,k,igrid,igrid,igrid,ig,jg,kg)
+
+        ip = i+1
+        im = i-1
+        jp = j+1
+        jm = j-1
+        kp = k+1
+        km = k-1
+
+        d_xz_ipkp = 0d0
+        
+        avgt = (arr (i ,j,k )
+     .         +arr (ip,j,k )
+     .         +arr (i ,j,kp)
+     .         +arr (ip,j,kp))
+        if (avgt > 0d0) then
+          d_xz_ipkp = (tnsr(i ,j,k ,3)
+     .                +tnsr(ip,j,k ,3)
+     .                +tnsr(i ,j,kp,3)
+     .                +tnsr(ip,j,kp,3))
+     .                /avgt
+        endif
+
+        d_xz_imkp = 0d0
+        avgt = (arr (i ,j,k )
+     .         +arr (im,j,k )
+     .         +arr (i ,j,kp)
+     .         +arr (im,j,kp))
+        if (avgt > 0d0) then
+          d_xz_imkp = (tnsr(i ,j,k ,3)
+     .                +tnsr(im,j,k ,3)
+     .                +tnsr(i ,j,kp,3)
+     .                +tnsr(im,j,kp,3))
+     .                /avgt
+        endif
+
+        d_yz_jpkp = 0d0
+        avgt = (arr (i,j ,k )
+     .         +arr (i,jp,k )
+     .         +arr (i,j ,kp)
+     .         +arr (i,jp,kp))
+        if (avgt > 0d0) then
+          d_yz_jpkp = (tnsr(i,j ,k ,5)
+     .                +tnsr(i,jp,k ,5)
+     .                +tnsr(i,j ,kp,5)
+     .                +tnsr(i,jp,kp,5))
+     .               /avgt
+        endif
+
+        d_yz_jmkp = 0d0
+        avgt = (arr (i,j ,k )
+     .         +arr (i,jm,k )
+     .         +arr (i,j ,kp)
+     .         +arr (i,jm,kp))
+        if (avgt > 0d0) then
+          d_yz_jmkp = (tnsr(i,j ,k ,5)
+     .                +tnsr(i,jm,k ,5)
+     .                +tnsr(i,j ,kp,5)
+     .                +tnsr(i,jm,kp,5))
+     .                /avgt
+        endif
+                        
+        flx   =
+     .    +.25*(d_xz_ipkp*(arr(ip,j,kp)+arr(ip,j,k)               
+     .                    -arr(i ,j,kp)-arr(i ,j,k))/g_def%dx(ig)
+     .    +     d_xz_imkp*(arr(i ,j,kp)+arr(i ,j,k)               
+     .                    -arr(im,j,kp)-arr(im,j,k))/g_def%dx(ig-1)
+     .    +     d_yz_jpkp*(arr(i,jp,kp)+arr(i,jp,k)               
+     .                    -arr(i,j ,kp)-arr(i,j ,k))/g_def%dy(jg)
+     .    +     d_yz_jmkp*(arr(i,j ,kp)+arr(i,j ,k)               
+     .                    -arr(i,jm,kp)-arr(i,jm,k))/g_def%dy(jg-1))
+
+      case('symm_vrtx')
+
+        kk = k
+
+        flx = 0d0
+        
+        do jj = j-1,j
+          do ii = i-1,i
+            if (isSP2(g_def,ii+1,igrid)) cycle
+            
+            call getMGmap(g_def,ii,jj,kk,igrid,igrid,igrid,ig,jg,kg)
+
+            d_xz = (tnsr(ii  ,jj  ,kk  ,3)
+     .             +tnsr(ii+1,jj  ,kk  ,3)
+     .             +tnsr(ii  ,jj+1,kk  ,3)
+     .             +tnsr(ii+1,jj+1,kk  ,3)
+     .             +tnsr(ii  ,jj  ,kk+1,3)
+     .             +tnsr(ii+1,jj  ,kk+1,3)
+     .             +tnsr(ii  ,jj+1,kk+1,3)
+     .             +tnsr(ii+1,jj+1,kk+1,3))
+
+            d_yz = (tnsr(ii  ,jj  ,kk  ,5)
+     .             +tnsr(ii+1,jj  ,kk  ,5)
+     .             +tnsr(ii  ,jj+1,kk  ,5)
+     .             +tnsr(ii+1,jj+1,kk  ,5)
+     .             +tnsr(ii  ,jj  ,kk+1,5)
+     .             +tnsr(ii+1,jj  ,kk+1,5)
+     .             +tnsr(ii  ,jj+1,kk+1,5)
+     .             +tnsr(ii+1,jj+1,kk+1,5))
+
+            avgt = (arr(ii  ,jj  ,kk  )
+     .             +arr(ii+1,jj  ,kk  )
+     .             +arr(ii  ,jj+1,kk  )
+     .             +arr(ii+1,jj+1,kk  )
+     .             +arr(ii  ,jj  ,kk+1)
+     .             +arr(ii+1,jj  ,kk+1)
+     .             +arr(ii  ,jj+1,kk+1)
+     .             +arr(ii+1,jj+1,kk+1))
+
+            dtx =.25*(arr(ii+1,jj  ,kk  )-arr(ii,jj  ,kk  )
+     .               +arr(ii+1,jj+1,kk  )-arr(ii,jj+1,kk  )
+     .               +arr(ii+1,jj  ,kk+1)-arr(ii,jj  ,kk+1)
+     .               +arr(ii+1,jj+1,kk+1)-arr(ii,jj+1,kk+1))
+     .               /g_def%dx(ig)
+            dty =.25*(arr(ii  ,jj+1,kk  )-arr(ii  ,jj,kk  )
+     .               +arr(ii+1,jj+1,kk  )-arr(ii+1,jj,kk  )
+     .               +arr(ii  ,jj+1,kk+1)-arr(ii  ,jj,kk+1)
+     .               +arr(ii+1,jj+1,kk+1)-arr(ii+1,jj,kk+1))
+     .               /g_def%dy(jg)
+
+            if (avgt > 0d0) flx = flx + (d_xz*dtx + d_yz*dty)/avgt
+          enddo
+        enddo
+
+        flx = -0.25*flx
+
+      case default
+
+        STOP "Cross flux not implemented"
+        
+      end select
+      
+c     End program
+
+      end function lap_tnsr_cross_flx_z_ijk
+
+c     lap_tnsr
+c     ###############################################################
+      function lap_tnsr(g_def,i,j,k,nx,ny,nz,igx,igy,igz,tnsr,arr,darr
+     .                 ,meth,vol,arr0,limit_mthd,limited)
+     .         result (laplacian)
+c     ---------------------------------------------------------------
+c     Calculates div(tensor*grad(arr)) at cell centers in general
+c     non-orthog. coordinates, preserving the SPD property. Tensor
+c     "tnsr" must be SPD. Only six components of "tnsr" are stored,
+c     in a lexicographic way. Convention:
+c
+c                 ( 1  2  3 )
+c                 ( -  4  5 )
+c                 ( -  -  6 )
+c     ---------------------------------------------------------------
+
+      implicit none           !For safe fortran
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
+
+      integer :: i,j,k,nx,ny,nz,igx,igy,igz
+
+      real(8),target :: arr (0:nx+1,0:ny+1,0:nz+1)
+      real(8)        :: darr(0:nx+1,0:ny+1,0:nz+1,3),laplacian
+      real(8),target :: tnsr(0:nx+1,0:ny+1,0:nz+1,6)
+
+      character(*) :: meth
+      
+      logical,optional,intent(IN) :: vol,limited
+      real(8),optional,target :: arr0(0:size(arr,1)-1
+     .                               ,0:size(arr,2)-1
+     .                               ,0:size(arr,3)-1)
+      integer,optional :: limit_mthd
+
+c     Local variables
+
+      integer :: ip,im,jp,jm,kp,km,ig,jg,kg,advcmthd
+
+      real(8) :: flxip,flxim,flxjp,flxjm,flxkp,flxkm
+
+      logical :: vol_wgt,limitd
+
+      real(8),dimension(:,:,:),pointer :: arr_0
+
+c     Begin program
+
+      vol_wgt = .false.
+      if (PRESENT(vol)) vol_wgt = vol
+
+      limitd = .false.
+      if (PRESENT(limited)) limitd = limited
+
+      call getMGmap(g_def,i,j,k,igx,igy,igz,ig,jg,kg)
+
+      ip = i+1
+      im = i-1
+      jp = j+1
+      jm = j-1
+      kp = k+1
+      km = k-1
+
+      if (.not.limitd) then
+        flxip=lap_tnsr_flx_x_ijk(g_def,i ,j,k,igx,arr,tnsr)
+        flxim=lap_tnsr_flx_x_ijk(g_def,im,j,k,igx,arr,tnsr)
+
+        flxjp=lap_tnsr_flx_y_ijk(g_def,i,j ,k,igx,arr,tnsr)
+        flxjm=lap_tnsr_flx_y_ijk(g_def,i,jm,k,igx,arr,tnsr)
+
+        flxkp=lap_tnsr_flx_z_ijk(g_def,i,j,k ,igx,arr,tnsr)
+        flxkm=lap_tnsr_flx_z_ijk(g_def,i,j,km,igx,arr,tnsr)
+      else
+        !Cross fluxes
+        if (PRESENT(arr0)) then
+          arr_0 => arr0
+        else
+          arr_0 => arr
+        endif
+
+        if (PRESENT(limit_mthd)) then
+          advcmthd = limit_mthd
+        else
+          advcmthd = SMART
+        endif
+
+        flxip=lap_tnsr_cross_flx_x_ijk(g_def,i ,j,k,igx,arr_0,tnsr,meth)
+        flxim=lap_tnsr_cross_flx_x_ijk(g_def,im,j,k,igx,arr_0,tnsr,meth)
+
+        flxjp=lap_tnsr_cross_flx_y_ijk(g_def,i,j ,k,igx,arr_0,tnsr,meth)
+        flxjm=lap_tnsr_cross_flx_y_ijk(g_def,i,jm,k,igx,arr_0,tnsr,meth)
+
+        flxkp=lap_tnsr_cross_flx_z_ijk(g_def,i,j,k ,igx,arr_0,tnsr,meth)
+        flxkm=lap_tnsr_cross_flx_z_ijk(g_def,i,j,km,igx,arr_0,tnsr,meth)
+
+        flxip =-scl_nc_advc_flx_x_new(g_def,i ,j,k,nx,ny,nz,igx
+     $                               ,flxip,arr,darr(:,:,:,1),advcmthd)
+        flxim =-scl_nc_advc_flx_x_new(g_def,im,j,k,nx,ny,nz,igx
+     $                               ,flxim,arr,darr(:,:,:,1),advcmthd)
+
+        flxjp =-scl_nc_advc_flx_y_new(g_def,i,j ,k,nx,ny,nz,igy
+     $                               ,flxjp,arr,darr(:,:,:,2),advcmthd)
+        flxjm =-scl_nc_advc_flx_y_new(g_def,i,jm,k,nx,ny,nz,igy
+     $                               ,flxjm,arr,darr(:,:,:,2),advcmthd)
+
+        flxkp =-scl_nc_advc_flx_z_new(g_def,i,j,k ,nx,ny,nz,igz
+     $                               ,flxkp,arr,darr(:,:,:,3),advcmthd)
+        flxkm =-scl_nc_advc_flx_z_new(g_def,i,j,km,nx,ny,nz,igz
+     $                               ,flxkm,arr,darr(:,:,:,3),advcmthd)
+
+        !Co-derivative terms
+        flxip = flxip + 0.5*(tnsr(i ,j,k,1)
+     .                      +tnsr(ip,j,k,1))
+     .                     *(arr(ip,j,k)-arr(i,j,k))/g_def%dx(ig)
+        flxim = flxim + 0.5*(tnsr(i ,j,k,1)
+     .                      +tnsr(im,j,k,1))
+     .                     *(arr(i,j,k)-arr(im,j,k))/g_def%dx(ig-1)
+        flxjp = flxjp + 0.5*(tnsr(i,j ,k,4)
+     .                      +tnsr(i,jp,k,4))
+     .                     *(arr(i,jp,k)-arr(i,j,k))/g_def%dy(jg)
+        flxjm = flxjm + 0.5*(tnsr(i,j ,k,4)
+     .                      +tnsr(i,jm,k,4))
+     .                     *(arr(i,j,k)-arr(i,jm,k))/g_def%dy(jg-1)
+        flxkp = flxkp + 0.5*(tnsr(i,j,k ,6)
+     .                      +tnsr(i,j,kp,6))
+     .                     *(arr(i,j,kp)-arr(i,j,k))/g_def%dz(kg)
+        flxkm = flxkm + 0.5*(tnsr(i,j,k ,6)
+     .                      +tnsr(i,j,km,6))
+     .                     *(arr(i,j,k)-arr(i,j,km))/g_def%dz(kg-1)
+
+      endif
+
+      laplacian = ((flxip -flxim)/g_def%dxh(ig)
+     .            +(flxjp -flxjm)/g_def%dyh(jg)
+     .            +(flxkp -flxkm)/g_def%dzh(kg))
+     .            /g_def%gmetric%grid(igx)%jac(i,j,k)
+
+      if (vol_wgt)
+     .     laplacian=laplacian*g_def%gmetric%grid(igx)%dvol(i,j,k)
+
+c     End program
+
+      end function lap_tnsr
+
 c     par_diff_mesh
 c     ###############################################################
       function par_diff_mesh(g_def,igrid,arr,BB,par_order,method
@@ -9886,7 +10477,7 @@ c     Call variables
 
       type(grid_mg_def),pointer :: g_def
 
-      integer :: igrid,par_order,ivar
+      integer :: igrid,par_order
 
       real(8) :: arr(0:,0:,0:)
      .          ,lap(0:size(arr,1)-1,0:size(arr,2)-1,0:size(arr,3)-1)
@@ -9902,7 +10493,7 @@ c     Call variables
       
 c     Local variables
 
-      integer :: nx,ny,nz,i,j,k,bcnd(6,3),advcmthd
+      integer :: nx,ny,nz,i,j,k,bcnd(6,3),advcmthd,ivar
 
       real(8) :: darr(0:size(arr,1)-1
      .               ,0:size(arr,2)-1
@@ -10243,7 +10834,7 @@ c     Begin program
 
               Fluxx(ii,jj,kk) = bx2 *dtx + bxby*dty + bxbz*dtz
               Fluxy(ii,jj,kk) = bxby*dtx + by2 *dty + bybz*dtz
-              Fluxz(ii,jj,kk) = bxbz*dtx + bxby*dty + bz2 *dtz
+              Fluxz(ii,jj,kk) = bxbz*dtx + bybz*dty + bz2 *dtz
             enddo
           enddo
         enddo
@@ -10497,9 +11088,15 @@ cc     .               +bz(i,j,kk  )/jac(i,j,kk  )))**2
      .                   +tmp_0(ii+1,jj  ,kk+1)+tmp_0(ii,jj  ,kk+1)
      .                   +tmp_0(ii+1,jj+1,kk+1)+tmp_0(ii,jj+1,kk+1))
 
-              Fluxx(ii,jj,kk) =(           bxby*dty + bxbz*dtz)/avgt
-              Fluxy(ii,jj,kk) =(bxby*dtx            + bybz*dtz)/avgt
-              Fluxz(ii,jj,kk) =(bxbz*dtx + bxby*dty           )/avgt
+              if (avgt > 0d0) then
+                Fluxx(ii,jj,kk) =(           bxby*dty + bxbz*dtz)/avgt
+                Fluxy(ii,jj,kk) =(bxby*dtx            + bybz*dtz)/avgt
+                Fluxz(ii,jj,kk) =(bxbz*dtx + bybz*dty           )/avgt
+              else
+                Fluxx(ii,jj,kk) = 0d0
+                Fluxy(ii,jj,kk) = 0d0
+                Fluxz(ii,jj,kk) = 0d0
+              endif
             enddo
           enddo
         enddo
