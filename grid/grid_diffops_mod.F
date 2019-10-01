@@ -10243,7 +10243,7 @@ c     Begin program
 
               Fluxx(ii,jj,kk) = bx2 *dtx + bxby*dty + bxbz*dtz
               Fluxy(ii,jj,kk) = bxby*dtx + by2 *dty + bybz*dtz
-              Fluxz(ii,jj,kk) = bxbz*dtx + bxby*dty + bz2 *dtz
+              Fluxz(ii,jj,kk) = bxbz*dtx + bybz*dty + bz2 *dtz
             enddo
           enddo
         enddo
@@ -10499,7 +10499,7 @@ cc     .               +bz(i,j,kk  )/jac(i,j,kk  )))**2
 
               Fluxx(ii,jj,kk) =(           bxby*dty + bxbz*dtz)/avgt
               Fluxy(ii,jj,kk) =(bxby*dtx            + bybz*dtz)/avgt
-              Fluxz(ii,jj,kk) =(bxbz*dtx + bxby*dty           )/avgt
+              Fluxz(ii,jj,kk) =(bxbz*dtx + bybz*dty           )/avgt
             enddo
           enddo
         enddo
