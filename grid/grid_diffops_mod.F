@@ -10317,7 +10317,7 @@ c     End program
 c     lap_tnsr
 c     ###############################################################
       function lap_tnsr(g_def,i,j,k,nx,ny,nz,igx,igy,igz,tnsr,arr,darr
-     .                 ,meth,vol,arr0,limit_mthd,limited)
+     .                 ,meth,vol,arr0,limit_mthd,limited,zebra_dir)
      .         result (laplacian)
 c     ---------------------------------------------------------------
 c     Calculates div(tensor*grad(arr)) at cell centers in general
@@ -10348,13 +10348,13 @@ c     Call variables
       real(8),optional,target :: arr0(0:size(arr,1)-1
      .                               ,0:size(arr,2)-1
      .                               ,0:size(arr,3)-1)
-      integer,optional :: limit_mthd
+      integer,optional :: limit_mthd,zebra_dir
 
 c     Local variables
 
-      integer :: ip,im,jp,jm,kp,km,ig,jg,kg,advcmthd
+      integer :: ip,im,jp,jm,kp,km,ig,jg,kg,advcmthd,zd
 
-      real(8) :: flxip,flxim,flxjp,flxjm,flxkp,flxkm
+      real(8) :: flxip,flxim,flxjp,flxjm,flxkp,flxkm,idx,idy,idz
 
       logical :: vol_wgt,limitd
 
@@ -10367,6 +10367,9 @@ c     Begin program
 
       limitd = .false.
       if (PRESENT(limited)) limitd = limited
+
+      zd = 0
+      if (PRESENT(zebra_dir)) zd = zebra_dir
 
       call getMGmap(g_def,i,j,k,igx,igy,igz,ig,jg,kg)
 
@@ -10448,9 +10451,24 @@ c     Begin program
 
       endif
 
-      laplacian = ((flxip -flxim)/g_def%dxh(ig)
-     .            +(flxjp -flxjm)/g_def%dyh(jg)
-     .            +(flxkp -flxkm)/g_def%dzh(kg))
+      idx = 1d0/g_def%dxh(ig)
+      idy = 1d0/g_def%dyh(jg)
+      idz = 1d0/g_def%dzh(kg)
+c$$$      select case(zd)
+c$$$      case(1)
+c$$$        idy = 0d0
+c$$$        idz = 0d0
+c$$$      case(2)
+c$$$        idx = 0d0
+c$$$        idz = 0d0
+c$$$      case(3)
+c$$$        idx = 0d0
+c$$$        idy = 0d0
+c$$$      end select
+      
+      laplacian = ((flxip -flxim)*idx
+     .            +(flxjp -flxjm)*idy
+     .            +(flxkp -flxkm)*idz)
      .            /g_def%gmetric%grid(igx)%jac(i,j,k)
 
       if (vol_wgt)
