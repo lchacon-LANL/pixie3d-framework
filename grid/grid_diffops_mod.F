@@ -9874,7 +9874,7 @@ c     Begin program
         avgt = (arr (i ,j,k )
      .         +arr (ip,j,k )
      .         +arr (i ,j,kp)
-     .       +arr (ip,j,kp))
+     .         +arr (ip,j,kp))
         if (avgt > 0d0) then
           d_xz_ipkp = (tnsr(i ,j,k ,3)
      .                +tnsr(ip,j,k ,3)
@@ -9960,7 +9960,7 @@ c     Begin program
           enddo
         enddo
 
-        flx = -0.25*flx
+        flx = 0.25*flx
 
       case default
 
@@ -10070,11 +10070,11 @@ c     Begin program
         flx =
      .    +.25*(d_xy_ipjp*(arr(ip,jp,k)+arr(ip,j,k)               
      .                    -arr(i ,jp,k)-arr(i ,j,k))/g_def%dx(ig)
-     .    +     d_xy_imjp*(arr(i ,jp,k)+arr(i ,j,k)               
+     .         +d_xy_imjp*(arr(i ,jp,k)+arr(i ,j,k)               
      .                    -arr(im,jp,k)-arr(im,j,k))/g_def%dx(ig-1)
-     .    +     d_yz_jpkp*(arr(i,jp,kp)+arr(i,j,kp)               
+     .         +d_yz_jpkp*(arr(i,jp,kp)+arr(i,j,kp)               
      .                    -arr(i,jp,k )-arr(i,j,k ))/g_def%dz(kg)
-     .    +     d_yz_jpkm*(arr(i,jp,k )+arr(i,j,k )               
+     .         +d_yz_jpkm*(arr(i,jp,k )+arr(i,j,k )               
      .                    -arr(i,jp,km)-arr(i,j,km))/g_def%dz(kg-1))
       case('symm_vrtx')
 
@@ -10131,7 +10131,7 @@ c     Begin program
           enddo
         enddo
 
-        flx = -0.25*flx
+        flx = 0.25*flx
 
       case default
 
@@ -10187,7 +10187,6 @@ c     Begin program
         km = k-1
 
         d_xz_ipkp = 0d0
-        
         avgt = (arr (i ,j,k )
      .         +arr (ip,j,k )
      .         +arr (i ,j,kp)
@@ -10242,11 +10241,11 @@ c     Begin program
         flx   =
      .    +.25*(d_xz_ipkp*(arr(ip,j,kp)+arr(ip,j,k)               
      .                    -arr(i ,j,kp)-arr(i ,j,k))/g_def%dx(ig)
-     .    +     d_xz_imkp*(arr(i ,j,kp)+arr(i ,j,k)               
+     .         +d_xz_imkp*(arr(i ,j,kp)+arr(i ,j,k)               
      .                    -arr(im,j,kp)-arr(im,j,k))/g_def%dx(ig-1)
-     .    +     d_yz_jpkp*(arr(i,jp,kp)+arr(i,jp,k)               
+     .         +d_yz_jpkp*(arr(i,jp,kp)+arr(i,jp,k)               
      .                    -arr(i,j ,kp)-arr(i,j ,k))/g_def%dy(jg)
-     .    +     d_yz_jmkp*(arr(i,j ,kp)+arr(i,j ,k)               
+     .         +d_yz_jmkp*(arr(i,j ,kp)+arr(i,j ,k)               
      .                    -arr(i,jm,kp)-arr(i,jm,k))/g_def%dy(jg-1))
 
       case('symm_vrtx')
@@ -10303,7 +10302,7 @@ c     Begin program
           enddo
         enddo
 
-        flx = -0.25*flx
+        flx = 0.25*flx
 
       case default
 
@@ -10382,11 +10381,11 @@ c     Begin program
         flxip=lap_tnsr_flx_x_ijk(g_def,i ,j,k,igx,arr,tnsr)
         flxim=lap_tnsr_flx_x_ijk(g_def,im,j,k,igx,arr,tnsr)
 
-        flxjp=lap_tnsr_flx_y_ijk(g_def,i,j ,k,igx,arr,tnsr)
-        flxjm=lap_tnsr_flx_y_ijk(g_def,i,jm,k,igx,arr,tnsr)
+        flxjp=lap_tnsr_flx_y_ijk(g_def,i,j ,k,igy,arr,tnsr)
+        flxjm=lap_tnsr_flx_y_ijk(g_def,i,jm,k,igy,arr,tnsr)
 
-        flxkp=lap_tnsr_flx_z_ijk(g_def,i,j,k ,igx,arr,tnsr)
-        flxkm=lap_tnsr_flx_z_ijk(g_def,i,j,km,igx,arr,tnsr)
+        flxkp=lap_tnsr_flx_z_ijk(g_def,i,j,k ,igz,arr,tnsr)
+        flxkm=lap_tnsr_flx_z_ijk(g_def,i,j,km,igz,arr,tnsr)
       else
         !Cross fluxes
         if (PRESENT(arr0)) then
@@ -10401,29 +10400,31 @@ c     Begin program
           advcmthd = SMART
         endif
 
+        !Compute flux velocities
         flxip=lap_tnsr_cross_flx_x_ijk(g_def,i ,j,k,igx,arr_0,tnsr,meth)
         flxim=lap_tnsr_cross_flx_x_ijk(g_def,im,j,k,igx,arr_0,tnsr,meth)
 
-        flxjp=lap_tnsr_cross_flx_y_ijk(g_def,i,j ,k,igx,arr_0,tnsr,meth)
-        flxjm=lap_tnsr_cross_flx_y_ijk(g_def,i,jm,k,igx,arr_0,tnsr,meth)
+        flxjp=lap_tnsr_cross_flx_y_ijk(g_def,i,j ,k,igy,arr_0,tnsr,meth)
+        flxjm=lap_tnsr_cross_flx_y_ijk(g_def,i,jm,k,igy,arr_0,tnsr,meth)
 
-        flxkp=lap_tnsr_cross_flx_z_ijk(g_def,i,j,k ,igx,arr_0,tnsr,meth)
-        flxkm=lap_tnsr_cross_flx_z_ijk(g_def,i,j,km,igx,arr_0,tnsr,meth)
+        flxkp=lap_tnsr_cross_flx_z_ijk(g_def,i,j,k ,igz,arr_0,tnsr,meth)
+        flxkm=lap_tnsr_cross_flx_z_ijk(g_def,i,j,km,igz,arr_0,tnsr,meth)
 
+        !Perform fake advection
         flxip =-scl_nc_advc_flx_x_new(g_def,i ,j,k,nx,ny,nz,igx
-     $                               ,flxip,arr,darr(:,:,:,1),advcmthd)
+     $                               ,-flxip,arr,darr(:,:,:,1),advcmthd)
         flxim =-scl_nc_advc_flx_x_new(g_def,im,j,k,nx,ny,nz,igx
-     $                               ,flxim,arr,darr(:,:,:,1),advcmthd)
+     $                               ,-flxim,arr,darr(:,:,:,1),advcmthd)
 
         flxjp =-scl_nc_advc_flx_y_new(g_def,i,j ,k,nx,ny,nz,igy
-     $                               ,flxjp,arr,darr(:,:,:,2),advcmthd)
+     $                               ,-flxjp,arr,darr(:,:,:,2),advcmthd)
         flxjm =-scl_nc_advc_flx_y_new(g_def,i,jm,k,nx,ny,nz,igy
-     $                               ,flxjm,arr,darr(:,:,:,2),advcmthd)
+     $                               ,-flxjm,arr,darr(:,:,:,2),advcmthd)
 
         flxkp =-scl_nc_advc_flx_z_new(g_def,i,j,k ,nx,ny,nz,igz
-     $                               ,flxkp,arr,darr(:,:,:,3),advcmthd)
+     $                               ,-flxkp,arr,darr(:,:,:,3),advcmthd)
         flxkm =-scl_nc_advc_flx_z_new(g_def,i,j,km,nx,ny,nz,igz
-     $                               ,flxkm,arr,darr(:,:,:,3),advcmthd)
+     $                               ,-flxkm,arr,darr(:,:,:,3),advcmthd)
 
         !Co-derivative terms
         flxip = flxip + 0.5*(tnsr(i ,j,k,1)
