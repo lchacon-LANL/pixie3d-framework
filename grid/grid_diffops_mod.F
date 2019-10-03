@@ -767,27 +767,27 @@ c     2nd order formulas
         if (i==0) then
           dx1=g_def%dx(ig)
           dx2=g_def%dx(ig+1)
-c$$$          gx = (-arr(i+2,j,k)*dx1/(dx2*(dx1+dx2))
-c$$$     .          +arr(i+1,j,k)*(dx1+dx2)/(dx1*dx2)
-c$$$     .          -arr(i  ,j,k)*(1d0/dx1+1d0/(dx1+dx2)))
-          id1=1d0/dx1
-          id2=1d0/dx2
-          id12=1d0/(dx1+dx2)
-          gx = (-arr(i+2,j,k)*dx1*id2*id12
-     .          +arr(i+1,j,k)*(id1+id2)
-     .          -arr(i  ,j,k)*(id1+id12))
+          gx = (-arr(i+2,j,k)*dx1/(dx2*(dx1+dx2))
+     .          +arr(i+1,j,k)*(dx1+dx2)/(dx1*dx2)
+     .          -arr(i  ,j,k)*(1d0/dx1+1d0/(dx1+dx2)))
+cc          id1=1d0/dx1
+cc          id2=1d0/dx2
+cc          id12=1d0/(dx1+dx2)
+cc          gx = (-arr(i+2,j,k)*dx1*id2*id12
+cc     .          +arr(i+1,j,k)*(id1+id2)
+cc     .          -arr(i  ,j,k)*(id1+id12))
         elseif (i==nx+1) then
           dx1=g_def%dx(ig-1)
           dx2=g_def%dx(ig-2)
-c$$$          gx = -(-arr(i-2,j,k)*dx1/(dx2*(dx1+dx2))
-c$$$     .           +arr(i-1,j,k)*(dx1+dx2)/(dx1*dx2)
-c$$$     .           -arr(i  ,j,k)*(1d0/dx1+1d0/(dx1+dx2)))
-          id1=1d0/dx1
-          id2=1d0/dx2
-          id12=1d0/(dx1+dx2)
-          gx =-(-arr(i-2,j,k)*dx1*id2*id12
-     .          +arr(i-1,j,k)*(id1+id2)
-     .          -arr(i  ,j,k)*(id1+id12))
+          gx = -(-arr(i-2,j,k)*dx1/(dx2*(dx1+dx2))
+     .           +arr(i-1,j,k)*(dx1+dx2)/(dx1*dx2)
+     .           -arr(i  ,j,k)*(1d0/dx1+1d0/(dx1+dx2)))
+cc          id1=1d0/dx1
+cc          id2=1d0/dx2
+cc          id12=1d0/(dx1+dx2)
+cc          gx =-(-arr(i-2,j,k)*dx1*id2*id12
+cc     .          +arr(i-1,j,k)*(id1+id2)
+cc     .          -arr(i  ,j,k)*(id1+id12))
         else
           dx1=g_def%dx(ig-1)
           dx2=g_def%dx(ig)
@@ -809,27 +809,27 @@ cc     .          -arr(i-1,j,k)*dx2/dx1/(dx1+dx2))
         if (j==0) then
           dy1=g_def%dy(jg)
           dy2=g_def%dy(jg+1)
-c$$$          gy = (-arr(i,j+2,k)*dy1/(dy2*(dy1+dy2))
-c$$$     .          +arr(i,j+1,k)*(dy1+dy2)/(dy1*dy2)
-c$$$     .          -arr(i,j  ,k)*(1d0/dy1+1d0/(dy1+dy2)))
-          id1=1d0/dy1
-          id2=1d0/dy2
-          id12=1d0/(dy1+dy2)
-          gy = (-arr(i,j+2,k)*dy1*id2*id12
-     .          +arr(i,j+1,k)*(id1+id2)
-     .          -arr(i,j  ,k)*(id1+id12))
+          gy = (-arr(i,j+2,k)*dy1/(dy2*(dy1+dy2))
+     .          +arr(i,j+1,k)*(dy1+dy2)/(dy1*dy2)
+     .          -arr(i,j  ,k)*(1d0/dy1+1d0/(dy1+dy2)))
+cc          id1=1d0/dy1
+cc          id2=1d0/dy2
+cc          id12=1d0/(dy1+dy2)
+cc          gy = (-arr(i,j+2,k)*dy1*id2*id12
+cc     .          +arr(i,j+1,k)*(id1+id2)
+cc     .          -arr(i,j  ,k)*(id1+id12))
         elseif (j==ny+1) then
           dy1=g_def%dy(jg-1)
           dy2=g_def%dy(jg-2)
-c$$$          gy = -(-arr(i,j-2,k)*dy1/(dy2*(dy1+dy2))
-c$$$     .           +arr(i,j-1,k)*(dy1+dy2)/(dy1*dy2)
-c$$$     .           -arr(i,j  ,k)*(1d0/dy1+1d0/(dy1+dy2)))
-          id1=1d0/dy1
-          id2=1d0/dy2
-          id12=1d0/(dy1+dy2)
-          gy =-(-arr(i,j-2,k)*dy1*id2*id12
-     .          +arr(i,j-1,k)*(dy1+dy2)*id1*id2
-     .          -arr(i,j  ,k)*(id1+id12))
+          gy = -(-arr(i,j-2,k)*dy1/(dy2*(dy1+dy2))
+     .           +arr(i,j-1,k)*(dy1+dy2)/(dy1*dy2)
+     .           -arr(i,j  ,k)*(1d0/dy1+1d0/(dy1+dy2)))
+cc          id1=1d0/dy1
+cc          id2=1d0/dy2
+cc          id12=1d0/(dy1+dy2)
+cc          gy =-(-arr(i,j-2,k)*dy1*id2*id12
+cc     .          +arr(i,j-1,k)*(dy1+dy2)*id1*id2
+cc     .          -arr(i,j  ,k)*(id1+id12))
         else
           dy1=g_def%dy(jg-1)
           dy2=g_def%dy(jg)
@@ -851,27 +851,27 @@ cc     .          -arr(i,j-1,k)*dy2/dy1/(dy1+dy2))
         if (k==0) then
           dz1=g_def%dz(kg)
           dz2=g_def%dz(kg+1)
-c$$$          gz = (-arr(i,j,k+2)*dz1/(dz2*(dz1+dz2))
-c$$$     .          +arr(i,j,k+1)*(dz1+dz2)/(dz1*dz2)
-c$$$     .          -arr(i,j,k  )*(1d0/dz1+1d0/(dz1+dz2)))
-          id1=1d0/dz1
-          id2=1d0/dz2
-          id12=1d0/(dz1+dz2)
-          gz = (-arr(i,j,k+2)*dz1*id2*id12
-     .          +arr(i,j,k+1)*(id1+id2)
-     .          -arr(i,j,k  )*(id1+id12))
+          gz = (-arr(i,j,k+2)*dz1/(dz2*(dz1+dz2))
+     .          +arr(i,j,k+1)*(dz1+dz2)/(dz1*dz2)
+     .          -arr(i,j,k  )*(1d0/dz1+1d0/(dz1+dz2)))
+cc          id1=1d0/dz1
+cc          id2=1d0/dz2
+cc          id12=1d0/(dz1+dz2)
+cc          gz = (-arr(i,j,k+2)*dz1*id2*id12
+cc     .          +arr(i,j,k+1)*(id1+id2)
+cc     .          -arr(i,j,k  )*(id1+id12))
         elseif (k==nz+1) then
           dz1=g_def%dz(kg-1)
           dz2=g_def%dz(kg-2)
-c$$$          gz = -(-arr(i,j,k-2)*dz1/(dz2*(dz1+dz2))
-c$$$     .           +arr(i,j,k-1)*(dz1+dz2)/(dz1*dz2)
-c$$$     .           -arr(i,j,k  )*(1d0/dz1+1d0/(dz1+dz2)))
-          id1=1d0/dz1
-          id2=1d0/dz2
-          id12=1d0/(dz1+dz2)
-          gz =-(-arr(i,j,k-2)*dz1*id2*id12
-     .          +arr(i,j,k-1)*(id1+id2)
-     .          -arr(i,j,k  )*(id1+id12))
+          gz = -(-arr(i,j,k-2)*dz1/(dz2*(dz1+dz2))
+     .           +arr(i,j,k-1)*(dz1+dz2)/(dz1*dz2)
+     .           -arr(i,j,k  )*(1d0/dz1+1d0/(dz1+dz2)))
+cc          id1=1d0/dz1
+cc          id2=1d0/dz2
+cc          id12=1d0/(dz1+dz2)
+cc          gz =-(-arr(i,j,k-2)*dz1*id2*id12
+cc     .          +arr(i,j,k-1)*(id1+id2)
+cc     .          -arr(i,j,k  )*(id1+id12))
         else
           dz1=g_def%dz(kg-1)
           dz2=g_def%dz(kg)
