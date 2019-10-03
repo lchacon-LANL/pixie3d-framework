@@ -1,3 +1,7 @@
+#if !defined(PER_SYNC_ONLY)
+#define PER_SYNC_ONLY .false.
+#endif
+
 c module BCS_variables
 c####################################################################
       module BCS_variables
@@ -1209,7 +1213,7 @@ c     Fill corners
 c     Periodic boundary synchronizing
 
 #if defined(PER_BC_SYNC) && !defined(samrai)
-      call sync_bc(.false.)
+      call sync_bc(PER_SYNC_ONLY)
 #endif
 
 c     End program
@@ -1463,7 +1467,7 @@ c     Fill corners (for both cnv and cov components)
 c     Periodic boundary synchronizing
 
 #if defined(PER_BC_SYNC) && !defined(samrai)
-      call sync_bc(.false.)
+      call sync_bc(PER_SYNC_ONLY)
 #endif
 
 c     End program
@@ -1828,7 +1832,7 @@ c     Fill corners
 c     Periodic boundary synchronizing
 
 #if defined(PER_BC_SYNC) && !defined(samrai)
-      call sync_bc(.false.)
+      call sync_bc(PER_SYNC_ONLY)
 #endif
 
       deallocate(vec0)
@@ -2069,7 +2073,7 @@ c     Fill corners (for both cnv and cov components)
 c     Periodic boundary synchronizing
 
 #if defined(PER_BC_SYNC) && !defined(samrai)
-      call sync_bc(.false.)
+      call sync_bc(PER_SYNC_ONLY)
 #endif
 
 c     End program
@@ -2630,7 +2634,7 @@ c$$$      enddo
 c     Periodic boundary synchronizing
 
 #if defined(PER_BC_SYNC) && !defined(samrai)
-      call sync_bc(.false.)
+      call sync_bc(PER_SYNC_ONLY)
 #endif
 
       if (PRESENT(vec0)) then
