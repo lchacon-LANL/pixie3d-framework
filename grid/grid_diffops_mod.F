@@ -6479,7 +6479,6 @@ c     End program
 
       end module grid_tensor_ops
 
-
 c grid_advec_ops
 c ######################################################################
       module grid_advec_ops
