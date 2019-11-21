@@ -1820,9 +1820,13 @@ c$$$        where (bcs == SP) bcs = DEF
 c$$$        if (g_def%nglx == 1 .and. bcPER(1)) bcs(1:2,:) = DEF
 c$$$        if (g_def%ngly == 1 .and. bcPER(2)) bcs(3:4,:) = DEF
 c$$$        if (g_def%nglz == 1 .and. bcPER(3)) bcs(5:6,:) = DEF
-        
-c$$$        if (coords=='hel') bcs(5:6,:) = DEF !Do nothing in 3rd (ignorable) direction
-c$$$                                            !to preserve helical info
+
+        !Special case for helical geometry when limiting angular domain
+        if(coords=='hel'
+     .    .and.nint(2*pi/(g_def%gymax-g_def%gymin))/=1) then
+          bcs(1  ,:) = DEF
+          bcs(3:4,:) = DEF
+        endif
 
 c     Impose BCs
 
@@ -1830,12 +1834,6 @@ c     Impose BCs
           call imposeBConVector_ez(g_def,igrid,dr(:,:,:,i,:)
      .                            ,.false.,bcs,2)
         enddo
-
-c$$$        do i=1,3
-c$$$          do j=1,3
-c$$$            call topol_bc(g_def,igrid,nx,ny,nz,dr(:,:,:,i,j),bcs(:,1))
-c$$$          enddo
-c$$$        enddo
 
 c     End program
 
@@ -1894,6 +1892,13 @@ c     Set up i=imax, j=jmax, k=kmax boundaries
         where (bcs(2,:) == FSYM .or. bcs(2,:) == SYM) bcs(2,:) = NEU
         where (bcs(4,:) == FSYM .or. bcs(4,:) == SYM) bcs(4,:) = NEU
         where (bcs(6,:) == FSYM .or. bcs(6,:) == SYM) bcs(6,:) = NEU
+
+c     Set up special case for helical geometry along angular direction
+
+        if(coords=='hel'
+     .    .and.nint(2*pi/(g_def%gymax-g_def%gymin))/=1) then
+          bcs(3:4,:) = EXT
+        endif
 
 c     Impose BCs
 

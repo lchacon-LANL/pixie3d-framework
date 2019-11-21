@@ -2339,7 +2339,7 @@ c     Begin program
 #if defined(petsc)
      .                  ,mpi_comm=g_def%mpi_comm
 #endif
-     .                  )
+     .                  ,no_bc=.true.)
         if (my_rank == 0) then
           call contour(dbg(:,:,1),nxg+2,nyg+2
      .                ,xmin,xmax,ymin,ymax,flg,unit)

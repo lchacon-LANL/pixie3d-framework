@@ -87,7 +87,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: i,j,k,ig,jg,kg,jj,jlog,nyg,jglobal
+      integer :: i,j,k,ig,jg,kg,jj,jlog,nyg,jglobal,coeff
 
 #if defined(petsc)
       real(8),allocatable,dimension(:)   :: local_x,global_x
@@ -139,10 +139,14 @@ c     Element exchange in poloidal direction
 
       jlog = gl_def%jlo(igybc)
 
+      coeff = 1
+      if (coords=='hel'.or.coords=='hl2')
+     .     coeff =nint(2*pi/(gl_def%gymax-gl_def%gymin))
+
       do k=0,nzbc+1
         do j=0,nybc+1
           jglobal = j + jlog - 1
-          jj = mod(jglobal+nyg/2,nyg)
+          jj = mod(jglobal+coeff*nyg/2,nyg)
           if (jj == 0) jj = nyg
 #if defined(petsc)
           array(i-1,j,k) = garray(jj,k)
@@ -180,7 +184,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: i,j,k,jj,jlog,nyg,jglobal
+      integer :: i,j,k,jj,jlog,nyg,jglobal,coeff
 
 #if defined(petsc)
       real(8),allocatable,dimension(:)   :: local_x,global_x
@@ -230,12 +234,16 @@ c     Parallel Allgather in SP communicator
 
 c     Element exchange in poloidal direction
 
+      coeff = 1
+      if (coords=='hel'.or.coords=='hl2')
+     .     coeff =nint(2*pi/(gl_def%gymax-gl_def%gymin))
+
       jlog = gl_def%jlo(igybc)
       if (coords == 'hl2') then
         do k=0,nzbc+1
           do j=0,nybc+1
             jglobal = j + jlog - 1
-            jj = mod(jglobal+nyg/2,nyg)
+            jj = mod(jglobal+coeff*nyg/2,nyg)
             if (jj == 0) jj = nyg
 
 #if defined(petsc)
@@ -249,7 +257,7 @@ c     Element exchange in poloidal direction
         do k=0,nzbc+1
           do j=0,nybc+1
             jglobal = j + jlog - 1
-            jj = mod(jglobal+nyg/2,nyg)
+            jj = mod(jglobal+coeff*nyg/2,nyg)
             if (jj == 0) jj = nyg
 
             if (cov) then
@@ -315,7 +323,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: i,j,k,jj,jlog,nyg,jglobal
+      integer :: i,j,k,jj,jlog,nyg,jglobal,coeff
 
 #if defined(petsc)
       real(8),allocatable,dimension(:)   :: local_x,global_x
@@ -372,6 +380,10 @@ c     Parallel Allgather in SP communicator
 
 c     Element exchange in poloidal direction
 
+      coeff = 1
+      if (coords=='hel'.or.coords=='hl2')
+     .     coeff =nint(2*pi/(gl_def%gymax-gl_def%gymin))
+
       jlog = gl_def%jlo(igybc)
       if (coords == 'hl2') then
         stop 'hl2 staggered option not implemented for hl2 geom'
@@ -392,7 +404,7 @@ c$$$        enddo
         do k=0,nzbc+1
           do j=0,nybc+1
             jglobal = j + jlog - 1
-            jj = mod(jglobal+nyg/2,nyg)
+            jj = mod(jglobal+coeff*nyg/2,nyg)
             if (jj == 0) jj = nyg
 
             if (cov) then
