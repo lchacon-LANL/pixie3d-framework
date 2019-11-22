@@ -150,9 +150,8 @@ c     Begin program
         case ('hel')
           mm = gp(1)
           kk = gp(2)
-          aa = kk/mm
 
-          phi = xlog(2)-aa*xlog(3)
+          phi = (xlog(2)-kk*xlog(3))/mm
           car(1) = xlog(1)*cos(phi)
           car(2) = xlog(1)*sin(phi)
           car(3) = xlog(3)
@@ -418,7 +417,8 @@ c     Begin program
         case ('cyl')
           jac = x1
         case ('hel')
-          jac = x1
+          mm = gp(1)
+          jac = x1/mm
         case ('hl2')
           jac = 1d0
         case ('tor')
@@ -570,14 +570,13 @@ c     Begin program
 
           mm = gp(1)
           kk = gp(2)
-          aa = kk/mm
-          phi = (curv(2)-aa*curv(3))
+          phi = (curv(2)-kk*curv(3))/mm
 
           select case (comp)
             case (1)
               vec = (/ cos(phi),sin(phi),0d0 /)
             case (2)
-              vec = (/-sin(phi)/curv(1),cos(phi)/curv(1),aa /)
+              vec = (/-mm*sin(phi)/curv(1),mm*cos(phi)/curv(1),kk /)
             case (3)
               vec = (/ 0d0,0d0,1d0 /)
           end select
@@ -779,11 +778,10 @@ c     Begin program
 
           mm = gp(1)
           kk = gp(2)
-          aa = kk/mm
-          phi = (curv(2)-aa*curv(3))
+          phi = (curv(2)-aa*curv(3))/mm
 
           vec(1,:) = (/ cos(phi),sin(phi),0d0 /)
-          vec(2,:) = (/-sin(phi)/curv(1),cos(phi)/curv(1),aa /)
+          vec(2,:) = (/-mm*sin(phi)/curv(1),mm*cos(phi)/curv(1),kk /)
           vec(3,:) = (/ 0d0,0d0,1d0 /)
 cc        case ('hl2')
 cc          curv = (/ sign(sqrt(2*abs(x1)),x1),x2,x3 /)
@@ -998,15 +996,14 @@ c     Begin program
 
           mm = gp(1)
           kk = gp(2)
-          aa = kk/mm
-          phi = (curv(2)-aa*curv(3))
+          phi = (curv(2)-aa*curv(3))/mm
           select case (comp)
             case (1)
-              vec = (/ cos(phi),sin(phi),0d0 /)/curv(1)
+              vec = (/ cos(phi),sin(phi),0d0 /)*mm/curv(1)
             case (2)
               vec = (/-sin(phi),cos(phi),0d0 /)
             case (3)
-              vec = (/ aa*sin(phi),-aa*cos(phi),1d0/curv(1) /)
+              vec = (/ kk*sin(phi),-kk*cos(phi),mm/curv(1) /)
           end select
         case ('hl2')
           curv = (/ sign(sqrt(2*abs(x1)),x1),x2,x3 /)
@@ -1215,12 +1212,11 @@ c     Begin program
 
           mm = gp(1)
           kk = gp(2)
-          aa = kk/mm
-          phi = (curv(2)-aa*curv(3))
+          phi = (curv(2)-aa*curv(3))/mm
 
-          vec(1,:) = (/ cos(phi),sin(phi),0d0 /)/curv(1)
+          vec(1,:) = (/ cos(phi),sin(phi),0d0 /)*mm/curv(1)
           vec(2,:) = (/-sin(phi),cos(phi),0d0 /)
-          vec(3,:) = (/ aa*sin(phi),-aa*cos(phi),1d0/curv(1) /)
+          vec(3,:) = (/ kk*sin(phi),-kk*cos(phi),mm/curv(1) /)
 cc        case ('hl2')
 cc          curv = (/ sign(sqrt(2*abs(x1)),x1),x2,x3 /)
 cc
@@ -1440,23 +1436,22 @@ c     Begin program
 
           mm = gp(1)
           kk = gp(2)
-          aa = kk/mm
-          phi = (curv(2)-aa*curv(3))
+          phi = (curv(2)-kk*curv(3))/mm
           select case (l)
             case (1)
               vec(1) = 0d0
               vec(2) = 0d0
               vec(3) = 0d0
               vec(4) = vec(2)
-              vec(5) = curv(1)
-              vec(6) = -aa*curv(1)
+              vec(5) = curv(1)/(mm*mm)
+              vec(6) = -kk*curv(1)/(mm*mm)
               vec(7) = vec(3)
               vec(8) = vec(6)
-              vec(9) = aa**2*curv(1)
+              vec(9) = kk*kk*curv(1)/(mm*mm)
             case (2)
               vec(1) = 0d0
               vec(2) = -1./curv(1)
-              vec(3) = aa/curv(1)
+              vec(3) = kk/curv(1)
               vec(4) = vec(2)
               vec(5) = 0d0
               vec(6) = 0d0
@@ -2085,26 +2080,26 @@ c     Begin program
             vec(5) = 1./x1
             vec(6) = 0d0
             vec(7) = 0d0
-            vec(8) = -aa/x1
+            vec(8) = -kk/x1
             vec(9) = 0d0
           case (2)
             vec(1) = 0d0
             vec(2) = 0d0
             vec(3) = 0d0
-            vec(4) = -x1
+            vec(4) = -x1/(mm*mm)
             vec(5) = 0d0
             vec(6) = 0d0
-            vec(7) = aa*x1
+            vec(7) = kk*x1/(mm*mm)
             vec(8) = 0d0
             vec(9) = 0d0
           case (3)
             vec(1) = 0d0
-            vec(2) = -aa/x1
+            vec(2) = -kk/x1
             vec(3) = -1./x1
-            vec(4) = aa*x1
+            vec(4) = kk*x1/(mm*mm)
             vec(5) = 0d0
             vec(6) = 0d0
-            vec(7) = -aa**2*x1
+            vec(7) = -kk*kk*x1/(mm*mm)
             vec(8) = 0d0
             vec(9) = 0d0
           end select
@@ -2233,13 +2228,12 @@ c     Begin program
         case ('hel')
           mm = gp(1)
           kk = gp(2)
-          aa = kk/mm
           if (x1 == 0d0) then
             vec = 0d0
           else
-            vec = (/ 1./x1, 0d0  ,      0d0
-     .              ,0d0  ,  x1  ,    -aa*x1
-     .              ,0d0  ,-aa*x1, 1./x1 + aa**2*x1 /)
+            vec = (/ mm/x1, 0d0      ,    0d0
+     .              ,0d0  , x1/mm    ,  -kk*x1/mm
+     .              ,0d0  ,-kk*x1/mm , mm/x1 + kk*kk*x1/mm /)
           endif
         case ('hl2')
           curv = (/ abs(2*x1),x2,x3 /)
@@ -2467,13 +2461,12 @@ c     Begin program
         case ('hel')
           mm = gp(1)
           kk = gp(2)
-          aa = kk/mm
           if (x1 == 0d0) then
             vec = 0d0
           else
-            vec = (/  x1  , 0d0              , 0d0
-     .              , 0d0 , 1./x1 + aa**2*x1 , aa*x1
-     .              , 0d0 , aa*x1            , x1 /)
+            vec = (/  x1/mm , 0d0                , 0d0
+     .              , 0d0   , mm/x1 + kk*kk*x1/mm, kk*x1/mm
+     .              , 0d0   , kk*x1/mm           , x1/mm /)
           endif
         case ('hl2')
           mm = gp(1)
@@ -2687,13 +2680,12 @@ c     Begin program
         case ('hel')
           mm = gp(1)
           kk = gp(2)
-          aa = kk/mm
           if (x1 == 0d0) then
             vec = 0d0
           else
-            vec = (/  x1  , 0d0              , 0d0
-     .              , 0d0 , 1./x1 + aa**2*x1 , aa*x1
-     .              , 0d0 , aa*x1            , x1 /)
+            vec = (/  x1/mm , 0d0                , 0d0
+     .              , 0d0   , mm/x1 + kk*kk*x1/mm, kk*x1/mm
+     .              , 0d0   , kk*x1/mm           , x1/mm /)
           endif
         case ('hl2')
           mm = gp(1)
