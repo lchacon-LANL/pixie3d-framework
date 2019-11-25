@@ -38,7 +38,7 @@ c     PRIVATE VARIABLES & PROCEDURES
         logical,private :: map_present,vmap_present
 
         INTERFACE find_dr
-          module procedure find_dr_1st, find_dr_2nd
+          module procedure find_dr_1st,find_dr_4th
         END INTERFACE
 
         private :: topol_bc,findGridmetrics,find_dr
@@ -260,8 +260,6 @@ c     Begin program
         ny = g_def%nyv(igrid)
         nz = g_def%nzv(igrid)
 
-c     Exceptions
-
         !X
         i0 = min(max(i,1),nx)
         ip = i0+1
@@ -339,17 +337,17 @@ c     Begin program
 
         select case(pos)
         case(-1)  !Left boundary
-          dr = (-rp* dx1/dx2/(dx1+dx2)
-     .          +r0*(dx1+dx2)/dx1/dx2
-     .          -rm*(1./dx1+1./(dx1+dx2)))
+          dr = (-rp* dx1/(dx2*(dx1+dx2))
+     .          +r0*(1d0/dx1+1d0/dx2)
+     .          -rm*(1d0/dx1+1d0/(dx1+dx2)))
         case(1)  !Right boundary
-          dr = -(-rm* dx1/dx2/(dx1+dx2)
-     .           +r0*(dx1+dx2)/dx1/dx2
-     .           -rp*(1./dx1+1./(dx1+dx2)))
+          dr = ( rm* dx2/(dx1*(dx1+dx2))
+     .          -r0*(1d0/dx1+1d0/dx2)
+     .          +rp*(1d0/dx2+1d0/(dx1+dx2)))
         case(0)
-          dr = ( rp* dx1/dx2/(dx1+dx2)
-     .          +r0*(dx2-dx1)/dx2/dx1
-     .          -rm* dx2/dx1/(dx1+dx2))
+          dr = ( rp* dx1/(dx2*(dx1+dx2))
+     .          +r0*(1d0/dx1-1d0/dx2)
+     .          -rm* dx2/(dx1*(dx1+dx2)))
         case default
           write (*,*) 'Error in dr_dxi'
           stop
@@ -358,6 +356,232 @@ c     Begin program
       end function dr_dxi
 
       end function find_dr_2nd
+
+c     find_dr_4th
+c     #####################################################################
+      function find_dr_4th(g_def,i,j,k,igrid,x) result(dr)
+
+c     ---------------------------------------------------------------------
+c     This routine finds dx/d_xi tensor at the point (i,j,k)
+c     from the position vector x. 
+c     ---------------------------------------------------------------------
+
+        use oned_int
+      
+        implicit none
+
+c     Call variables
+
+        type(grid_mg_def),pointer :: g_def
+
+        integer :: i,j,k,igrid
+        real(8) :: dr(3,3),x(0:,0:,0:,:)
+
+c     Local variables
+
+        integer :: ipp,ip,i0,im,imm
+     .            ,jpp,jp,j0,jm,jmm
+     .            ,kpp,kp,k0,km,kmm
+     .            ,igpp,igp,ig0,igm,igmm
+     .            ,jgpp,jgp,jg0,jgm,jgmm
+     .            ,kgpp,kgp,kg0,kgm,kgmm
+     .            ,ig,jg,kg,nx,ny,nz
+
+        real(8) :: carpp(3),carp(3),car0(3),carm(3),carmm(3),coeff
+
+c     Begin program
+
+        nx = g_def%nxv(igrid)
+        ny = g_def%nyv(igrid)
+        nz = g_def%nzv(igrid)
+
+        call getMGmap(g_def,i,j,k,igx,igy,igz,ig,jg,kg)
+
+c     Exceptions
+
+        !X
+        if (nx > 3) then
+          
+          i0 = min(max(i,2),nx-1)
+          ipp = i0+2
+          ip  = i0+1
+          im  = i0-1
+          imm = i0-2
+
+          call getMGmap(g_def,i0,j,k,igx,igy,igz,ig0,jg,kg)
+
+          igpp = ig0+2
+          igp  = ig0+1
+          igm  = ig0-1
+          igmm = ig0-2
+
+          carpp = x(ipp,j,k,:)
+          carp  = x(ip ,j,k,:)
+          car0  = x(i0 ,j,k,:)
+          carm  = x(im ,j,k,:)
+          carmm = x(imm,j,k,:)
+        
+          dr(:,1) = quartic_interp(g_def%xx(igmm),carmm
+     .                            ,g_def%xx(igm ),carm
+     .                            ,g_def%xx(ig0 ),car0
+     .                            ,g_def%xx(igp ),carp
+     .                            ,g_def%xx(igpp),carpp
+     .                            ,g_def%xx(ig),1)
+
+        else
+          i0 = min(max(i,1),nx)
+          ip = i0+1
+          im = i0-1
+
+          call getMGmap(g_def,i0,j,k,igx,igy,igz,ig0,jg,kg)
+
+          igp = ig0+1
+          igm = ig0-1
+
+          carp = x(ip,j,k,:)
+          car0 = x(i0,j,k,:)
+          carm = x(im,j,k,:)
+
+          dr(:,1) = dr_dxi(g_def%xx(igm),carm
+     .                    ,g_def%xx(ig0),car0
+     .                    ,g_def%xx(igp),carp
+     .                    ,i-i0)
+        endif
+          
+        !Y
+        if (ny > 3) then
+          j0 = min(max(j,2),ny-1)
+          jpp = j0+2
+          jp  = j0+1
+          jm  = j0-1
+          jmm = j0-2
+
+          call getMGmap(g_def,i,j0,k,igx,igy,igz,ig,jg0,kg)
+
+          jgpp = jg0+2
+          jgp  = jg0+1
+          jgm  = jg0-1
+          jgmm = jg0-2
+
+          carpp = x(i,jpp,k,:)
+          carp  = x(i,jp ,k,:)
+          car0  = x(i,j0 ,k,:)
+          carm  = x(i,jm ,k,:)
+          carmm = x(i,jmm,k,:)
+        
+          dr(:,2) = quartic_interp(g_def%yy(jgmm),carmm
+     .                            ,g_def%yy(jgm ),carm
+     .                            ,g_def%yy(jg0 ),car0
+     .                            ,g_def%yy(jgp ),carp
+     .                            ,g_def%yy(jgpp),carpp
+     .                            ,g_def%yy(jg),1)
+
+        else
+          j0 = min(max(j,1),ny)
+          jp = j0+1
+          jm = j0-1
+
+          call getMGmap(g_def,i,j0,k,igx,igy,igz,ig,jg0,kg)
+
+          jgp = jg0+1
+          jgm = jg0-1
+
+          carp = x(i,jp,k,:)
+          car0 = x(i,j0,k,:)
+          carm = x(i,jm,k,:)
+
+          dr(:,2) = dr_dxi(g_def%yy(jgm),carm
+     .                    ,g_def%yy(jg0),car0
+     .                    ,g_def%yy(jgp),carp
+     .                    ,j-j0)
+        endif
+        
+        !Z
+        if (nz > 3) then
+          k0 = min(max(k,2),nz-1)
+          kpp = k0+2
+          kp  = k0+1
+          km  = k0-1
+          kmm = k0-2
+
+          call getMGmap(g_def,i,j,k0,igx,igy,igz,ig,jg,kg0)
+
+          kgpp = kg0+2
+          kgp  = kg0+1
+          kgm  = kg0-1
+          kgmm = kg0-2
+
+          carpp = x(i,j,kpp,:)
+          carp  = x(i,j,kp ,:)
+          car0  = x(i,j,k0 ,:)
+          carm  = x(i,j,km ,:)
+          carmm = x(i,j,kmm,:)
+        
+          dr(:,2) = quartic_interp(g_def%zz(kgmm),carmm
+     .                            ,g_def%zz(kgm ),carm
+     .                            ,g_def%zz(kg0 ),car0
+     .                            ,g_def%zz(kgp ),carp
+     .                            ,g_def%zz(kgpp),carpp
+     .                            ,g_def%zz(kg),1)
+        else
+          k0 = min(max(k,1),nz)
+          kp = k0+1
+          km = k0-1
+
+          call getMGmap(g_def,i,j,k0,igx,igy,igz,ig,jg,kg0)
+
+          kgp = kg0+1
+          kgm = kg0-1
+
+          carp = x(i,j,kp,:)
+          car0 = x(i,j,k0,:)
+          carm = x(i,j,km,:)
+
+          dr(:,3) = dr_dxi(g_def%zz(kgm),carm
+     .                    ,g_def%zz(kg0),car0
+     .                    ,g_def%zz(kgp),carp
+     .                    ,k-k0)
+        endif
+        
+      contains
+
+c     dr_dxi
+c     #################################################################
+      function dr_dxi(xm,rm,x0,r0,xp,rp,pos) result(dr)
+
+        implicit none
+
+        integer :: pos
+        real(8) :: xm,x0,xp,rm(3),r0(3),rp(3),dr(3)
+
+        real(8) :: dx1,dx2
+
+c     Begin program
+
+        dx1=x0-xm
+        dx2=xp-x0
+
+        select case(pos)
+        case(-1)  !Left boundary
+          dr = (-rp* dx1/(dx2*(dx1+dx2))
+     .          +r0*(1d0/dx1+1d0/dx2)
+     .          -rm*(1d0/dx1+1d0/(dx1+dx2)))
+        case(1)  !Right boundary
+          dr = ( rm* dx2/(dx1*(dx1+dx2))
+     .          -r0*(1d0/dx1+1d0/dx2)
+     .          +rp*(1d0/dx2+1d0/(dx1+dx2)))
+        case(0)
+          dr = ( rp* dx1/(dx2*(dx1+dx2))
+     .          +r0*(1d0/dx1-1d0/dx2)
+     .          -rm* dx2/(dx1*(dx1+dx2)))
+        case default
+          write (*,*) 'Error in dr_dxi'
+          stop
+        end select
+
+      end function dr_dxi
+
+      end function find_dr_4th
 
 c     find_d2r
 c     #####################################################################
@@ -977,6 +1201,20 @@ c     Evaluate dr=dx/dxi vectors
               enddo
             enddo
           enddo
+          write (*,*) "x_1",dr(10,:,1,1,1)
+          write (*,*) "y_1",dr(10,:,1,2,1)
+          write (*,*) "z_1",dr(10,:,1,3,1)
+          write (*,*) "x_2",dr(10,:,1,1,2)
+          write (*,*) "y_2",dr(10,:,1,2,2)
+          write (*,*) "z_2",dr(10,:,1,3,2)
+          write (*,*) "x_3",dr(10,:,1,1,3)
+          write (*,*) "y_3",dr(10,:,1,2,3)
+          write (*,*) "z_3",dr(10,:,1,3,3)
+          write (*,*) "jac", (triple_product(dr(10,j,1,:,1)
+     .                                      ,dr(10,j,1,:,2)
+     .                                      ,dr(10,j,1,:,3))
+     .                       ,j=0,33)
+          pause
         else                  !First order in coarser grids (to avoid negative jacobians)
           do k = kmin,kmax
             do j = jmin,jmax
@@ -1801,13 +2039,17 @@ c     Call variables
 
 c     Local variables
 
-        integer :: i,j,bcs(6,3),nx,ny,nz
+        integer :: bcond_sv(6),i,j,bcs(6,3),nx,ny,nz
 
 c     Begin program
 
         nx = g_def%nxv(igrid)
         ny = g_def%nyv(igrid)
         nz = g_def%nzv(igrid)
+
+c     Save topological BC config
+
+        bcond_sv = bcond
 
 c     Modify BC setup
 
@@ -1822,18 +2064,24 @@ c$$$        if (g_def%ngly == 1 .and. bcPER(2)) bcs(3:4,:) = DEF
 c$$$        if (g_def%nglz == 1 .and. bcPER(3)) bcs(5:6,:) = DEF
 
         !Special case for helical geometry when limiting angular domain
-        if(coords=='hel'
-     .    .and.nint(2*pi/(g_def%gymax-g_def%gymin))/=1) then
-          bcs(1  ,:) = DEF
+        if(coords=='hel'.and.g_def%params(1)/=1) then
+c$$$          bcond(3:4) = FSYM
+c$$$          bcs(3:4,:) = FSYM
+c$$$          call set_vec_symm_bc(bcs,1) !Only works for m=2
+          bcond(3:4) = DEF
           bcs(3:4,:) = DEF
+          bcs(1  ,:) = DEF
         endif
 
 c     Impose BCs
 
-        do i=1,3
-          call imposeBConVector_ez(g_def,igrid,dr(:,:,:,i,:)
-     .                            ,.false.,bcs,2)
+        do i=1,3  !Cycle over Cartesian coordinates
+          call setBC_ez(g_def,igrid,dr(:,:,:,i,:),.false.,bcs,2)
         enddo
+
+c     Recover topological BC config
+
+        bcond = bcond_sv
 
 c     End program
 
@@ -1893,16 +2141,9 @@ c     Set up i=imax, j=jmax, k=kmax boundaries
         where (bcs(4,:) == FSYM .or. bcs(4,:) == SYM) bcs(4,:) = NEU
         where (bcs(6,:) == FSYM .or. bcs(6,:) == SYM) bcs(6,:) = NEU
 
-c     Set up special case for helical geometry along angular direction
-
-        if(coords=='hel'
-     .    .and.nint(2*pi/(g_def%gymax-g_def%gymin))/=1) then
-          bcs(3:4,:) = EXT
-        endif
-
 c     Impose BCs
 
-        do i=1,3
+        do i=1,3  !Cycle over Cartesian coordinates
           call imposeBConVector_stg_ez(g_def,igrid,dr(:,:,:,i,:)
      .                                ,.false.,bcs,2)
         enddo

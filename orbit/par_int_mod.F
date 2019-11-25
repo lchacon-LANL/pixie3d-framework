@@ -579,6 +579,15 @@ c     Begin program
      .                            ,ig,jg,kg,x,y,z)
 
       select case (coords)
+c$$$      case('hel')
+c$$$
+c$$$        rr = sign(1d0,x1)*sqrt(x**2+y**2)
+c$$$        th = atan2(y,x)
+c$$$        if (rr < 0d0) th = th + pi
+c$$$        mm = g_def%params(1) !Poloidal mode number
+c$$$        th = th/mm
+c$$$        zz = z
+c$$$
       case('cyl','hel')
 
         rr = sign(1d0,x1)*sqrt(x**2+y**2)
@@ -730,18 +739,6 @@ cc        write (*,*)
 
         if (rr < 0d0) th = th + pi
 
-c$$$      case('hel')
-c$$$        gp = g_def%params
-c$$$
-c$$$        mm = gp(1)
-c$$$        kk = gp(2)
-c$$$        aa = kk/mm
-c$$$
-c$$$        !Transform to cylindrical radius (may be mapped)
-c$$$        rr = sign(1d0,x1)*sqrt(x**2+y**2)
-c$$$        th = atan2(y,x) + aa*z
-c$$$        if (rr < 0d0) th = th + pi
-c$$$        zz = z
       case default
         call pstop('find_polar_coords'
      .       ,"Coordinates "//coords//" not implemented")

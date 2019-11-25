@@ -488,7 +488,6 @@ c     Packing
           else
             xlog = gaussian_scl(dim,x1,eta(dim),lmin,lmax,gp(1),gp(2))
           endif
-cc          write (*,*) x1,xlog
         endif
 
       contains
