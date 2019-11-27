@@ -38,7 +38,7 @@ c     PRIVATE VARIABLES & PROCEDURES
         logical,private :: map_present,vmap_present
 
         INTERFACE find_dr
-          module procedure find_dr_1st,find_dr_4th
+          module procedure find_dr_1st,find_dr_2nd !4th
         END INTERFACE
 
         private :: topol_bc,findGridmetrics,find_dr
@@ -1424,16 +1424,6 @@ c     Enforce zero-force condition on Christoffle symbols
 
 c     Apply BCs to Christoffel symbols
 
-c$$$        !Enforce topological constraints on Christoffel symbols
-c$$$        do i=1,3
-c$$$          do j=1,3
-c$$$            do k=1,3
-c$$$              call topol_bc(g_def,igrid,nx,ny,nz
-c$$$     .           ,g_def%gmetric%grid(igrid)%Gamma(:,:,:,i,j,k),bcond)
-c$$$            enddo
-c$$$          enddo
-c$$$        enddo
-
         !Regularize
         do k = klo,khi
           do j = jlo,jhi
@@ -2065,11 +2055,8 @@ c$$$        if (g_def%nglz == 1 .and. bcPER(3)) bcs(5:6,:) = DEF
 
         !Special case for helical geometry when limiting angular domain
         if(coords=='hel'.and.g_def%params(1)/=1) then
-c$$$          bcond(3:4) = FSYM
-c$$$          bcs(3:4,:) = FSYM
-c$$$          call set_vec_symm_bc(bcs,1) !Only works for m=2
           bcond(3:4) = DEF
-          bcs(3:4,:) = DEF
+          bcs(3:4,:) = EXT !DEF
           bcs(1  ,:) = DEF
         endif
 
