@@ -1401,30 +1401,22 @@ c     Prepare SP BCs
 
 c     Fill PETSc ghost cells and PER BCs
 
-#if defined(petsc) && !defined(samrai)
-      !Determine whether we need to fill ghost cells using PETSc
-      petsc__bc = (.not.asm)
-
-      !Fill ghost cells
-      if (petsc__bc) then
-        da_ctx => gbc_def%dactx(igxbc)
-
-        do ieq=1,ncomp
-          call fillPetscGhostCells(da_ctx,v_cov(:,:,:,ieq))
-          call fillPetscGhostCells(da_ctx,v_cnv(:,:,:,ieq))
-        enddo
-      endif
-#elif !defined(samrai)
-      call sync_bc(.true.)
-#endif
+      call set_LOG_bc(v_cnv,.true.)
+      call set_LOG_bc(v_cov,.false.)
 
       if (bcPER(1).and.bcPER(2).and.bcPER(3)) return
+
+c     Set SP BCs (if appropriate)
+      
+      call set_TOPOL_bc(SP,v_cnv,.true.)
+      call set_TOPOL_bc(SP,v_cov,.false.)
 
 c     Impose physical BCs
 
       cov_to_cnv = .false.
 
-      do bctype=2,BCLIM             !Do not do PER=1; already done 
+      do bctype=1,BCLIM
+        if (bctype == SP.or.bctype == PER) cycle !Already done
         do dim=1,3
           do loc=0,1
             ibc = (1+loc)+2*(dim-1)
@@ -1482,6 +1474,69 @@ c     Periodic boundary synchronizing
 c     End program
 
       contains
+
+c     set_LOG_bc
+c     #################################################################
+      subroutine set_LOG_bc(vec,cnv)
+
+      implicit none
+      
+c     -----------------------------------------------------------------
+c     Set BC "bctype" independently for cov and cnv vectors
+c     -----------------------------------------------------------------
+
+      real(8) :: vec(:,:,:,:)
+      logical :: cnv,petsc__bc
+      integer :: ieq
+
+#if defined(petsc) && !defined(samrai)
+        !Determine whether we need to fill ghost cells using PETSc
+        petsc__bc = (.not.asm)
+
+        !Fill ghost cells
+        if (petsc__bc) then
+          da_ctx => gbc_def%dactx(igxbc)
+          do ieq=1,ncomp
+            call fillPetscGhostCells(da_ctx,vec(:,:,:,ieq))
+          enddo
+        endif
+#elif !defined(samrai)
+        call set_TOPOL_bc(PER,vec,cnv)
+#endif
+
+      end subroutine set_LOG_bc
+
+c     set_TOPOL_bc
+c     #################################################################
+      subroutine set_TOPOL_bc(bctype,vec,cnv)
+
+      implicit none
+      
+c     -----------------------------------------------------------------
+c     Set topological BCs independently for cov and cnv vectors
+c     -----------------------------------------------------------------
+
+      integer :: bctype
+      real(8) :: vec(:,:,:,:)
+      logical :: cnv
+
+      do dim=1,3
+        do loc=0,1
+          ibc = (1+loc)+2*(dim-1)
+
+          do ivar = 1,ncomp
+            ieq = ivar + fcomp - 1
+
+            if (abs(bcnd(ibc,ivar)) == bctype) then
+              call FillGhostNodes_vec(gbc_def,ieq,ivar,ncomp,dim,loc
+     .                               ,bctype,vec,var0,cnv=cnv)
+            endif
+          enddo
+
+        enddo
+      enddo
+
+      end subroutine set_TOPOL_bc
 
 c     sync_bc
 c     #################################################################
@@ -1591,7 +1646,9 @@ c     Begin program
         do il = ll,hl
           ibc = (1+il)+2*(id-1)
 
-          if (.not.selectFace(gbc_def,ibc)) cycle !Do nothing for logical boundaries
+          if (.not.selectFace(gbc_def,ibc)
+     .       .or.bcPER(id)
+     .       .or.bcSP(ibc)) cycle !Do nothing for logical, periodic, or SP boundaries
 
           !Do NOT change: SAMRAI depends on it
           call findBCLoopLimits(gbc_def
