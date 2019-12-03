@@ -2914,7 +2914,8 @@ cc     .               ,chi,iout,lsode_f=lsode_2d_cn_3eq)
 
 c     lag_xport_bdf2
 c     ##############################################################
-      subroutine lag_xport_bdf2(g_def,igrid,in_flds,out_flds,chi,iout)
+      subroutine lag_xport_bdf2(g_def,igrid,in_flds,out_flds,chi,iout
+     .                         ,lsode_ext)
 
       implicit none
 
@@ -2949,10 +2950,22 @@ c     Local variables
           real(8) :: t,y(neq),ydot(neq)
           end subroutine lsode_3d_bdf2
         END INTERFACE
+      
+        optional :: lsode_ext
+        
+        INTERFACE
+          subroutine lsode_ext(neq,t,y,ydot)
+          integer :: neq
+          real(8) :: t,y(neq),ydot(neq)
+          end subroutine lsode_ext
+        END INTERFACE
 
 c     Begin program
 
-        if (l2d) then
+        if (PRESENT(lsode_ext)) then
+          call lag_3d_new(g_def,igrid,in_flds,out_flds
+     .               ,chi,iout,lsode_f=lsode_ext)
+        elseif (l2d) then
           call lag_2d_new(g_def,igrid,in_flds,out_flds
      .               ,chi,iout,lsode_f=lsode_2d_bdf2_3eq)
         else
@@ -3238,7 +3251,7 @@ c     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 c     lag_update_bdf2
 c     ###############################################################
       subroutine lag_update_bdf2(g_def,igrid,ivar,bcnd,tnm,tn,tnp,chi
-     .                          ,iout)
+     .                          ,iout,lsode_ext)
 
 c     ---------------------------------------------------------------
 c     Performs Lagrangian update of temperature at time n+1 (returned
@@ -3267,6 +3280,15 @@ c     Call variables
 
       integer :: igrid,iout,bcnd(6),ivar
       real(8),dimension(0:,0:,0:) :: tnm,tn,tnp,chi
+
+      optional :: lsode_ext
+        
+      INTERFACE
+        subroutine lsode_ext(neq,t,y,ydot)
+        integer :: neq
+        real(8) :: t,y(neq),ydot(neq)
+        end subroutine lsode_ext
+      END INTERFACE
 
 c     Local variables
 
@@ -3312,7 +3334,8 @@ c     Find rhs of delta_T iteration
 
       where (b0 > 0d0) chi_local = chi/b0  !Divide by beta
 
-      call lag_xport_bdf2(g_def,igrid,flds,integrals,chi_local,iout)
+      call lag_xport_bdf2(g_def,igrid,flds,integrals,chi_local,iout
+     .                   ,lsode_ext=lsode_ext)
 
       if (bdf2) then
         sgamma = dt/(dt+dtold)
