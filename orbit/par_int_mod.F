@@ -29,7 +29,7 @@ c     ---------------------------------------------------------------
 
       alpha = alp
 
-      if (alpha /= 1d0 .and. alpha /= 2d0) then
+      if (alpha /= -1d0 .and. alpha /= 1d0 .and. alpha /= 2d0) then
         call pstop("setup_T_kernels","Diffusion order not supported")
       endif
 
@@ -44,6 +44,17 @@ c     ---------------------------------------------------------------
           S_cutoff2 = abs(log(2d0*sqrpi*t_tol*     S_cutoff2 ))
         enddo
       endif
+
+      !Compute line integral cut-offs for alpha=-1 (diffusion-advection)
+      if (alpha == -1d0) then
+        T_cutoff2 = 1d0
+        S_cutoff2 = 1d0
+        do i=1,10
+          T_cutoff2 = abs(log(    sqrpi*t_tol*sqrt(T_cutoff2)))
+          S_cutoff2 = abs(log(2d0*sqrpi*t_tol*     S_cutoff2 ))
+        enddo
+      endif
+
 
       !Compute coefficient matrix for SDC kernels
       aa = 0d0
@@ -87,6 +98,9 @@ c     Call variables
 c     Local variables
 
       real(8) :: isct0,s2
+      real(8) :: dt
+
+  
 
 c     Begin program
 
@@ -100,6 +114,20 @@ c     Begin program
         tkernel = ipi/(ct0*(1+(ss*ss)/(ct0*ct0)))
 
         ex_loop = (abs(ss) >  2d0*ipi/t_tol*ct0)
+      elseif (alpha == -1d0) then
+        dt = sqrt(ct0)
+        isct0 = 1d0/dt
+        s2 = (ss-dt)*(ss-dt)
+        tkernel = 0.5d0*isqrpi*isct0*exp(-0.25*s2*isct0*isct0) !ct0=chi_par*t0 
+        ex_loop = (s2 > 225*dt) !4*T_cutoff2*ct0)
+
+c        if (ss<0) then
+c          ex_loop = (ss < dt - 15d0*sqrt(T_cutoff2*ct0))
+c        else
+c          ex_loop = (ss > dt + 15d0*sqrt(T_cutoff2*ct0))   ! v=1
+c        endif
+
+
       else
         call pstop('tkernel_3d','Fractional order not implemented')
       endif
@@ -191,8 +219,12 @@ c     Call variables
 c     Local variables
 
       real(8) :: eta,z,dum
+      real(8) :: chi,dt,sigss
+      real(8) :: erf1,erf2,ex
+
 
 c     Begin program
+
 
       z = abs(ss)
 
@@ -209,6 +241,40 @@ cc
 cc        slim = s_max + 2/pi/t_tol*ct0
 cc
 cc        ex_loop = (abs(ss) > slim)
+       
+      elseif (alpha==-1d0) then 
+        dt = sqrt(ct0)    
+        chi = dt
+
+        dum=1d0/dt
+        sigss= dsign(1d0,ss) 
+        print *,ss,sigss
+        if (ss<0) print *,'hello'
+        ! exponential exp(vs/D)
+        ex=exp(ss/chi)
+ 
+        ! erf((s+vt)/sqrt(4Dt))
+        eta=(ss+dt)*0.5d0*dum  ! v=1, chi = delt     
+        CALL CALERF(eta,erf1,0)
+   
+        ! erf((s-vt)/sqrt(4Dt))
+        eta=(ss-dt)*0.5d0*dum 
+        CALL CALERF(eta,erf2,0)
+      
+
+        skernel= 0.5d0*(ex*(erf1-sigss)-erf2+sigss)*dum
+        
+c        print *,skernel
+        ex_loop = (z > 15*dt)
+
+c        if (ss<0) then
+c          ex_loop = (z > 15d0*sqrt(S_cutoff2*ct0))
+c        else
+c          ex_loop = (z > dt + 15d0*sqrt(S_cutoff2*ct0))   ! v=1
+c        endif
+
+
+
       else
         call pstop('skernel_3d','Fractional order not implemented')
       endif
