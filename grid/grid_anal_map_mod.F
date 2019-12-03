@@ -35,7 +35,7 @@ c     Begin program
 
         select case(coords)
         case('car','cyl','hel','hl2','tor','sin','lpk','s3d','hsn'
-     .      ,'sha','sh2','stl','tsq')
+     .      ,'sha','sh2','sh3','stl','tsq')
 
           anal_map = .true.
 
@@ -112,6 +112,7 @@ c     Local variables
      .            ,aa,bb,major_r,mm,kk,eps,phi,gp(ngparams)
      .            ,xlog(3),period1,period2
         real(8) :: xmax,ymax,zmax,xmin,ymin,zmin
+     .            ,kappa,delta,zeta,cs,sn,Z0
 ! Daniele, 11/07/2017. Local variables needed for shaped toroidal coordinates
         integer :: i
         real(8) :: ai(10),bi(10)
@@ -234,7 +235,29 @@ c$$$          enddo
           car(2) = (major_r + aa*xlog(1))*sin(-xlog(3))
           car(3) = bb*xlog(1)
 
-        case ('tsq')  !Square torus
+        case ('sh3')
+! Shaped toroidal coordinates system from X. Z. Tang
+! x = (R0 + r*a*cos(theta+asin(delta*sin(theta))))*cos(-phi)
+! y = (R0 + r*a*cos(theta+asin(delta*sin(theta))))*sin(-phi)
+! z =  Z0 + r*kappa*sin(theta + zeta*sin(2*theta))
+
+          major_r = gp(1)  !R-coord of magnetic axis (major radius)
+          Z0      = gp(2)  !Z-coord of magnetic axis
+          aa      = gp(3)  !Horizontal minor radius
+          kappa   = gp(4)  !Elongation
+          delta   = gp(5)  !Triangularity
+          zeta    = gp(6)  !Squareness
+
+          bb = aa*kappa
+          
+          cs = cos(xlog(2)+asin(delta*xlog(1)**2*sin(xlog(2))))
+          sn = sin(xlog(2)+zeta*xlog(1)**2*sin(2*xlog(2)))
+          
+          car(1)=(major_r + aa*xlog(1)*cs)*cos(-xlog(3))
+          car(2)=(major_r + aa*xlog(1)*cs)*sin(-xlog(3))
+          car(3)= Z0      + bb*xlog(1)*sn
+
+        case ('tsq')            !Square torus
           major_r = gp(1)  !Major radius
           aa      = gp(2)  !Horizontal dimension
           bb      = gp(3)  !Vertical   dimension

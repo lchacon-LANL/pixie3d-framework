@@ -110,12 +110,12 @@ ifeq ($(HOST),jetta)
       HDF5_INC  = $(PHDF5_INC)
 
       ifeq ($(PIT),t)
-        ADIOS = f      !ADIOS not ready for parallel-in-time yet
+        ADIOS = f      #ADIOS not ready for parallel-in-time yet
       else
         ADIOS = t
       endif
 
-      ADIOS_BUFFER_MB = 10
+      ADIOS_BUFFER_MB = 100
       ADIOS_METHOD = MPI
 
       ADIOS_HOME = /nh/u/lchacon/lib/adios-1.10.0
@@ -169,7 +169,7 @@ ifeq ($(HOST),jetta)
       HDF5_INC  = $(PHDF5_INC)
 
       ifeq ($(PIT),t)
-        ADIOS = f      !ADIOS not ready for parallel-in-time yet
+        ADIOS = f      #ADIOS not ready for parallel-in-time yet
       else
         ADIOS = f
       endif
@@ -338,6 +338,8 @@ endif
 
 ifeq ($(findstring quevedo,$(HOST)),quevedo)
 
+#  CPPFLAGS += $(PREPROC)RFX
+
   FC=gfortran
 
   NETCDF=t
@@ -352,9 +354,9 @@ ifeq ($(findstring quevedo,$(HOST)),quevedo)
     PETSC_DIR =$(HOME)/Software/petsc-3.0.0-p7
 
     ifeq ($(BOPT),O)
-      PETSC_ARCH = macosx_gcc6.4.0_openmpi3.0.0_O
+      PETSC_ARCH = macosx_gcc6.5.0_openmpi3.0.0_O
     else
-      PETSC_ARCH = macosx_gcc6.4.0_openmpi3.0.0_g
+      PETSC_ARCH = macosx_gcc6.5.0_openmpi3.0.0_g
     endif
 
     HDF5 = t
@@ -455,7 +457,7 @@ ifeq ($(findstring Marias,$(HOST)),Marias)
 
   MACHINE=Macbook-Air
 
-  NETCDF=t
+  NETCDF=f
   NETCDF_LIBS = -L/opt/local/lib -lnetcdff -lnetcdf
   NETCDF_INC  = -I/opt/local/include
 
@@ -469,21 +471,21 @@ ifeq ($(findstring Marias,$(HOST)),Marias)
     PETSC_DIR =$(WORKDIR)/lib/petsc-3.0.0-p7
 
     ifeq ($(BOPT),O)
-      PETSC_ARCH = macosx_openmpi_gcc6_O
+      PETSC_ARCH = macosx_openmpi2.1.2_gcc6_0
     else
-      PETSC_ARCH = macosx_openmpi_gcc6_g
+      PETSC_ARCH = macosx_openmpi2.1.2_gcc6_g
     endif
 
     HDF5 = t
 
-    HDF5_HOME =/opt/local
+    HDF5_HOME = $(WORKDIR)/lib/hdf5-1.8.7/gcc6/parallel
     HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
     HDF5_MOD  = $(HDF5_HOME)/include
     HDF5_INC  = $(HDF5_MOD)
 
     ADIOS = $(HDF5)
 
-    ADIOS_HOME = $(WORKDIR)/lib/adios-1.10.0
+    ADIOS_HOME = $(WORKDIR)/lib/adios-1.10.0/openmpi2.1.2_gcc6
     ADIOS_LIBS = -L$(ADIOS_HOME)/lib -ladiosf_v1
     ADIOS_INC  = $(ADIOS_HOME)/include
     ADIOS_VER  = 1.10.0
@@ -1205,9 +1207,9 @@ ifeq ($(findstring gr,$(HOST)),gr)
 
      HDF5 = t
 
-     HDF5_HOME = /usr/projects/hpcsoft/toss3/grizzly/hdf5/1.8.16_gcc-5.3.0_openmpi-1.10.5
-     HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
-     HDF5_MOD  = $(HDF5_HOME)/include
+#     HDF5_ROOT = /usr/projects/hpcsoft/toss3/grizzly/hdf5/1.8.16_gcc-5.3.0_openmpi-1.10.5
+     HDF5_LIBS =-L$(HDF5_ROOT)/lib -lhdf5_fortran -lhdf5 -lz -lm
+     HDF5_MOD  = $(HDF5_ROOT)/include
      HDF5_INC  = $(HDF5_MOD)
 
      ADIOS = t
@@ -1238,19 +1240,19 @@ ifeq ($(findstring gr,$(HOST)),gr)
       PETSC_DIR =/turquoise/usr/projects/magreconn/soft/petsc-3.0.0-p7
 
       ifeq ($(BOPT),O)
-       PETSC_ARCH = linux64_grizzly_intel17.0.1_openmpi1.10.5
+       PETSC_ARCH = linux64_grizzly_intel-17.0.4_openmpi-2.1.2
       else
-       PETSC_ARCH = linux64_grizzly_intel17.0.1_openmpi1.10.5_dbg
+       PETSC_ARCH = linux64_grizzly_intel-17.0.4_openmpi-2.1.2_dbg
       endif
 
       HDF5 = t
 
-      HDF5_HOME = /usr/projects/hpcsoft/toss3/grizzly/hdf5/1.8.16_intel-17.0.1_openmpi-1.10.5
-      HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
-      HDF5_MOD  = $(HDF5_HOME)/include
+#      HDF5_ROOT = /usr/projects/hpcsoft/toss3/grizzly/hdf5/1.8.16_intel-17.0.4_openmpi-2.1.2
+      HDF5_LIBS =-L$(HDF5_ROOT)/lib -lhdf5_fortran -lhdf5 -lz -lm
+      HDF5_MOD  = $(HDF5_ROOT)/include
       HDF5_INC  = $(HDF5_MOD)
 
-      ADIOS = t
+      ADIOS = f
 
       ADIOS_BUFFER_MB = 1000
       ADIOS_METHOD = MPI_LUSTRE
@@ -1264,8 +1266,17 @@ ifeq ($(findstring gr,$(HOST)),gr)
       SPRNG_PAR_HOME = /turquoise/usr/projects/magreconn/soft/sprng5
       SPRNG_LIBS = $(SPRNG_PAR_HOME)/lib/grizzly-intel17.0.1-openmpi1.10.5/lib -lsprng -lstdc++ -lm
       SPRNG_INC  = $(SPRNG_PAR_HOME)/include
+     else
+      LIBS += -L/usr/lib -llapack -lblas
+
+      HDF5 = f
+
+      ADIOS = f
+
+      SPRNG = f
 
      endif
+
     endif
 
     ifeq ($(MPI_NAME),intel-mpi)
@@ -1280,9 +1291,9 @@ ifeq ($(findstring gr,$(HOST)),gr)
 
       HDF5 = f
 
-#      HDF5_HOME = /usr/projects/hpcsoft/toss3/grizzly/hdf5/1.8.16_gcc-5.3.0_openmpi-1.10.3
-#      HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
-#      HDF5_MOD  = $(HDF5_HOME)/include
+#      HDF5_ROOT = /usr/projects/hpcsoft/toss3/grizzly/hdf5/1.8.16_gcc-5.3.0_openmpi-1.10.3
+#      HDF5_LIBS =-L$(HDF5_ROOT)/lib -lhdf5_fortran -lhdf5 -lz -lm
+#      HDF5_MOD  = $(HDF5_ROOT)/include
 #      HDF5_INC  = $(HDF5_MOD)
 
       ADIOS = f
@@ -1314,7 +1325,7 @@ ifeq ($(findstring marconi_work,$(WORK)),marconi_work)
 # togliere per casi VMEC così pixplot produce sia cnv sia cov
 
  ifdef BOPT
-   PETSC_DIR = /marconi_work/FUA32_PIXIE3D/petsc-3.0.0-p7
+   PETSC_DIR = /marconi_work/FUA33_PIXIE3D/petsc-3.0.0-p7
 
    ifeq ($(BOPT),O)
 # ifort/intelmpi
@@ -1390,4 +1401,36 @@ ifeq ($(findstring marconi_work,$(WORK)),marconi_work)
 #    NETCDF_INC = -I/cineca/prod/opt/libraries/netcdf/4.4.1/intel--pe-xe-2017--binary/include
 
  MACHINE = marconi
+endif
+
+###############################
+#  (Koshkarov O.  ) #
+###############################
+
+ifeq ($(HOST),cascabel)
+    FC=gfortran
+    #FC=mpif90
+    #CC=mpicc
+    #CXX=mpic++
+    HDF5 = f
+    HDF5_HOME = /home/koshmar/.local/hdf5
+    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+    HDF5_MOD  = $(HDF5_HOME)/lib
+    HDF5_INC  = $(HDF5_HOME)/include
+    LIBS +=  -llapack -lblas
+endif
+
+ifeq ($(HOST),kigal)
+    FC=gfortran
+    #FC=mpif90
+    #CC=mpicc
+    #CXX=mpic++
+    HDF5 = t
+    HDF5_HOME = /home/koshmar/.local/hdf5
+    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+    HDF5_MOD  = $(HDF5_HOME)/lib
+    HDF5_INC  = $(HDF5_HOME)/include
+    LIBS +=  -llapack -lblas
+    
+    # What is CPPFLAGS? is it FFLAGS?
 endif

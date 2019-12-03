@@ -3834,7 +3834,33 @@ c     ##################################################################
         
         private :: find_mf_diag_std,find_mf_diag_clr,find_mf_diag_vbr
 
+        integer :: zebrags_current_dir=0
+        
       contains
+
+c     MG_set_zebra_dir
+c     #################################################################
+      subroutine MG_set_zebra_dir(zd)
+
+      implicit none
+
+      integer :: zd
+
+      zebrags_current_dir = zd
+      
+      end subroutine MG_set_zebra_dir
+
+c     MG_get_zebra_dir
+c     #################################################################
+      function MG_get_zebra_dir() result(zd)
+
+      implicit none
+
+      integer :: zd
+
+      zd = zebrags_current_dir
+      
+      end function MG_get_zebra_dir
 
 c     MG_set_res_vol_wgt
 c     #################################################################
@@ -7134,8 +7160,8 @@ c$$$     .   ,MG_get_coarse_solve()
 
           if (outc.ge.1.and.prnt) then
             write (*,*)
-            write (*,*) 'BEGIN solution of COARSE MG problem'
             write (*,*) 'Grid Level',igr
+            write (*,*) 'BEGIN solution of COARSE MG problem'
           endif
 
           !Local mesh in last level of fine grid
@@ -8253,6 +8279,8 @@ c     ###################################################################
 
         do zd=minzd,maxzd  !Cycle in zebra directions
 
+          call MG_set_zebra_dir(zd)
+          
           call scheduleColors(mgctx,igrid,ncolors,nrbg1,nrbg2,nrbg3
      .                     ,i1min,i1max,j1min,j1max,k1min,k1max
      .                     ,zebra_dir=zd)
@@ -8314,7 +8342,7 @@ cc                    if (prnt)
 
 c diag ****
 cc                    ii = i + nxf*(j-1) + nxf*nyf*(k-1)
-cc                    call MGmatvec(-ii,neq,ntot,zz,yy,igrid,bcnd,matvec)
+cc                    call MGmatvec(mgctx,-ii,zz,yy,igrid,bcnd,matvec)
 c diag ****
 
                     !nxf,nyf,nzf are the original grid's even in line relaxation.
@@ -8369,6 +8397,8 @@ cc                    summ = summ + zz(iii+1:iii+neq)
           enddo
 
         enddo
+
+        call MG_set_zebra_dir(0)
 
 #if defined(petsc)
         if (.not.asm) then

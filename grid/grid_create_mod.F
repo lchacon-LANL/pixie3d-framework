@@ -950,7 +950,7 @@ c     Coordinate-specific checks
             write (*,*) 'Aborting...'
             stop
           endif
-        case ('tor','sha','sh2','stl','tsq')
+        case ('tor','sha','sh2','sh3','stl','tsq')
           if (xmin /= 0d0 .and. bcSP()) then
             write (*,*) 'Error in setup: xmin =/0 is not singular point'
             write (*,*) 'Aborting...'
@@ -958,6 +958,7 @@ c     Coordinate-specific checks
           endif
 
           if (    coords=='sh2'
+     .        .or.coords=='sh3'
      .        .or.coords=='stl'
      .        .or.coords=='tsq') numerical_grid = .true.
 

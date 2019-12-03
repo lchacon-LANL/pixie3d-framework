@@ -540,24 +540,24 @@ c     Begin program
      .                   *LL*sqrt(4d0*(1d0-lambda)-eta)/sqrt(12.*eta)
 
             !Linear extrapolation to ensure equal mesh spacing at ghost points
-c$$$            if (xi > xmax) then
-c$$$              dx = xi - xmax
-c$$$              x =  x0 + lambda*(xmax-dx-xi0) + bb*(xmax-dx-xi0)**3
-c$$$              x = 2*xmax - x
-c$$$            elseif (xi < xmin) then
-c$$$              dx = xmin - xi
-c$$$              x =  x0 + lambda*(xmin+dx-xi0) + bb*(xmin+dx-xi0)**3
-c$$$              x = 2*xmin - x
-c$$$            else
-c$$$              x = x0 + lambda*(xi-xi0) + bb*(xi-xi0)**3
-c$$$            endif
-            if (xi < xmin.and.bcSP(dim=dim)) then
+            if (xi > xmax) then
+              dx = xi - xmax
+              x =  x0 + lambda*(xmax-dx-xi0) + bb*(xmax-dx-xi0)**3
+              x = 2*xmax - x
+            elseif (xi < xmin) then
               dx = xmin - xi
               x =  x0 + lambda*(xmin+dx-xi0) + bb*(xmin+dx-xi0)**3
               x = 2*xmin - x
             else
               x = x0 + lambda*(xi-xi0) + bb*(xi-xi0)**3
             endif
+c$$$            if (xi < xmin.and.bcSP(dim=dim)) then
+c$$$              dx = xmin - xi
+c$$$              x =  x0 + lambda*(xmin+dx-xi0) + bb*(xmin+dx-xi0)**3
+c$$$              x = 2*xmin - x
+c$$$            else
+c$$$              x = x0 + lambda*(xi-xi0) + bb*(xi-xi0)**3
+c$$$            endif
 
           !Pack at edges
           else

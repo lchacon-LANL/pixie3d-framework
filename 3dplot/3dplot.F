@@ -127,7 +127,7 @@ c Finalize graphics
 
       call finalizeDiagnostics
 
-      call closeRecordFiles
+      call closeGraphicsFiles
 
       call fortranDestroy
 
@@ -303,6 +303,14 @@ c Runtime initializations
 
       call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-dplot',dplot
      .                        ,petsc_flg,ierr)
+
+      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-numtime',numtime
+     .                       ,petsc_flg,ierr)
+      if (petsc_flg) tmax = 0d0
+
+      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-ndstep',ndstep
+     .                       ,petsc_flg,ierr)
+      if (petsc_flg) dstep = 0d0
 #endif
 
 c Allocate global variable
@@ -311,16 +319,7 @@ c Allocate global variable
 
 c Open graphics files
 
-      if (np > 1) then
-        urecord = openRestartFileForRead()
-      else
-#if defined(adios)
-        urecord = openRestartFileForRead()
-#else
-        call openRecordFiles(urecord,recordfile
-     .                      ,ilog,ihig,jlog,jhig,klog,khig)
-#endif
-      endif
+      call openGraphicsFiles
 
 c Read geometry (if appropriate)
 

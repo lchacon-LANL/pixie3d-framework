@@ -158,7 +158,7 @@ c     Local variables
 
 c     Begin program
 
-      smax = orbit_conf%ode_conf%smax
+      smax = orbit_conf%ode_conf%smax(thr_num)
       ismax = 1d0/smax
 
       twopi_L = 2d0*pi*ismax
@@ -305,7 +305,7 @@ c     Local variables
 
 c     Begin program
 
-      smax = orbit_conf%ode_conf%smax
+      smax = orbit_conf%ode_conf%smax(thr_num)
       ismax = 1d0/smax
 
       twopi_L = 2d0*pi*ismax
@@ -418,7 +418,7 @@ c     Local variables
 
 c     Begin program
 
-      smax = orbit_conf%ode_conf%smax
+      smax = orbit_conf%ode_conf%smax(thr_num)
       ismax = 1d0/smax
 
       twopi_L = 2d0*pi*ismax
@@ -591,6 +591,7 @@ cc        integer :: n_lag_ints=0        !Number of lagrangian integrals
      .                    ,CHI_LIMIT =1d-4     !Lower bound for chi*dt (delta-function limit)
 
         real(8),private :: lsode_out(LSODE_ACC_DIM),dx0,dy0,dz0
+!$OMP THREADPRIVATE(dx0,dy0,dz0)
 
         logical,private :: x_per,y_per,z_per,solenoidal
 !$OMP THREADPRIVATE(x_per,y_per,z_per)
@@ -1713,7 +1714,8 @@ cc!$        write (*,'(a,i3,a1,i3)')
 cc!$   .     'OMP thread num/tot',thr_num+1,'/',thr_tot
 cc!$      endif
         
-!$OMP DO PRIVATE(i,j,k,ig,jg,kg,x0,y0,z0,lsode_out)
+!$OMP DO PRIVATE(i,j,k,ig,jg,kg,x0,y0,z0,lsode_out) 
+!$OMP.     FIRSTPRIVATE(sp_coef)
 !$OMP.     COLLAPSE(3) SCHEDULE(DYNAMIC)
         do k=1,nz
           do j=1,ny
@@ -1834,13 +1836,7 @@ c     Find local cartesian components
 
         allocate(bcar(0:nx+1,0:ny+1,0:nz+1,3))
 
-        bcar = bb
-
-        call transformVector(g_def,igrid,igrid,igrid
-     .                      ,0,nx+1,0,ny+1,0,nz+1
-     .                      ,bcar(:,:,:,1)
-     .                      ,bcar(:,:,:,2)
-     .                      ,bcar(:,:,:,3),'cnv','car')
+        bcar = XformToCar(g_def,igrid,bb,.false.)
 
 c     Fill global arrays
 
@@ -1901,11 +1897,11 @@ c$$$          call contour(log10(b0(1:nx,1:ny,1)),nx,ny,0d0,xmax,0d0,ymax,1
 c$$$     .                ,110)
 c$$$          b0 = b0*sum(bcar(:,:,:,:)**2,dim=4)
 c$$$          call contour(b0(1:nx,1:ny,1),nx,ny,0d0,xmax,0d0,ymax,1,110)
-c$$$          if (have_chi) then
-c$$$            b0 = chi*dt/b0*sum(bcar(:,:,:,:)**2,dim=4)
-c$$$          else
+c$$$c$$$          if (have_chi) then
+c$$$c$$$            b0 = chi*dt/b0*sum(bcar(:,:,:,:)**2,dim=4)
+c$$$c$$$          else
 c$$$            b0 = sum(bcar(:,:,:,:)**2,dim=4)
-c$$$          endif
+c$$$c$$$          endif
 c$$$          call contour(b0(1:nx,1:ny,1),nx,ny,0d0,xmax,0d0,ymax,1,110)
 c$$$          close(110)
 c$$$          stop
@@ -2024,6 +2020,15 @@ c     Integrate length
         if (my_rank == 0.and.iout > 0)
      .       write (*,*) '--> LSODE 2D length integral...'
 
+c-----------------------------------------------
+c BEGIN OMP PARALLEL REGION
+c-----------------------------------------------
+!$      if (my_rank == 0.and.iout == 1) write (*,*)
+!$OMP PARALLEL
+        call set_omp_thread_id()  !Initializes thr_tot,thr_num
+
+!$OMP DO PRIVATE(i,j,k,ig,jg,kg,x0,y0,z0)
+!$OMP.     COLLAPSE(3) SCHEDULE(DYNAMIC)
         do k=1,nz
           do j=1,ny
             do i=1,nx
@@ -2047,6 +2052,11 @@ c     Integrate length
             enddo
           enddo
         enddo
+!$OMP END DO
+!$OMP END PARALLEL
+c-----------------------------------------------
+c END OMP PARALLEL REGION
+c-----------------------------------------------
 
         call orbit_destroy
 
@@ -3102,6 +3112,124 @@ c     Begin program
         endif
 
       end subroutine lag_xport_res
+
+c Modification added by O. Koshkarov, Apr 1, 2019      
+c     lag_xport_P_prop
+c     ##############################################################
+      subroutine lag_xport_P_prop(g_def,igrid,in_flds,out_flds,chi,iout)
+
+      implicit none
+
+c     --------------------------------------------------------------
+c     Performs Lagrangian temperature integration according to B
+c     field (bx,by,bz).
+c     --------------------------------------------------------------
+
+c     Call variables
+
+        type(grid_mg_def),pointer :: g_def
+
+        integer :: igrid,iout
+
+        real(8) :: chi(:,:,:),in_flds(:,:,:,:),out_flds(:,:,:,:)
+
+c     Local variables
+
+        INTERFACE
+          subroutine lsode_2d_P_prop(neq,t,y,ydot)
+          integer :: neq
+          real(8) :: t,y(neq),ydot(neq)
+          end subroutine lsode_2d_P_prop
+        END INTERFACE
+
+c     Begin program
+
+        if (l2d) then
+          call lag_2d_new(g_def,igrid,in_flds,out_flds,chi,iout
+     .                   ,lsode_2d_P_prop)
+        else
+          call pstop('lag_xport_P_prop','3D not yet implemented')
+        endif
+
+      end subroutine lag_xport_P_prop
+
+
+c     lag_P_prop
+c     ###############################################################
+      subroutine lag_P_prop(g_def,igrid,in,out,chi,iout)
+
+c     ---------------------------------------------------------------
+c     Computes P propogetor action                                    
+c
+c     >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+c     MUST BE PRECEEDED BY A CALL TO lag_init
+c     WORKSPACE FREED  BY A CALL TO lag_destroy
+c     >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+c
+c     On call sequence:
+c       * igrid: grid level
+c       * chi: parallel transport coeff
+c       * in: input field
+c       * out: "in" propagated by P propagator;
+c       * iout: output diagnostics level
+c     ---------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
+
+      integer :: igrid,iout
+      real(8),dimension(0:,0:,0:) :: in,out,chi
+
+c     Local variables
+
+      integer :: nx,ny,nz
+      real(8) :: gamma,sgamma,dT_error,b0_diag
+
+      real(8),dimension(:,:,:,:),pointer :: flds,integrals
+
+      real(8),dimension(:,:,:),pointer :: chi_local
+
+c     Begin program
+
+      if (.not.init_lag) then
+        call pstop('lag_P_prop'
+     .            ,'Lagrangian integrator uninitialized')
+      endif
+
+      nx = size(in,1)-2
+      ny = size(in,2)-2
+      nz = size(in,3)-2
+
+c     Lagrangian step
+
+      allocate(flds     (0:nx+1,0:ny+1,0:nz+1,1)
+     .        ,integrals(0:nx+1,0:ny+1,0:nz+1,1)
+     .        ,chi_local(0:nx+1,0:ny+1,0:nz+1))
+
+c     Find rhs
+
+      flds(:,:,:,1) = in
+
+      chi_local = 0d0
+      where (b0 > 0d0) chi_local = chi/b0  !Divide by beta
+
+      integrals = 0d0
+
+      call lag_xport_P_prop(g_def,igrid,flds,integrals,chi_local,iout)
+
+      out = integrals(:,:,:,1)
+
+c     Free workspace
+
+      deallocate(flds,integrals,chi_local)
+
+      end subroutine lag_P_prop
+
+
+c End of modification added by O. Koshkarov, Apr 1, 2019      
 
 c     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 c     PUBLIC ROUTINES
@@ -4642,7 +4770,7 @@ c Call variables
 c Local variables
 
       integer :: ierror
-      real(8) :: x1,y1,z1,s1,tt,it_max=0d0
+      real(8) :: x1,y1,z1,tt,it_max=0d0
       save :: it_max
       logical :: exl1
 
@@ -4654,11 +4782,9 @@ c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
 
 c Call additional integrators
 
-      s1 = abs(y(5))
-
       tt = evalFld(x1,y1,z1,ierror)
 
-      ydot(7) = tkernel_3d(s1,ieps*dt,exl1)*ydot(5)  !To normalize
+      ydot(7) = tkernel_3d(y(5),ieps*dt,exl1)*ydot(5)  !To normalize
 
       ydot(6) = tt*ydot(7)
 
@@ -4733,7 +4859,7 @@ c Local variables
 
       logical :: exl1
       integer :: ierror
-      real(8) :: x1,y1,z1,s1,tt,it_max=0d0
+      real(8) :: x1,y1,z1,tt,it_max=0d0
       save :: it_max
       logical :: exloop
 
@@ -4745,11 +4871,9 @@ c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
 
 c Call additional integrators
 
-      s1 = abs(y(5))
-
       tt = evalFld(x1,y1,z1,ierror)
 
-      ydot(7) = skernel_3d(s1,ieps*dt,exl1)*ydot(5)  !To normalize
+      ydot(7) = skernel_3d(y(5),ieps*dt,exl1)*ydot(5)  !To normalize
 
       ydot(6) = tt*ydot(7)
 
@@ -4821,7 +4945,7 @@ c Call variables
 c Local variables
 
       integer :: ierror
-      real(8) :: x1,y1,z1,s1,flds(size(sp_coef,4)),B2,tk
+      real(8) :: x1,y1,z1,flds(size(sp_coef,4)),B2,tk
       logical :: exl1,exl2
 
 c Begin program
@@ -4839,17 +4963,15 @@ c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
 
 c Call additional integrators
 
-      s1 = abs(y(5))
-
-      flds = evalFlds(x1,y1,z1,sp_coef)
+      call evalFlds(x1,y1,z1,sp_coef,flds)
 
       !Tn
-      tk = tkernel_3d(s1,ieps*dt,exl1)*ydot(5)
+      tk = tkernel_3d(y(5),ieps*dt,exl1)*ydot(5)
 
       ydot(6) = flds(1)*tk
 
       !Src @ dt
-      ydot(7) = flds(2)*skernel_3d(s1,ieps*dt,exl2)*ydot(5)/B2
+      ydot(7) = flds(2)*skernel_3d(y(5),ieps*dt,exl2)*ydot(5)/B2
 
 cc      !Taux
 cc      ydot(8) = flds(3)*tk
@@ -4899,18 +5021,16 @@ c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
 
       if (.not.bwgt) B2=1d0
 
-      s1 = abs(y(5))
-
 c Call additional integrators
 
-      flds = evalFlds(x1,y1,z1,sp_coef)
+      call evalFlds(x1,y1,z1,sp_coef,flds)
 
       !Tn
-      tk = tkernel_3d(s1,ieps*dt,exl1)*ydot(5)
+      tk = tkernel_3d(y(5),ieps*dt,exl1)*ydot(5)
       ydot(6) = flds(1)*tk
 
       !Src @ dt
-      sk = skernel_3d(s1,ieps*dt,exl2)*ydot(5)/B2
+      sk = skernel_3d(y(5),ieps*dt,exl2)*ydot(5)/B2
       ydot(7) = flds(2)*sk
 
       !Normalization 
@@ -4966,12 +5086,10 @@ c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
 
 c Call additional integrators
 
-      s1 = abs(y(5))
-
-      flds = evalFlds(x1,y1,z1,sp_coef)
+      call evalFlds(x1,y1,z1,sp_coef,flds)
 
       !Src @ dt
-      ydot(6) = flds(1)*skernel_3d(s1,ieps*dt,exl1)*ydot(5)
+      ydot(6) = flds(1)*skernel_3d(y(5),ieps*dt,exl1)*ydot(5)
 
       !Src @ dt
       ydot(7) = ydot(6)/B2
@@ -5004,7 +5122,7 @@ c Call variables
 c Local variables
 
       integer :: ierror
-      real(8) :: x1,y1,z1,s1,flds(size(sp_coef,4)),B2,iB2
+      real(8) :: x1,y1,z1,flds(size(sp_coef,4)),B2,iB2
       logical :: exl1,exl2,exl3,exl4
 
 c Begin program
@@ -5026,21 +5144,19 @@ c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
 
 c Call additional integrators
 
-      s1 = abs(y(5))
-
-      flds = evalFlds(x1,y1,z1,sp_coef)
+      call evalFlds(x1,y1,z1,sp_coef,flds)
 
       !Tn
-      ydot(6) = flds(1)*tkernel_3d(s1,ieps*dt,exl1)
+      ydot(6) = flds(1)*tkernel_3d(y(5),ieps*dt,exl1)
 
       !Tnm
-      ydot(7) = flds(2)*tkernel_3d(s1,ieps*(dt+dtold),exl2)
+      ydot(7) = flds(2)*tkernel_3d(y(5),ieps*(dt+dtold),exl2)
 
       !Src @ dt
-      ydot(8) = flds(3)*skernel_3d(s1,ieps*dt,exl3)*iB2
+      ydot(8) = flds(3)*skernel_3d(y(5),ieps*dt,exl3)*iB2
 
       !Src @ dt+dtold
-      ydot(9) = flds(3)*skernel_3d(s1,ieps*(dt+dtold),exl4)*iB2
+      ydot(9) = flds(3)*skernel_3d(y(5),ieps*(dt+dtold),exl4)*iB2
 
       !Transform back to arc-length integral
       ydot(6:neq) = ydot(6:neq)*ydot(5)
@@ -5073,7 +5189,7 @@ c Call variables
 c Local variables
 
       integer :: ierror
-      real(8) :: x1,y1,z1,s1,flds(size(sp_coef,4)),B2,iB2
+      real(8) :: x1,y1,z1,flds(size(sp_coef,4)),B2,iB2
       logical :: exl1,exl2,exl3,exl4
 
 c Begin program
@@ -5095,15 +5211,13 @@ c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
 
 c Call additional integrators
 
-      s1 = abs(y(5))
-
-      flds = evalFlds(x1,y1,z1,sp_coef)
+      call evalFlds(x1,y1,z1,sp_coef,flds)
 
       !Src @ dt
-      ydot(6) = flds(1)*skernel_3d(s1,ieps*dt,exl1)*ydot(5)
+      ydot(6) = flds(1)*skernel_3d(y(5),ieps*dt,exl1)*ydot(5)
 
       !Src * dt+dtold
-      ydot(7) = flds(1)*skernel_3d(s1,ieps*(dt+dtold),exl2)*ydot(5)
+      ydot(7) = flds(1)*skernel_3d(y(5),ieps*(dt+dtold),exl2)*ydot(5)
 
       !Src @ dt
       ydot(8) = ydot(6)*iB2
@@ -5139,7 +5253,7 @@ c Call variables
 c Local variables
 
       integer :: ierror
-      real(8) :: x1,y1,z1,s1,flds(size(sp_coef,4)),B2,sk,sk2,iB2
+      real(8) :: x1,y1,z1,flds(size(sp_coef,4)),B2,sk,sk2,iB2
       logical :: exl1,exl2,exl3,exl4
 
 c Begin program
@@ -5161,22 +5275,20 @@ c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
 
 c Call additional integrators
 
-      s1 = abs(y(5))
-
-      flds = evalFlds(x1,y1,z1,sp_coef)
+      call evalFlds(x1,y1,z1,sp_coef,flds)
 
       !Tn
-      ydot(6) = flds(1)*tkernel_3d(s1,ieps*dt,exl1)*ydot(5)
+      ydot(6) = flds(1)*tkernel_3d(y(5),ieps*dt,exl1)*ydot(5)
 
       !Tnm
-      ydot(7) = flds(2)*tkernel_3d(s1,ieps*(dt+dtold),exl2)*ydot(5)
+      ydot(7) = flds(2)*tkernel_3d(y(5),ieps*(dt+dtold),exl2)*ydot(5)
 
       !Src @ dt
-      sk = skernel_3d(s1,ieps*dt,exl3)*ydot(5)
+      sk = skernel_3d(y(5),ieps*dt,exl3)*ydot(5)
       ydot(8) = flds(4)*sk*iB2
 
       !Src @ dt+dtold
-      sk2 = skernel_3d(s1,ieps*(dt+dtold),exl4)*ydot(5)
+      sk2 = skernel_3d(y(5),ieps*(dt+dtold),exl4)*ydot(5)
       ydot(9) = flds(4)*sk2*iB2
 
       !DT @ dt
@@ -5241,7 +5353,7 @@ c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
 
 c Call additional integrators
 
-      flds = evalFlds(x1,y1,z1,sp_coef)
+      call evalFlds(x1,y1,z1,sp_coef,flds)
 
       !Tn
       ydot(4) = flds(1)*tkernel_per(t,ieps*dt)
@@ -5302,7 +5414,7 @@ c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
 
 c Call additional integrators
 
-      flds = evalFlds(x1,y1,z1,sp_coef)
+      call evalFlds(x1,y1,z1,sp_coef,flds)
 
       !Src @ dt
       sk1 = skernel_per(t,ieps*dt)
@@ -5360,7 +5472,7 @@ c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
 
 c Call additional integrators
 
-      flds = evalFlds(x1,y1,z1,sp_coef)
+      call evalFlds(x1,y1,z1,sp_coef,flds)
 
       !Src @ dt
       sk = skernel_per(t,ieps*dt)
@@ -5416,7 +5528,7 @@ c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
 
 c Call additional integrators
 
-      flds = evalFlds(x1,y1,z1,sp_coef)
+      call evalFlds(x1,y1,z1,sp_coef,flds)
 
       !Tn
       ydot(4) = flds(1)*tkernel_per(t,ieps*dt)
@@ -5491,7 +5603,7 @@ c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
 
 c Call additional integrators
 
-      flds = evalFlds(x1,y1,z1,sp_coef)
+      call evalFlds(x1,y1,z1,sp_coef,flds)
 
       !Tn
       tkernel = tkernel_per(t,ieps*dt)
@@ -5549,7 +5661,7 @@ c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
 
 c Call additional integrators
 
-      flds = evalFlds(x1,y1,z1,sp_coef)
+      call evalFlds(x1,y1,z1,sp_coef,flds)
 
       !Tn
       tkernel = tkernel_per(t,ieps*dt)
@@ -5655,3 +5767,59 @@ c End program
 
       end subroutine lsode_3d_beta
 
+
+c Modification added by O. Koshkarov, Apr 1, 2019      
+c lsode_2d_P_prop
+c #########################################################################
+      subroutine lsode_2d_P_prop(neq,t,y,ydot)
+
+c -------------------------------------------------------------------------
+c     Driver routine for LSODE integration: ydot = ff(y,t)
+c -------------------------------------------------------------------------
+
+      use par_int
+
+      implicit none
+
+c Call variables
+
+      integer :: neq
+      real(8) :: t,y(neq),ydot(neq)
+
+c Local variables
+
+      integer :: ierror
+      real(8) :: x1,y1,z1,s1,it_max=0d0,flds(size(sp_coef,4)),B2,iB2
+     .          ,sk,sk2
+      save :: it_max
+
+c Begin program
+
+      if (neq /= 4) then
+        call pstop('lsode_2d_P_prop','Wrong number of equations')
+      endif
+
+c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
+
+      call lsode_orbit_f_3eq(3,t,y(1:3),ydot(1:3),xx1=x1,yy1=y1,zz1=z1
+     .                      ,B2=B2)
+
+      if (.not.bwgt) then
+        iB2=1d0
+      else
+        iB2=1d0/B2
+      endif
+
+c Call additional integrators
+
+      call evalFlds(x1,y1,z1,sp_coef,flds)
+
+      !Src @ dt
+      sk = skernel_per(t,ieps*dt)
+      ydot(4) = flds(1)*sk*iB2
+
+c End program
+
+      end subroutine lsode_2d_P_prop
+
+c End of modification added by O. Koshkarov, Apr 1, 2019      

@@ -33,14 +33,14 @@ ifeq ($(ADIOS),t)
   ifdef ADIOS_METHOD
     CPPFLAGS  += $(PREPROC)ADIOS_METHOD=\"$(ADIOS_METHOD)\"
   endif
-  MODPATH     += $(ADDMODFLAG)$(ADIOS_INC)
+  MODPATH     += $(ADDMODFLAG)$(ADIOS_HOME)/include
 endif
 
 # HDF5 setup
 
 ifeq ($(HDF5),t)
   CONTRIBLIBS += $(HDF5_LIBS) 
-  CPPFLAGS    += $(PREPROC)hdf5 $(PREPROC)H5_USE_16_API -I$(HDF5_INC)
+  CPPFLAGS    += $(PREPROC)hdf5 -I$(HDF5_INC)
   MODPATH     += $(ADDMODFLAG)$(HDF5_MOD)
 endif
 

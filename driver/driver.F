@@ -142,7 +142,7 @@ c     Output per time step
 
 c     Time level data dump
 
-        call TS_dump(u_np)
+        call TS_dump(u_np,dump_now=TS_chk_end())  !Force restart dump at end
 
 c     Exit if eigenvalue computation
 
