@@ -4815,7 +4815,7 @@ c     Load particles
         case('slow_shock')
           call pstop("load_pcles_offset"
      .              ,"Slow shock quiet start not implemented")
-        case('plasma_exp')
+        case('plasma_exp','diocotron')
           call pstop("load_pcles_offset"
      .              ,"Plasma Expansion quiet start not implemented")
         case('kaw_ii')
@@ -5048,7 +5048,7 @@ cc        if(quiet_start) then
      .                          ,(/0d0,0d0,0d0/)
      .                          ,(/0d0,0d0,eps_pic/),delta_fun=.true.)
 cc        end if
-      case('2strm','iaw','landau','langdon')
+      case('2strm','iaw','landau','langdon','diocotron')
         do isp=1,n_sp
           call perturb_pcle_xv(isp
      .                        ,(/nh1,nh2,0/)
