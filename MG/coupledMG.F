@@ -4250,7 +4250,7 @@ c$$$        endif
         if (PRESENT(sm_zebra_it)) then
           zit = sm_zebra_it
         else
-          zit = 3
+          zit = 2
         endif
 
         if (PRESENT(sm_zebra_dir)) then
