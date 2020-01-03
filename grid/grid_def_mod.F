@@ -23,6 +23,8 @@ c #####################################################################
           integer    :: modes = 1
           !Put these last
           real(8)    :: slope = 0d0
+          real(8)    :: dxl
+          real(8)    :: dxr
           logical    :: processed=.false.
         end type grid_pack
 

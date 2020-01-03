@@ -768,9 +768,9 @@ c     End program
 
       end function scale_coord
 
-c     findGlobalGrid
+c     findGlobalUniformGrid
 c     #################################################################
-      subroutine findGlobalGrid(lmin,lmax,bcs1,bcs2,xg,dpack,crse_ratio)
+      subroutine findGlobalUniformGrid(lmin,lmax,bcs1,bcs2,xg)
 
 c     -----------------------------------------------------------------
 c     Finds global grid xg(0:ng+1) in domain (lmin,lmax) with boundary
@@ -783,26 +783,83 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer :: crse_ratio,bcs1,bcs2
+        integer :: bcs1,bcs2
 
-        real(8) :: xg(0:),lmin,lmax
+        real(8),INTENT(IN) :: lmin,lmax
 
-        type(grid_pack) :: dpack
+        real(8),INTENT(OUT) :: xg(0:)
 
 c     Local variables
 
-        integer :: n1,n2,ng,i
-        real(8) :: dh,length,lstart,lend,xp,dx0,dxl,dxr
-        real(8) :: xi,xil,xir!,alphal=1d0,alphar=1d0
-        logical :: pack_l,pack_r,fv_l,fv_r
+        integer :: ng,i
+        real(8) :: length,lstart,dh
 
 c     Begin program
 
         ng = size(xg)-2
 
-        dx0 = dpack%dx0*crse_ratio
-        dxl = dpack%dx0*crse_ratio
-        dxr = dpack%dx0*crse_ratio
+        length = lmax-lmin   !Global length, based on global limits
+
+        if (bcs1 == PER.and.bcs2 == PER.and.ng == 1) then !Single layer dimension
+cc          if (bcs1 == PER.and.bcs2 == PER) then !Sets angle origin at zero
+          dh = length/ng
+          lstart = lmin
+        elseif (bcs1 == SYM .and. bcs2 == SYM.and.ng > 1) then
+          dh = length/(ng-1)
+          lstart = lmin
+        elseif (bcs1 == SYM .and. bcs2 /= SYM) then
+          dh = length/(ng - 0.5d0)
+          lstart = lmin
+        elseif (bcs1 /= SYM .and. bcs2 == SYM) then
+          dh = length/(ng - 0.5d0)
+          lstart = lmin+0.5d0*dh
+        else
+          dh = length/ng
+          lstart = lmin+0.5d0*dh
+        endif
+
+        xg(1) = lstart
+        do i = 2,ng+1
+          xg(i) = xg(i-1) + dh
+        enddo
+
+        xg(0) = xg(1) - dh
+
+c     End program
+
+      end subroutine findGlobalUniformGrid
+
+c     findGlobalPackedGrid
+c     #################################################################
+      subroutine findGlobalPackedGrid(lmin,lmax,bcs1,bcs2,xp,dx0,dxl,dxr
+     .                               ,xg,xi,xil,xir)
+
+c     -----------------------------------------------------------------
+c     Finds global grid xg(0:ng+1) in domain (lmin,lmax) with boundary
+c     conditions bcs1, bcs2, according to specifications in dpack.
+c     The input variable crse_ratio is used to adjust the packing provided
+c     in dpack for the fine mesh to coarser grid levels.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer :: bcs1,bcs2
+
+        real(8),INTENT(IN) :: lmin,lmax,dx0,dxl,dxr,xp
+
+        real(8),INTENT(OUT) :: xg(0:),xi,xil,xir
+
+c     Local variables
+
+        integer :: n1,n2,ng,i
+        real(8) :: dh,length,lstart,lend
+        logical :: pack_l,pack_r,fv_l,fv_r
+
+c     Begin program
+
+        ng = size(xg)-2
 
           !Exception for polar coordinates
 cc          if ((ig > 1) .and. (.not.dpack%pack) .and. (bcs1 == SP)) then
@@ -818,124 +875,89 @@ cc          endif
         fv_l = .not.(abs(bcs1) == SYM)  !FV discr. at opposite boundary except for SYM BC
         fv_r = .not.(abs(bcs2) == SYM)  !FV discr. at opposite boundary except for SYM BC
 
-        if (dpack%pack) then
+        dh = length/ng
+        lstart = lmin
+        lend   = lmax
 
-          dh = length/ng
-          lstart = lmin
-          lend   = lmax
+        pack_l = .false.
+        pack_r = .false.
 
-          xp = dpack%xp
+        if (xp < lend .and. xp > lstart) then
 
-          pack_l = .false.
-          pack_r = .false.
+          n1 = max(int((xp - lstart)/length*ng),2)
 
-          if (xp < lend .and. xp > lstart) then
+          n2 = ng - n1
 
-            n1 = max(int((xp - lstart)/length*ng),1)
-
-            n2 = ng - n1
-
-            if (n1 > 1) then
-              call packGrid(n1,lstart,xp-0.5*dxl,-dxl,xg(1:n1),xil,fv_l)
-            else
-              xg(1) = xp-0.5*dxl
-              xil = 1d0
-            endif
-
-            if (n2 > 1) then
-              call packGrid(n2,xp+0.5*dxr,lend,dxr,xg(n1+1:ng),xir,fv_r)
-            else
-              xg(ng) = xp+0.5*dxr
-              xir = 1d0
-            endif
-
+          if (n1 > 1) then
+            call packGrid(n1,lstart,xp-0.5*dxl,-dxl,xg(1:n1),xil,fv_l)
           else
-
-            if (xp == lstart) then  !Pack to the right
-              pack_r = .true.
-              if (fv_l) then  !Ensure left boundary is finite-volume type
-                call packGrid(ng,lstart+0.5*dx0,lend,dx0,xg(1:ng)
-     .                       ,xi,fv_r)
-              else
-                call packGrid(ng,lstart        ,lend,dx0,xg(1:ng)
-     .                       ,xi,fv_r)
-              endif
-            else                    !Pack to the left
-              pack_l = .true.
-              if (fv_r) then  !Ensure right boundary is finite-volume type
-                call packGrid(ng,lstart,lend-0.5*dx0,-dx0,xg(1:ng)
-     .                       ,xi,fv_l)
-              else
-                call packGrid(ng,lstart,lend        ,-dx0,xg(1:ng)
-     .                       ,xi,fv_l)
-              endif
-            endif
-
-            xil = xi
-            xir = xi
-
+            xg(1) = xp-0.5*dxl
+            xil = 1d0
           endif
 
-          !X0 ghost cell
-          if (bcs1 == PER) then
-            xg(0) = xg(1) - (xg(ng)-xg(ng-1))
-          elseif (abs(bcs1) == SYM) then
-            xg(0) = xg(1) - (xg(2 )-xg(1   ))
-          elseif (abs(bcs1) == SP) then
-            xg(0) =-xg(1)
+          if (n2 > 1) then
+            call packGrid(n2,xp+0.5*dxr,lend,dxr,xg(n1+1:ng),xir,fv_r)
           else
-            if (pack_r) then
-              xg(0) = xg(1) - (xg(2 )-xg(1   ))
+            xg(ng) = xp+0.5*dxr
+            xir = 1d0
+          endif
+
+          xi = 0d0
+
+        else
+
+          if (xp == lstart) then !Pack to the left
+            pack_l = .true.
+            if (fv_l) then      !Ensure left boundary is finite-volume type
+              call packGrid(ng,lstart+0.5*dx0,lend,dx0,xg(1:ng),xi,fv_r)
             else
-              xg(0) = xg(1) - (xg(2 )-xg(1   ))*xil
+              call packGrid(ng,lstart        ,lend,dx0,xg(1:ng),xi,fv_r)
+            endif
+          else                  !Pack to the right
+            pack_r = .true.
+            if (fv_r) then      !Ensure right boundary is finite-volume type
+             call packGrid(ng,lstart,lend-0.5*dx0,-dx0,xg(1:ng),xi,fv_l)
+            else
+             call packGrid(ng,lstart,lend        ,-dx0,xg(1:ng),xi,fv_l)
             endif
           endif
 
-          !Xn ghost cell
-          if (bcs2 == PER) then
-            xg(ng+1) = xg(ng) + (xg(2) -xg(1)   )
-          elseif (abs(bcs2) == SYM) then
-            xg(ng+1) = xg(ng) + (xg(ng)-xg(ng-1))
+          xil = xi
+          xir = xi
+
+        endif
+
+        !X0 ghost cell
+        if (bcs1 == PER) then
+          xg(0) = xg(1) - (xg(ng)-xg(ng-1))
+        elseif (abs(bcs1) == SYM) then
+          xg(0) = xg(1) - (xg(2 )-xg(1   ))
+        elseif (abs(bcs1) == SP) then
+          xg(0) =-xg(1)
+        else
+          if (pack_l) then
+            xg(0) = xg(1) - (xg(2)-xg(1))/xil
           else
-            if (pack_l) then
-              xg(ng+1) = xg(ng) + (xg(ng)-xg(ng-1))
-            else
-              xg(ng+1) = xg(ng) + (xg(ng)-xg(ng-1))*xir
-            endif
+            xg(0) = xg(1) - (xg(2)-xg(1))*xil
           endif
+        endif
 
-        else  !Uniform grid
-
-          if (bcs1 == PER.and.bcs2 == PER.and.ng == 1) then !Single layer dimension
-cc          if (bcs1 == PER.and.bcs2 == PER) then !Sets angle origin at zero
-            dh = length/ng
-            lstart = lmin
-          elseif (bcs1 == SYM .and. bcs2 == SYM.and.ng > 1) then
-            dh = length/(ng-1)
-            lstart = lmin
-          elseif (bcs1 == SYM .and. bcs2 /= SYM) then
-            dh = length/(ng - 0.5d0)
-            lstart = lmin
-          elseif (bcs1 /= SYM .and. bcs2 == SYM) then
-            dh = length/(ng - 0.5d0)
-            lstart = lmin+0.5d0*dh
+        !Xn ghost cell
+        if (bcs2 == PER) then
+          xg(ng+1) = xg(ng) + (xg(2) -xg(1)   )
+        elseif (abs(bcs2) == SYM) then
+          xg(ng+1) = xg(ng) + (xg(ng)-xg(ng-1))
+        else
+          if (pack_r) then
+            xg(ng+1) = xg(ng) + (xg(ng)-xg(ng-1))/xir
           else
-            dh = length/ng
-            lstart = lmin+0.5d0*dh
+            xg(ng+1) = xg(ng) + (xg(ng)-xg(ng-1))*xir
           endif
-
-          xg(1) = lstart
-          do i = 2,ng+1
-            xg(i) = xg(i-1) + dh
-          enddo
-
-          xg(0) = xg(1) - dh
-
         endif
 
 c     End program
 
-      end subroutine findGlobalGrid
+      end subroutine findGlobalPackedGrid
 
 c     packGrid
 c     #################################################################

@@ -150,6 +150,13 @@ c     Initialize grid structure
       if (ny == 1) g_pack(2)%pack = .false.
       if (nz == 1) g_pack(3)%pack = .false.
 
+      g_pack(1)%dxl = g_pack(1)%dx0
+      g_pack(1)%dxr = g_pack(1)%dx0
+      g_pack(2)%dxl = g_pack(2)%dx0
+      g_pack(2)%dxr = g_pack(2)%dx0
+      g_pack(3)%dxl = g_pack(3)%dx0
+      g_pack(3)%dxr = g_pack(3)%dx0
+      
       call init_gdef(nx,ny,nz,xmin,xmax,ymin,ymax,zmin,zmax
      .               ,g_pack,gparams,g_def
 #if defined(petsc) || defined(samrai)
@@ -232,6 +239,7 @@ c     ######################################################################
       if (my_rank == 0) write (*,*) 'Fine levels',g_def_sav%ngrid
       if (my_rank == 0) write (*,*) "Fine X dims",g_def_sav%nxv
       if (my_rank == 0) write (*,*) "Fine Y dims",g_def_sav%nyv
+      if (my_rank == 0) write (*,*) "Fine Z dims",g_def_sav%nzv
 
       do while(associated(g_def_sav%g_crse_def))
         il = il + 1
@@ -247,6 +255,7 @@ c     ######################################################################
         if (my_rank == 0) write (*,*) 'Coarse levels',g_def_sav%ngrid
         if (my_rank == 0) write (*,*) "Coarse X dims",g_def_sav%nxv
         if (my_rank == 0) write (*,*) "Coarse Y dims",g_def_sav%nyv
+        if (my_rank == 0) write (*,*) "Coarse Z dims",g_def_sav%nzv
 
         call MPI_Barrier(MPI_COMM_WORLD,mpierr)
       enddo
@@ -435,7 +444,7 @@ c     init_gdef
 c     #################################################################
       subroutine init_gdef(nxg,nyg,nzg,gxmin,gxmax,gymin,gymax,gzmin
      .     ,gzmax,g_pack,gparams,gdef,mpi_comm,np_x,np_y,np_z
-     .     ,coarsen_in_x,coarsen_in_y ,coarsen_in_z)
+     .     ,coarsen_in_x,coarsen_in_y,coarsen_in_z)
 
 c     -----------------------------------------------------------------
 c     Initializes grid structure, including MG pointers and PETSc
@@ -605,8 +614,6 @@ c     Create MG grid hierarchy
 
         map_grid_pack = setup_grid_packing(coords,gdef)
 
-cc        write (*,*) my_rank,'Grid config',gdef%g_pack(1)
-
         call createMGgrid(gdef)
 
 c     Create fortran PETSc parallel grid hierarchy (parallel version)
@@ -734,7 +741,7 @@ c     Consistency checks
 
         call consistencyCheck(gdef)
 
-c     Define uniform logical LOCAL grid on ALL grid levels
+c     Define logical LOCAL grid on ALL grid levels
 
         call createLogicalGrid(gdef%nxgl,gdef%mg_ratio_x
      .                        ,gdef%xg,gdef%xx,gdef%dx
@@ -795,17 +802,11 @@ c     Call variables
 
 c     Local variables
     
-        type(grid_pack) :: lpack
-    
-        integer :: ig,i,isig,ng,coarse_rat
+        integer :: ig,i,isig,ng
+
+        real(8) :: xi_l(ngrid),xi_r(ngrid),xi_0(ngrid),dx0,dxl,dxr
 
 c     Begin program
-
-        ig = 1  !Finest grid level
-
-        lpack = dpack
-
-        lpack%pack = lpack%pack.and.(coords=='lpk')  !Logical grid packing
 
 c     Find grid quantities
 
@@ -816,7 +817,7 @@ c     Find grid quantities
           ng   = nglobal(ig)
 
           !Find grid spacing
-          call findLocalGrid(ig,xx(isig),ng)
+          call findLocalGrid(ig,xx(isig),ng,dpack)
 
           !Find integer mesh spacings
           dx(isig:isig+nx(ig)+1) = 0d0
@@ -846,7 +847,7 @@ cc            dxh(nx(ig)+1 + isig) = dx(nx(ig) + isig)*0.5 !Needed for extrapola
 
 c     findLocalGrid
 c     #################################################################
-      subroutine findLocalGrid(ig,xx,ng)
+      subroutine findLocalGrid(ig,xx,ng,lpack)
 
 c     -----------------------------------------------------------------
 c     Finds grid on local processor
@@ -859,32 +860,63 @@ c     Call variables
         integer :: ig,ng
         real(8) :: xx(*)
 
+        type(grid_pack) :: lpack
+    
 c     Local variables
 
-        real(8) :: xxg(0:ng+1)
+        real(8) :: xxg(0:ng+1),nxi_l,nxi_r,nxi_0
 
 c     Begin program
 
-        if (ig == 1) then
-          coarse_rat = 1
+        if (.not.(lpack%pack.and.(coords=='lpk'))) then
+
+          call findGlobalUniformGrid(lmin,lmax,bcs1,bcs2,xxg)
+
         else
-          coarse_rat = coarse_rat*mgr(ig-1)
-          !Failsafe to avoid overextending domain
-          if (lpack%dx0*coarse_rat > lmax-lmin) then
-            coarse_rat = coarse_rat/mgr(ig-1)
+          
+          !Compute new packing spacings for current grid and store in
+          !lpack for MG coarsening
+          if (ig == 1) then
+            nxi_l = 1d0
+            nxi_r = 1d0
+            nxi_0 = 1d0
+          else
+            nxi_l = 1d0 ; nxi_r = 1d0 ; nxi_0 = 1d0
+            do i=2,mgr(ig-1)
+              nxi_l = nxi_l + xi_l(ig-1)**(i-1)
+              nxi_r = nxi_r + xi_r(ig-1)**(i-1)
+              nxi_0 = nxi_0 + xi_0(ig-1)**(i-1)
+            enddo
           endif
+
+          lpack%dx0 = lpack%dx0*nxi_0
+          lpack%dxl = lpack%dxl*nxi_l
+          lpack%dxr = lpack%dxr*nxi_r
+          
+          !Find global packed grid
+          call findGlobalPackedGrid(lmin,lmax,bcs1,bcs2,lpack%xp
+     .                             ,lpack%dx0,lpack%dxl,lpack%dxr,xxg
+     .                             ,xi_0(ig),xi_l(ig),xi_r(ig))
+
+c$$$          if (my_rank == 0) then
+c$$$            write (*,*) 'Grid level=',ig
+c$$$            write (*,*) 'Domain limits=',lmin,lmax
+c$$$            write (*,*) 'Coarsening ratio  =',mgr(ig)
+c$$$            write (*,*) 'Packing spacings  =',lpack%dxl
+c$$$     .                                       ,lpack%dx0
+c$$$     .                                       ,lpack%dxr
+c$$$            write (*,*) 'Geometric  factors=',xi_l(ig)
+c$$$     .                                       ,xi_0(ig)
+c$$$     .                                       ,xi_r(ig)
+c$$$            write (*,*) 'Coarsening factors=',nxi_l
+c$$$     .                                       ,nxi_0
+c$$$     .                                       ,nxi_r
+c$$$            write (*,*) 'Mesh',xxg
+c$$$            write (*,*)
+c$$$          endif
+c$$$          pause
+
         endif
-
-c     Find global grid
-
-        call findGlobalGrid(lmin,lmax,bcs1,bcs2,xxg,lpack,coarse_rat)
-
-c$$$        write (*,*) 'Coarsening ratios=',mgr
-c$$$        write (*,*) 'Grid level=',ig
-c$$$        write (*,*) 'Domain limits=',lmin,lmax
-c$$$        write (*,*) xxg
-c$$$        write (*,*)
-c$$$        pause
 
 c     Assign global grid
 
