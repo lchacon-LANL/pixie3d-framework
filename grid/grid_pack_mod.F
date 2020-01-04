@@ -744,7 +744,7 @@ c     Local variables
         integer :: i,der
         
         real(8) :: LL,Lp,Lm,ssigma,alpha,a1,a2,erfv,exp1,exp2,dexp1d1
-     .            ,dexp2d1,ff,res,ijac
+     .            ,dexp2d1,ff,res,ijac,d1,d2,d1o,d2o
 
 c     Begin program
 
@@ -806,18 +806,45 @@ cc            write (*,*) i,"alpha",alpha,"dalpha=",ijac*res
           a2 = x0p*(1-alpha)*exp2
           a1 = a2*alpha/(1-alpha)*exp((1-2*alpha)*eta**2)
 
+          !Find corrections for zero-derivative at domain ends
+          d1 = 0d0 ; d2 = 0d0
+          do i=1,10
+            d1o = d1 ; d2o = d2
+            d1 = -a2/a1*(LL+d2)*exp(-((LL+d2)**2-d1**2)/ssigma**2)
+            d2 =  a1/a2*(LL-d1)*exp(-((LL-d1)**2-d2**2)/ssigma**2)
+            if (abs(d1o-d1) < 1d-10.and.abs(d2o-d2) < 1d-10) exit
+          enddo
+
+          !Enforce domain size
+c$$$          a1 = a1*erf(LL/ssigma)/(erf((LL-d1)/ssigma)-erf(-d1/ssigma))
+c$$$          a2 = a2*erf(LL/ssigma)/(erf((LL+d2)/ssigma)-erf( d2/ssigma))
+c$$$          write(*,*) "Gaussian corrections=",d1,d2
+c$$$     . ,-a1*2*(xmin-xmin-d1)*(ssigma)**(-2)
+c$$$     .         *exp(-((xmin-xmin-d1)/ssigma)**2)
+c$$$     .  -a2*2*(xmin-xmax-d2)*(ssigma)**(-2)
+c$$$     .         *exp(-((xmin-xmax-d2)/ssigma)**2)  !Derivative at xmin (=0)
+c$$$     . ,-a1*2*(xmax-xmin-d1)*(ssigma)**(-2)
+c$$$     .         *exp(-((xmax-xmin-d1)/ssigma)**2)
+c$$$     .  -a2*2*(xmax-xmax-d2)*(ssigma)**(-2)
+c$$$     .         *exp(-((xmax-xmax-d2)/ssigma)**2)  !Derivative at xmax (=0)
+c$$$     . ,xmin + 0.5*sqrt(pi)*ssigma*(
+c$$$     .                a1*(erf((xmax-xmin-d1)/ssigma)-erf(-d1/ssigma))
+c$$$     .               +a2*(erf((LL+d2)/ssigma)-erf((d2)/ssigma)))  !xmax (=1)
+c$$$           write(*,*)
+          
           !Find coordinate
           select case(der)
           case(0)
-            x = xmin + 0.5*sqrt(pi)*ssigma*(a1*erf((xi-xmin)/ssigma)
-     .                            +a2*erf(eta)-a2*erf((xmax-xi)/ssigma))
+            x = xmin + 0.5*sqrt(pi)*ssigma*(
+     .                a1*(erf((xi-xmin-d1)/ssigma)-erf(-d1/ssigma))
+     .               +a2*(erf((LL+d2)/ssigma)-erf((xmax-xi+d2)/ssigma)))
           case(1)
-            x = a1*exp(-((xi-xmin)/ssigma)**2)
-     .         +a2*exp(-((xi-xmax)/ssigma)**2)
+            x = a1*exp(-((xi-xmin-d1)/ssigma)**2)
+     .         +a2*exp(-((xi-xmax-d2)/ssigma)**2)
           case(2)
             x =
-     .        -a1*2*(xi-xmin)*(ssigma)**(-2)*exp(-((xi-xmin)/ssigma)**2)
-     .        -a2*2*(xi-xmax)*(ssigma)**(-2)*exp(-((xi-xmax)/ssigma)**2)
+     .  -a1*2*(xi-xmin-d1)*(ssigma)**(-2)*exp(-((xi-xmin-d1)/ssigma)**2)
+     .  -a2*2*(xi-xmax-d2)*(ssigma)**(-2)*exp(-((xi-xmax-d2)/ssigma)**2)
           end select
         endif
 
