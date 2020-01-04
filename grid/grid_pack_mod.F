@@ -401,7 +401,7 @@ c$$$      end subroutine prep_tanh
 
 c     scale_coord
 c     #################################################################
-      function scale_coord(gdef,dim,x1) result(xlog)
+      function scale_coord(gdef,dim,x1,deriv) result(xlog)
 
 c     -----------------------------------------------------------------
 c     Scales coordinate along dimension dim and evaluates coordinate at
@@ -418,9 +418,11 @@ c     Call variables
         integer :: dim
         real(8) :: xlog,x1
 
+        integer,optional :: deriv
+        
 c     Local variables
 
-        integer :: nn
+        integer :: nn,der
 
         real(8) :: gp(2),lmin,lmax,TT,bb
 
@@ -428,8 +430,21 @@ c     Local variables
 
 c     Begin program
 
+        if (PRESENT(deriv)) then
+          der = deriv
+        else
+          der = 0
+        endif
+        
         if (.not.gdef%g_pack(dim)%pack) then
-          xlog = x1
+          select case(der)
+          case(0)
+            xlog = x1
+          case(1)
+            xlog = 1d0
+          case(2)
+            xlog = 0d0
+          end select
           return
         endif
 
@@ -484,18 +499,19 @@ c     Packing
           xlog = x1-(lmax-lmin)/TT*bb*sin(TT*(x1-lmin)/(lmax-lmin))
         else
           if (gp(2)>1d0.or.(lmin==gp(1)).or.(lmax==gp(1))) then
-            xlog = cubic_scl   (dim,x1,eta(dim),lmin,lmax,gp(1),gp(2))
+            xlog = cubic_scl   (dim,x1,eta(dim),lmin,lmax,gp(1),gp(2)
+     .                         ,deriv=deriv)
           else
-            xlog = gaussian_scl(dim,x1,eta(dim),lmin,lmax,gp(1),gp(2))
+            xlog = gaussian_scl(dim,x1,eta(dim),lmin,lmax,gp(1),gp(2)
+     .                         ,deriv=deriv)
           endif
-cc          write (*,*) x1,xlog
         endif
 
       contains
 
 c     cubic_scl
 c     #################################################################
-      function cubic_scl(dim,xi,eta,xmin,xmax,x0,lambda) result(x)
+      function cubic_scl(dim,xi,eta,xmin,xmax,x0,lambda,deriv) result(x)
 
 c     -----------------------------------------------------------------
 c     Packs coordinate according to cubic polynomial at x0 (location)
@@ -512,23 +528,42 @@ c     Call variables
         real(8),INTENT(IN) :: eta,xmin,xmax,x0,lambda,xi
         real(8) :: x
 
+        integer,optional :: deriv
+        
 c     Local variables
 
         real(8) :: xi0,xibar,LL,bb,dx
 
         integer,parameter :: nit=100
 
-        integer :: i
+        integer :: i,der
         real(8) :: ijac,dxi(nit),res(nit)
 
 c     Begin program
 
+        if (PRESENT(deriv)) then
+          der = deriv
+        else
+          der = 0
+        endif
+        
         if (eta == 0d0) then
 
-          x = xi
+          select case(der)
+          case(0)
+            x = xi
+          case(1)
+            x = 1d0
+          case(2)
+            x = 0d0
+          end select
+          return
 
         else
 
+          if (der > 0)
+     .         call sstop(0,'cubic_scl','Derivative not implemented')
+          
           LL = xmax-xmin
           bb = eta/LL**2
 
@@ -684,7 +719,7 @@ c$$$      end function tanh_scl
 
 c     gaussian_scl
 c     #################################################################
-      function gaussian_scl(dim,xi,eta,xmin,xmax,x0,x0p) result(x)
+      function gaussian_scl(dim,xi,eta,xmin,xmax,x0,x0p,deriv) result(x)
 
 c     -----------------------------------------------------------------
 c     Packs coordinate using two-gaussian prescription at location
@@ -702,19 +737,34 @@ c     Global variables
         real(8),INTENT(IN) :: xmin,xmax,x0,eta,xi,x0p
         real(8) :: x
 
+        integer,optional :: deriv
+        
 c     Local variables
 
-        integer :: i
+        integer :: i,der
         
         real(8) :: LL,Lp,Lm,ssigma,alpha,a1,a2,erfv,exp1,exp2,dexp1d1
      .            ,dexp2d1,ff,res,ijac
 
 c     Begin program
 
+        if (PRESENT(deriv)) then
+          der = deriv
+        else
+          der = 0
+        endif
+        
         if (x0p == 0d0 .or. eta == 0d0) then
 
-          x = xi
-
+          select case(der)
+          case(0)
+            x = xi
+          case(1)
+            x = 1d0
+          case(2)
+            x = 0d0
+          end select
+          
         else
 
           LL = xmax-xmin
@@ -757,9 +807,18 @@ cc            write (*,*) i,"alpha",alpha,"dalpha=",ijac*res
           a1 = a2*alpha/(1-alpha)*exp((1-2*alpha)*eta**2)
 
           !Find coordinate
-          x = xmin + 0.5*sqrt(pi)*ssigma*(a1*erf((xi-xmin)/ssigma)
+          select case(der)
+          case(0)
+            x = xmin + 0.5*sqrt(pi)*ssigma*(a1*erf((xi-xmin)/ssigma)
      .                            +a2*erf(eta)-a2*erf((xmax-xi)/ssigma))
-
+          case(1)
+            x = a1*exp(-((xi-xmin)/ssigma)**2)
+     .         +a2*exp(-((xi-xmax)/ssigma)**2)
+          case(2)
+            x =
+     .        -a1*2*(xi-xmin)*(ssigma)**(-2)*exp(-((xi-xmin)/ssigma)**2)
+     .        -a2*2*(xi-xmax)*(ssigma)**(-2)*exp(-((xi-xmax)/ssigma)**2)
+          end select
         endif
 
 c     End program

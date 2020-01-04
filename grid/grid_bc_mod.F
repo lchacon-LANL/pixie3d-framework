@@ -87,7 +87,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: i,j,k,ig,jg,kg,jj,jlog,nyg,jglobal
+      integer :: i,j,k,ig,jg,kg,jj,jlog,nyg,jglobal,mm
 
 #if defined(petsc)
       real(8),allocatable,dimension(:)   :: local_x,global_x
@@ -139,10 +139,13 @@ c     Element exchange in poloidal direction
 
       jlog = gl_def%jlo(igybc)
 
+      mm = 1
+      if (coords=='hel'.or.coords=='hl2') mm = gl_def%params(1)
+
       do k=0,nzbc+1
         do j=0,nybc+1
           jglobal = j + jlog - 1
-          jj = mod(jglobal+nyg/2,nyg)
+          jj = mod(jglobal+mm*nyg/2,nyg)
           if (jj == 0) jj = nyg
 #if defined(petsc)
           array(i-1,j,k) = garray(jj,k)
@@ -180,7 +183,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: i,j,k,jj,jlog,nyg,jglobal
+      integer :: i,j,k,jj,jlog,nyg,jglobal,mm
 
 #if defined(petsc)
       real(8),allocatable,dimension(:)   :: local_x,global_x
@@ -230,12 +233,15 @@ c     Parallel Allgather in SP communicator
 
 c     Element exchange in poloidal direction
 
+      mm = 1
+      if (coords=='hel'.or.coords=='hl2') mm = gl_def%params(1)
+
       jlog = gl_def%jlo(igybc)
       if (coords == 'hl2') then
         do k=0,nzbc+1
           do j=0,nybc+1
             jglobal = j + jlog - 1
-            jj = mod(jglobal+nyg/2,nyg)
+            jj = mod(jglobal+mm*nyg/2,nyg)
             if (jj == 0) jj = nyg
 
 #if defined(petsc)
@@ -249,7 +255,7 @@ c     Element exchange in poloidal direction
         do k=0,nzbc+1
           do j=0,nybc+1
             jglobal = j + jlog - 1
-            jj = mod(jglobal+nyg/2,nyg)
+            jj = mod(jglobal+mm*nyg/2,nyg)
             if (jj == 0) jj = nyg
 
             if (cov) then
@@ -315,7 +321,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: i,j,k,jj,jlog,nyg,jglobal
+      integer :: i,j,k,jj,jlog,nyg,jglobal,mm
 
 #if defined(petsc)
       real(8),allocatable,dimension(:)   :: local_x,global_x
@@ -372,6 +378,9 @@ c     Parallel Allgather in SP communicator
 
 c     Element exchange in poloidal direction
 
+      mm = 1
+      if (coords=='hel'.or.coords=='hl2') mm = gl_def%params(1)
+
       jlog = gl_def%jlo(igybc)
       if (coords == 'hl2') then
         stop 'hl2 staggered option not implemented for hl2 geom'
@@ -392,7 +401,7 @@ c$$$        enddo
         do k=0,nzbc+1
           do j=0,nybc+1
             jglobal = j + jlog - 1
-            jj = mod(jglobal+nyg/2,nyg)
+            jj = mod(jglobal+mm*nyg/2,nyg)
             if (jj == 0) jj = nyg
 
             if (cov) then
@@ -1392,30 +1401,22 @@ c     Prepare SP BCs
 
 c     Fill PETSc ghost cells and PER BCs
 
-#if defined(petsc) && !defined(samrai)
-      !Determine whether we need to fill ghost cells using PETSc
-      petsc__bc = (.not.asm)
-
-      !Fill ghost cells
-      if (petsc__bc) then
-        da_ctx => gbc_def%dactx(igxbc)
-
-        do ieq=1,ncomp
-          call fillPetscGhostCells(da_ctx,v_cov(:,:,:,ieq))
-          call fillPetscGhostCells(da_ctx,v_cnv(:,:,:,ieq))
-        enddo
-      endif
-#elif !defined(samrai)
-      call sync_bc(.true.)
-#endif
+      call set_LOG_bc(v_cnv,.true.)
+      call set_LOG_bc(v_cov,.false.)
 
       if (bcPER(1).and.bcPER(2).and.bcPER(3)) return
+
+c     Set SP BCs (if appropriate)
+      
+      call set_TOPOL_bc(SP,v_cnv,.true.)
+      call set_TOPOL_bc(SP,v_cov,.false.)
 
 c     Impose physical BCs
 
       cov_to_cnv = .false.
 
-      do bctype=2,BCLIM             !Do not do PER=1; already done 
+      do bctype=1,BCLIM
+        if (bctype == SP.or.bctype == PER) cycle !Already done
         do dim=1,3
           do loc=0,1
             ibc = (1+loc)+2*(dim-1)
@@ -1473,6 +1474,69 @@ c     Periodic boundary synchronizing
 c     End program
 
       contains
+
+c     set_LOG_bc
+c     #################################################################
+      subroutine set_LOG_bc(vec,cnv)
+
+      implicit none
+      
+c     -----------------------------------------------------------------
+c     Set BC "bctype" independently for cov and cnv vectors
+c     -----------------------------------------------------------------
+
+      real(8) :: vec(:,:,:,:)
+      logical :: cnv,petsc__bc
+      integer :: ieq
+
+#if defined(petsc) && !defined(samrai)
+        !Determine whether we need to fill ghost cells using PETSc
+        petsc__bc = (.not.asm)
+
+        !Fill ghost cells
+        if (petsc__bc) then
+          da_ctx => gbc_def%dactx(igxbc)
+          do ieq=1,ncomp
+            call fillPetscGhostCells(da_ctx,vec(:,:,:,ieq))
+          enddo
+        endif
+#elif !defined(samrai)
+        call set_TOPOL_bc(PER,vec,cnv)
+#endif
+
+      end subroutine set_LOG_bc
+
+c     set_TOPOL_bc
+c     #################################################################
+      subroutine set_TOPOL_bc(bctype,vec,cnv)
+
+      implicit none
+      
+c     -----------------------------------------------------------------
+c     Set topological BCs independently for cov and cnv vectors
+c     -----------------------------------------------------------------
+
+      integer :: bctype
+      real(8) :: vec(:,:,:,:)
+      logical :: cnv
+
+      do dim=1,3
+        do loc=0,1
+          ibc = (1+loc)+2*(dim-1)
+
+          do ivar = 1,ncomp
+            ieq = ivar + fcomp - 1
+
+            if (abs(bcnd(ibc,ivar)) == bctype) then
+              call FillGhostNodes_vec(gbc_def,ieq,ivar,ncomp,dim,loc
+     .                               ,bctype,vec,var0,cnv=cnv)
+            endif
+          enddo
+
+        enddo
+      enddo
+
+      end subroutine set_TOPOL_bc
 
 c     sync_bc
 c     #################################################################
@@ -1582,7 +1646,9 @@ c     Begin program
         do il = ll,hl
           ibc = (1+il)+2*(id-1)
 
-          if (.not.selectFace(gbc_def,ibc)) cycle !Do nothing for logical boundaries
+          if (.not.selectFace(gbc_def,ibc)
+     .       .or.bcPER(id)
+     .       .or.bcSP(ibc)) cycle !Do nothing for logical, periodic, or SP boundaries
 
           !Do NOT change: SAMRAI depends on it
           call findBCLoopLimits(gbc_def

@@ -968,7 +968,7 @@ c     Begin program
 
 c     Coordinate-specific checks
 
-        if (map_grid_pack) numerical_grid = .true.
+cc        if (map_grid_pack) numerical_grid = .true.
 
         select case (coords)
         case ('s3d','hsn')
@@ -1207,81 +1207,81 @@ c     End program
 
       end subroutine MG_grid_info
 
-c     hessianCheck
-c     #################################################################
-      subroutine hessianCheck(igx,igy,igz,nxv,nyv,nzv,gdef)
-
-        implicit  none
-
-c     Call variables
-
-        integer    :: igx,igy,igz,nxv(*),nyv(*),nzv(*)
-
-        type(grid_mg_def),pointer :: gdef
-
-c     Local variables
-
-        integer    :: i,j,k,i1,j1,k1,ig,jg,kg,ih
-        real(8)    :: x1,y1,z1
-        real(8)    :: hess(3,3,3),hess_cnv(3,3,3),table(3,3,3)
-
-c     Begin program
-
-        write (funit,*) 
-        write (funit,*) '*************************'
-        write (funit,*) '     Hessian check'
-        write (funit,*) '*************************'
-        write (funit,*)
-
-        do i = 2,nxv(igx)   !Start at 2 to avoid singular points
-          do j = 1,nyv(igy)
-            do k = 1,nzv(igz)
-
-              call getMGmap(gdef,i,j,k,igx,igy,igz,ig,jg,kg)
-
-              x1 = gdef%xx(ig)
-              y1 = gdef%yy(jg)
-              z1 = gdef%zz(kg)
-
-              hess = -christ_2knd(gdef,i,j,k,igx,igy,igz)
-
-              hess_cnv(1,:,:) = hessian_cnv(gdef,1,x1,y1,z1)
-              hess_cnv(2,:,:) = hessian_cnv(gdef,2,x1,y1,z1)
-              hess_cnv(3,:,:) = hessian_cnv(gdef,3,x1,y1,z1)
-
-              do i1=1,3
-                do j1=1,3
-                  do k1=1,3
-                    table(i1,j1,k1) = hess_cnv(i1,j1,k1)
-     .                               -delta(i1,k1)*(hess(1,j1,1)
-     .                                             +hess(2,j1,2)
-     .                                             +hess(3,j1,3))
-     .                               +hess(k1,i1,j1)
-                  enddo
-                enddo
-              enddo
-
-              write (funit,5) 'Grid point: (',x1,',',y1,',',z1,')'
- 5            format (/,a,f7.3,a,f7.3,a,f7.3,a)
-
-              write (funit,*) 
-              write (funit,*) 'Hessian relation'
-
-              do ih=1,3
-                write (funit,*) 
-                write (funit,10) table(ih,1,1:3)
-                write (funit,10) table(ih,2,1:3)
-                write (funit,10) table(ih,3,1:3)
- 10             format (3f10.3)
-              enddo
-
-            enddo
-          enddo
-        enddo
-
-c     End program
-
-      end subroutine hessianCheck
+c$$$c     hessianCheck
+c$$$c     #################################################################
+c$$$      subroutine hessianCheck(igx,igy,igz,nxv,nyv,nzv,gdef)
+c$$$
+c$$$        implicit  none
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$        integer    :: igx,igy,igz,nxv(*),nyv(*),nzv(*)
+c$$$
+c$$$        type(grid_mg_def),pointer :: gdef
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$        integer    :: i,j,k,i1,j1,k1,ig,jg,kg,ih
+c$$$        real(8)    :: x1,y1,z1
+c$$$        real(8)    :: hess(3,3,3),hess_cnv(3,3,3),table(3,3,3)
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$        write (funit,*) 
+c$$$        write (funit,*) '*************************'
+c$$$        write (funit,*) '     Hessian check'
+c$$$        write (funit,*) '*************************'
+c$$$        write (funit,*)
+c$$$
+c$$$        do i = 2,nxv(igx)   !Start at 2 to avoid singular points
+c$$$          do j = 1,nyv(igy)
+c$$$            do k = 1,nzv(igz)
+c$$$
+c$$$              call getMGmap(gdef,i,j,k,igx,igy,igz,ig,jg,kg)
+c$$$
+c$$$              x1 = gdef%xx(ig)
+c$$$              y1 = gdef%yy(jg)
+c$$$              z1 = gdef%zz(kg)
+c$$$
+c$$$              hess = -christ_2knd(gdef,i,j,k,igx,igy,igz)
+c$$$
+c$$$              hess_cnv(1,:,:) = hessian_cnv(gdef,1,x1,y1,z1)
+c$$$              hess_cnv(2,:,:) = hessian_cnv(gdef,2,x1,y1,z1)
+c$$$              hess_cnv(3,:,:) = hessian_cnv(gdef,3,x1,y1,z1)
+c$$$
+c$$$              do i1=1,3
+c$$$                do j1=1,3
+c$$$                  do k1=1,3
+c$$$                    table(i1,j1,k1) = hess_cnv(i1,j1,k1)
+c$$$     .                               -delta(i1,k1)*(hess(1,j1,1)
+c$$$     .                                             +hess(2,j1,2)
+c$$$     .                                             +hess(3,j1,3))
+c$$$     .                               +hess(k1,i1,j1)
+c$$$                  enddo
+c$$$                enddo
+c$$$              enddo
+c$$$
+c$$$              write (funit,5) 'Grid point: (',x1,',',y1,',',z1,')'
+c$$$ 5            format (/,a,f7.3,a,f7.3,a,f7.3,a)
+c$$$
+c$$$              write (funit,*) 
+c$$$              write (funit,*) 'Hessian relation'
+c$$$
+c$$$              do ih=1,3
+c$$$                write (funit,*) 
+c$$$                write (funit,10) table(ih,1,1:3)
+c$$$                write (funit,10) table(ih,2,1:3)
+c$$$                write (funit,10) table(ih,3,1:3)
+c$$$ 10             format (3f10.3)
+c$$$              enddo
+c$$$
+c$$$            enddo
+c$$$          enddo
+c$$$        enddo
+c$$$
+c$$$c     End program
+c$$$
+c$$$      end subroutine hessianCheck
 
 c     metricTensorCheck
 c     #################################################################
@@ -1930,6 +1930,33 @@ c     Dump quantities
                 if (dump_diff) then
                   vec =
      .               contravariantVector(gdef,l,i,j,k,igrid,igrid,igrid
+     .                                  ,vertex=.true.)
+     .             *jacobian(gdef,i,j,k,igrid,igrid,igrid,vertex=.true.)
+                  dbl(i,j,1) = dbl(i,j,1)-vec(m)
+                endif
+              enddo
+            enddo
+            call dumpGlobalField(gdef,debugfile,nx,ny,nz,nxg,nyg,nzg,dbl
+     .                          ,1,no_bc=.true.)
+          enddo
+        enddo
+
+        !Cov vectors
+        do l=1,3
+          do m=1,3
+            write(funit,*) '   Dumping Cov vector',l,' component',m
+            ivar = ivar+1
+            descr(ivar)='Cov_'//trim(int2char(l))//'('
+     .                        //trim(int2char(m))//')'
+
+            do j=0,ny+1
+              do i=0,nx+1
+                dbl(i,j,1) =
+     .               gdef%gmetric%grid(igrid)%cov_v(i,j,k,l,m)
+     .              *gdef%gmetric%grid(igrid)%jac_v(i,j,k)
+                if (dump_diff) then
+                  vec =
+     .               covariantVector(gdef,l,i,j,k,igrid,igrid,igrid
      .                                  ,vertex=.true.)
      .             *jacobian(gdef,i,j,k,igrid,igrid,igrid,vertex=.true.)
                   dbl(i,j,1) = dbl(i,j,1)-vec(m)
