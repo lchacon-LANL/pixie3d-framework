@@ -13,7 +13,7 @@ c ######################################################################
      .               ,MPI_INTEGER,mpierr,MPI_MAX,MPI_MIN
 #endif
 
-      integer, parameter :: nsp_max=5,Npg=_Npg
+      integer, parameter :: nsp_max=5,Npg=_Npg,dim=_Dim,dimt=_Dim+_Dimx
 
       type :: particle
         SEQUENCE
@@ -4350,11 +4350,11 @@ c ######################################################################
      .          ,charge  (nsp_max)=1d0    !Pcle charge
      .          ,q_m     (nsp_max)=-1d0   !Charge-mass ratio
 
-      real(8),private :: w_bp (nsp_max)  !weight of background particles
+      real(8) :: w_bp (nsp_max)  !weight of background particles
 
       real(8),allocatable,dimension(:) :: pxx,pyy,pzz
 
-      integer,private :: nps(nsp_max)
+      integer :: nps(nsp_max)
       integer,private :: nxg,nyg,nzg,nng,nxl,nyl,nzl,nnl
       real(8),private :: mach_eps,two_mach_eps
       real(8),private :: xmax,xmin,ymax,ymin,zmax,zmin
@@ -4492,8 +4492,8 @@ c$$$      end function get_spline_order
 c     setup_pic_2d
 c     ##################################################################
       subroutine setup_pic_2d(inputfile,problem,nxin,xin,nyin
-     $                       ,yin,nzin,zin,explicit_pic,no__map,dt
-     .                       ,jac,xmap,pcle_rstrt)
+     $                      ,yin,nzin,zin,explicit_pic,no__map,dt
+     .                      ,jac,xmap,pcle_rstrt,load_pcles_ext_routine)
 
       implicit none
 
@@ -4508,6 +4508,8 @@ c     Call variables
      .                      ,xmap  (0:,0:,0:,:)
 
       character(*) :: inputfile
+
+      external :: load_routine
 
 c     Local variables
 
@@ -4688,7 +4690,9 @@ c     Initialize particles
           spcs(isp)%q_m = q_m(isp)
         enddo
 
-        call load_pcles_offset
+        call setup_spatial_counters
+
+        call load_pcles_ext_routine
       endif
 
 c     End program
@@ -4733,15 +4737,12 @@ c     ##################################################################
 
       end subroutine defineBCs_PIC
 
-c     load_pcles_offset  
+c     setup_spatial_counters  
 c     ##################################################################
-      subroutine load_pcles_offset
+      subroutine setup_spatial_counters
 
       use iso_c_binding, only: c_int, c_double
       use F_call_C
-
-      use hammersley_seq
-      use mv_normal
 
       implicit none
 c     ------------------------------------------------------------------
@@ -4752,35 +4753,15 @@ c     Call variables
 
 c     Local variables
 
-      real(8) :: v_0x (1:n_sp+n_b)
-     .          ,v_0y (1:n_sp+n_b)
-     .          ,v_0z (1:n_sp+n_b)
-
-      integer :: ip,ip_ng,ipl,ipc,is,ipb,tot_np
-     .           ,dimt,ipc0,ncall,i,j,k,ii,cii,offset
-     .           ,ipx,ipy,ipz,ixyz,np3,igl,jgl,kgl
-     .           ,tot_np_scan,numspcs,numpcles,gtot_bnp
-      real(8) :: rx1(_Npg),rx2(_Npg),rx3(_Npg),rx(_Npg),ry(_Npg)
-     .          ,xp(_Npg),dxp,vx2,vt2
-     .          ,yp(_Npg),signx,signy,signz,pp,pr,gtot_np,gnpc_avg
-      real(8) :: v_tot(1:n_sp+n_b,_Dim)
-      integer, save :: seed
-      real(8) :: vt(3), v0(3)
-      real(8),allocatable,dimension(:,:) :: r4
+      integer :: is,tot_np,tot_np_scan,numspcs,numpcles,gtot_bnp
+      real(8) :: gtot_np,gnpc_avg
 
 c     Begin program
-
-      v_0x = v0_x(1:n_sp+n_b)
-      v_0y = v0_y(1:n_sp+n_b)
-      v_0z = v0_z(1:n_sp+n_b)
-
-      call init_random_seed(nproc,my_rank_pic,.not.tst_flg)
 
 c     Initialize particle counters on the mesh
 
       gtot_bnp = min_pcles*nng*pgroup  !Base particle number
 
-      dimt = _Dim+_Dimx ! 2D3V
       numspcs = size(spcs)
       do is=1,numspcs
 
@@ -4805,47 +4786,7 @@ c     Initialize particle counters on the mesh
      $                             ,npc_max(is),mnpc_int(:,is))
       end do
 
-c     Load particles
-
-      if(quiet_start) then
-
-        select case(test)
-        case('ic','tm')
-#include "problem_init/icLoadPartls_qs.f"
-        case('slow_shock')
-          call pstop("load_pcles_offset"
-     .              ,"Slow shock quiet start not implemented")
-        case('plasma_exp','diocotron')
-          call pstop("load_pcles_offset"
-     .              ,"Plasma Expansion quiet start not implemented")
-        case('kaw_ii')
-#include "problem_init/kawiiLoadPartls_qs.f"
-        case('landau','2strm','iaw')!,'langdon')
-#include "problem_init/UniformLoadPartls_qs.f"
-        case default  
-#include "problem_init/RandomLoadPartls_qs.f"
-        end select
-
-      else                      !quiet_start
-
-        select case(test)
-        case('ic','tm')
-#include "problem_init/icLoadPartls.f"
-        case('slow_shock')
-#include "problem_init/slowShockLoadPartls.f"
-        case('kaw_ii')   
-#include "problem_init/kawiiLoadPartls.f"
-        case('landau','2strm','iaw')!,'langdon')
-#include "problem_init/UniformLoadPartls.f"
-        case default
-#include "problem_init/RandomLoadPartls.f"
-        end select
-
-      end if                    !without quiet_start
-
-      call free_random_seed()
-
-      end subroutine load_pcles_offset
+      end subroutine setup_spatial_counters
 
 c     compute_pcle_spat_dist
 c     ##################################################################
@@ -4952,227 +4893,6 @@ cc               if(ii==8) print *,my_rank_pic,ii,mnpc_int_s(ii),mnpc_r
       npc1_0(1) = npc_int_s(1) +npc_int_s(2)
       
       end subroutine compute_pcle_spat_dist
-
-c     perturb_pcles_offset
-c     ##################################################################
-      subroutine perturb_pcles_offset(nh1,nh2)
-
-      implicit none
-
-c     Call variables
-
-      integer :: nh1,nh2
-
-c     Local variables
-
-      integer :: isp,ip,ii,jj,i,j,k,im,numspcs,numpcles
-      integer :: i_np(_Npg), j_np(_Npg)
-      real(_prec) :: kx,kxp,xn,xp,v2,xp2,yp,kyp,ky,dxp
-     .              ,x_np(_Npg)
-
-      real(8) :: vcurv(3),cov(3,3),xpp(3),xlog(3)
-      real(8) :: const_pi
-      integer :: ierr
-
-c     Begin program
-
-      const_pi = pi
-
-c     Initialize particle new info
-
-      numspcs = size(spcs)
-      do isp=1, numspcs
-         numpcles = size(spcs(isp)%pcles)
-!     note that there is some issue with valgrind and libgomp.
-!$omp parallel DEFAULT(SHARED) private(ip)
-!$       call set_omp_thread_id()
-!$OMP DO
-         do ip=1,numpcles
-           spcs(isp)%pcles(ip)%ijk_np = spcs(isp)%pcles(ip)%ijk_n
-           spcs(isp)%pcles(ip)%x_np   = spcs(isp)%pcles(ip)%x_n
-           spcs(isp)%pcles(ip)%v_np   = spcs(isp)%pcles(ip)%v_n
-           spcs(isp)%pcles(ip)%w_np   = spcs(isp)%pcles(ip)%w_n
-        end do
-!$OMP END DO
-!$omp end parallel 
-      end do
-
-c     Find particle weights and drift velocities
-
-      if (mass_matrix_solve) then
-        if (my_rank == 0) then
-          write (*,*)
-          write (*,*) '******************'
-          write (*,*) 'Mass matrix solver'
-          write (*,*) '******************'
-        endif
-
-        call gather_moments(gpicdef,moms,wrap_dens=.true.)
-
-        call setup_mass_matrix(nxl,nyl,nzl,nxg,nyg,nzg)
-
-        call find_pcle_weights(moms(:,:,1,1:n_sp,Ins),.false.)
-
-        !Re-gather high-order moments with new weights
-        call gather_moments(gpicdef,moms)
-
-        call find_pcle_drift_velocity_x(moms(:,:,1,1:n_sp,Ipx))
-        call find_pcle_drift_velocity_y(moms(:,:,1,1:n_sp,Ipy))
-        call find_pcle_drift_velocity_z(moms(:,:,1,1:n_sp,Ipz))
-
-        call destroy_mass_matrix
-      end if
-
-C    perturb particles after matching given equilibrium
-
-      select case(trim(test))
-      case('ic','tm')
-#include "problem_init/icPerturb.f"
-      case('slow_shock','plasma_exp')
-#include "problem_init/slowShockPerturb.f"
-      case('kaw_ii')
-        if(quiet_start) then
-#include "problem_init/kawiiPerturb.f"
-        end if
-c$$$      case('bpnch')
-c$$$        if(quiet_start) then
-c$$$            call perturb_pcle_xv(1
-c$$$     .                          ,(/nh1,nh2,0/)
-c$$$     .                          ,(/0d0,0d0,0d0/)
-c$$$     .                          ,(/0d0,0d0,eps_pic/))
-c$$$        end if
-      case('weibel','wbl_bc','bpnch')
-cc        if(quiet_start) then
-            call perturb_pcle_xv(1
-     .                          ,(/nh1,nh2,0/)
-     .                          ,(/0d0,0d0,0d0/)
-     .                          ,(/0d0,0d0,eps_pic/),delta_fun=.true.)
-cc        end if
-      case('2strm','iaw','landau','langdon','diocotron')
-        do isp=1,n_sp
-          call perturb_pcle_xv(isp
-     .                        ,(/nh1,nh2,0/)
-     .                        ,(/eps_pic,0d0,0d0/)
-     .                        ,(/0d0,0d0,0d0/))
-        enddo
-      case default
-        print *, "test is not set correctly in the input, "
-     .         //"quit perturb_pcles_offset."
-        stop
-      end select
-
-c     Gather moments (for particle accounting)
-
-      call gather_moments(gpicdef,moms,ngp=.true.)
-
-      if (my_rank_pic == 0) then
-         write (*,*)
-         write (*,*) 'Total number of particles (npcles-nip)',
-     .           ' calculated from zeroth moment:'
-         do isp=1,n_sp
-c$$$           write (*,'(a,i3,f20.10,a,f20.10)')
-c$$$     .       '  >>Species=',isp,sum(moms_g(1:nxg,1:nyg,1,isp,Ins))
-c$$$     .      ,' vs. expected',(1+c_bkgrnd(isp))*nps(isp)
-           write (*,'(a,i3,i12,a,i12)')
-     .       '  >>Species=',isp,nint(sum(moms_g(1:nxg,1:nyg,1,isp,Ins)))
-     .      ,' vs. expected',nint((1+c_bkgrnd(isp))*nps(isp))
-         enddo
-      end if
-
-c     Gather final moments
-
-      call gather_moments(gpicdef,moms)
-
-c     End program
-
-      contains
-
-c     perturb_pcle_xv
-c     ######################################################################
-      subroutine perturb_pcle_xv(isp,mode,eps_pos,eps_vel,delta_fun)
-
-      implicit none
-
-c     Call variables
-
-      integer :: isp,mode(3),dim
-      real(8) :: eps_pos(3),eps_vel(3)
-      logical,optional :: delta_fun
-
-c     Local variables
-
-      real(_prec) :: k0(3),xg(3),xp(3),kxp(3),dx(_Npg,3),dv(_Npg,3)
-      integer :: ip,numpcles,j
-      logical :: delta
-
-c     Begin program
-
-      if (PRESENT(delta_fun)) then
-        delta = delta_fun
-      else
-        delta = .false.
-      endif
-
-      numpcles = size(spcs(isp)%pcles)
-
-      k0 = 2d0*pi*dble(mode)/(/Lx,Ly,Lz/)
-
-      do ip=1,numpcles
-
-        call xform_pcle_idx(spcs(isp)%pcles(ip)%ijk_n,nxg,i_np,j_np)
-
-        !VECTOR SIMD
-        do j=1,_Npg
-
-           xg = (/pxx(i_np(j)),pyy(j_np(j)),pzz(1)/)
-
-           xp = spcs(isp)%pcles(ip)%x_n(j,:) + xg  - 0.5d0*dh
-
-           kxp = k0*xp      
-
-           where (kxp /= 0d0) 
-             dx(j,:) = eps_pos*cos(kxp)
-           elsewhere
-             dx(j,:) = 0d0
-           end where
-           spcs(isp)%pcles(ip)%x_n(j,:) = spcs(isp)%pcles(ip)%x_n(j,:)
-     .                                  + dx(j,:)
-
-           if(delta) then
-             if (i_np(j)==nxg/2+1.and.j_np(j)==nyg/2+1) then
-               spcs(isp)%pcles(ip)%v_n(j,:)
-     .              = spcs(isp)%pcles(ip)%v_n(j,:) + eps_vel(:)
-               spcs(isp)%pcles(ip)%v_np(j,:)
-     .              = spcs(isp)%pcles(ip)%v_n(j,:)
-             endif
-           else
-             where (kxp /= 0d0) 
-               dv(j,:) = eps_vel*cos(kxp)
-             elsewhere
-               dv(j,:) = 0d0
-             end where
-
-             spcs(isp)%pcles(ip)%v_n(j,:)
-     .            = spcs(isp)%pcles(ip)%v_n(j,:) + dv(j,:)
-             spcs(isp)%pcles(ip)%v_np(j,:)
-     .            = spcs(isp)%pcles(ip)%v_n(j,:)
-           end if
-
-        end do
-
-        call cell_crossing(dx,spcs(isp)%pcles(ip)%x_n
-     .                       ,spcs(isp)%pcles(ip)%v_n,i_np,j_np
-     .                       ,spcs(isp)%pcles(ip)%w_n)
-
-        spcs(isp)%pcles(ip)%ijk_n = i_np + nxg*(j_np - 1)        
-
-        spcs(isp)%pcles(ip)%x_np =  spcs(isp)%pcles(ip)%x_n
-
-      end do
-
-      end subroutine perturb_pcle_xv
-
-      end subroutine perturb_pcles_offset
 
 c     cell_crossing
 c     ##################################################################
