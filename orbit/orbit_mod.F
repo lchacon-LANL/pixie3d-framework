@@ -870,7 +870,6 @@ c     Daniele,23/03/2009: dump the initial point of the orbit
             exit_loop = exit_loop.or.(abs(ss) >= smax)
 !#!Marco, qui per smax in connect
             if (exit_loop .and. connect) then
-              write(*,*) 'over thr ',thrnum,big_n
               call connect_write(x0,y0,z0,big_n,thrnum)
             endif
 

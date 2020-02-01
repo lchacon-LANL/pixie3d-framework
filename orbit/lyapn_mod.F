@@ -712,7 +712,8 @@
         do ith=0,thr_tot-1
           do iproc=0,np-1
             ifile = ith+thr_tot*iproc
-            cnct_file(ifile) = 'connect_proc'//int2char(ifile)
+            cnct_file(ifile) =
+     .           'connect_proc'//trim(int2char(ifile))//'.bin'
           enddo
         enddo
 
@@ -989,7 +990,8 @@ c     ###############################################################
 
 !     Local variables
 
-        write(*,'(a,i2,i2,4f15.8)') 'a1, thr_num ',my_rank, thr_num
+        write(*,*)
+        write(*,'(a,i2,i2,4e15.7)') 'a1, thr_num ',my_rank, thr_num
      .           ,x_0,y_0,z_0,ss_0
         write(cnctx(thr_num)) x_0,y_0,z_0,ss_0
 
