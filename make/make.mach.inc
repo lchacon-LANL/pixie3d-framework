@@ -374,7 +374,7 @@ ifeq ($(findstring quevedo,$(HOST)),quevedo)
 
 #    LIBS += -L/opt/local/lib -latlas
   else
-    LIBS += -L/opt/local/lib -llapack -lblas
+    LIBS += -L/opt/local/lib/lapack -llapack -lblas
 
     HDF5 = t
 
