@@ -856,6 +856,18 @@ c     Daniele,23/03/2009: dump the initial point of the orbit
           !Find new LOGICAL positions, new time, new arc length
           call orbit_step(x,y,z,iterror,forward=fwd,lsode_f=lsode_f)
 
+          !#! Marco, january 15th 2019
+          if (connect) then
+            if (.not. cnc_back .and. x .gt. cnctth) then
+              call connect_write(x0,y0,z0,ss,thr_num)
+              !#! Marco, no need to continue after threshold is reached
+              exit
+            else if (cnc_back .and. x .lt. cnctth) then
+              call connect_write(x0,y0,z0,ss,thr_num)
+              exit
+            endif
+          endif
+
           exit_loop = (orbit_error(iterror).or.get_orbit_exit())
           non_fatal_err = (iterror<=0)
 
