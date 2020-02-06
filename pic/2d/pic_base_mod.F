@@ -4390,6 +4390,8 @@ c ######################################################################
      .          ,quiet_start      =.false. !For using quiet start 
      .          ,particle_sort    =.true.  !Whether to sort particles
 
+      character*(100) :: ext_pic_file = "" !External particle def file
+      
       contains
 
 c     readPICInput
@@ -4419,6 +4421,7 @@ c     Namelists
      .     ,quiet_start,nsubstep,eps_pic
      .     ,n_b,i_b,r_b,vinject,C_bkgrnd,opnbc_is_vacuum
      .     ,phase_space_plot,mass_matrix_solve,particle_sort
+     .     ,ext_pic_file
 
 c     Begin program
 
@@ -4431,9 +4434,7 @@ c     Begin program
 
 c     Read initialization parameters
 
-      do while(is_open_unit(uinput))
-        uinput = uinput + 1
-      enddo
+      uinput = find_unit(1234)
 
       open(unit=uinput,file=trim(file),status='old')
 
@@ -4452,6 +4453,16 @@ c$$$        call pstop('readInput','min_pcles > 0; '//
 c$$$     .          'need to fix issue with min_pcles and drift velocity')
 c$$$      endif
 
+      !Read particle number from external file, if provided
+      if (trim(ext_pic_file) /= '') then
+        uinput = find_unit(111)
+        open(unit=uinput,file=trim(ext_pic_file),form="unformatted"
+     .      ,status="unknown")
+
+        read(uinput) npcles_cell(1)
+        close(uinput)
+      endif
+      
 c     Write initialization parameters to standard output
 
       if (my_rank_pic == 0.and.dump) then
@@ -4882,7 +4893,7 @@ cc               if(ii==8) print *,my_rank_pic,ii,mnpc_int_s(ii),mnpc_r
       do ii = 1,nng
          npc_scan_s(ii) = npc_scan_s(ii)
      .                  - npc_int_s (ii)
-     $                   +nint(npc_acm(ii-1)) 
+     $                   +nint(npc_acm(ii-1))
       end do
 #else
       do ii = 1,nng
@@ -5094,7 +5105,7 @@ c ######################################################################
 
 c     plotPDF_xv
 c     ##################################################################
-      subroutine plotPDF_xv(nv,label) 
+      subroutine plotPDF_xv(nv,label,init) 
 
 c     ------------------------------------------------------------------
 c     Accumulates particles on mesh, returning result in mesh array garr.
@@ -5108,10 +5119,11 @@ c     Call variables
 
       integer :: nv
       character(*) :: label
+      logical :: init
       
 c     Local variables
 
-      integer :: i,i0,im,ip,ipc,isp,ipp,imm,ip3,iv(_Npg),il,jl
+      integer :: i,i0,im,ip,ipc,isp,ipp,imm,ip3,iv(_Npg),il,jl,ierr
      .          ,nxg,nyg,nzg,i_np(_Npg),j_np(_Npg),numspcs,numpcles
       real(8) :: ihx,ihy,ihz,hv,ihv
      .          ,xmin,ymin,zmin,xmax,ymax,zmax
@@ -5159,6 +5171,7 @@ c     Gather 1d-1v PDF
         enddo
 !$omp end do 
 !$omp end parallel
+
 #if defined(petsc)
         lscl = vmax
         call MPI_Allreduce(lscl,vmax,1,MPI_DOUBLE_PRECISION
@@ -5182,7 +5195,7 @@ cc          hv = (vmax-vmin)/nv
 
         ihv = 1d0/hv
 c$$$        write (*,*) isp,vmin,vmax
-        
+
 !     note that there is some issue with valgrind and libgomp.
 !$omp parallel DEFAULT(SHARED) private(ip,xp,vp,i_np,j_np,i,iv,il,jl
 !$omp.                                ,Mx2,My2,Mxy2,w_pcle)
@@ -5195,10 +5208,8 @@ c$$$        write (*,*) isp,vmin,vmax
 
           !Velocity index of particle and offset
           iv = int((spcs(isp)%pcles(ip)%v_n(:,1)-vmin)*ihv)
-          vp = spcs(isp)%pcles(ip)%v_n(:,1)- (vmin + iv*hv)
+          vp = (spcs(isp)%pcles(ip)%v_n(:,1)- (vmin + iv*hv))*ihv
           iv = iv + 1
-c$$$          write (*,*) vp
-c$$$          write (*,*) iv
 
           w_pcle = spcs(isp)%pcles(ip)%w_n
 
@@ -5230,6 +5241,8 @@ c$$$     .       + Mxy2*w_pcle(i)
         enddo
 !$omp end do 
 !$omp end parallel 
+
+        !Reduce in parallel
 #if defined(petsc)
         allocate(send_buf(size(garr))
      $          ,rec_buf (size(garr)))
@@ -5241,8 +5254,13 @@ c$$$     .       + Mxy2*w_pcle(i)
         deallocate(send_buf,rec_buf)
 #endif
 
+        !Take care of periodic BCs
+        garr(1  ,:) = garr(1,:) + garr(nxg+1,:)
+        garr(nxg,:) = garr(0,:) + garr(nxg  ,:)
+        
         !Dump contour plots
         if (my_rank_pic == 0) then
+          if (init) ierr = rm_files("*xvPDF")
           suffix = 'sp'//trim(int2char(isp))//"_"//trim(label)
           call createDrawInCfile(1
      .          ,'xvPDF'//trim(suffix)//'.bin'
@@ -5250,7 +5268,7 @@ c$$$     .       + Mxy2*w_pcle(i)
      .          ,'t','x','y'
      .          ,(/'PDF'//trim(suffix)/)
      .          ,'-c -X0 -L57'
-     .          ,'drawxvpdf'//trim(suffix)//'.in')
+     .          ,'drawxvPDF'//trim(suffix)//'.in')
           open(unit=110,file='xvPDF'//trim(suffix)//'.bin'
      .        ,form='unformatted',status='replace')
           call contour(garr(1:nxg,1:nv),nxg,nv
