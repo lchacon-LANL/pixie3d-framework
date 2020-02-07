@@ -706,15 +706,23 @@
 
         cpos = index(trim(file),'.bin') - 1
 
-        nfiles = np*thr_tot
-        allocate(cnct_file(0:nfiles-1))
+c$$$        nfiles = np*thr_tot
+c$$$        allocate(cnct_file(0:nfiles-1))
+c$$$
+c$$$        do ith=0,thr_tot-1
+c$$$          do iproc=0,np-1
+c$$$            ifile = ith+thr_tot*iproc
+c$$$            cnct_file(ifile) =
+c$$$     .           'connect_proc'//trim(int2char(ifile))//'.bin'
+c$$$          enddo
+c$$$        enddo
+        allocate(cnct_file(thr_tot*my_rank:thr_tot*(my_rank+1)-1))
 
         do ith=0,thr_tot-1
-          do iproc=0,np-1
-            ifile = ith+thr_tot*iproc
-            cnct_file(ifile) =
+          ifile = ith+thr_tot*my_rank
+          cnct_file(ifile) =
      .           'connect_proc'//trim(int2char(ifile))//'.bin'
-          enddo
+cc          write (*,*) my_rank,ifile,cnct_file(ifile) 
         enddo
 
 !!# Marco: *.bin files opening
@@ -725,6 +733,7 @@
 
         do ic = 0, thr_tot - 1
          ifile = ic + thr_tot*my_rank 
+cc         write (*,*) ic,cnct_file(ifile) 
          open(unit=cnctx(ic),file=trim(cnct_file(ifile))
      .        ,form='unformatted')
 	enddo
@@ -991,7 +1000,7 @@ c     ###############################################################
 !     Local variables
 
         write(*,*)
-        write(*,'(a,i2,i2,4e15.7)') 'a1, thr_num ',my_rank, thr_num
+        write(*,'(a,i4,i4,4e15.7)') 'my_rank, thr_num ',my_rank, thr_num
      .           ,x_0,y_0,z_0,ss_0
         write(cnctx(thr_num)) x_0,y_0,z_0,ss_0
 
