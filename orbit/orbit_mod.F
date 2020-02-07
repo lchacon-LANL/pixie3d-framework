@@ -858,12 +858,15 @@ c     Daniele,23/03/2009: dump the initial point of the orbit
 
           !#! Marco, january 15th 2019
           if (connect) then
+cc            write (*,*) cnc_back,x,cnctth,thrnum
             if (.not. cnc_back .and. x .gt. cnctth) then
-              call connect_write(x0,y0,z0,ss,thr_num)
+cc              write (*,*) "gt",x0,y0,z0,ss,thrnum
+              call connect_write(x0,y0,z0,ss,thrnum)
               !#! Marco, no need to continue after threshold is reached
               exit
             else if (cnc_back .and. x .lt. cnctth) then
-              call connect_write(x0,y0,z0,ss,thr_num)
+cc              write (*,*) "lt",x0,y0,z0,ss,thrnum
+              call connect_write(x0,y0,z0,ss,thrnum)
               exit
             endif
           endif
@@ -880,7 +883,7 @@ c     Daniele,23/03/2009: dump the initial point of the orbit
           !Check for orbit end and interpolate quantities
           if (smax /= 0d0) then
             exit_loop = exit_loop.or.(abs(ss) >= smax)
-!#!Marco, qui per smax in connect
+            !#!Marco, qui per smax in connect
             if (exit_loop .and. connect) then
               call connect_write(x0,y0,z0,big_n,thrnum)
             endif
@@ -891,6 +894,10 @@ c     Daniele,23/03/2009: dump the initial point of the orbit
             endif
           elseif (tmax /= 0d0) then
             exit_loop = exit_loop.or.(abs(time) >= tmax)
+            !#!Marco, qui per smax in connect
+            if (exit_loop .and. connect) then
+              call connect_write(x0,y0,z0,big_n,thrnum)
+            endif
 
             if (abs(time) > tmax) then !4th order interpolation of orbit end points
               time = sign(1d0,time)*tmax
