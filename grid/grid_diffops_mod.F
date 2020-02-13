@@ -148,7 +148,7 @@ c     ------------------------------------------------------------------
 
 c     Call variables
 
-        type(grid_mg_def),pointer :: g_def
+      type(grid_mg_def),pointer :: g_def
 
       integer :: igrid
       real(8) :: vv(0:,0:,0:,1:)
@@ -580,7 +580,8 @@ c     End program
 
 c     curlcurl_vrtx_mesh
 c     ##################################################################
-      function curlcurl_vrtx_mesh(g_def,igrid,vv,diff) result(cnv)
+      function curlcurl_vrtx_mesh(g_def,igrid,vv,diff,ret_cnv)
+     .         result(cnv)
 
 c     ------------------------------------------------------------------
 c     Calculates curlcurl of vv (covariant) from nearest neighbors. 
@@ -602,11 +603,13 @@ c     Call variables
      .                               ,0:size(vv,2)-1
      .                               ,0:size(vv,3)-1)
 
+      logical,optional :: ret_cnv
+      
 c     Local variables
 
       integer :: nx,ny,nz,ivar
 
-      logical :: have_coef
+      logical :: have_coef,tocov
       
       real(8),pointer,dimension(:,:,:) :: coef => null()
 
@@ -619,9 +622,17 @@ c     Begin program
       have_coef = PRESENT(diff)
       if (have_coef) coef => diff
 
-      cnv = curl_cell2vrtx_mesh(g_def,igrid,vv)
+      if (PRESENT(ret_cnv)) then
+        tocov = .not.ret_cnv
+      else
+        tocov = .false.
+      endif
+
+      !Compute covariant vertex curl
+      cnv = curl_cell2vrtx_mesh(g_def,igrid,vv )
       cnv = XformToCov_vrtx    (g_def,igrid,cnv)
 
+      !Add transport coefficient (if provided)
       if (have_coef) then
         do ivar=1,3
           cnv(0:nx,0:ny,0:nz,ivar)
@@ -636,9 +647,12 @@ c     Begin program
      .         *cnv(0:nx,0:ny,0:nz,ivar)
         enddo
       endif
-      
+
+      !Compute cell-centered curl
       cnv = curl_vrtx2cell_mesh(g_def,igrid,cnv)
 
+      if (tocov) cnv = XformToCov(g_def,igrid,cnv)
+      
 c     End program
 
       end function curlcurl_vrtx_mesh
@@ -2576,7 +2590,7 @@ c ######################################################################
         end INTERFACE
 
         INTERFACE curlcurl
-          module procedure curlcurl_ijk,curlcurl_mesh
+          module procedure curlcurl_ijk,curlcurl_mesh,curlcurl_mesh2
         end INTERFACE
 
         INTERFACE curlcurl_cov
@@ -3479,7 +3493,117 @@ c$$$
 c$$$      end function nabla_v_src2
 
       end function fnabla_v_mixed_cov
+      
+c     fnabla_m_fnablaT_v_cov
+c     #############################################################
+      function fnabla_m_fnablaT_v_cov(g_def,i,j,k,igrid,vcov,half_elem)
+     .         result(tensor)
+c     -------------------------------------------------------------
+c     Calculates the tensor components T^l_m of nabla(vec v), with
+c     v covariant, and fills tensor(l,m) at the following positions:
+c       + half_elem=0 --> i,j,k
+c       + half_elem=1 --> i+1/2,j,k
+c       + half_elem=2 --> i,j+1/2,k
+c       + half_elem=3 --> i,j,k+1/2
+c     -------------------------------------------------------------
 
+        implicit none
+
+c     Call variables
+
+        type(grid_mg_def),pointer :: g_def
+
+        integer :: i,j,k,half_elem,nx,ny,nz,igrid
+        real(8) :: tensor(3,3)
+        real(8) :: vcov(0:,0:,0:,:)
+
+c     Local variables
+
+        integer :: ig,jg,kg,ip,im,jp,jm,kp,km,ii,jj
+        real(8) :: dhx,dhy,dhz,idh(3)
+        real(8) :: v(3),vip(3),vim(3),vjp(3),vjm(3),vkp(3),vkm(3)
+
+c     Begin program
+
+        call getMGmap(g_def,i,j,k,igrid,igrid,igrid,ig,jg,kg)
+
+        ip = i+1
+        im = i-1
+        jp = j+1
+        jm = j-1
+        kp = k+1
+        km = k-1
+
+        select case(half_elem)
+        case (1)
+          dhx =    g_def%dx (ig)
+          dhy = 2.*g_def%dyh(jg)
+          dhz = 2.*g_def%dzh(kg)
+
+          vip(:) = vcov(ip,j,k,:)
+          vim(:) = vcov(i ,j,k,:)
+
+          vjp(:) = 0.5*(vcov(ip,jp,k,:)+vcov(i,jp,k,:))
+          vjm(:) = 0.5*(vcov(ip,jm,k,:)+vcov(i,jm,k,:))
+
+          vkp(:) = 0.5*(vcov(ip,j,kp,:)+vcov(i,j,kp,:))
+          vkm(:) = 0.5*(vcov(ip,j,km,:)+vcov(i,j,km,:))
+        case (2)
+          dhx = 2.*g_def%dxh(ig)
+          dhy =    g_def%dy (jg)
+          dhz = 2.*g_def%dzh(kg)
+
+          vip(:) = 0.5*(vcov(ip,j,k,:)+vcov(ip,jp,k,:))
+          vim(:) = 0.5*(vcov(im,j,k,:)+vcov(im,jp,k,:))
+
+          vjp(:) = vcov(i,jp,k,:)
+          vjm(:) = vcov(i,j ,k,:)
+                
+          vkp(:) = 0.5*(vcov(i,j,kp,:)+vcov(i,jp,kp,:))
+          vkm(:) = 0.5*(vcov(i,j,km,:)+vcov(i,jp,km,:))
+        case (3)
+          dhx = 2.*g_def%dxh(ig)
+          dhy = 2.*g_def%dyh(jg)
+          dhz =    g_def%dz (kg)
+
+          vip(:) = 0.5*(vcov(ip,j,k,:)+vcov(ip,j,kp,:))
+          vim(:) = 0.5*(vcov(im,j,k,:)+vcov(im,j,kp,:))
+
+          vjp(:) = 0.5*(vcov(i,jp,k,:)+vcov(i,jp,kp,:))
+          vjm(:) = 0.5*(vcov(i,jm,k,:)+vcov(i,jm,kp,:))
+                
+          vkp(:) = vcov(i,j,kp,:)
+          vkm(:) = vcov(i,j,k ,:)
+        case default
+          dhx = 2.*g_def%dxh(ig)
+          dhy = 2.*g_def%dyh(jg)
+          dhz = 2.*g_def%dzh(kg)
+
+          vip(:) = vcov(ip,j,k,:)
+          vim(:) = vcov(im,j,k,:)
+
+          vjp(:) = vcov(i,jp,k,:)
+          vjm(:) = vcov(i,jm,k,:)
+                
+          vkp(:) = vcov(i,j,kp,:)
+          vkm(:) = vcov(i,j,km,:)
+        end select
+
+        idh(1) = 1d0/dhx
+        idh(2) = 1d0/dhy
+        idh(3) = 1d0/dhz
+
+        !Add geometric source (optimized; do not touch)
+        tensor(1,:) = (vip(:)-vim(:))*idh(1)
+        tensor(2,:) = (vjp(:)-vjm(:))*idh(2)
+        tensor(3,:) = (vkp(:)-vkm(:))*idh(3)
+
+        tensor = tensor - transpose(tensor)
+        
+c     End program
+
+      end function fnabla_m_fnablaT_v_cov
+      
 c     fnabla_v_cov
 c     #############################################################
       function fnabla_v_cov(g_def,i,j,k,igrid,vcov,half_elem)
@@ -4629,14 +4753,13 @@ c     Begin program
       else
         hess = g_def%gmetric%grid(igr)%Gamma(i,j,k,:,:,:)
 
-        call flxx(g_def,i,j,k,nx,ny,nz,igr,igr,igr,to(1,1),to(1,2)
-     .           ,to(1,3),0)
-        call flxy(g_def,i,j,k,nx,ny,nz,igr,igr,igr,to(2,1),to(2,2)
-     .           ,to(2,3),0)
-        call flxz(g_def,i,j,k,nx,ny,nz,igr,igr,igr,to(3,1),to(3,2)
+        call flxx(g_def,i,j,k,nx,ny,nz,igr,igr,igr,to(1,1),to(2,1)
+     .           ,to(3,1),0)
+        call flxy(g_def,i,j,k,nx,ny,nz,igr,igr,igr,to(1,2),to(2,2)
+     .           ,to(3,2),0)
+        call flxz(g_def,i,j,k,nx,ny,nz,igr,igr,igr,to(1,3),to(2,3)
      .           ,to(3,3),0)
 
-        to = transpose(to)
         src(1) =-sum(to*hess(:,:,1))
         src(2) =-sum(to*hess(:,:,2))
         src(3) =-sum(to*hess(:,:,3))
@@ -4755,6 +4878,51 @@ c     Assemble divergence of tensor
 c     End program
 
       end function div_tensor_cov
+
+c     veclap2_cov_mesh
+c     ###############################################################
+      function veclap2_cov_mesh(g_def,igrid,cov,diff) result(cov_out)
+
+c     ---------------------------------------------------------------
+c     Calculates curl(A) in general non-orthogonal coordinates. Is
+c     boundary-ready (can extrapolate). The vector A is
+c     covariant, and returns the contravariant component "comp".
+c     ---------------------------------------------------------------
+
+      implicit none           !For safe fortran
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
+
+      integer :: igrid
+
+      real(8) :: cov(0:,0:,0:,:)
+     .          ,cov_out(0:size(cov,1)-1
+     $                  ,0:size(cov,2)-1
+     $                  ,0:size(cov,3)-1,3)
+
+      real(8),optional :: diff(0:size(cov,1)-1
+     $                        ,0:size(cov,2)-1
+     $                        ,0:size(cov,3)-1)
+
+c     Local variables
+
+      integer :: nx,ny,nz,i,j,k
+      real(8) :: cnv(0:size(cov,1)-1
+     $              ,0:size(cov,2)-1
+     $              ,0:size(cov,3)-1,3)
+
+c     Begin program
+
+      cnv = XformToCnv(g_def,igrid,cov)
+
+      cov_out =-curlcurl_cov(g_def,igrid,cov)
+     .         +gradDiv     (g_def,igrid,cnv)
+      
+c     End program
+
+      end function veclap2_cov_mesh
 
 c     veclap_mesh
 c     ###############################################################
@@ -5673,7 +5841,7 @@ c     Local variables
 
         integer    :: ig,jg,kg,ip,igrid
         real(8)    :: x,y,z
-        real(8)    :: nabla_v(3,3),dd,gsuper(3,3)
+        real(8)    :: nabla_v(3,3),dd,gsuper(3)
 
 c     Begin program
 
@@ -5681,13 +5849,13 @@ c     Begin program
 
         if (flag == 0) then
           ip = i
-          gsuper = g_def%gmetric%grid(igrid)%gsup(i,j,k,:,:)
+          gsuper = g_def%gmetric%grid(igrid)%gsup(i,j,k,1,:)
 
           nabla_v = fnabla_v_cov(g_def,i,j,k,igx,vec,0)
         else
           ip = i+1
-          gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(ip,j,k,:,:)
-     .                 +g_def%gmetric%grid(igrid)%gsup(i ,j,k,:,:))
+          gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(ip,j,k,1,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup(i ,j,k,1,:))
 
           nabla_v = fnabla_v_cov(g_def,i,j,k,igx,vec,1)
         endif
@@ -5698,17 +5866,17 @@ c     Begin program
           dd = 1d0
         endif
 
-        t11 = dd*( gsuper(1,1)*nabla_v(1,1)
-     .            +gsuper(1,2)*nabla_v(2,1)
-     .            +gsuper(1,3)*nabla_v(3,1) )
+        t11 = dd*( gsuper(1)*nabla_v(1,1)
+     .            +gsuper(2)*nabla_v(2,1)
+     .            +gsuper(3)*nabla_v(3,1))
 
-        t12 = dd*( gsuper(1,1)*nabla_v(1,2)
-     .            +gsuper(1,2)*nabla_v(2,2)
-     .            +gsuper(1,3)*nabla_v(3,2) )
+        t12 = dd*( gsuper(1)*nabla_v(1,2)
+     .            +gsuper(2)*nabla_v(2,2)
+     .            +gsuper(3)*nabla_v(3,2))
 
-        t13 = dd*( gsuper(1,1)*nabla_v(1,3)
-     .            +gsuper(1,2)*nabla_v(2,3)
-     .            +gsuper(1,3)*nabla_v(3,3) )
+        t13 = dd*( gsuper(1)*nabla_v(1,3)
+     .            +gsuper(2)*nabla_v(2,3)
+     .            +gsuper(3)*nabla_v(3,3))
 
 c     End program
 
@@ -5736,7 +5904,7 @@ c     Local variables
 
         integer    :: ig,jg,kg,jp,igrid
         real(8)    :: x,y,z
-        real(8)    :: nabla_v(3,3),gsuper(3,3),dd
+        real(8)    :: nabla_v(3,3),gsuper(3),dd
 
 c     Begin program
 
@@ -5744,13 +5912,13 @@ c     Begin program
 
         if (flag == 0) then
           jp = j
-          gsuper = g_def%gmetric%grid(igrid)%gsup(i,j,k,:,:)
+          gsuper = g_def%gmetric%grid(igrid)%gsup(i,j,k,2,:)
 
           nabla_v = fnabla_v_cov(g_def,i,j,k,igx,vec,0)
         else
           jp = j+1
-          gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,jp,k,:,:)
-     .                 +g_def%gmetric%grid(igrid)%gsup(i,j ,k,:,:))
+          gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,jp,k,2,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup(i,j ,k,2,:))
 
           nabla_v = fnabla_v_cov(g_def,i,j,k,igx,vec,2)
         endif
@@ -5761,17 +5929,17 @@ c     Begin program
           dd = 1d0
         endif
 
-        t21 = dd*( gsuper(2,1)*nabla_v(1,1)
-     .            +gsuper(2,2)*nabla_v(2,1)
-     .            +gsuper(2,3)*nabla_v(3,1) )
+        t21 = dd*( gsuper(1)*nabla_v(1,1)
+     .            +gsuper(2)*nabla_v(2,1)
+     .            +gsuper(3)*nabla_v(3,1))
 
-        t22 = dd*( gsuper(2,1)*nabla_v(1,2)
-     .            +gsuper(2,2)*nabla_v(2,2)
-     .            +gsuper(2,3)*nabla_v(3,2) )
+        t22 = dd*( gsuper(1)*nabla_v(1,2)
+     .            +gsuper(2)*nabla_v(2,2)
+     .            +gsuper(3)*nabla_v(3,2))
 
-        t23 = dd*( gsuper(2,1)*nabla_v(1,3)
-     .            +gsuper(2,2)*nabla_v(2,3)
-     .            +gsuper(2,3)*nabla_v(3,3) )
+        t23 = dd*( gsuper(1)*nabla_v(1,3)
+     .            +gsuper(2)*nabla_v(2,3)
+     .            +gsuper(3)*nabla_v(3,3))
 
 c     End program
 
@@ -5799,7 +5967,7 @@ c     Local variables
 
         integer    :: ig,jg,kg,kp,igrid
         real(8)    :: x,y,z
-        real(8)    :: nabla_v(3,3),gsuper(3,3),dd
+        real(8)    :: nabla_v(3,3),gsuper(3),dd
 
 c     Begin program
 
@@ -5807,13 +5975,13 @@ c     Begin program
 
         if (flag == 0) then
           kp = k
-          gsuper = g_def%gmetric%grid(igrid)%gsup(i,j,k,:,:)
+          gsuper = g_def%gmetric%grid(igrid)%gsup(i,j,k,3,:)
 
           nabla_v = fnabla_v_cov(g_def,i,j,k,igx,vec,0)
         else
           kp = k+1
-          gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,j,kp,:,:)
-     .                 +g_def%gmetric%grid(igrid)%gsup(i,j,k ,:,:))
+          gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,j,kp,3,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup(i,j,k ,3,:))
 
           nabla_v = fnabla_v_cov(g_def,i,j,k,igx,vec,3)
         endif
@@ -5824,17 +5992,17 @@ c     Begin program
           dd = 1d0
         endif
 
-        t31 = dd*( gsuper(3,1)*nabla_v(1,1)
-     .            +gsuper(3,2)*nabla_v(2,1)
-     .            +gsuper(3,3)*nabla_v(3,1) )
+        t31 = dd*( gsuper(1)*nabla_v(1,1)
+     .            +gsuper(2)*nabla_v(2,1)
+     .            +gsuper(3)*nabla_v(3,1))
 
-        t32 = dd*( gsuper(3,1)*nabla_v(1,2)
-     .            +gsuper(3,2)*nabla_v(2,2)
-     .            +gsuper(3,3)*nabla_v(3,2) )
+        t32 = dd*( gsuper(1)*nabla_v(1,2)
+     .            +gsuper(2)*nabla_v(2,2)
+     .            +gsuper(3)*nabla_v(3,2))
 
-        t33 = dd*( gsuper(3,1)*nabla_v(1,3)
-     .            +gsuper(3,2)*nabla_v(2,3)
-     .            +gsuper(3,3)*nabla_v(3,3) )
+        t33 = dd*( gsuper(1)*nabla_v(1,3)
+     .            +gsuper(2)*nabla_v(2,3)
+     .            +gsuper(3)*nabla_v(3,3))
 
 c     End program
 
@@ -5885,15 +6053,15 @@ c     Begin program
 
 c     Assemble curl(curl) on the mesh
 
-      veclap =-curlcurl_vrtx_mesh(g_def,igrid,cov)
+      veclap =-curlcurl_vrtx(g_def,igrid,cov)
 
       if (tocov) veclap = XformToCov(g_def,igrid,veclap)
 
 c     Assemble vector Laplacian on the mesh
 
       veclap = veclap
-     .        +gradDiv(g_def,igrid,cnv,ret_cnv=.not.tocov)
-cc     .        +gradDiv_vrtx(g_def,igrid,cnv)
+cc     .        +gradDiv(g_def,igrid,cnv,ret_cnv=.not.tocov)
+     .        +gradDiv_vrtx(g_def,igrid,cnv,ret_cnv=.not.tocov)
       
 c     End program
 
@@ -5905,8 +6073,8 @@ c     ###############################################################
 
 c     ---------------------------------------------------------------
 c     Calculates curl(A) in general non-orthogonal coordinates. Is
-c     boundary-ready (can extrapolate). The vector A is both covariant
-c     and contravariant, and returns the covariant component "comp".
+c     boundary-ready (can extrapolate). The vector A is covariant,
+c     and returns the covariant components.
 c     ---------------------------------------------------------------
 
       implicit none           !For safe fortran
@@ -6005,39 +6173,52 @@ c     Call variables
 
 c     Local variables
 
-        integer    :: ig,jg,kg,ip,igrid
-        real(8)    :: nabla_v(3,3),gsuper(3,3)
+        integer    :: ig,jg,kg,ip,igrid,ic
+        real(8)    :: nabla_v(3,3),gsuper(3)
+
+        real(8),dimension(:,:,:,:,:),pointer :: gsup
 
 c     Begin program
 
+        ic = 1
+        
         igrid = igx
 
         if (flag == 0) then
           ip = i
-          gsuper = g_def%gmetric%grid(igrid)%gsup  (i,j  ,k  ,:,:)
+          gsuper = g_def%gmetric%grid(igrid)%gsup(i,j,k,ic,:)
 
-          nabla_v = fnabla_v_cov(g_def,i,j,k,igx,vec,0)
+          nabla_v =-fnabla_m_fnablaT_v_cov(g_def,i,j,k,igx,vec,0)
         else
           ip = i+1
-          gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(ip,j,k,:,:)
-     .                 +g_def%gmetric%grid(igrid)%gsup(i ,j,k,:,:))
+          gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(ip,j,k,ic,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup(i ,j,k,ic,:))
+c$$$          gsuper = (g_def%gmetric%grid(igrid)%gsup(ip,j,k,ic,:)
+c$$$     .             *g_def%gmetric%grid(igrid)%jac (ip,j,k)
+c$$$     .             +g_def%gmetric%grid(igrid)%gsup(i ,j,k,ic,:)
+c$$$     .             *g_def%gmetric%grid(igrid)%jac (i ,j,k))
+c$$$     .             /(g_def%gmetric%grid(igrid)%jac(ip,j,k)
+c$$$     .              +g_def%gmetric%grid(igrid)%jac(i ,j,k))
+c$$$          gsup => g_def%gmetric%grid(igrid)%gsup_v
+c$$$          gsuper = 0.25*(gsup(i,j  ,k  ,ic,:)
+c$$$     .                  +gsup(i,j-1,k  ,ic,:)
+c$$$     .                  +gsup(i,j  ,k-1,ic,:)
+c$$$     .                  +gsup(i,j-1,k-1,ic,:))
 
-          nabla_v = fnabla_v_cov(g_def,i,j,k,igx,vec,1)
+          nabla_v =-fnabla_m_fnablaT_v_cov(g_def,i,j,k,igx,vec,ic)
         endif
 
-        nabla_v = -nabla_v + transpose(nabla_v)
+        t11 =( gsuper(1)*nabla_v(1,1)
+     .        +gsuper(2)*nabla_v(2,1)
+     .        +gsuper(3)*nabla_v(3,1))
 
-        t11 =( gsuper(1,1)*nabla_v(1,1)
-     .        +gsuper(1,2)*nabla_v(2,1)
-     .        +gsuper(1,3)*nabla_v(3,1) )
+        t12 =( gsuper(1)*nabla_v(1,2)
+     .        +gsuper(2)*nabla_v(2,2)
+     .        +gsuper(3)*nabla_v(3,2))
 
-        t12 =( gsuper(1,1)*nabla_v(1,2)
-     .        +gsuper(1,2)*nabla_v(2,2)
-     .        +gsuper(1,3)*nabla_v(3,2) )
-
-        t13 =( gsuper(1,1)*nabla_v(1,3)
-     .        +gsuper(1,2)*nabla_v(2,3)
-     .        +gsuper(1,3)*nabla_v(3,3) )
+        t13 =( gsuper(1)*nabla_v(1,3)
+     .        +gsuper(2)*nabla_v(2,3)
+     .        +gsuper(3)*nabla_v(3,3))
 
 c     End program
 
@@ -6063,39 +6244,46 @@ c     Call variables
 
 c     Local variables
 
-        integer    :: ig,jg,kg,jp,igrid
-        real(8)    :: nabla_v(3,3),gsuper(3,3)
+        integer    :: ig,jg,kg,jp,igrid,ic
+        real(8)    :: nabla_v(3,3),gsuper(3)
+
+        real(8),dimension(:,:,:,:,:),pointer :: gsup
 
 c     Begin program
 
+        ic = 2
+        
         igrid = igx
 
         if (flag == 0) then
           jp = j
-          gsuper = g_def%gmetric%grid(igrid)%gsup(i,j,k,:,:)
+          gsuper = g_def%gmetric%grid(igrid)%gsup(i,j,k,ic,:)
 
-          nabla_v = fnabla_v_cov(g_def,i,j,k,igx,vec,0)
+          nabla_v =-fnabla_m_fnablaT_v_cov(g_def,i,j,k,igx,vec,0)
         else
           jp = j+1
-          gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,jp,k,:,:)
-     .                 +g_def%gmetric%grid(igrid)%gsup(i,j ,k,:,:))
+          gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,jp,k,ic,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup(i,j ,k,ic,:))
+c$$$          gsup => g_def%gmetric%grid(igrid)%gsup_v
+c$$$          gsuper = 0.25*(gsup(i  ,j,k  ,ic,:)
+c$$$     .                  +gsup(i-1,j,k  ,ic,:)
+c$$$     .                  +gsup(i  ,j,k-1,ic,:)
+c$$$     .                  +gsup(i-1,j,k-1,ic,:))
 
-          nabla_v = fnabla_v_cov(g_def,i,j,k,igx,vec,2)
+          nabla_v =-fnabla_m_fnablaT_v_cov(g_def,i,j,k,igx,vec,ic)
         endif
 
-        nabla_v = -nabla_v + transpose(nabla_v)
+        t21 =( gsuper(1)*nabla_v(1,1)
+     .        +gsuper(2)*nabla_v(2,1)
+     .        +gsuper(3)*nabla_v(3,1))
 
-        t21 =( gsuper(2,1)*nabla_v(1,1)
-     .        +gsuper(2,2)*nabla_v(2,1)
-     .        +gsuper(2,3)*nabla_v(3,1) )
+        t22 =( gsuper(1)*nabla_v(1,2)
+     .        +gsuper(2)*nabla_v(2,2)
+     .        +gsuper(3)*nabla_v(3,2))
 
-        t22 =( gsuper(2,1)*nabla_v(1,2)
-     .        +gsuper(2,2)*nabla_v(2,2)
-     .        +gsuper(2,3)*nabla_v(3,2) )
-
-        t23 =( gsuper(2,1)*nabla_v(1,3)
-     .        +gsuper(2,2)*nabla_v(2,3)
-     .        +gsuper(2,3)*nabla_v(3,3) )
+        t23 =( gsuper(1)*nabla_v(1,3)
+     .        +gsuper(2)*nabla_v(2,3)
+     .        +gsuper(3)*nabla_v(3,3))
 
 c     End program
 
@@ -6121,52 +6309,98 @@ c     Call variables
 
 c     Local variables
 
-        integer    :: ig,jg,kg,kp,igrid
-        real(8)    :: nabla_v(3,3),gsuper(3,3)
+        integer    :: ig,jg,kg,kp,igrid,ic
+        real(8)    :: nabla_v(3,3),gsuper(3)
+
+        real(8),dimension(:,:,:,:,:),pointer :: gsup
 
 c     Begin program
+
+        ic = 3
 
         igrid = igx
 
         if (flag == 0) then
           kp = k
-          gsuper = g_def%gmetric%grid(igrid)%gsup(i,j,k,:,:)
+          gsuper = g_def%gmetric%grid(igrid)%gsup(i,j,k,ic,:)
 
-          nabla_v = fnabla_v_cov(g_def,i,j,k,igx,vec,0)
+          nabla_v =-fnabla_m_fnablaT_v_cov(g_def,i,j,k,igx,vec,0)
         else
           kp = k+1
-          gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,j,kp,:,:)
-     .                 +g_def%gmetric%grid(igrid)%gsup(i,j,k ,:,:))
+          gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,j,kp,ic,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup(i,j,k ,ic,:))
+c$$$          gsup => g_def%gmetric%grid(igrid)%gsup_v
+c$$$          gsuper = 0.25*(gsup(i  ,j  ,k,ic,:)
+c$$$     .                  +gsup(i-1,j  ,k,ic,:)
+c$$$     .                  +gsup(i  ,j-1,k,ic,:)
+c$$$     .                  +gsup(i-1,j-1,k,ic,:))
 
-          nabla_v = fnabla_v_cov(g_def,i,j,k,igx,vec,3)
+          nabla_v =-fnabla_m_fnablaT_v_cov(g_def,i,j,k,igx,vec,ic)
         endif
 
-        nabla_v = -nabla_v + transpose(nabla_v)
+        t31 =( gsuper(1)*nabla_v(1,1)
+     .        +gsuper(2)*nabla_v(2,1)
+     .        +gsuper(3)*nabla_v(3,1))
 
-        t31 =( gsuper(3,1)*nabla_v(1,1)
-     .        +gsuper(3,2)*nabla_v(2,1)
-     .        +gsuper(3,3)*nabla_v(3,1) )
+        t32 =( gsuper(1)*nabla_v(1,2)
+     .        +gsuper(2)*nabla_v(2,2)
+     .        +gsuper(3)*nabla_v(3,2))
 
-        t32 =( gsuper(3,1)*nabla_v(1,2)
-     .        +gsuper(3,2)*nabla_v(2,2)
-     .        +gsuper(3,3)*nabla_v(3,2) )
-
-        t33 =( gsuper(3,1)*nabla_v(1,3)
-     .        +gsuper(3,2)*nabla_v(2,3)
-     .        +gsuper(3,3)*nabla_v(3,3) )
+        t33 =( gsuper(1)*nabla_v(1,3)
+     .        +gsuper(2)*nabla_v(2,3)
+     .        +gsuper(3)*nabla_v(3,3))
 
 c     End program
 
       end subroutine curlcurl_cov_z
 
-c     curlcurl_mesh
+c     curlcurl_mesh2
 c     ###############################################################
-      function curlcurl_mesh(g_def,igrid,vec,iscnv) result(cnv_out)
+      function curlcurl_mesh2(g_def,igrid,cnv,cov,iscnv) result(vec_out)
 
 c     ---------------------------------------------------------------
-c     Calculates curlcurl(A) in general non-orthogonal coordinates. The
-c     vector A can be covariant or contravariant, and returns
-c     contravariant components.
+c     Calculates curlcurl(A) in general non-orthogonal coordinates.
+c     The vector A can be covariant or contravariant, and returns
+c     corresponding components.
+c     ---------------------------------------------------------------
+
+      implicit none           !For safe fortran
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
+
+      integer :: igrid
+
+      real(8) :: cnv(0:,0:,0:,:)
+     .          ,cov(0:,0:,0:,:)
+     .          ,vec_out(0:size(cnv,1)-1
+     $                  ,0:size(cnv,2)-1
+     $                  ,0:size(cnv,3)-1,3)
+
+      logical :: iscnv
+
+c     Local variables
+
+c     Begin program
+
+      vec_out =-veclap_cov(g_def,igrid,cov)
+     .         +gradDiv   (g_def,igrid,cnv)
+
+      if (iscnv) vec_out = XformToCnv(g_def,igrid,vec_out)
+      
+c     End program
+
+      end function curlcurl_mesh2
+
+c     curlcurl_mesh
+c     ###############################################################
+      function curlcurl_mesh(g_def,igrid,vec,iscnv) result(vec_out)
+
+c     ---------------------------------------------------------------
+c     Calculates curlcurl(A) in general non-orthogonal coordinates.
+c     The vector A can be covariant or contravariant, and returns
+c     corresponding components.
 c     ---------------------------------------------------------------
 
       implicit none           !For safe fortran
@@ -6178,7 +6412,7 @@ c     Call variables
       integer :: igrid
 
       real(8) :: vec(0:,0:,0:,:)
-     .          ,cnv_out(0:size(vec,1)-1
+     .          ,vec_out(0:size(vec,1)-1
      $                  ,0:size(vec,2)-1
      $                  ,0:size(vec,3)-1,3)
 
@@ -6197,7 +6431,7 @@ c     Begin program
       do k=1,nz
         do j=1,ny
           do i=1,nx
-            cnv_out(i,j,k,:)=curlcurl_ijk(g_def,i,j,k,nx,ny,nz
+            vec_out(i,j,k,:)=curlcurl_ijk(g_def,i,j,k,nx,ny,nz
      $                                   ,igrid,igrid,igrid,vec,iscnv)
           enddo
         enddo
@@ -6215,7 +6449,7 @@ c     ###############################################################
 c     ---------------------------------------------------------------
 c     Calculates curl(curl(A)) in general non-orthogonal
 c     coordinates, preserving the SPD property. The vector A can be
-c     covariant or contravariant, and returns contravariant components.
+c     covariant or contravariant, and returns corresponding components.
 c     ---------------------------------------------------------------
 
       implicit none           !For safe fortran
