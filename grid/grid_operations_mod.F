@@ -369,7 +369,7 @@ c ---------------------------------------------------------------------
         end INTERFACE
 
         INTERFACE XformToCov_vrtx
-          module procedure XformToCov_ijk_vrtx,XformToCov_mesh_vrtx
+          module procedure XformToCov_vrtx_ijk,XformToCov_vrtx_mesh
         end INTERFACE
 
         INTERFACE XformVector
@@ -632,9 +632,9 @@ c     Begin program
 
       end function XformToCar_ijk
 
-c     XformToCar_ijk_vrtx
+c     XformToCar_vrtx_ijk
 c     #################################################################
-      function XformToCar_ijk_vrtx(g_def,i,j,k,igrid,curv,covariant)
+      function XformToCar_vrtx_ijk(g_def,i,j,k,igrid,curv,covariant)
      .         result(car)
 
 c     -----------------------------------------------------------------
@@ -667,7 +667,7 @@ c     Begin program
           car = matmul(curv,gmetric%grid(igrid)%cnv_v(i,j,k,:,:))
         endif
 
-      end function XformToCar_ijk_vrtx
+      end function XformToCar_vrtx_ijk
 
 c     XformToCar_mesh
 c     #################################################################
@@ -768,9 +768,9 @@ c     Begin program
 
       end function XformToCurv_ijk
 
-c     XformToCurv_ijk
+c     XformToCurv_vrtx_ijk
 c     #################################################################
-      function XformToCurv_ijk_vrtx(g_def,i,j,k,igrid,car,tocnv,nojac)
+      function XformToCurv_vrtx_ijk(g_def,i,j,k,igrid,car,tocnv,nojac)
      .         result(curv)
 
 c     -----------------------------------------------------------------
@@ -812,6 +812,7 @@ c     Begin program
           jac = 1d0
         else
           jac = gmetric%grid(igrid)%jac_v(i,j,k)
+          if (jac == 0d0) jac = SP_flsv
         endif
 
         if (.not.tocnv) then
@@ -820,7 +821,7 @@ c     Begin program
           curv = jac*matmul(gmetric%grid(igrid)%cov_v(i,j,k,:,:),car)
         endif
 
-      end function XformToCurv_ijk_vrtx
+      end function XformToCurv_vrtx_ijk
 
 c     XformToCurv_mesh
 c     #################################################################
@@ -1509,9 +1510,9 @@ c     Begin program
 
       end function XformToCov_ijk
 
-c     XformToCov_ijk_vrtx
+c     XformToCov_vrtx_ijk
 c     #################################################################
-      function XformToCov_ijk_vrtx(g_def,i,j,k,igrid,cnv)
+      function XformToCov_vrtx_ijk(g_def,i,j,k,igrid,cnv)
      .         result(cov)
 
 c     -----------------------------------------------------------------
@@ -1533,13 +1534,9 @@ c     Local variables
 
 c     Begin program
 
-        !Avoids issues at SP
-        car = XformToCar_ijk_vrtx (g_def,i,j,k,igrid,cnv,.false.)
-        cov = XformToCurv_ijk_vrtx(g_def,i,j,k,igrid,car,.false.)
+        cov = matmul(cnv,g_def%gmetric%grid(igrid)%gsub_v(i,j,k,:,:))
         
-cc        cov = matmul(cnv,g_def%gmetric%grid(igrid)%gsub_v(i,j,k,:,:))
-
-      end function XformToCov_ijk_vrtx
+      end function XformToCov_vrtx_ijk
 
 c     XformToCov_ijk_face
 c     #################################################################
@@ -1685,9 +1682,9 @@ c     Begin program
 
       end function XformToCov_mesh
 
-c     XformToCov_mesh_vrtx
+c     XformToCov_vrtx_mesh
 c     #################################################################
-      function XformToCov_mesh_vrtx(g_def,igrid,cnv) result(cov)
+      function XformToCov_vrtx_mesh(g_def,igrid,cnv) result(cov)
 
 c     -----------------------------------------------------------------
 c     Transforms a contravariant vector to a covariant representation
@@ -1722,7 +1719,7 @@ c     Begin program
         do k=0,nz
           do j=0,ny
             do i=0,nx
-              cov(i,j,k,:) = XformToCov_ijk_vrtx(g_def,i,j,k,igrid
+              cov(i,j,k,:) = XformToCov_vrtx_ijk(g_def,i,j,k,igrid
      .                                          ,cnv(i,j,k,:))
             enddo
           enddo
@@ -1742,7 +1739,7 @@ c     Begin program
           enddo
         endif
 
-        end function XformToCov_mesh_vrtx
+        end function XformToCov_vrtx_mesh
 
 c     vectorNorm_ijk
 c     ################################################################

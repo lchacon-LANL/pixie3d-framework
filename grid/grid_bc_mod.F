@@ -117,7 +117,7 @@ c     Parallel Allgather in SP communicator
       allocate(garray(nyg,0:nzbc+1))
 
       if (gl_def%my < 1) then
-        call pstop('vectorSingularBC','npy < 1')
+        call pstop('scalarSingularBC','npy < 1')
       elseif (gl_def%my == 1) then
         garray = array(i,1:nyg,:)
       else

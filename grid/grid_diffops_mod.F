@@ -557,7 +557,7 @@ c     Curl at vertices
      .                     ,aa(ii:ii+1,jj:jj+1,kk:kk+1,:)
      .                     ,.true.)
 
-            cov = XformToCov_ijk_vrtx(g_def,ii,jj,kk,igr,cnv)
+            cov = XformToCov_vrtx_ijk(g_def,ii,jj,kk,igr,cnv)
 
             if (have_coef) dff=0.125*sum(coef(ii:ii+1,jj:jj+1,kk:kk+1))
 
@@ -585,7 +585,8 @@ c     ##################################################################
 
 c     ------------------------------------------------------------------
 c     Calculates curlcurl of vv (covariant) from nearest neighbors. 
-c     Returns contravariant components at cell centers.
+c     Returns contravariant components at cell centers (unless ret_cnv is
+c     set to .true.).
 c     ------------------------------------------------------------------
 
       implicit none
@@ -4742,9 +4743,6 @@ c     Call variables
 c     Local variables
 
       real(8) :: hess(3,3,3),to(3,3)
-      real(8) :: t11o,t12o,t13o
-     .          ,t21o,t22o,t23o
-     .          ,t31o,t32o,t33o
 
 c     Begin program
 
@@ -4753,6 +4751,7 @@ c     Begin program
       else
         hess = g_def%gmetric%grid(igr)%Gamma(i,j,k,:,:,:)
 
+        !Note: we are filling transpose here
         call flxx(g_def,i,j,k,nx,ny,nz,igr,igr,igr,to(1,1),to(2,1)
      .           ,to(3,1),0)
         call flxy(g_def,i,j,k,nx,ny,nz,igr,igr,igr,to(1,2),to(2,2)
@@ -5662,6 +5661,9 @@ c     Begin program
         vlap = div_tensor_cov(g_def,i,j,k,nx,ny,nz,igx,igy,igz
      .             ,nabtensor_cov_x,nabtensor_cov_y,nabtensor_cov_z
      $             ,vol=vol_wgt)
+c$$$        vlap = div_tensor_cov2(g_def,i,j,k,nx,ny,nz,igx,igy,igz
+c$$$     .             ,nabtensor_cov2_x,nabtensor_cov2_y,nabtensor_cov2_z
+c$$$     $             ,vol=vol_wgt)
         if (PRESENT(dff)) nullify(coef)
       endif
 
@@ -6039,23 +6041,13 @@ c     Local variables
      .              ,0:size(cov,2)-1
      .              ,0:size(cov,3)-1,3)
 
-      logical :: tocov
-
 c     Begin program
-
-      if (PRESENT(ret_cnv)) then
-        tocov = .not.ret_cnv
-      else
-        tocov = .false.
-      endif
 
       cnv = XformToCnv(g_def,igrid,cov)
 
 c     Assemble curl(curl) on the mesh
 
-      veclap =-curlcurl_vrtx(g_def,igrid,cov)
-
-      if (tocov) veclap = XformToCov(g_def,igrid,veclap)
+      veclap =-curlcurl_vrtx(g_def,igrid,cov,ret_cnv=ret_cnv)
 
 c     Assemble vector Laplacian on the mesh
 

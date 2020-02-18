@@ -670,7 +670,7 @@ c ######################################################################
         end type garray
 
         type :: mg_array
-          type(grid_mg_def),pointer :: g_def
+          type(grid_mg_def),pointer :: g_def => null()
           type(garray),pointer,dimension(:) :: grid
           type(mg_array),pointer :: mg_crse_array => null()
         end type mg_array
