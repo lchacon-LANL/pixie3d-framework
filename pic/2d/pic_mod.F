@@ -47,7 +47,7 @@ c     Local variables
       integer :: ipc,isp,i0(_Npg),j0(_Npg),i(_Npg),j(_Npg)
       integer :: im,it,k,psh_sum,il,jl
      .          ,pits,pit_sum
-     .          ,psts,pst_sum
+     .          ,psts,pst_sum,pit
       integer(8) :: pitmax,pstmax
       integer :: numpcles,numspcs,nxg,nyg,nzg
       real(_prec) :: d_x (_Npg,3)
@@ -58,6 +58,8 @@ c     Local variables
       real(_prec) :: v0(_Npg,3),dx(_Npg,3)
       real(_prec) :: xp(_Npg),yp(_Npg),xfp(_Npg),yfp(_Npg)
      .              ,v2(_Npg),w_pcle(_Npg),m_sp,q_sp
+     .              ,Ep(_Npg,3),Bp(_Npg,3)
+     .              ,Ep_avg(_Npg,3),Bp_avg(_Npg,3)
 
 c$$$      real(_prec),allocatable,dimension(:,:) :: garr_n  
 c$$$     $                                         ,garr_vx 
@@ -80,6 +82,7 @@ c$$$     $                                         ,garr_vz2
 
       type(particle) :: pcle_nu
 
+      real(_prec) :: work
 c     Begin program
 
 c$$$      allocate(garr_n  (0:size(A,1)-1,0:size(A,2)-1)
@@ -129,7 +132,7 @@ c     Move particles
       ntot_pcles = 0
 
       moms_g = 0d0
-      
+      work = 0      
       do isp=1, numspcs
          numpcles = size(spcs(isp)%pcles)
 
@@ -148,11 +151,13 @@ c$$$         garr_vz2= 0d0
          m_sp = spcs(isp)%m
          q_sp = spcs(isp)%q
 
+         
 !     note that there is some issue with valgrind and libgomp.
 !$omp parallel DEFAULT(SHARED) private(ipc,it,v0,v2,dtp,dt_sub
 !$omp.              ,d_x,dx,xp,yp,xfp,yfp,x_nh,dum1,dum2,il,jl
 !$omp.              ,i,j,k,i0,j0,Mx1,Mx2,My1,My2,Mxy2,w_pcle
-!$omp.              ,psts,M_w_prod,pits,pcle_nu,dum23,dum32)
+!$omp.              ,psts,M_w_prod,pits,pcle_nu,dum23,dum32
+!$omp.              ,Ep,Bp,Ep_avg,Bp_avg,work,pit)
 !$         call set_omp_thread_id()
 !$omp DO SCHEDULE (DYNAMIC,4)
 !$omp.reduction(+:pml
@@ -165,10 +170,14 @@ c$$$!$omp.           ,garr_vx2,garr_vy2,garr_vz2,pml
 !$omp.reduction(max:pitmax,pstmax)
          do ipc=nip+1,numpcles
 
+!     first round pridictor
+            do pit = 1, 2
            pcle_nu%ijk_n = spcs(isp)%pcles(ipc)%ijk_n
            pcle_nu%x_n   = spcs(isp)%pcles(ipc)%x_n
            pcle_nu%v_n   = spcs(isp)%pcles(ipc)%v_n
            pcle_nu%w_n   = spcs(isp)%pcles(ipc)%w_n
+           Ep_avg = 0d0
+           Bp_avg = 0d0
 
            it = 0
 
@@ -185,8 +194,81 @@ c$$$!$omp.           ,garr_vx2,garr_vy2,garr_vz2,pml
      .                                ,spcs(isp)%pcles(ipc)
      $                                ,dt,dtp,dt_sub
      $                                ,DtA,B0,A,phi,dx
-     $                                ,psts,pits)
+     $                                ,psts,pits,Ep,Bp)
 
+             Ep_avg(:,1) = Ep_avg(:,1) + Ep(:,1)*dt_sub(:)
+             Ep_avg(:,2) = Ep_avg(:,2) + Ep(:,2)*dt_sub(:)
+             Ep_avg(:,3) = Ep_avg(:,3) + Ep(:,3)*dt_sub(:)
+             Bp_avg(:,1) = Bp_avg(:,1) + Bp(:,1)*dt_sub(:)
+             Bp_avg(:,2) = Bp_avg(:,2) + Bp(:,2)*dt_sub(:)
+             Bp_avg(:,3) = Bp_avg(:,3) + Bp(:,3)*dt_sub(:)
+
+             !Prepare for next substep
+             pcle_nu%ijk_n = pcle_nu%ijk_np
+             pcle_nu%x_n   = pcle_nu%x_np
+cc             pcle_nu%v_n   = pcle_nu%v_np
+             pcle_nu%w_n   = pcle_nu%w_np
+
+             dtp = dtp-dt_sub
+
+          end do                !sub-stepping
+c     Boris push
+          Ep_avg = Ep_avg/dt
+          Bp_avg = Bp_avg/dt
+          
+          call Boris_solve2(spcs(isp)%q_m,spcs(isp)%pcles(ipc)%v_n
+     $         ,spcs(isp)%pcles(ipc)%v_np,dt,Ep_avg,Bp_avg)
+
+          spcs(isp)%pcles(ipc)%v_np   = spcs(isp)%pcles(ipc)%v_n + 2d0
+     $         *(spcs(isp)%pcles(ipc)%v_np-spcs(isp)%pcles(ipc)%v_n)
+
+          spcs(isp)%pcles(ipc)%ijk_np = pcle_nu%ijk_np 
+          spcs(isp)%pcles(ipc)%x_np   = pcle_nu%x_np   
+          spcs(isp)%pcles(ipc)%w_np   = pcle_nu%w_np
+       end do
+          
+       pcle_nu%v_np = spcs(isp)%pcles(ipc)%v_np
+       
+!     final round
+           pcle_nu%ijk_n = spcs(isp)%pcles(ipc)%ijk_n
+           pcle_nu%x_n   = spcs(isp)%pcles(ipc)%x_n
+           pcle_nu%v_n   = spcs(isp)%pcles(ipc)%v_n
+           pcle_nu%w_n   = spcs(isp)%pcles(ipc)%w_n
+           Ep_avg = 0d0
+           Bp_avg = 0d0
+           it = 0
+
+#if defined(PIC_CM_DIAG)
+           d_x = 0d0
+#endif
+           dtp = dtx
+
+           do while(maxval(dtp)>0)
+             it = it+1
+
+             !Perform pcle substep
+             call ACC_CN_incell_offset(spcs(isp)%q_m,pcle_nu
+     .                                ,spcs(isp)%pcles(ipc)
+     $                                ,dt,dtp,dt_sub
+     $                                ,DtA,B0,A,phi,dx
+     $                                ,psts,pits,Ep,Bp)
+
+             dx(:,1) = 0.5d0*(spcs(isp)%pcles(ipc)%v_n(:,1)
+     $            +spcs(isp)%pcles(ipc)%v_np(:,1))*dt_sub
+c$$$             dx(:,2) = 0.5d0*(spcs(isp)%pcles(ipc)%v_n(:,2)
+c$$$     $            +spcs(isp)%pcles(ipc)%v_np(:,2))*dt_sub
+c$$$             dx(:,3) = 0.5d0*(spcs(isp)%pcles(ipc)%v_n(:,3)
+c$$$     $            +spcs(isp)%pcles(ipc)%v_np(:,3))*dt_sub
+c$$$             
+             Ep_avg(:,1) = Ep_avg(:,1) + Ep(:,1)*dt_sub(:)
+             Ep_avg(:,2) = Ep_avg(:,2) + Ep(:,2)*dt_sub(:)
+             Ep_avg(:,3) = Ep_avg(:,3) + Ep(:,3)*dt_sub(:)
+             Bp_avg(:,1) = Bp_avg(:,1) + Bp(:,1)*dt_sub(:)
+             Bp_avg(:,2) = Bp_avg(:,2) + Bp(:,2)*dt_sub(:)
+             Bp_avg(:,3) = Bp_avg(:,3) + Bp(:,3)*dt_sub(:)
+
+cc             work=work+Ep(1,1)*dx(1,1)+Ep(1,2)*dx(1,2)+Ep(1,3)*dx(1,3)
+             
              !Use local registers for performance (C. Mikida)
              w_pcle = spcs(isp)%pcles(ipc)%w_np
 
@@ -260,7 +342,8 @@ c$$$                garr_vx(i(k)-1:i(k)  ,j(k)-1:j(k)+1) =
 c$$$     .          garr_vx(i(k)-1:i(k)  ,j(k)-1:j(k)+1) + 
 c$$$     .          dx(k,1)*opt_vecvec_23(Mx1(k,:,:),My2(k,:,:))*w_pcle(k)
 c$$$
-c$$$                !accumulate vy (linear in y, 2nd in x)
+
+c$$$  !accumulate vy (linear in y, 2nd in x)
 c$$$                garr_vy(i(k)-1:i(k)+1,j(k)-1:j(k)) = 
 c$$$     .          garr_vy(i(k)-1:i(k)+1,j(k)-1:j(k)) + 
 c$$$     .          dx(k,2)*opt_vecvec_32(Mx2(k,:,:),My1(k,:,:))*w_pcle(k)
@@ -320,15 +403,66 @@ c$$$     .          dx(k,3)*Mxy2(k,:,:)*w_pcle(k)
              end do
                   
              !Prepare for next substep
-             pcle_nu%ijk_n = spcs(isp)%pcles(ipc)%ijk_np
-             pcle_nu%x_n   = spcs(isp)%pcles(ipc)%x_np
-             pcle_nu%v_n   = spcs(isp)%pcles(ipc)%v_np
-             pcle_nu%w_n   = spcs(isp)%pcles(ipc)%w_np
+             pcle_nu%ijk_n = pcle_nu%ijk_np
+             pcle_nu%x_n   = pcle_nu%x_np
+cc             pcle_nu%v_n   = pcle_nu%v_np
+             pcle_nu%w_n   = pcle_nu%w_np
+c$$$             pcle_nu%ijk_n = spcs(isp)%pcles(ipc)%ijk_np
+c$$$             pcle_nu%x_n   = spcs(isp)%pcles(ipc)%x_np
+c$$$             pcle_nu%v_n   = spcs(isp)%pcles(ipc)%v_np
+c$$$             pcle_nu%w_n   = spcs(isp)%pcles(ipc)%w_np
 
              dtp = dtp-dt_sub
 
-           end do               !sub-stepping
+          end do                !sub-stepping
 
+c     Boris push
+          Ep_avg = Ep_avg/dt
+          Bp_avg = Bp_avg/dt
+          
+          call Boris_solve2(spcs(isp)%q_m,spcs(isp)%pcles(ipc)%v_n
+     $         ,spcs(isp)%pcles(ipc)%v_np,dt,Ep_avg,Bp_avg)
+
+          spcs(isp)%pcles(ipc)%v_np   = spcs(isp)%pcles(ipc)%v_n + 2d0
+     $         *(spcs(isp)%pcles(ipc)%v_np-spcs(isp)%pcles(ipc)%v_n)
+
+          dx(:,1) = 0.5d0*(spcs(isp)%pcles(ipc)%v_n(:,1)
+     $         +spcs(isp)%pcles(ipc)%v_np(:,1))*dt
+          dx(:,2) = 0.5d0*(spcs(isp)%pcles(ipc)%v_n(:,2)
+     $         +spcs(isp)%pcles(ipc)%v_np(:,2))*dt
+          dx(:,3) = 0.5d0*(spcs(isp)%pcles(ipc)%v_n(:,3)
+     $         +spcs(isp)%pcles(ipc)%v_np(:,3))*dt
+
+c$$$          work = work + 0.5d0*
+c$$$     $         (spcs(isp)%pcles(ipc)%v_np(1,1)
+c$$$     $         *spcs(isp)%pcles(ipc)%v_np(1,1)
+c$$$     $         +spcs(isp)%pcles(ipc)%v_np(1,2)
+c$$$     $         *spcs(isp)%pcles(ipc)%v_np(1,2)
+c$$$     $         +spcs(isp)%pcles(ipc)%v_np(1,3)
+c$$$     $         *spcs(isp)%pcles(ipc)%v_np(1,3)
+c$$$     $         -spcs(isp)%pcles(ipc)%v_n(1,1)
+c$$$     $         *spcs(isp)%pcles(ipc)%v_n(1,1)
+c$$$     $         -spcs(isp)%pcles(ipc)%v_n(1,2)
+c$$$     $         *spcs(isp)%pcles(ipc)%v_n(1,2)
+c$$$     $         -spcs(isp)%pcles(ipc)%v_n(1,3)
+c$$$     $         *spcs(isp)%pcles(ipc)%v_n(1,3))
+cc          print *, ipc,work
+c$$$     $         ,(Ep_avg(1,1)*dx(1,1)
+c$$$     $         +Ep_avg(1,2)*dx(1,2)+Ep_avg(1,3)*dx(1,3)),
+c$$$     $         ((spcs(isp)%pcles(ipc)%v_np(1,1)-pcle_nu%v_np(1,1))**2
+c$$$     $         +(spcs(isp)%pcles(ipc)%v_np(1,2)-pcle_nu%v_np(1,2))**2
+c$$$     $         +(spcs(isp)%pcles(ipc)%v_np(1,3)-pcle_nu%v_np(1,3))**2)/
+c$$$     $         (spcs(isp)%pcles(ipc)%v_np(1,1)**2
+c$$$     $         +spcs(isp)%pcles(ipc)%v_np(1,2)**2
+c$$$     $         +spcs(isp)%pcles(ipc)%v_np(1,3)**2)
+          
+c     Back to the global registers now:
+          spcs(isp)%pcles(ipc)%ijk_np = pcle_nu%ijk_np 
+          spcs(isp)%pcles(ipc)%x_np   = pcle_nu%x_np   
+cc          spcs(isp)%pcles(ipc)%v_np   = pcle_nu%v_np   
+          spcs(isp)%pcles(ipc)%w_np   = pcle_nu%w_np   
+          
+           
            !Maximum number of substeps per timestep
            pstmax  = max(it,pstmax)
              
@@ -443,7 +577,7 @@ c$$$         moms_g(:,:,1,isp,IS22) = garr_vy2
 c$$$         moms_g(:,:,1,isp,IS33) = garr_vz2
 
       end do                    !species
-
+c$$$      print *, "particle energy balance=",work
 c$$$      deallocate(garr_n  
 c$$$     $          ,garr_vx 
 c$$$     $          ,garr_vy 
@@ -511,12 +645,61 @@ c     Substep counter
 
 c     End program
 
+      contains
+      
+c     Boris_solve2
+c     ######################################################################
+      subroutine Boris_solve2(qm,v0,vh,dt_sub,Ep,Bp) 
+
+      implicit none
+      
+c     Call variables
+
+        real(_prec) :: v0(_Npg,3)
+        real(_prec) :: vh(_Npg,3),dt_sub,Ep(_Npg,3),Bp(_Npg,3)
+     $       ,qm
+
+c     Logical variables
+
+        real(_prec) :: vhes(_Npg,3),vhcurv(_Npg,3),vhcurv_inv(_Npg,3)
+        real(_prec) :: qmdth(_Npg),iDenom(_Npg),dtb(_Npg,3),vdotB(_Npg)
+        integer :: i
+
+c     Begin program
+
+        !Velocity update
+        qmdth = qm*dt_sub*0.5d0
+        vhes(:,1) = v0(:,1) + qmdth*Ep(:,1)
+        vhes(:,2) = v0(:,2) + qmdth*Ep(:,2)
+        vhes(:,3) = v0(:,3) + qmdth*Ep(:,3)
+
+        !VECTOR SIMD
+        do i=1,_Npg
+           iDenom(i) = (1d0
+     $                 + qmdth(i)*qmdth(i)*dot_product(Bp(i,:),Bp(i,:)))
+           iDenom(i) = 1d0/iDenom(i)
+        end do
+
+        vdotB = (vhes(:,1)*Bp(:,1)+vhes(:,2)*Bp(:,2)+vhes(:,3)*Bp(:,3))
+
+        vdotB = qmdth*vdotB
+
+        vh(:,1) = (vhes(:,1)+qmdth*(vhes(:,2)*Bp(:,3)-vhes(:,3)*Bp(:,2)
+     .                            + vdotB*Bp(:,1)))*iDenom
+        vh(:,2) = (vhes(:,2)+qmdth*(vhes(:,3)*Bp(:,1)-vhes(:,1)*Bp(:,3) 
+     .                            + vdotB*Bp(:,2)))*iDenom
+        vh(:,3) = (vhes(:,3)+qmdth*(vhes(:,1)*Bp(:,2)-vhes(:,2)*Bp(:,1) 
+     .                            + vdotB*Bp(:,3)))*iDenom
+
+
+        end subroutine Boris_solve2
+      
       end subroutine pic_mover_2d
 
 c     ACC_CN_incell_offset
 c     ##################################################################
       subroutine ACC_CN_incell_offset (q_m,pcle_nu,pcle,dt,dtp,dt_sub
-     $                                ,DtA,B0,A,phi,dx,substeps,it)
+     $                               ,DtA,B0,A,phi,dx,substeps,it,Ep,Bp)
 
       implicit none
       
@@ -532,7 +715,8 @@ c     Call variables
       real(_prec),intent(out)   :: dt_sub(_Npg),dx(_Npg,3)
 
       integer,intent(out):: substeps,it
-
+      real(_prec),intent(out) :: Ep(_Npg,3),Bp(_Npg,3)
+      
 c     Local variables
 
       integer :: i,j,k,nxg,nyg,nzg
@@ -543,9 +727,9 @@ c     Local variables
       real(_prec) :: rx(_Npg),ry(_Npg),rz(_Npg)
 
       real(_prec), parameter :: eps  = 1d-12 !Buffer for dt computation in pcle Xing
-     .                         ,eps2 = 1d-8  !Buffer for pcle Xing
+     .                         ,eps2 = 1d-10 !1d-8  !Buffer for pcle Xing
 
-      real(_prec) :: ptola,alpha=0d0,dt_coeff=0.2
+      real(_prec) :: ptola,alpha=0d0,dt_coeff=62.8 !31.4 !25.12 !12.56 !6.28 !3.14 !1.256 !0.2
 
       real(_prec) :: am(_Npg,_Dim)
 
@@ -558,7 +742,6 @@ c     Local variables
       real(_prec) :: Omegac(_Npg),omb(_Npg),qm(_Npg)
      $              ,Bmax(_Npg),vdotB(_Npg)
 
-      real(_prec) :: Ep(_Npg,3),Bp(_Npg,3)
       real(_prec) :: xnp(_Npg),ynp(_Npg)
       real(_prec) :: dxl(_Npg,2),dxr(_Npg,2)
 
@@ -615,56 +798,60 @@ c     Estimate sub-time-step
 
       dt_sub = dtp
 
-      call estimate_dtp(dt_sub)
+cc      call estimate_dtp(dt_sub)
 
 c     Initialize Picard
 
-      call initialize_it(v0_loc,dt_sub,dx)
+cc      call initialize_it(v0_loc,dt_sub,dx)
 
+      call initialize_it(0.5d0*(pcle%v_n+pcle%v_np),dt_sub,dx)
+      
       it=0
 
       substeps = 0
 
-      do
+c$$$      do
         it = it+1
-
-        vh_k = vh
-        dx_k = dx
-
+c$$$
+c$$$        vh_k = vh
+c$$$        dx_k = dx
+ 
         substeps = substeps + _Npg
 
         !Perform Boris push
         call Boris_solve(it,x0_loc,v0_loc,dx,vh,dt_sub)
 
-        !Check convergence (very expensive!!!)
-        if (mod(it,2) /= 0) cycle  !Check everyother iteration
+c$$$        !Check convergence (very expensive!!!)
+c$$$        if (mod(it,2) /= 0) cycle  !Check everyother iteration
+c$$$
+c$$$#if defined(L1_NORM)
+c$$$        dx_err = 0d0
+c$$$        do i=1,_Npg
+c$$$           dx_err = max(dx_err, abs(dx(i,1)-dx_k(i,1))
+c$$$     $                         +abs(dx(i,2)-dx_k(i,2))
+c$$$     $                         +abs(dx(i,3)-dx_k(i,3))
+c$$$     $                         +abs(vh(i,1)-vh_k(i,1))
+c$$$     $                         +abs(vh(i,2)-vh_k(i,2))
+c$$$     $                         +abs(vh(i,3)-vh_k(i,3)))
+c$$$        enddo
+c$$$#else
+c$$$c$$$        dx_err = (sum(abs(dx-dx_k))
+c$$$c$$$     $           +sum(abs(vh-vh_k)))/(2*_Npg)
+c$$$        dx_err = max(maxval(abs(dx-dx_k)),maxval(abs(vh-vh_k)))
+c$$$#endif
+c$$$
+c$$$#if _prec == 8
+c$$$        if (dx_err < 1d-13 .or. it>500) exit
+c$$$#else
+c$$$        if (dx_err < 1d-6  .or. it>500) exit
+c$$$  #endif
 
-#if defined(L1_NORM)
-        dx_err = 0d0
-        do i=1,_Npg
-           dx_err = max(dx_err, abs(dx(i,1)-dx_k(i,1))
-     $                         +abs(dx(i,2)-dx_k(i,2))
-     $                         +abs(dx(i,3)-dx_k(i,3))
-     $                         +abs(vh(i,1)-vh_k(i,1))
-     $                         +abs(vh(i,2)-vh_k(i,2))
-     $                         +abs(vh(i,3)-vh_k(i,3)))
-        enddo
-#else
-c$$$        dx_err = (sum(abs(dx-dx_k))
-c$$$     $           +sum(abs(vh-vh_k)))/(2*_Npg)
-        dx_err = max(maxval(abs(dx-dx_k)),maxval(abs(vh-vh_k)))
-#endif
-
-#if _prec == 8
-        if (dx_err < 1d-13 .or. it>500) exit
-#else
-        if (dx_err < 1d-6  .or. it>500) exit
-#endif
-      end do             
+c$$$        if(it>0) exit
+c$$$      end do             
 
 c     Update particle quantities
 
-      vnp_loc = v0_loc + 2d0*(vh - v0_loc) !2d0*vh - v0
+c$$$      vnp_loc = v0_loc + 2d0*(vh - v0_loc) !2d0*vh - v0
       xnp_loc = x0_loc + dx
 
       inp_loc = i0
@@ -676,12 +863,17 @@ c     Cell crossing and particle b.c.
 
 c     Back to the global registers now:
 
-      pcle%ijk_np = inp_loc + nxg*(jnp_loc - 1)
+c$$$      pcle%ijk_np = inp_loc + nxg*(jnp_loc - 1)
+c$$$      pcle%v_np = vnp_loc
+c$$$      pcle%x_np = xnp_loc
+c$$$      pcle%w_np = wp_loc
 
-      pcle%v_np = vnp_loc
-      pcle%x_np = xnp_loc
-      pcle%w_np = wp_loc
 
+      pcle_nu%ijk_np = inp_loc + nxg*(jnp_loc - 1)
+c$$$      pcle_nu%v_np = vnp_loc
+      pcle_nu%x_np = xnp_loc
+      pcle_nu%w_np = wp_loc
+      
 c     End program
 
       contains
@@ -795,13 +987,13 @@ c     Logical variables
 
         integer :: i,j,k
         real(_prec) :: dts(_Npg)    !Test timestep to estimate qtys
-     .                ,xtoll=1d-3   !Tolerance for timestep estimator
+     .                ,xtoll=1d-2 !1d-3   !Tolerance for timestep estimator
         real(_prec) :: iDenom(_Npg),at(_Npg,3),accl(_Npg,3),anup(_Npg)
         real(_prec) :: qmdth(_Npg)
 
 c     Begin program
 
-        dts = 1d-8     !Test timestep to estimate qtys
+        dts = min(2d-4,dt_sub) !1d-8     !Test timestep to estimate qtys
 
 c     Scatter fields
 
@@ -817,17 +1009,17 @@ c     Scatter fields
 
 c     Cyclotron freq.
 
-#if _Dim>1
-#if defined(L1_NORM)
-        Bmax = sum(abs(Bp),2)     !L1 norm
-#else
-        Bmax = sqrt(sum(Bp**2,2)) !L2 norm
-#endif
-        Omegac = qm * Bmax
-        Omegac = abs(Omegac) + 1d-44  !careful
-        omb = 1d0/Omegac
-        dt_sub = min(dt_sub,dt_coeff*omb)
-#endif
+c$$$#if _Dim>1
+c$$$#if defined(L1_NORM)
+c$$$        Bmax = sum(abs(Bp),2)     !L1 norm
+c$$$#else
+c$$$        Bmax = sqrt(sum(Bp**2,2)) !L2 norm
+c$$$#endif
+c$$$        Omegac = qm * Bmax
+c$$$        Omegac = abs(Omegac) + 1d-44  !careful
+c$$$        omb = 1d0/Omegac
+c$$$        dt_sub = min(dt_sub,dt_coeff*omb)
+c$$$#endif
 
 c     Initial acceleration
 
@@ -934,96 +1126,114 @@ c     Begin program
      $                           ,dtA_1,dtA_2,dtA_3,Ep,Bp)
         endif
 
-        !Velocity update
-        qmdth = qm*dt_sub*0.5d0
-        vhes(:,1) = v0(:,1) + qmdth*Ep(:,1)
-        vhes(:,2) = v0(:,2) + qmdth*Ep(:,2)
-        vhes(:,3) = v0(:,3) + qmdth*Ep(:,3)
+c$$$        !Velocity update
+c$$$        qmdth = qm*dt_sub*0.5d0
+c$$$        vhes(:,1) = v0(:,1) + qmdth*Ep(:,1)
+c$$$        vhes(:,2) = v0(:,2) + qmdth*Ep(:,2)
+c$$$        vhes(:,3) = v0(:,3) + qmdth*Ep(:,3)
+c$$$
+c$$$        !VECTOR SIMD
+c$$$        do i=1,_Npg
+c$$$           iDenom(i) = (1d0
+c$$$     $                 + qmdth(i)*qmdth(i)*dot_product(Bp(i,:),Bp(i,:)))
+c$$$           iDenom(i) = 1d0/iDenom(i)
+c$$$        end do
+c$$$
+c$$$        vdotB = (vhes(:,1)*Bp(:,1)+vhes(:,2)*Bp(:,2)+vhes(:,3)*Bp(:,3))
+c$$$
+c$$$        vdotB = qmdth*vdotB
+c$$$
+c$$$        vh(:,1) = (vhes(:,1)+qmdth*(vhes(:,2)*Bp(:,3)-vhes(:,3)*Bp(:,2)
+c$$$     .                            + vdotB*Bp(:,1)))*iDenom
+c$$$        vh(:,2) = (vhes(:,2)+qmdth*(vhes(:,3)*Bp(:,1)-vhes(:,1)*Bp(:,3) 
+c$$$     .                            + vdotB*Bp(:,2)))*iDenom
+c$$$        vh(:,3) = (vhes(:,3)+qmdth*(vhes(:,1)*Bp(:,2)-vhes(:,2)*Bp(:,1) 
+c$$$     .                            + vdotB*Bp(:,3)))*iDenom
+c$$$
+c$$$        !Time step estimate for cell crossing
+c$$$        if (no_map) then
+c$$$          vhcurv = vh
+c$$$        else
+c$$$          xp_vhcurv = x0 + 0.5*dx
+c$$$          vhcurv = find_vcurv(i0,j0,xp_vhcurv,vh)
+c$$$        endif
+c$$$
+c$$$        dx(:,1) = dt_sub*vhcurv(:,1)
+c$$$        dx(:,2) = dt_sub*vhcurv(:,2)
+c$$$        dx(:,3) = dt_sub*vhcurv(:,3)
+c$$$
+c$$$cc        if(it<3) then
+c$$$           vhcurv_inv = 1d0/(vhcurv + 1d-44)
+c$$$        
+c$$$           dt_sub = min(dt_sub
+c$$$     .            ,max((dxl(:,1)-eps2)*vhcurv_inv(:,1)
+c$$$     .                ,(dxr(:,1)+eps2)*vhcurv_inv(:,1))
+c$$$     .            ,max((dxl(:,2)-eps2)*vhcurv_inv(:,2)
+c$$$     .                ,(dxr(:,2)+eps2)*vhcurv_inv(:,2)))
+c$$$
+c$$$           dx(:,1) = vhcurv(:,1)*dt_sub
+c$$$           dx(:,2) = vhcurv(:,2)*dt_sub
+c$$$           dx(:,3) = vhcurv(:,3)*dt_sub
+c$$$cc      end if
 
-        !VECTOR SIMD
-        do i=1,_Npg
-           iDenom(i) = (1d0
-     $                 + qmdth(i)*qmdth(i)*dot_product(Bp(i,:),Bp(i,:)))
-           iDenom(i) = 1d0/iDenom(i)
-        end do
-
-        vdotB = (vhes(:,1)*Bp(:,1)+vhes(:,2)*Bp(:,2)+vhes(:,3)*Bp(:,3))
-
-        vdotB = qmdth*vdotB
-
-        vh(:,1) = (vhes(:,1)+qmdth*(vhes(:,2)*Bp(:,3)-vhes(:,3)*Bp(:,2)
-     .                            + vdotB*Bp(:,1)))*iDenom
-        vh(:,2) = (vhes(:,2)+qmdth*(vhes(:,3)*Bp(:,1)-vhes(:,1)*Bp(:,3) 
-     .                            + vdotB*Bp(:,2)))*iDenom
-        vh(:,3) = (vhes(:,3)+qmdth*(vhes(:,1)*Bp(:,2)-vhes(:,2)*Bp(:,1) 
-     .                            + vdotB*Bp(:,3)))*iDenom
-
-        !Time step estimate for cell crossing
-        if (no_map) then
-          vhcurv = vh
-        else
-          xp_vhcurv = x0 + 0.5*dx
-          vhcurv = find_vcurv(i0,j0,xp_vhcurv,vh)
-        endif
-
-        dx(:,1) = dt_sub*vhcurv(:,1)
-        dx(:,2) = dt_sub*vhcurv(:,2)
-        dx(:,3) = dt_sub*vhcurv(:,3)
-
-        !VECTOR SIMD
-        do i=1,_Npg
-           !x-direction
-           dtb(i,1) = dt_sub(i)
-           if((dx(i,1)<dxl(i,1)-eps) .or. (dx(i,1)>dxr(i,1)+eps) ) then
-             if(v0curv(i,1)*vhcurv(i,1)<0d0) then
-               dtb(i,1) = 0.5d0*dt_sub(i)
-               vh(i,:) = v0(i,:)
-               vhcurv(i,:) = v0curv(i,:)
-             else
-               if(it<5) then  !This branch needs to be taken out of the pcle loop!
-                 vhcurv_inv(i,1) = 1d0/vhcurv(i,1)
-                 dtb(i,1) = min(dt_sub(i),
-     .              max((dxl(i,1)-eps)*vhcurv_inv(i,1)
-     .                 ,(dxr(i,1)+eps)*vhcurv_inv(i,1)))
-               else if((dx(i,1)<dxl(i,1)-eps2)
-     .             .or. dx(i,1)>dxr(i,1)+eps2) then
-                 dtb(i,1) = 0.5d0*dtb(i,1)
-               end if
-             end if
-           end if
-
-           !y-direction
-           dtb(i,2) = dt_sub(i)
-           if((dx(i,2)<dxl(i,2)-eps) .or. dx(i,2)>dxr(i,2)+eps) then
-             if(v0curv(i,2)*vhcurv(i,2)<0d0) then
-               dtb(i,2) = 0.5d0*dt_sub(i)
-               vh(i,:) = v0(i,:)
-               vhcurv(i,:) = v0curv(i,:)
-             else 
-               if(it<5) then  !This branch needs to be taken out of the pcle loop!
-                 vhcurv_inv(i,2) = 1d0/vhcurv(i,2)
-                 dtb(i,2) = min(dt_sub(i),
-     .              max((dxl(i,2)-eps)*vhcurv_inv(i,2)
-     .                 ,(dxr(i,2)+eps)*vhcurv_inv(i,2)))
-               else if(dx(i,2)<dxl(i,2)-eps2 
-     .            .or. dx(i,2)>dxr(i,2)+eps2) then
-                 dtb(i,2) = 0.5d0*dtb(i,2)
-               end if
-             end if
-           end if
-
-           dt_sub(i) = min(dt_sub(i),dtb(i,1),dtb(i,2))
- 
-        end do
-
-        dx(:,1) = dt_sub*vhcurv(:,1)
-        dx(:,2) = dt_sub*vhcurv(:,2)
-        dx(:,3) = dt_sub*vhcurv(:,3)
+c$$$  
+c$$$        if(it<2) then
+c$$$        !VECTOR SIMD
+c$$$        do i=1,_Npg
+c$$$           !x-direction
+c$$$           dtb(i,1) = dt_sub(i)
+c$$$           if((dx(i,1)<dxl(i,1)-eps) .or. (dx(i,1)>dxr(i,1)+eps) ) then
+c$$$             if(v0curv(i,1)*vhcurv(i,1)<0d0) then
+c$$$               dtb(i,1) = 0.5d0*dt_sub(i)
+c$$$               vh(i,:) = v0(i,:)
+c$$$               vhcurv(i,:) = v0curv(i,:)
+c$$$             else
+c$$$c$$$               if(it<5) then  !This branch needs to be taken out of the pcle loop!
+c$$$c$$$                 vhcurv_inv(i,1) = 1d0/vhcurv(i,1)
+c$$$c$$$                 dtb(i,1) = min(dt_sub(i),
+c$$$c$$$     .              max((dxl(i,1)-eps)*vhcurv_inv(i,1)
+c$$$c$$$     .                 ,(dxr(i,1)+eps)*vhcurv_inv(i,1)))
+c$$$c$$$               else if((dx(i,1)<dxl(i,1)-eps2)
+c$$$c$$$     .             .or. dx(i,1)>dxr(i,1)+eps2) then
+c$$$c$$$                 dtb(i,1) = 0.5d0*dtb(i,1)
+c$$$c$$$               end if
+c$$$             end if
+c$$$           end if
+c$$$
+c$$$           !y-direction
+c$$$           dtb(i,2) = dt_sub(i)
+c$$$           if((dx(i,2)<dxl(i,2)-eps) .or. dx(i,2)>dxr(i,2)+eps) then
+c$$$             if(v0curv(i,2)*vhcurv(i,2)<0d0) then
+c$$$               dtb(i,2) = 0.5d0*dt_sub(i)
+c$$$               vh(i,:) = v0(i,:)
+c$$$               vhcurv(i,:) = v0curv(i,:)
+c$$$             else 
+c$$$c$$$               if(it<5) then  !This branch needs to be taken out of the pcle loop!
+c$$$c$$$                 vhcurv_inv(i,2) = 1d0/vhcurv(i,2)
+c$$$c$$$                 dtb(i,2) = min(dt_sub(i),
+c$$$c$$$     .              max((dxl(i,2)-eps)*vhcurv_inv(i,2)
+c$$$c$$$     .                 ,(dxr(i,2)+eps)*vhcurv_inv(i,2)))
+c$$$c$$$               else if(dx(i,2)<dxl(i,2)-eps2 
+c$$$c$$$     .            .or. dx(i,2)>dxr(i,2)+eps2) then
+c$$$c$$$                 dtb(i,2) = 0.5d0*dtb(i,2)
+c$$$c$$$               end if
+c$$$             end if
+c$$$           end if
+c$$$
+c$$$           dt_sub(i) = min(dt_sub(i),dtb(i,1),dtb(i,2))
+c$$$        
+c$$$        end do
+c$$$        end if
+c$$$
+c$$$        dx(:,1) = dt_sub*vhcurv(:,1)
+c$$$        dx(:,2) = dt_sub*vhcurv(:,2)
+c$$$        dx(:,3) = dt_sub*vhcurv(:,3)
 
 c     End program
 
       end subroutine Boris_solve
 
+      
 c     scatter_fields_nomap
 c     ######################################################################
       subroutine scatter_fields_nomap(x0,dtau,dx,A_1,A_2,A_3

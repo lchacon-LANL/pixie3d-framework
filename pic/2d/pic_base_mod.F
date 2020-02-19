@@ -2970,24 +2970,28 @@ c     Get kinetic energies
       nz = size(moms,3)-2
 
       do isp=1,nsp
-        KE(isp) = 0.5d0*spcs(isp)%m*(
-     .           sum(moms(1:nx,1:ny,1:nz,isp,IS11))
-     .          +sum(moms(1:nx,1:ny,1:nz,isp,IS22))
-     .          +sum(moms(1:nx,1:ny,1:nz,isp,IS33)) )
-        KEn(isp) = 0.5d0*spcs(isp)%m*(
-     .           sum(momsn(1:nx,1:ny,1:nz,isp,IS11))
-     .          +sum(momsn(1:nx,1:ny,1:nz,isp,IS22))
-     .          +sum(momsn(1:nx,1:ny,1:nz,isp,IS33)) )
+c$$$        KE(isp) = 0.5d0*spcs(isp)%m*(
+c$$$     .           sum(moms(1:nx,1:ny,1:nz,isp,IS11))
+c$$$     .          +sum(moms(1:nx,1:ny,1:nz,isp,IS22))
+c$$$     .          +sum(moms(1:nx,1:ny,1:nz,isp,IS33)) )
+c$$$        KEn(isp) = 0.5d0*spcs(isp)%m*(
+c$$$     .           sum(momsn(1:nx,1:ny,1:nz,isp,IS11))
+c$$$     .          +sum(momsn(1:nx,1:ny,1:nz,isp,IS22))
+c$$$     .          +sum(momsn(1:nx,1:ny,1:nz,isp,IS33)) )
       enddo
 
-c$$$      KE = 0d0
-c$$$      do isp=1,nsp
-c$$$         do ipc=nip+1,size(spcs(isp)%pcles)
-c$$$           KE(isp) = KE(isp) + sum(spcs(isp)%pcles(ipc)%w_np
-c$$$     .                            *sum(spcs(isp)%pcles(ipc)%v_np**2,2))
-c$$$         enddo
-c$$$         KE(isp) =  0.5d0*spcs(isp)%m*KE(isp)
-c$$$      enddo
+      KE = 0d0
+      KEn= 0d0
+      do isp=1,nsp
+         do ipc=nip+1,size(spcs(isp)%pcles)
+           KE(isp) = KE(isp) + sum(spcs(isp)%pcles(ipc)%w_np
+     .                            *sum(spcs(isp)%pcles(ipc)%v_np**2,2))
+           KEn(isp) = KEn(isp) + sum(spcs(isp)%pcles(ipc)%w_n
+     .                            *sum(spcs(isp)%pcles(ipc)%v_n**2,2))
+         enddo
+         KE(isp) =  0.5d0*spcs(isp)%m*KE(isp)
+         KEn(isp) =  0.5d0*spcs(isp)%m*KEn(isp)
+      enddo
 
 #if defined(petsc)
       allocate(send_buf(2*nsp),recv_buf(2*nsp))
@@ -4817,7 +4821,7 @@ c     Load particles
      .              ,"Slow shock quiet start not implemented")
         case('plasma_exp','diocotron')
           call pstop("load_pcles_offset"
-     .              ,"Plasma Expansion quiet start not implemented")
+     .              ,"Plasma Expansion/Diocotron quiet start not implemented")
         case('kaw_ii')
 #include "problem_init/kawiiLoadPartls_qs.f"
         case('landau','2strm','iaw')!,'langdon')

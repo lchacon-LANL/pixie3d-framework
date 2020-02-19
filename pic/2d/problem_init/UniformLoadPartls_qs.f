@@ -26,13 +26,15 @@ cc!$OMP.REDUCTION(+:v_tot,vx2,vt2)
                yp = 0.5*hy
 
 c$$$               !without worries about parallel run #
-c$$$               if(r4(1,ipc)==0d0) r4(1,ipc) = r4(1,ipc) + 1d-16 !end with 1
-c$$$               if(r4(1,ipc)==1d0) r4(1,ipc) = r4(1,ipc) - 1d-16
-c$$$               xp = hx*r4(1,ipc)
+c$$$               rx = r4(1,ipc) 
+c$$$               if(rx==0d0) rx = rx + 1d-16 !end with 1
+c$$$               if(rx==1d0) rx = rx - 1d-16
+c$$$               xp = hx*rx 
 c$$$
-c$$$               if(r4(2,ipc)==0d0) r4(2,ipc) = r4(2,ipc) + 1d-16 !end with 1
-c$$$               if(r4(2,ipc)==1d0) r4(2,ipc) = r4(2,ipc) - 1d-16
-c$$$               yp = hy*r4(2,ipc)
+c$$$               rx = r4(2,ipc)
+c$$$               if(rx==0d0) rx = rx + 1d-16 !end with 1
+c$$$               if(rx==1d0) rx = rx - 1d-16
+c$$$               yp = hy*rx 
 
                rx1= dinvnorm((r4(3,ipc)+1d0)*0.5d0)  
                rx2= dinvnorm((r4(4,ipc)+1d0)*0.5d0)
