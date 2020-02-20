@@ -4821,7 +4821,7 @@ c     Load particles
      .              ,"Slow shock quiet start not implemented")
         case('plasma_exp','diocotron')
           call pstop("load_pcles_offset"
-     .              ,"Plasma Expansion/Diocotron quiet start not implemented")
+     .      ,"Plasma Expansion/Diocotron quiet start not implemented")
         case('kaw_ii')
 #include "problem_init/kawiiLoadPartls_qs.f"
         case('landau','2strm','iaw')!,'langdon')
