@@ -5105,7 +5105,7 @@ c ######################################################################
 
 c     plotPDF_xv
 c     ##################################################################
-      subroutine plotPDF_xv(nv,label,init) 
+      subroutine plotPDF_xv(nv,label,init,v_min,v_max) 
 
 c     ------------------------------------------------------------------
 c     Accumulates particles on mesh, returning result in mesh array garr.
@@ -5120,6 +5120,8 @@ c     Call variables
       integer :: nv
       character(*) :: label
       logical :: init
+
+      real(8),optional :: v_min,v_max
       
 c     Local variables
 
@@ -5181,6 +5183,9 @@ c     Gather 1d-1v PDF
      .                    ,MPI_MIN,MPI_COMM_WORLD,mpierr)
 #endif
 
+        if (PRESENT(v_max)) vmax = v_max
+        if (PRESENT(v_min)) vmin = v_min
+        
         !Construct velocity domain (CHECK)
         if (vmax==vmin) then
 cc          vmax = 1.1*vmax
@@ -5208,10 +5213,16 @@ c$$$        write (*,*) isp,vmin,vmax
 
           !Velocity index of particle and offset
           iv = int((spcs(isp)%pcles(ip)%v_n(:,1)-vmin)*ihv)
-          vp = (spcs(isp)%pcles(ip)%v_n(:,1)- (vmin + iv*hv))*ihv
-          iv = iv + 1
 
           w_pcle = spcs(isp)%pcles(ip)%w_n
+
+          where (iv < 0)
+            w_pcle = 0d0
+            iv     = 0
+          end where
+          
+          vp = (spcs(isp)%pcles(ip)%v_n(:,1)- (vmin + iv*hv))*ihv
+          iv = iv + 1
 
           call xform_pcle_idx(spcs(isp)%pcles(ip)%ijk_n,nxg,i_np,j_np)   
 
