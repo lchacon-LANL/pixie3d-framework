@@ -365,6 +365,10 @@ c End of temporary fix
             else
                   ! Define cell data variables
                   do ieq=1,nqty(igrp)
+                     print *, my_rank, '#40:def:', igrp,nqty(igrp),ieq,
+     .                    trim(basepath),
+     .                    trim(graph(igrp)%array_graph(ieq)%descr)
+
                      call adios_define_var (grp, 
      .                        graph(igrp)%array_graph(ieq)%descr, 
      .                        basepath, adios_double, 

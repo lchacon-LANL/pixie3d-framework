@@ -496,6 +496,10 @@ c Begin program
       ierr = init_ADIOS_IO()
 #endif
 
+#if defined(ADIOS2)
+      ierr = init_ADIOS2_IO()
+      print *, 'adios2 init called'
+#endif
 c Open record file
 
       if (.not.no_graphics_io) then

@@ -18,6 +18,50 @@ FC?=gfortran
 HDF5 ?= f
 ADIOS?= f
 
+###########
+# adiosVM #
+###########
+
+ifeq ($(HOST),adiosVM)
+
+  override MACHINE = adiosVM
+
+  FC = gfortran
+
+  ifdef BOPT
+    PETSC_DIR ?=$(HOME)/Software/petsc-3.0.0-p7
+
+    PETSC_ARCH = linux64_openmpi
+
+    HDF5 = f
+
+    #Determined via modules
+    HDF5_LIBS =-L/opt/hdf5-parallel/lib -lhdf5hl_fortran -lhdf5_fortran -lhdf5_hl -lhdf5 -lz -lm 
+    HDF5_MOD  = /opt/hdf5-parallel/lib
+    HDF5_INC  = /opt/hdf5-parallel/include
+
+    ADIOS = f
+
+    ADIOS_BUFFER_MB = 100
+    ADIOS_METHOD = MPI
+
+    ADIOS_HOME = /home/adios/Software/adios-1.10.0/mpi-no-hdf5
+    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 
+    ADIOS_VER  = 1.10.0
+
+    ADIOS2 = t
+    ADIOS2_HOME = /opt/adios2
+    ADIOS2_LIBS = $(shell $(ADIOS2_HOME)/bin/adios2-config -f)
+    ADIOS2_VER  = 2.5.0
+
+  else
+    HDF5 = f
+    LIBS += -L/home/adios/Software/spack/opt/spack/linux-ubuntu16.04-x86_64/gcc-5.4.0/netlib-lapack-3.8.0-entm4irbcn2b5io72rmkmivkounzeljd/lib -llapack -lblas
+
+    ADIOS = f
+  endif
+endif
+
 ###############################
 # lap0086227 (Mark Berrill's) #
 ###############################
