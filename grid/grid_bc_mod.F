@@ -234,7 +234,7 @@ c     Parallel Allgather in SP communicator
 c     Element exchange in poloidal direction
 
       mm = 1
-      if (coords=='hel'.or.coords=='hl2') mm = gl_def%params(1)
+      if (coords=='hel'.or.coords=='hl2') mm = nint(gl_def%params(1))
 
       jlog = gl_def%jlo(igybc)
       if (coords == 'hl2') then
@@ -338,17 +338,17 @@ c     Check that we are at domain adjacent to singular point
 
 c     Do staggered radial component case first (@origin v^1= r*vr = 0)
 
-      if (ivar == 1.and.(.not.cov)) then
-        vec(i-1,:,:) = 0d0
-        return
-      endif
+c$$$      if (ivar == 1.and.(.not.cov)) then
+c$$$        vec(i-1,:,:) = 0d0
+c$$$        return
+c$$$      endif
 
 c     Check that domain size is a power of 2
 
       nyg = gl_def%nygl(igybc)
 
       if (mod(nyg,2) /= 0 .and. nyg /= 1) then
-        call pstop('vectorSingularBC'
+        call pstop('vectorSingularBC_stg'
      .            ,'Poloidal dimension not a multiple of 2')
       endif
 
@@ -358,7 +358,7 @@ c     Parallel Allgather in SP communicator
       allocate(garray(nyg,0:nzbc+1))
 
       if (gl_def%my < 1) then
-        call pstop('vectorSingularBC','npy < 1')
+        call pstop('vectorSingularBC_stg','npy < 1')
       elseif (gl_def%my == 1) then
         garray = vec(i,1:nyg,:)
       else
@@ -379,7 +379,7 @@ c     Parallel Allgather in SP communicator
 c     Element exchange in poloidal direction
 
       mm = 1
-      if (coords=='hel'.or.coords=='hl2') mm = gl_def%params(1)
+      if (coords=='hel'.or.coords=='hl2') mm = nint(gl_def%params(1))
 
       jlog = gl_def%jlo(igybc)
       if (coords == 'hl2') then
@@ -421,6 +421,12 @@ c$$$        enddo
               end select
             else
               select case(ivar)
+              case(1)
+#if defined(petsc)
+                vec(i-1,j,k) = 0.5*(vec(i,j,k)+garray(jj,k)) !Average r+ and r- to origin
+#else
+                vec(i-1,j,k) = 0.5*(vec(i,j,k)+ vec(i,jj,k)) !Average r+ and r- to origin
+#endif
               case(2,3)
 #if defined(petsc)
                 vec(i-1,j,k) = -garray(jj,k)
@@ -440,6 +446,147 @@ c     End program
 #endif
 
       end subroutine vectorSingularBC_stg
+
+c     vectorSingularBC_vrtx
+c     #################################################################
+      subroutine vectorSingularBC_vrtx(gl_def,ivar,vec,cov)
+c     -----------------------------------------------------------------
+c     Averages vector components around singular point and calculates
+c     curvilinear components at singular point.
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: gl_def
+
+      integer :: ivar
+      real(8) :: vec(0:nxbc+1,0:nybc+1,0:nzbc+1)
+      logical :: cov
+
+c     Local variables
+
+      integer :: i,j,k,jj,jlog,nyg,jglobal,mm
+
+#if defined(petsc)
+      real(8),allocatable,dimension(:)   :: local_x,global_x
+      real(8),allocatable,dimension(:,:) :: garray
+#endif
+
+c     Begin program
+
+c     Check that we are at domain adjacent to singular point
+
+      i = 1
+
+      if (.not.isSP2(gl_def,i,igxbc)) return
+
+c     Do staggered radial component case first (@origin v^1= r*vr = 0)
+
+      if (   (ivar == 1.and.(.not.cov))
+     .   .or.(ivar == 2.and.      cov) ) then
+        vec(i-1,:,:) = 0d0
+        return
+      endif
+
+c     Check that domain size is a power of 2
+
+      nyg = gl_def%nygl(igybc)
+
+      if (mod(nyg,2) /= 0 .and. nyg /= 1) then
+        call pstop('vectorSingularBC_vrtx'
+     .            ,'Poloidal dimension not a multiple of 2')
+      endif
+
+c     Parallel Allgather in SP communicator
+
+#if defined(petsc)
+      allocate(garray(nyg,0:nzbc+1))
+
+      if (gl_def%my < 1) then
+        call pstop('vectorSingularBC','npy < 1')
+      elseif (gl_def%my == 1) then
+        garray = vec(i,1:nyg,:)
+      else
+        allocate(global_x(nyg*(nzbc+2)))
+        call MPI_Allgather(vec(i,1:nybc,0:nzbc+1)
+     .                             ,nybc*(nzbc+2),MPI_DOUBLE_PRECISION
+     .                    ,global_x,nybc*(nzbc+2),MPI_DOUBLE_PRECISION
+     .                    ,gl_def%MPI_COMM_SP,mpierr)
+        do k=1,gl_def%my
+          garray(1+nybc*(k-1):nybc*k,:)
+     .       = reshape(global_x(1+nybc*(nzbc+2)*(k-1):nybc*(nzbc+2)*k)
+     .                , (/ nybc,nzbc+2 /))
+        enddo
+        deallocate(global_x)
+      endif
+#endif
+
+c     Element exchange in poloidal direction
+
+      mm = 1
+      if (coords=='hel'.or.coords=='hl2') mm = nint(gl_def%params(1))
+
+      jlog = gl_def%jlo(igybc)
+      if (coords == 'hl2') then
+        stop 'hl2 staggered option not implemented for hl2 geom'
+c$$$        do k=0,nzbc+1
+c$$$          do j=0,nybc+1
+c$$$            jglobal = j + jlog - 1
+c$$$            jj = mod(jglobal+nyg/2,nyg)
+c$$$            if (jj == 0) jj = nyg
+c$$$
+c$$$#if defined(petsc)
+c$$$            vec(i-1,j,k) =  garray(jj,k)
+c$$$#else
+c$$$            vec(i-1,j,k) =  vec(i,jj,k)
+c$$$#endif
+c$$$          enddo
+c$$$        enddo
+      else
+        do k=0,nzbc+1
+          do j=0,nybc+1
+            jglobal = j + jlog - 1
+            jj = mod(jglobal+mm*nyg/2,nyg)
+            if (jj == 0) jj = nyg
+
+            if (cov) then
+              select case(ivar)
+              case(1)
+#if defined(petsc)
+                vec(i-1,j,k) = 0.5*(vec(i,j,k)-garray(jj,k)) !Average r+ and r- to origin
+#else
+                vec(i-1,j,k) = 0.5*(vec(i,j,k) -vec(i,jj,k)) !Average r+ and r- to origin
+#endif
+              case(3)
+#if defined(petsc)
+                vec(i-1,j,k) = 0.5*(vec(i,j,k)+garray(jj,k)) !Average r+ and r- to origin
+#else
+                vec(i-1,j,k) = 0.5*(vec(i,j,k)+ vec(i,jj,k)) !Average r+ and r- to origin
+#endif
+              end select
+            else
+              select case(ivar)
+              case(2,3)
+#if defined(petsc)
+                vec(i-1,j,k) = 0.5*(vec(i,j,k)-garray(jj,k)) !Average r+ and r- to origin
+#else
+                vec(i-1,j,k) = 0.5*(vec(i,j,k) -vec(i,jj,k)) !Average r+ and r- to origin
+#endif
+              end select
+            endif
+          enddo
+        enddo
+      endif
+
+c     End program
+
+#if defined(petsc)
+      deallocate(garray)
+#endif
+
+      end subroutine vectorSingularBC_vrtx
 
 c     averageSingularBC
 c     ################################################################

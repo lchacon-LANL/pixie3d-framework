@@ -775,8 +775,8 @@ c     #################################################################
 
 c     -----------------------------------------------------------------
 c     Transforms a Cartesian vector to curvilinear representation at
-c     grid coordinates (i,j,k). Curvilinear vector is covariant if
-c     tocnv=.false., and contravariant otherwise.
+c     vertex grid coordinates (i+1/2,j+1/2,k+1/2). Returned curvilinear
+c     vector is covariant if tocnv=.false., and contravariant otherwise.
 c     -----------------------------------------------------------------
 
         implicit none
@@ -821,6 +821,36 @@ c     Begin program
           curv = jac*matmul(gmetric%grid(igrid)%cov_v(i,j,k,:,:),car)
         endif
 
+c$$$        if (nj) then
+c$$$          jac = 1d0
+c$$$        else
+c$$$          if (gmetric%grid(igrid)%jac_v(i,j,k) == 0d0.and.tocnv) then
+c$$$            jac(1) = 0d0
+c$$$            jac(2) = SP_flsv
+c$$$            jac(3) = 0d0
+c$$$          elseif (gmetric%grid(igrid)%jac_v(i,j,k) == 0d0) then
+c$$$            jac(1) = SP_flsv
+c$$$            jac(2) = 0d0
+c$$$            jac(3) = SP_flsv
+c$$$          else
+c$$$            jac = gmetric%grid(igrid)%jac_v(i,j,k)            
+c$$$          endif
+c$$$        endif
+c$$$
+c$$$        if (.not.tocnv) then
+c$$$          vec(1,:) = jac(1)*gmetric%grid(igrid)%cnv_v(i,j,k,1,:)
+c$$$          vec(2,:) = jac(2)*gmetric%grid(igrid)%cnv_v(i,j,k,2,:)
+c$$$          vec(3,:) = jac(3)*gmetric%grid(igrid)%cnv_v(i,j,k,3,:)
+c$$$c$$$          if (gmetric%grid(igrid)%jac_v(i,j,k) == 0d0)
+c$$$c$$$     .         write (*,*) vec(1,:)
+c$$$        else
+c$$$          vec(1,:) = jac(1)*gmetric%grid(igrid)%cov_v(i,j,k,1,:)
+c$$$          vec(2,:) = jac(2)*gmetric%grid(igrid)%cov_v(i,j,k,2,:)
+c$$$          vec(3,:) = jac(3)*gmetric%grid(igrid)%cov_v(i,j,k,3,:)
+c$$$        endif
+c$$$
+c$$$        curv = matmul(vec,car)
+        
       end function XformToCurv_vrtx_ijk
 
 c     XformToCurv_mesh
@@ -1692,6 +1722,8 @@ c     everywhere on the mesh.
 c     -----------------------------------------------------------------
 
         use oned_int
+
+        use xdraw_io
      
         implicit none
 
@@ -1707,8 +1739,10 @@ c     Input variables
 
 c     Local variables
 
-        integer :: i,j,k,nx,ny,nz,ig,jg,kg
-        real(8) :: xx(4)
+        integer :: i,j,k,nx,ny,nz,ig,jg,kg,oint
+        real(8) :: xx(10),car(3,3),car0(3),cov0(0:size(cnv,2)-1,3)
+
+        integer :: jlog,jglobal,jj,mm
 
 c     Begin program
 
@@ -1724,20 +1758,76 @@ c     Begin program
             enddo
           enddo
         enddo
-
-        !Extrapolate 1st and 3rd covariant components at origin
+        
         if (isSP2(g_def,1,igrid)) then
+          mm = 1
+          if (coords=='hel') mm = nint(g_def%params(1))
+          jlog = g_def%jlo(igrid)
+
+          !Order of interpolation
+          oint = 3
+          !Vertex positions
+          call getMGmap(g_def,1,1,1,igrid,igrid,igrid,ig,jg,kg)
+          xx(1:oint+1) = 0.5*(g_def%xx(ig  :ig+oint+1)
+     .                       +g_def%xx(ig+1:ig+oint+2))
+
           do k=0,nz
+            !Compute extrapolation at r=0
             do j=0,ny
-              call getMGmap(g_def,1,j,k,igrid,igrid,igrid,ig,jg,kg)
-              xx(1:4) = 0.5*(g_def%xx(1:4)+g_def%xx(2:5)) !Vertex positions
-              call IntDriver1d(4,xx,cov(1:4,j,k,1)
-     .                        ,1,(/0d0/),cov(0:0,j,k,1),3)
-              call IntDriver1d(4,xx,cov(1:4,j,k,3)
-     .                        ,1,(/0d0/),cov(0:0,j,k,3),3)
+              call IntDriver1d(oint+1,xx(1:oint+1),cov(1:oint+1,j,k,1),1
+     .                        ,(/0d0/),cov0(j:j,1),oint)
+              call IntDriver1d(oint+1,xx(1:oint+1),cov(1:oint+1,j,k,2),1
+     .                        ,(/0d0/),cov0(j:j,2),oint)
+              call IntDriver1d(oint+1,xx(1:oint+1),cov(1:oint+1,j,k,3),1
+     .                        ,(/0d0/),cov0(j:j,3),oint)
+            enddo
+c$$$            !Assign value
+c$$$            cov(0,:,k,:) = cov0(:,:)
+            !Average extrapolation at r=0 across rays
+            do j=0,ny
+              jglobal = j + jlog - 1
+              jj = mod(jglobal+mm*ny/2,ny)
+              if (jj == 0) jj = ny
+              cov(0,j,k,1) = 0.5*(cov0(j,1)-cov0(jj,1)) !Average r+ and r- to origin
+              cov(0,j,k,2) = 0.5*(cov0(j,2)+cov0(jj,2)) !Average r+ and r- to origin
+              cov(0,j,k,3) = 0.5*(cov0(j,3)+cov0(jj,3)) !Average r+ and r- to origin
             enddo
           enddo
         endif
+
+c diag ****
+c$$$        write (*,*)
+c$$$c$$$        write (*,*) "Cartesian comps at r=0",car0
+c$$$        do i=0,nx
+c$$$          write (*,*) "Bcnv_vrtx"
+c$$$     .         ,0.5*(g_def%xg(i)+g_def%xg(i+1)),cnv(i,jplot,1,:)
+c$$$        enddo
+c$$$        write (*,*)
+c$$$        do i=0,nx
+c$$$          write (*,*) "Bcov_vrtx"
+c$$$     .         ,0.5*(g_def%xg(i)+g_def%xg(i+1)),cov(i,jplot,1,:)
+c$$$        enddo
+c$$$        
+c$$$        call createDrawInCfile(3,'Bcov_vrtx.bin','Solution','t','x','y'
+c$$$     .        ,(/'B_1','B_2','B_3'/),'-c -X0 -L57','drawBcov_vrtx.in')
+c$$$
+c$$$        open(unit=110,file='Bcov_vrtx.bin',form='unformatted'
+c$$$     .      ,status='replace')
+c$$$
+c$$$        call contour(cov(0:nx,0:ny,1,1),nx+1,ny+1
+c$$$     .            ,g_def%gxmin,g_def%gxmax
+c$$$     .            ,g_def%gymin,g_def%gymax
+c$$$     .            ,0,110)
+c$$$        call contour(cov(0:nx,0:ny,1,2),nx+1,ny+1
+c$$$     .            ,g_def%gxmin,g_def%gxmax
+c$$$     .            ,g_def%gymin,g_def%gymax
+c$$$     .            ,1,110)
+c$$$        call contour(cov(0:nx,0:ny,1,3),nx+1,ny+1
+c$$$     .            ,g_def%gxmin,g_def%gxmax
+c$$$     .            ,g_def%gymin,g_def%gymax
+c$$$     .            ,1,110)
+c$$$        close(110)
+c diag ****
 
         end function XformToCov_vrtx_mesh
 
