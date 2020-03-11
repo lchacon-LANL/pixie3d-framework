@@ -93,6 +93,9 @@
       ! endif
       call MPI_Comm_dup (MPI_COMM_WORLD,adios2_world_comm,ierr)
       call adios2_init(adios2obj,adios2_world_comm,.true.,ierr)
+
+      if (adios2_debug) print *, 'adios2 init called'
+
       end function init_ADIOS2_IO
 
 !     destroy_ADIOS2_IO
@@ -213,37 +216,80 @@
 !             the boundary conditions and variable names
               addl_write = .true.
           endif
-          adios2_append_recordfile = .true.
+!          adios2_append_recordfile = .true.
       else 
           mode = 'a'//char(0)
       endif
 
-      if (adios2_debug.and.my_rank==0) then
-        write (*,*) ' ADIOS2 file open...'
-      endif
-
       if (isfirst) then
         isfirst=.false.
+
+        if (adios2_debug.and.my_rank==0) then
+           write (*,*) ' ADIOS2 file open...'
+!           write (*,*) ' ADIOS2 file access mode=',mode
+           write (*,*) ' ADIOS2 open: adios_file=',trim(file)
+        endif
+        
         call adios2_declare_io (aio, adios2obj, "record", err)
         call adios2_define_variable (var, aio, "time", adios2_type_dp, err)
         call adios2_define_variable (var, aio, "itime", adios2_type_integer4, err)
         call adios2_define_variable (var, aio, "dt", adios2_type_dp, err)
         call adios2_define_variable (var, aio, "gammat", adios2_type_dp, err)
         call defineDerivedTypeADIOS2 (aio, varray, addl_write)
-        call adios2_open(engine,aio,file,adios2_mode_write,adios2_world_comm,err)
+
+        if (adios2_append_recordfile) then
+           call adios2_open(engine,aio,file,adios2_mode_append,adios2_world_comm,err)
+           if (adios2_debug.and.my_rank==0) then
+              write (*,*) ' ADIOS2 file access mode= append'
+           endif
+        else
+           write (*,*) 'here'
+           call adios2_open(engine,aio,file,adios2_mode_write,adios2_world_comm,err)
+           adios2_append_recordfile = .true.
+           if (adios2_debug.and.my_rank==0) then
+              write (*,*) ' ADIOS2 file access mode= write'
+           endif
+        endif
+
+        if (err /= 0) then
+           write (*,*) 'Could not open ADIOS2 file in writeRecordFile'
+           write (*,*) 'rank=',my_rank,'  ERROR in "adios2_open"'
+           stop
+        endif
+      endif
+     
+!!$      if (isfirst) then
+!!$        isfirst=.false.
+!!$        if (.not.adios2_append_recordfile) then 
+!!$           adios2_append_recordfile = .true.
+!!$           call adios2_declare_io (aio, adios2obj, "record", err)
+!!$           call adios2_define_variable (var, aio, "time", adios2_type_dp, err)
+!!$           call adios2_define_variable (var, aio, "itime", adios2_type_integer4, err)
+!!$           call adios2_define_variable (var, aio, "dt", adios2_type_dp, err)
+!!$           call adios2_define_variable (var, aio, "gammat", adios2_type_dp, err)
+!!$           call defineDerivedTypeADIOS2 (aio, varray, addl_write)
+!!$           call adios2_open(engine,aio,file,adios2_mode_write,adios2_world_comm,err)
+!!$           if (adios2_debug.and.my_rank==0) then
+!!$              write (*,*) ' ADIOS2 file access mode= write'
+!!$           endif
+!!$        else
+!!$           call adios2_open(engine,aio,file,adios2_mode_append,adios2_world_comm,err)
+!!$           if (adios2_debug.and.my_rank==0) then
+!!$              write (*,*) ' ADIOS2 file access mode= append'
+!!$           endif
+!!$        endif
+!!$      endif
+
+      if (adios2_debug.and.my_rank==0) then
+         write (*,*) ' ADIOS2 step open...'
       endif
 
       call adios2_begin_step(engine, adios2_step_mode_append, 0.0, istatus, err)
 
       if (err /= 0) then
-        write (*,*) 'Problem in writeRecordFile'
-        write (*,*) 'rank=',my_rank,'  ERROR in "adios2_open"'
+        write (*,*) 'Could not begin step in writeRecordFile'
+        write (*,*) 'rank=',my_rank,'  ERROR in "adios2_begin_step"'
         stop
-      endif
-
-      if (adios2_debug.and.my_rank==0) then
-        write (*,*) 'ADIOS2 file access mode=',mode
-        write (*,*) 'ADIOS2 open: adios_file=',trim(file)
       endif
 
       call adios2_put(engine, "time", time, err)
@@ -256,7 +302,7 @@
 !     Close adios file which starts I/O writing from the buffer
 
       if (adios2_debug.and.my_rank==0) then
-        write (*,*) ' ADIOS file close...'
+        write (*,*) ' ADIOS2 step close...'
       endif
 
       call adios2_end_step(engine, err)
@@ -640,7 +686,7 @@
         !call adios_fclose(adios_fh, ierr)
         call adios2_close(engine, ierr)
 
-        if (adios2_debug) write (*,*) "Closed ", trim(recordfile)
+        if (adios2_debug) write (*,*) "ADIOS2 engine closed"
 
       end function closeADIOS2RecordFileForRead
 
