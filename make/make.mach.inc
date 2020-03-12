@@ -164,7 +164,7 @@ ifeq ($(HOST),jetta)
       HDF5 = f
 
       #Determined via modules
-      HDF5_LIBS =-L$(PHDF5_LIB) -lhdf5hl_fortran -lhdf5_fortran -lhdf5_hl -lhdf5 -lz -lm 
+      HDF5_LIBS =-L$(PHDF5_LIB) -lhdf5hl_fortran -lhdf5_fortran -lhdf5_hl -lhdf5 -lz 
       HDF5_MOD  = $(PHDF5_INC)
       HDF5_INC  = $(PHDF5_INC)
 
@@ -183,7 +183,7 @@ ifeq ($(HOST),jetta)
 
       SPRNG = f
 
-      SPRNG_LIBS = $(SPRNG_PAR_HOME)/lib -lsprng -lstdc++ -lm -lmpi_cxx
+      SPRNG_LIBS = $(SPRNG_PAR_HOME)/lib -lsprng -lstdc++ -lmpi_cxx
       SPRNG_INC  = $(SPRNG_PAR_HOME)/include
     else
       LIBS += -L/usr/lib -llapack -lblas
@@ -199,7 +199,7 @@ ifeq ($(HOST),jetta)
 
       SPRNG = f
 
-      SPRNG_LIBS = $(SPRNG_SER_HOME)/lib -lsprng -lstdc++ -lm 
+      SPRNG_LIBS = $(SPRNG_SER_HOME)/lib -lsprng -lstdc++
       SPRNG_INC = $(SPRNG_SER_HOME)/include
     endif
   endif
@@ -374,7 +374,7 @@ ifeq ($(findstring quevedo,$(HOST)),quevedo)
 
 #    LIBS += -L/opt/local/lib -latlas
   else
-    LIBS += -L/opt/local/lib -llapack -lblas
+    LIBS += -L/opt/local/lib/lapack -llapack -lblas
 
     HDF5 = t
 
@@ -457,7 +457,7 @@ ifeq ($(findstring Marias,$(HOST)),Marias)
 
   MACHINE=Macbook-Air
 
-  NETCDF=t
+  NETCDF=f
   NETCDF_LIBS = -L/opt/local/lib -lnetcdff -lnetcdf
   NETCDF_INC  = -I/opt/local/include
 
@@ -471,21 +471,21 @@ ifeq ($(findstring Marias,$(HOST)),Marias)
     PETSC_DIR =$(WORKDIR)/lib/petsc-3.0.0-p7
 
     ifeq ($(BOPT),O)
-      PETSC_ARCH = macosx_openmpi_gcc6_O
+      PETSC_ARCH = macosx_openmpi2.1.2_gcc6_0
     else
-      PETSC_ARCH = macosx_openmpi_gcc6_g
+      PETSC_ARCH = macosx_openmpi2.1.2_gcc6_g
     endif
 
     HDF5 = t
 
-    HDF5_HOME =/opt/local
+    HDF5_HOME = $(WORKDIR)/lib/hdf5-1.8.7/gcc6/parallel
     HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
     HDF5_MOD  = $(HDF5_HOME)/include
     HDF5_INC  = $(HDF5_MOD)
 
     ADIOS = $(HDF5)
 
-    ADIOS_HOME = $(WORKDIR)/lib/adios-1.10.0
+    ADIOS_HOME = $(WORKDIR)/lib/adios-1.10.0/openmpi2.1.2_gcc6
     ADIOS_LIBS = -L$(ADIOS_HOME)/lib -ladiosf_v1
     ADIOS_INC  = $(ADIOS_HOME)/include
     ADIOS_VER  = 1.10.0
@@ -1207,9 +1207,9 @@ ifeq ($(findstring gr,$(HOST)),gr)
 
      HDF5 = t
 
-     HDF5_HOME = /usr/projects/hpcsoft/toss3/grizzly/hdf5/1.8.16_gcc-5.3.0_openmpi-1.10.5
-     HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
-     HDF5_MOD  = $(HDF5_HOME)/include
+#     HDF5_ROOT = /usr/projects/hpcsoft/toss3/grizzly/hdf5/1.8.16_gcc-5.3.0_openmpi-1.10.5
+     HDF5_LIBS =-L$(HDF5_ROOT)/lib -lhdf5_fortran -lhdf5 -lz -lm
+     HDF5_MOD  = $(HDF5_ROOT)/include
      HDF5_INC  = $(HDF5_MOD)
 
      ADIOS = t
@@ -1240,19 +1240,19 @@ ifeq ($(findstring gr,$(HOST)),gr)
       PETSC_DIR =/turquoise/usr/projects/magreconn/soft/petsc-3.0.0-p7
 
       ifeq ($(BOPT),O)
-       PETSC_ARCH = linux64_grizzly_intel17.0.1_openmpi1.10.5
+       PETSC_ARCH = linux64_grizzly_intel-17.0.4_openmpi-2.1.2
       else
-       PETSC_ARCH = linux64_grizzly_intel17.0.1_openmpi1.10.5_dbg
+       PETSC_ARCH = linux64_grizzly_intel-17.0.4_openmpi-2.1.2_dbg
       endif
 
       HDF5 = t
 
-      HDF5_HOME = /usr/projects/hpcsoft/toss3/grizzly/hdf5/1.8.16_intel-17.0.1_openmpi-1.10.5
-      HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
-      HDF5_MOD  = $(HDF5_HOME)/include
+#      HDF5_ROOT = /usr/projects/hpcsoft/toss3/grizzly/hdf5/1.8.16_intel-17.0.4_openmpi-2.1.2
+      HDF5_LIBS =-L$(HDF5_ROOT)/lib -lhdf5_fortran -lhdf5 -lz -lm
+      HDF5_MOD  = $(HDF5_ROOT)/include
       HDF5_INC  = $(HDF5_MOD)
 
-      ADIOS = t
+      ADIOS = f
 
       ADIOS_BUFFER_MB = 1000
       ADIOS_METHOD = MPI_LUSTRE
@@ -1264,7 +1264,7 @@ ifeq ($(findstring gr,$(HOST)),gr)
       SPRNG = t
 
       SPRNG_PAR_HOME = /turquoise/usr/projects/magreconn/soft/sprng5
-      SPRNG_LIBS = $(SPRNG_PAR_HOME)/lib/grizzly-intel17.0.1-openmpi1.10.5/lib -lsprng -lstdc++ -lm
+      SPRNG_LIBS = $(SPRNG_PAR_HOME)/lib/grizzly-intel17.0.1-openmpi1.10.5/lib -lsprng -lstdc++
       SPRNG_INC  = $(SPRNG_PAR_HOME)/include
      else
       LIBS += -L/usr/lib -llapack -lblas
@@ -1291,9 +1291,9 @@ ifeq ($(findstring gr,$(HOST)),gr)
 
       HDF5 = f
 
-#      HDF5_HOME = /usr/projects/hpcsoft/toss3/grizzly/hdf5/1.8.16_gcc-5.3.0_openmpi-1.10.3
-#      HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
-#      HDF5_MOD  = $(HDF5_HOME)/include
+#      HDF5_ROOT = /usr/projects/hpcsoft/toss3/grizzly/hdf5/1.8.16_gcc-5.3.0_openmpi-1.10.3
+#      HDF5_LIBS =-L$(HDF5_ROOT)/lib -lhdf5_fortran -lhdf5 -lz -lm
+#      HDF5_MOD  = $(HDF5_ROOT)/include
 #      HDF5_INC  = $(HDF5_MOD)
 
       ADIOS = f
@@ -1306,6 +1306,66 @@ ifeq ($(findstring gr,$(HOST)),gr)
       ADIOS_VER  = 1.10.0
      endif
    endif
+
+  endif
+
+endif
+
+########
+# Snow #
+########
+
+ifeq ($(findstring sn,$(HOST)),sn)
+
+  override MACHINE = snow
+
+  ifeq ($(findstring ifort,$(FC)),ifort)
+
+    NETCDF=f
+
+    ifeq ($(MPI_NAME),openmpi)
+     ifdef BOPT
+      PETSC_DIR =/usr/projects/DPIC/Software/petsc-3.0.0-p7
+
+      ifeq ($(BOPT),O)
+       PETSC_ARCH = linux64_snow_intel-17.0.4_openmpi-2.1.2
+      else
+       PETSC_ARCH = linux64_snow_intel-17.0.4_openmpi-2.1.2_dbg
+      endif
+
+      HDF5 = f
+
+#      HDF5_ROOT = /usr/projects/hpcsoft/toss3/grizzly/hdf5/1.8.16_intel-17.0.4_openmpi-2.1.2
+      HDF5_LIBS =-L$(HDF5_ROOT)/lib -lhdf5_fortran -lhdf5 -lz
+      HDF5_MOD  = $(HDF5_ROOT)/include
+      HDF5_INC  = $(HDF5_MOD)
+
+      ADIOS = f
+
+      ADIOS_BUFFER_MB = 1000
+      ADIOS_METHOD = MPI_LUSTRE
+
+      ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.10.0/lib-grizzly-intel-17.0.1_openmpi-1.10.5
+      ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -llustreapi
+      ADIOS_VER  = 1.10.0
+
+      SPRNG = t
+
+      SPRNG_PAR_HOME = /usr/projects/DPIC/Software/sprng5
+      SPRNG_LIBS = $(SPRNG_PAR_HOME)/snow_intel-17.0.4-openmpi-2.1.2/lib -lsprng -lstdc++
+      SPRNG_INC  = $(SPRNG_PAR_HOME)/include
+     else
+      LIBS += -L/usr/lib -llapack -lblas
+
+      HDF5 = f
+
+      ADIOS = f
+
+      SPRNG = f
+
+     endif
+
+    endif
 
   endif
 
@@ -1325,7 +1385,7 @@ ifeq ($(findstring marconi_work,$(WORK)),marconi_work)
 # togliere per casi VMEC così pixplot produce sia cnv sia cov
 
  ifdef BOPT
-   PETSC_DIR = /marconi_work/FUA32_PIXIE3D/petsc-3.0.0-p7
+   PETSC_DIR = /marconi_work/FUA33_PIXIE3D/petsc-3.0.0-p7
 
    ifeq ($(BOPT),O)
 # ifort/intelmpi

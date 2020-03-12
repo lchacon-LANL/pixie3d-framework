@@ -1,3 +1,7 @@
+#if !defined(PER_SYNC_ONLY)
+#define PER_SYNC_ONLY .false.
+#endif
+
 c module BCS_variables
 c####################################################################
       module BCS_variables
@@ -83,7 +87,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: i,j,k,ig,jg,kg,jj,jlog,nyg,jglobal
+      integer :: i,j,k,ig,jg,kg,jj,jlog,nyg,jglobal,mm
 
 #if defined(petsc)
       real(8),allocatable,dimension(:)   :: local_x,global_x
@@ -135,10 +139,13 @@ c     Element exchange in poloidal direction
 
       jlog = gl_def%jlo(igybc)
 
+      mm = 1
+      if (coords=='hel'.or.coords=='hl2') mm = gl_def%params(1)
+
       do k=0,nzbc+1
         do j=0,nybc+1
           jglobal = j + jlog - 1
-          jj = mod(jglobal+nyg/2,nyg)
+          jj = mod(jglobal+mm*nyg/2,nyg)
           if (jj == 0) jj = nyg
 #if defined(petsc)
           array(i-1,j,k) = garray(jj,k)
@@ -176,7 +183,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: i,j,k,jj,jlog,nyg,jglobal
+      integer :: i,j,k,jj,jlog,nyg,jglobal,mm
 
 #if defined(petsc)
       real(8),allocatable,dimension(:)   :: local_x,global_x
@@ -226,12 +233,15 @@ c     Parallel Allgather in SP communicator
 
 c     Element exchange in poloidal direction
 
+      mm = 1
+      if (coords=='hel'.or.coords=='hl2') mm = gl_def%params(1)
+
       jlog = gl_def%jlo(igybc)
       if (coords == 'hl2') then
         do k=0,nzbc+1
           do j=0,nybc+1
             jglobal = j + jlog - 1
-            jj = mod(jglobal+nyg/2,nyg)
+            jj = mod(jglobal+mm*nyg/2,nyg)
             if (jj == 0) jj = nyg
 
 #if defined(petsc)
@@ -245,7 +255,7 @@ c     Element exchange in poloidal direction
         do k=0,nzbc+1
           do j=0,nybc+1
             jglobal = j + jlog - 1
-            jj = mod(jglobal+nyg/2,nyg)
+            jj = mod(jglobal+mm*nyg/2,nyg)
             if (jj == 0) jj = nyg
 
             if (cov) then
@@ -311,7 +321,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: i,j,k,jj,jlog,nyg,jglobal
+      integer :: i,j,k,jj,jlog,nyg,jglobal,mm
 
 #if defined(petsc)
       real(8),allocatable,dimension(:)   :: local_x,global_x
@@ -368,6 +378,9 @@ c     Parallel Allgather in SP communicator
 
 c     Element exchange in poloidal direction
 
+      mm = 1
+      if (coords=='hel'.or.coords=='hl2') mm = gl_def%params(1)
+
       jlog = gl_def%jlo(igybc)
       if (coords == 'hl2') then
         stop 'hl2 staggered option not implemented for hl2 geom'
@@ -388,7 +401,7 @@ c$$$        enddo
         do k=0,nzbc+1
           do j=0,nybc+1
             jglobal = j + jlog - 1
-            jj = mod(jglobal+nyg/2,nyg)
+            jj = mod(jglobal+mm*nyg/2,nyg)
             if (jj == 0) jj = nyg
 
             if (cov) then
@@ -605,7 +618,7 @@ c #####################################################################
         integer,private :: bctype
 
         logical,private :: skip_corners=.false.
-     .                    ,force_corners=.false.
+cc     .                    ,force_corners=.false.
 
         !Define order of interpolation for EDGE and CORNER treatment
         !(linear to preserve nearest-neighbors stencil; this is 
@@ -701,7 +714,7 @@ c     Call variables
 
 c     Begin program
 
-      force_corners = fc
+cc      force_corners = fc
 
 c     End program
 
@@ -1209,7 +1222,7 @@ c     Fill corners
 c     Periodic boundary synchronizing
 
 #if defined(PER_BC_SYNC) && !defined(samrai)
-      call sync_bc(.false.)
+      call sync_bc(PER_SYNC_ONLY)
 #endif
 
 c     End program
@@ -1388,30 +1401,22 @@ c     Prepare SP BCs
 
 c     Fill PETSc ghost cells and PER BCs
 
-#if defined(petsc) && !defined(samrai)
-      !Determine whether we need to fill ghost cells using PETSc
-      petsc__bc = (.not.asm)
-
-      !Fill ghost cells
-      if (petsc__bc) then
-        da_ctx => gbc_def%dactx(igxbc)
-
-        do ieq=1,ncomp
-          call fillPetscGhostCells(da_ctx,v_cov(:,:,:,ieq))
-          call fillPetscGhostCells(da_ctx,v_cnv(:,:,:,ieq))
-        enddo
-      endif
-#elif !defined(samrai)
-      call sync_bc(.true.)
-#endif
+      call set_LOG_bc(v_cnv,.true.)
+      call set_LOG_bc(v_cov,.false.)
 
       if (bcPER(1).and.bcPER(2).and.bcPER(3)) return
+
+c     Set SP BCs (if appropriate)
+      
+      call set_TOPOL_bc(SP,v_cnv,.true.)
+      call set_TOPOL_bc(SP,v_cov,.false.)
 
 c     Impose physical BCs
 
       cov_to_cnv = .false.
 
-      do bctype=2,BCLIM             !Do not do PER=1; already done 
+      do bctype=1,BCLIM
+        if (bctype == SP.or.bctype == PER) cycle !Already done
         do dim=1,3
           do loc=0,1
             ibc = (1+loc)+2*(dim-1)
@@ -1463,12 +1468,75 @@ c     Fill corners (for both cnv and cov components)
 c     Periodic boundary synchronizing
 
 #if defined(PER_BC_SYNC) && !defined(samrai)
-      call sync_bc(.false.)
+      call sync_bc(PER_SYNC_ONLY)
 #endif
 
 c     End program
 
       contains
+
+c     set_LOG_bc
+c     #################################################################
+      subroutine set_LOG_bc(vec,cnv)
+
+      implicit none
+      
+c     -----------------------------------------------------------------
+c     Set BC "bctype" independently for cov and cnv vectors
+c     -----------------------------------------------------------------
+
+      real(8) :: vec(:,:,:,:)
+      logical :: cnv,petsc__bc
+      integer :: ieq
+
+#if defined(petsc) && !defined(samrai)
+        !Determine whether we need to fill ghost cells using PETSc
+        petsc__bc = (.not.asm)
+
+        !Fill ghost cells
+        if (petsc__bc) then
+          da_ctx => gbc_def%dactx(igxbc)
+          do ieq=1,ncomp
+            call fillPetscGhostCells(da_ctx,vec(:,:,:,ieq))
+          enddo
+        endif
+#elif !defined(samrai)
+        call set_TOPOL_bc(PER,vec,cnv)
+#endif
+
+      end subroutine set_LOG_bc
+
+c     set_TOPOL_bc
+c     #################################################################
+      subroutine set_TOPOL_bc(bctype,vec,cnv)
+
+      implicit none
+      
+c     -----------------------------------------------------------------
+c     Set topological BCs independently for cov and cnv vectors
+c     -----------------------------------------------------------------
+
+      integer :: bctype
+      real(8) :: vec(:,:,:,:)
+      logical :: cnv
+
+      do dim=1,3
+        do loc=0,1
+          ibc = (1+loc)+2*(dim-1)
+
+          do ivar = 1,ncomp
+            ieq = ivar + fcomp - 1
+
+            if (abs(bcnd(ibc,ivar)) == bctype) then
+              call FillGhostNodes_vec(gbc_def,ieq,ivar,ncomp,dim,loc
+     .                               ,bctype,vec,var0,cnv=cnv)
+            endif
+          enddo
+
+        enddo
+      enddo
+
+      end subroutine set_TOPOL_bc
 
 c     sync_bc
 c     #################################################################
@@ -1578,7 +1646,9 @@ c     Begin program
         do il = ll,hl
           ibc = (1+il)+2*(id-1)
 
-          if (.not.selectFace(gbc_def,ibc)) cycle !Do nothing for logical boundaries
+          if (.not.selectFace(gbc_def,ibc)
+     .       .or.bcPER(id)
+     .       .or.bcSP(ibc)) cycle !Do nothing for logical, periodic, or SP boundaries
 
           !Do NOT change: SAMRAI depends on it
           call findBCLoopLimits(gbc_def
@@ -1828,7 +1898,7 @@ c     Fill corners
 c     Periodic boundary synchronizing
 
 #if defined(PER_BC_SYNC) && !defined(samrai)
-      call sync_bc(.false.)
+      call sync_bc(PER_SYNC_ONLY)
 #endif
 
       deallocate(vec0)
@@ -2048,28 +2118,28 @@ c     Synchronize covariant and contravariant components (only bottom bdrys)
 
       call synchronize_stg(ncomp,v_cnv,v_cov,bcnd,cov_to_cnv)
 
-c     Fill edges (for both cnv and cov components)
-
-      xtrap_o = max(2,order)
-
-      do ivar=1,ncomp
-        call fillEdges(gbc_def,v_cov(:,:,:,ivar),var0(:,:,:,ivar)
-     .                ,bcnd(:,ivar),xtrap_o)
-        call fillEdges(gbc_def,v_cnv(:,:,:,ivar),var0(:,:,:,ivar)
-     .                ,bcnd(:,ivar),xtrap_o)
-      enddo
-
-c     Fill corners (for both cnv and cov components)
-
-      do ivar=1,ncomp
-        call fillCorners(gbc_def,v_cov(:,:,:,ivar),bcnd(:,ivar),xtrap_o)
-        call fillCorners(gbc_def,v_cnv(:,:,:,ivar),bcnd(:,ivar),xtrap_o)
-      enddo
+c$$$c     Fill edges (for both cnv and cov components)
+c$$$
+c$$$      xtrap_o = max(2,order)
+c$$$
+c$$$      do ivar=1,ncomp
+c$$$        call fillEdges(gbc_def,v_cov(:,:,:,ivar),var0(:,:,:,ivar)
+c$$$     .                ,bcnd(:,ivar),xtrap_o)
+c$$$        call fillEdges(gbc_def,v_cnv(:,:,:,ivar),var0(:,:,:,ivar)
+c$$$     .                ,bcnd(:,ivar),xtrap_o)
+c$$$      enddo
+c$$$
+c$$$c     Fill corners (for both cnv and cov components)
+c$$$
+c$$$      do ivar=1,ncomp
+c$$$        call fillCorners(gbc_def,v_cov(:,:,:,ivar),bcnd(:,ivar),xtrap_o)
+c$$$        call fillCorners(gbc_def,v_cnv(:,:,:,ivar),bcnd(:,ivar),xtrap_o)
+c$$$      enddo
 
 c     Periodic boundary synchronizing
 
 #if defined(PER_BC_SYNC) && !defined(samrai)
-      call sync_bc(.false.)
+      call sync_bc(PER_SYNC_ONLY)
 #endif
 
 c     End program
@@ -2612,8 +2682,8 @@ c     Impose physical BCs
         enddo
       enddo
 
-c     Fill edges 
-
+c$$$c     Fill edges 
+c$$$
 c$$$      xtrap_o = max(2,order)
 c$$$
 c$$$      do ivar=1,ncomp
@@ -2630,7 +2700,7 @@ c$$$      enddo
 c     Periodic boundary synchronizing
 
 #if defined(PER_BC_SYNC) && !defined(samrai)
-      call sync_bc(.false.)
+      call sync_bc(PER_SYNC_ONLY)
 #endif
 
       if (PRESENT(vec0)) then
@@ -4196,7 +4266,7 @@ c     Call variables
 
 c     Local variables
 
-      integer    :: ibcl(3)
+      integer    :: ibcl(3),type
       integer    :: i,j,k,imax,imin,jmax,jmin,kmax,kmin
 
       integer    :: ito,jto,kto,ifrom,jfrom,kfrom
@@ -4211,6 +4281,8 @@ c     Begin program
 
       ibcl = 0
 
+      type = 1
+      
 c     Determine boundary limits
 
       if (.not.selectFace(gbc_def,ibc)) return
@@ -4244,7 +4316,7 @@ c     Select face
         do j=jmin,jmax
           do k=kmin,kmax
             call extrapolateToCorner(gbc_def,ibcl,ito,j,k,imn,j,k
-     .                ,imx,j,k,array(imn:imx,j:j,k:k),bcond,order)
+     .                ,imx,j,k,array(imn:imx,j:j,k:k),bcond,order,type)
           enddo
         enddo
 
@@ -4261,7 +4333,7 @@ c     Select face
         do j=jmin,jmax
           do k=kmin,kmax
             call extrapolateToCorner(gbc_def,ibcl,ito,j,k,imn,j,k
-     .                ,imx,j,k,array(imn:imx,j:j,k:k),bcond,order)
+     .                ,imx,j,k,array(imn:imx,j:j,k:k),bcond,order,type)
           enddo
         enddo
 
@@ -4278,7 +4350,7 @@ c     Select face
         do k=kmin,kmax
           do i=imin,imax
               call extrapolateToCorner(gbc_def,ibcl,i,jto,k,i,jmn,k
-     .                ,i,jmx,k,array(i:i,jmn:jmx,k:k),bcond,order)
+     .                ,i,jmx,k,array(i:i,jmn:jmx,k:k),bcond,order,type)
           enddo
         enddo
 
@@ -4295,7 +4367,7 @@ c     Select face
         do k=kmin,kmax
           do i=imin,imax
             call extrapolateToCorner(gbc_def,ibcl,i,jto,k,i,jmn,k
-     .                ,i,jmx,k,array(i:i,jmn:jmx,k:k),bcond,order)
+     .                ,i,jmx,k,array(i:i,jmn:jmx,k:k),bcond,order,type)
           enddo
         enddo
 
@@ -4312,7 +4384,7 @@ c     Select face
         do j=jmin,jmax
           do i=imin,imax
             call extrapolateToCorner(gbc_def,ibcl,i,j,kto,i,j,kmn
-     .                ,i,j,kmx,array(i:i,j:j,kmn:kmx),bcond,order)
+     .                ,i,j,kmx,array(i:i,j:j,kmn:kmx),bcond,order,type)
           enddo
         enddo
 
@@ -4329,7 +4401,7 @@ c     Select face
         do j=jmin,jmax
           do i=imin,imax
             call extrapolateToCorner(gbc_def,ibcl,i,j,kto,i,j,kmn
-     .                ,i,j,kmx,array(i:i,j:j,kmn:kmx),bcond,order)
+     .                ,i,j,kmx,array(i:i,j:j,kmn:kmx),bcond,order,type)
           enddo
         enddo
 
@@ -4366,10 +4438,12 @@ c     Local variables
 
       integer    :: ito,jto,kto,ifrom,jfrom,kfrom
      .             ,imn,imx,jmn,jmx,kmn,kmx,ibc,ord
-     .             ,dim,loc,ibcl(3)
+     .             ,dim,loc,ibcl(3),type
 
 c     Begin program
 
+      type = 2
+      
       do dim=1,3
       do loc=0,1
 
@@ -4404,7 +4478,7 @@ c     Select edge
           imx   = max(ito,ifrom)
 
           if (jmin == 1
-     .       .and.(selectFace(gbc_def,1).or.selectFace(gbc_def,3))) then !Check faces #1,#3
+     .       .and.(selectFace(gbc_def,1).and.selectFace(gbc_def,3)))then !Check faces #1,#3
             jto   = jmin-1
             jfrom = min(jmin+ord,nybc)
 
@@ -4417,13 +4491,14 @@ c     Select edge
               else
                 ibcl = (/1,3,0/)
                 call extrapolateToCorner(gbc_def,ibcl,ito,jto,k,imn,jmn
-     .              ,k,imx,jmx,k,array(imn:imx,jmn:jmx,k:k),bcond,order)
+     .              ,k,imx,jmx,k,array(imn:imx,jmn:jmx,k:k),bcond,order
+     .              ,type)
               endif
             enddo
           endif
 
           if (jmax == nybc
-     .       .and.(selectFace(gbc_def,1).or.selectFace(gbc_def,4))) then !Check faces #1,#4
+     .       .and.(selectFace(gbc_def,1).and.selectFace(gbc_def,4)))then !Check faces #1,#4
             jto   = jmax+1
             jfrom = max(jmax-ord,1)
 
@@ -4436,7 +4511,8 @@ c     Select edge
               else
                 ibcl = (/1,4,0/)
                 call extrapolateToCorner(gbc_def,ibcl,ito,jto,k,imn,jmn
-     .              ,k,imx,jmx,k,array(imn:imx,jmn:jmx,k:k),bcond,order)
+     .              ,k,imx,jmx,k,array(imn:imx,jmn:jmx,k:k),bcond,order
+     .              ,type)
               endif
             enddo
           endif
@@ -4453,7 +4529,7 @@ c     Select edge
           imx   = max(ito,ifrom)
 
           if (jmin == 1
-     .       .and.(selectFace(gbc_def,2).or.selectFace(gbc_def,3))) then !Check faces #2,#3
+     .       .and.(selectFace(gbc_def,2).and.selectFace(gbc_def,3)))then !Check faces #2,#3
             jto   = jmin-1
             jfrom = min(jmin+ord,nybc)
 
@@ -4466,13 +4542,14 @@ c     Select edge
               else
                 ibcl = (/2,3,0/)
                 call extrapolateToCorner(gbc_def,ibcl,ito,jto,k,imn,jmn
-     .              ,k,imx,jmx,k,array(imn:imx,jmn:jmx,k:k),bcond,order)
+     .              ,k,imx,jmx,k,array(imn:imx,jmn:jmx,k:k),bcond,order
+     .              ,type)
               endif
             enddo
           endif
 
           if (jmax == nybc
-     .       .and.(selectFace(gbc_def,2).or.selectFace(gbc_def,4))) then !Check faces #2,#4
+     .       .and.(selectFace(gbc_def,2).and.selectFace(gbc_def,4)))then !Check faces #2,#4
             jto   = jmax+1
             jfrom = max(jmax-ord,1)
 
@@ -4485,7 +4562,8 @@ c     Select edge
               else
                 ibcl = (/2,4,0/)
                 call extrapolateToCorner(gbc_def,ibcl,ito,jto,k,imn,jmn
-     .              ,k,imx,jmx,k,array(imn:imx,jmn:jmx,k:k),bcond,order)
+     .              ,k,imx,jmx,k,array(imn:imx,jmn:jmx,k:k),bcond,order
+     .              ,type)
               endif
             enddo
           endif
@@ -4503,7 +4581,7 @@ c     Select edge
           jmx   = max(jto,jfrom)
 
           if (kmin == 1
-     .       .and.(selectFace(gbc_def,3).or.selectFace(gbc_def,5))) then !Check faces #3,#5
+     .       .and.(selectFace(gbc_def,3).and.selectFace(gbc_def,5)))then !Check faces #3,#5
 
             kto   = kmin-1
             kfrom = min(kmin+ord,nzbc)
@@ -4517,13 +4595,14 @@ c     Select edge
               else
                 ibcl = (/0,3,5/)
                 call extrapolateToCorner(gbc_def,ibcl,i,jto,kto,i,jmn
-     .            ,kmn,i,jmx,kmx,array(i:i,jmn:jmx,kmn:kmx),bcond,order)
+     .            ,kmn,i,jmx,kmx,array(i:i,jmn:jmx,kmn:kmx),bcond,order
+     .            ,type)
               endif
             enddo
           endif
 
           if (kmax == nzbc
-     .       .and.(selectFace(gbc_def,3).or.selectFace(gbc_def,6))) then !Check faces #3,#6
+     .       .and.(selectFace(gbc_def,3).and.selectFace(gbc_def,6)))then !Check faces #3,#6
 
             kto   = kmax+1
             kfrom = max(kmax-ord,1)
@@ -4537,7 +4616,8 @@ c     Select edge
               else
                 ibcl = (/0,3,6/)
                 call extrapolateToCorner(gbc_def,ibcl,i,jto,kto,i,jmn
-     .            ,kmn,i,jmx,kmx,array(i:i,jmn:jmx,kmn:kmx),bcond,order)
+     .            ,kmn,i,jmx,kmx,array(i:i,jmn:jmx,kmn:kmx),bcond,order
+     .            ,type)
               endif
             enddo
           endif
@@ -4555,7 +4635,7 @@ c     Select edge
           jmx   = max(jto,jfrom)
 
           if (kmin == 1
-     .       .and.(selectFace(gbc_def,4).or.selectFace(gbc_def,5))) then !Check faces #4,#5
+     .       .and.(selectFace(gbc_def,4).and.selectFace(gbc_def,5)))then !Check faces #4,#5
 
             kto   = kmin-1
             kfrom = min(kmin+ord,nzbc)
@@ -4569,13 +4649,14 @@ c     Select edge
               else
                 ibcl = (/0,4,5/)
                 call extrapolateToCorner(gbc_def,ibcl,i,jto,kto,i,jmn
-     .            ,kmn,i,jmx,kmx,array(i:i,jmn:jmx,kmn:kmx),bcond,order)
+     .            ,kmn,i,jmx,kmx,array(i:i,jmn:jmx,kmn:kmx),bcond,order
+     .            ,type)
               endif
             enddo
           endif
 
           if (kmax == nzbc
-     .       .and.(selectFace(gbc_def,4).or.selectFace(gbc_def,6))) then !Check faces #4,#6
+     .       .and.(selectFace(gbc_def,4).and.selectFace(gbc_def,6)))then !Check faces #4,#6
 
             kto   = kmax+1
             kfrom = max(kmax-ord,1)
@@ -4589,7 +4670,8 @@ c     Select edge
               else
                 ibcl = (/0,4,6/)
                 call extrapolateToCorner(gbc_def,ibcl,i,jto,kto,i,jmn
-     .            ,kmn,i,jmx,kmx,array(i:i,jmn:jmx,kmn:kmx),bcond,order)
+     .            ,kmn,i,jmx,kmx,array(i:i,jmn:jmx,kmn:kmx),bcond,order
+     .            ,type)
               endif
             enddo
           endif
@@ -4607,7 +4689,7 @@ c     Select edge
           kmx   = max(kto,kfrom)
 
           if (imin == 1
-     .       .and.(selectFace(gbc_def,5).or.selectFace(gbc_def,1))) then !Check faces #5,#1
+     .       .and.(selectFace(gbc_def,5).and.selectFace(gbc_def,1)))then !Check faces #5,#1
 
             ito   = imin-1
             ifrom = min(imin+ord,nxbc)
@@ -4621,13 +4703,14 @@ c     Select edge
               else
                 ibcl = (/1,0,5/)
                 call extrapolateToCorner(gbc_def,ibcl,ito,j,kto,imn,j
-     .            ,kmn,imx,j,kmx,array(imn:imx,j:j,kmn:kmx),bcond,order)
+     .            ,kmn,imx,j,kmx,array(imn:imx,j:j,kmn:kmx),bcond,order
+     .            ,type)
               endif
             enddo
           endif
 
           if (imax == nxbc
-     .       .and.(selectFace(gbc_def,5).or.selectFace(gbc_def,2))) then !Check faces #5,#2
+     .       .and.(selectFace(gbc_def,5).and.selectFace(gbc_def,2)))then !Check faces #5,#2
 
             ito   = imax+1
             ifrom = max(imax-ord,1)
@@ -4641,7 +4724,8 @@ c     Select edge
               else
                 ibcl = (/2,0,5/)
                 call extrapolateToCorner(gbc_def,ibcl,ito,j,kto,imn,j
-     .            ,kmn,imx,j,kmx,array(imn:imx,j:j,kmn:kmx),bcond,order)
+     .            ,kmn,imx,j,kmx,array(imn:imx,j:j,kmn:kmx),bcond,order
+     .            ,type)
               endif
             enddo
           endif
@@ -4659,7 +4743,7 @@ c     Select edge
           kmx   = max(kto,kfrom)
 
           if (imin == 1
-     .       .and.(selectFace(gbc_def,6).or.selectFace(gbc_def,1))) then !Check faces #6,#1
+     .       .and.(selectFace(gbc_def,6).and.selectFace(gbc_def,1)))then !Check faces #6,#1
 
             ito   = imin-1
             ifrom = min(imin+ord,nxbc)
@@ -4673,13 +4757,14 @@ c     Select edge
               else
                 ibcl = (/1,0,6/)
                 call extrapolateToCorner(gbc_def,ibcl,ito,j,kto,imn,j
-     .            ,kmn,imx,j,kmx,array(imn:imx,j:j,kmn:kmx),bcond,order)
+     .            ,kmn,imx,j,kmx,array(imn:imx,j:j,kmn:kmx),bcond,order
+     .            ,type)
               endif
             enddo
           endif
 
           if (imax == nxbc
-     .       .and.(selectFace(gbc_def,6).or.selectFace(gbc_def,2))) then !Check faces #6,#2
+     .       .and.(selectFace(gbc_def,6).and.selectFace(gbc_def,2)))then !Check faces #6,#2
 
             ito   = imax+1
             ifrom = max(imax-ord,1)
@@ -4693,7 +4778,8 @@ c     Select edge
               else
                 ibcl = (/2,0,6/)
                 call extrapolateToCorner(gbc_def,ibcl,ito,j,kto,imn,j
-     .            ,kmn,imx,j,kmx,array(imn:imx,j:j,kmn:kmx),bcond,order)
+     .            ,kmn,imx,j,kmx,array(imn:imx,j:j,kmn:kmx),bcond,order
+     .            ,type)
               endif
             enddo
           endif
@@ -4766,12 +4852,14 @@ c     Call variables
 c     Local variables
 
       integer :: ito,jto,kto,ifrom,jfrom,kfrom
-     .          ,imn,imx,jmn,jmx,kmn,kmx,ord,ibcl(3)
+     .          ,imn,imx,jmn,jmx,kmn,kmx,ord,ibcl(3),type
 
       logical :: sel_f(3)
 
 c     Begin program
 
+      type = 3
+      
       ord = max(order,1)+1   !Does not affect order of interpolation in extrapolateToCorner
 
       ito = icor
@@ -4795,9 +4883,9 @@ c     Begin program
         kfrom = max(nzbc-ord,1)
       endif
 
-      if ((selectFace(gbc_def,f1)
-     . .or.selectFace(gbc_def,f2)
-     . .or.selectFace(gbc_def,f3))) then
+      if (( selectFace(gbc_def,f1)
+     . .and.selectFace(gbc_def,f2)
+     . .and.selectFace(gbc_def,f3))) then
 
         imn   = min(ito,ifrom)
         jmn   = min(jto,jfrom)
@@ -4820,7 +4908,7 @@ c     Begin program
 
         call extrapolateToCorner(gbc_def,ibcl,ito,jto,kto
      .                   ,imn,jmn,kmn,imx,jmx,kmx
-     .             ,array(imn:imx,jmn:jmx,kmn:kmx),bcond,order)
+     .             ,array(imn:imx,jmn:jmx,kmn:kmx),bcond,order,type)
 
       endif
 
@@ -4831,7 +4919,7 @@ c     Begin program
 c     extrapolateToCorner
 c     #################################################################
       subroutine extrapolateToCorner(gbc_def,ibcl,ito,jto,kto
-     .                 ,imn,jmn,kmn,imx,jmx,kmx,array,bcnd,order,array0)
+     .            ,imn,jmn,kmn,imx,jmx,kmx,array,bcnd,order,type,array0)
 c     -----------------------------------------------------------------
 c     Routine that extrapolates information to edge or vertex corners.
 c     It is the workhorse of the fillEdge and fillCorner routines.
@@ -4846,7 +4934,8 @@ c        * array: local array defined on interpolation region, including
 c                 ghost cell (ito,jto,kto) (real)
 c        * bcnd: array specifying BCs
 c        * order: order of extrapolation
-c        * array0: array specifying EQU BCs
+c        * type: 1 -> face, 2-> edge, 3-> corner
+c        * array0, optional: array specifying EQU BCs
 c     -----------------------------------------------------------------
 
       implicit none
@@ -4856,10 +4945,10 @@ c     Call variables
       type(grid_mg_def),pointer :: gbc_def
 
       integer :: ibcl(3),ito,jto,kto,imn,jmn,kmn,imx,jmx,kmx,bcnd(6)
-     .          ,order
+     .          ,order,type
       real(8) :: array(imn:imx,jmn:jmx,kmn:kmx)
       real(8),optional,intent(IN) :: array0(imn:imx,jmn:jmx,kmn:kmx)
-
+      
 c     Local variables
 
       integer :: i,j,k,ig,jg,kg,inx,iny,inz,order_int(3),offset,count_bc
@@ -4868,7 +4957,7 @@ c     Local variables
       real(8) :: valx(1),valy(1),valz(1),xto(1),yto(1),zto(1),curv(3)
      $          ,idx,idy,idz,num
 
-      logical :: flg(3),select_bc(3),face,edge,corner,get_out
+      logical :: flg(3),select_bc(3),face,edge,corner!,get_out
 
 c     Extrapolation
 
@@ -4877,18 +4966,21 @@ c     Extrapolation
 c     Begin program
       
 cc      xx = 0d0 ; yy = 0d0 ; zz = 0d0
-      
+
 c     Initialize variables
 
-      count_bc = count(ibcl /= 0)
-      face   = (count_bc == 1)
-      edge   = (count_bc == 2)
-      corner = (count_bc == 3)
+c$$$      count_bc = count(ibcl /= 0)
+c$$$      face   = (count_bc == 1)
+c$$$      edge   = (count_bc == 2)
+c$$$      corner = (count_bc == 3)
+      face   = (type == 1)
+      edge   = (type == 2)
+      corner = (type == 3)
 
 c     Check for exceptions
 
-      get_out = (.not.force_corners).and.checkExceptions()
-      if (get_out) return
+cc      get_out = (.not.force_corners).and.checkExceptions()
+      if (checkExceptions()) return
 
 c     Identify directions for extrapolation.
 
