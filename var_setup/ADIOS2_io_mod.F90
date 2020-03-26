@@ -849,7 +849,7 @@
              if (firstread) then
                 zero = 0
                 nlen = len(varray%array_var(1)%descr)
-                desc = repeat(char(0), len(desc)) !jyc: clean the buffer
+                desc = "" ! repeat(char(0), len(desc)) !jyc: clean the buffer
                 ! read in name of Nth variable
                 write (vname, '("/name/v",i0)') ieq
                 call adios2_get (engine, vname, desc, adios2_mode_sync, ierr)

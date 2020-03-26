@@ -419,7 +419,7 @@ ifeq ($(findstring quevedo,$(HOST)),quevedo)
     ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1
     ADIOS_VER  = 2.5.0
 
-    ADIOS2 = f
+    ADIOS2 = t
     ADIOS2_HOME = $(HOME)/lib/adios-2.5.0/gcc-6.5.0_openmpi-3.1.5
     ADIOS2_LIBS = $(shell $(ADIOS2_HOME)/bin/adios2-config -f)
     ADIOS2_VER  = 2.5.0

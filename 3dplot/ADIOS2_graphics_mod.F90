@@ -228,7 +228,7 @@
       slth = len(trim(vexp))
 
       if (num_open == 0) then
-         if (my_rank.eq.0) print *, 'ADIOS2: Writing restart_3db from ', trim(adios2_fname)
+         if (adios2_debug) print *, 'ADIOS2: Writing restart_3db from ', trim(adios2_fname)
          call adios2_declare_io(io, adios2obj, "pixplot", ierr)
          
          ! Define global dimension variables a the first time
@@ -286,7 +286,7 @@
           path="/"//trim(cell_coords_gname) 
           do icoords=1,ARRAY_RANK
              ! cell_ldim_str, "nxd,nyd,nzd", offset_str
-             print *, my_rank, '#10:def:', trim(path)//'/'//trim(coords_descr(icoords))
+             if (adios2_debug) print *, my_rank, '#10:def:', trim(path)//'/'//trim(coords_descr(icoords))
              call adios2_define_variable (var, io, trim(path)//'/'//trim(coords_descr(icoords)), &
                   adios2_type_dp, 3, &
                   int((/ nxd, nyd, nzd /), kind=8), &
@@ -299,7 +299,7 @@
           path="/"//trim(node_coords_gname) 
           do icoords=1,ARRAY_RANK
              ! node_ldim_str, "nxd+1,nyd+1,nzd+1", offset_str
-             print *, my_rank, '#20:def:', trim(path)//'/'//trim(coords_descr(icoords))
+             if (adios2_debug) print *, my_rank, '#20:def:', trim(path)//'/'//trim(coords_descr(icoords))
              call adios2_define_variable (var, io, trim(path)//'/'//trim(coords_descr(icoords)), &
                   adios2_type_dp, 3, &
                   int((/ nxd+1, nyd+1, nzd+1 /), kind=8), &
@@ -330,7 +330,7 @@
                  ! Define nodal data variables    
                  do ieq=1,nqty(igrp)
                     ! node_ldim_str, "nxd+1,nyd+1,nzd+1", offset_str
-                    print *, my_rank, '#30:def:', igrp, nqty(igrp), ieq, &
+                    if (adios2_debug) print *, my_rank, '#30:def:', igrp, nqty(igrp), ieq, &
                          trim(basepath)//'/'//trim(graph(igrp)%array_graph(ieq)%descr)
                     call adios2_define_variable (var, io, &
                          trim(basepath)//'/'//trim(graph(igrp)%array_graph(ieq)%descr), &
@@ -343,7 +343,7 @@
                  ! Define cell data variables
                  do ieq=1,nqty(igrp)
                     ! cell_ldim_str, "nxd,nyd,nzd", offset_str
-                    print *, my_rank, '#40:def:', igrp, nqty(igrp), ieq, &
+                    if (adios2_debug) print *, my_rank, '#40:def:', igrp, nqty(igrp), ieq, &
                          trim(basepath)//'/'//trim(graph(igrp)%array_graph(ieq)%descr)
                     call adios2_define_variable (var, io, &
                          trim(basepath)//'/'//trim(graph(igrp)%array_graph(ieq)%descr), &
@@ -356,7 +356,7 @@
            enddo
 
            ! open only once
-           print *, 'adios2_fname', adios2_fname
+           if (adios2_debug) print *, 'ADIOS2: adios2_fname= ', adios2_fname
            call adios2_open(engine, io, adios2_fname, adios2_mode_write, adios2_world_comm, ierr)
       endif  ! first open
 
