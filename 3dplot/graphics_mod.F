@@ -11,8 +11,7 @@ c ######################################################################
 
 #if defined(adios)
         use ADIOS_graphics
-#endif
-#if defined(ADIOS2)
+#elif defined(ADIOS2)
         use ADIOS2_graphics
 #endif
       contains

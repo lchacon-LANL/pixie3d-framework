@@ -330,7 +330,8 @@
                  ! Define nodal data variables    
                  do ieq=1,nqty(igrp)
                     ! node_ldim_str, "nxd+1,nyd+1,nzd+1", offset_str
-                    print *, my_rank, '#30:def:', trim(basepath)//'/'//trim(graph(igrp)%array_graph(ieq)%descr)
+                    print *, my_rank, '#30:def:', igrp, nqty(igrp), ieq, &
+                         trim(basepath)//'/'//trim(graph(igrp)%array_graph(ieq)%descr)
                     call adios2_define_variable (var, io, &
                          trim(basepath)//'/'//trim(graph(igrp)%array_graph(ieq)%descr), &
                          adios2_type_dp, 3, &

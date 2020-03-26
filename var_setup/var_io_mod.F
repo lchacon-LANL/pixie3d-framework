@@ -11,12 +11,10 @@ c ######################################################################
 
 #if defined(adios)
         use ADIOS_io
-#endif
-#if defined(ADIOS2)
+#elif defined(ADIOS2)
         use ADIOS2_mod
-#endif
-#if !defined(adios) && !defined(ADIOS2)
-        !character*(1024) :: recordfile='record.bin'
+#else
+        character*(1024) :: recordfile='record.bin'
 #endif
 
         integer :: ilevel
@@ -51,9 +49,7 @@ c     Local variables
       
 #if defined(adios)
       ierr = destroy_ADIOS_IO()
-#endif
-
-#if defined(ADIOS2)
+#elif defined(ADIOS2)
       ierr = destroy_ADIOS2_IO()
 #endif
 
@@ -82,11 +78,9 @@ c     Begin program
 
 #if defined(adios)
       ufile = openADIOSRestartFileForRead(file=file)
-#endif
-#if defined(ADIOS2)
+#elif defined(ADIOS2)
       ufile = openADIOS2RestartFileForRead(file="record.bp")
-#endif
-#if !defined(adios) && !defined(ADIOS2)
+#else
       ufile = openPOSIXRestartFileForRead(file=file)
 #endif
 
@@ -117,16 +111,14 @@ c     Begin program
      $            ,'Error closing ADIOS restart file')
       endif
       adios_err = destroy_ADIOS_IO()
-#endif
-#if defined(ADIOS2)
+#elif defined(ADIOS2)
       adios2_err = closeADIOS2RecordFileForRead()
       if (adios2_err /= 0) then
         call pstop('closeRestartFileForRead'
      $            ,'Error closing ADIOS restart file')
       endif
       adios2_err = destroy_ADIOS2_IO()
-#endif
-#if !defined(adios) && !defined(ADIOS2)
+#else
       close(ufile)
 #endif
 
@@ -351,11 +343,9 @@ c       Local variables
 
 #if defined(adios)
         call setADIOSAppendIOMode()      !Set ADIOS recordfile to append
-#endif
-#if defined(ADIOS2)
+#elif defined(ADIOS2)
         call setADIOS2AppendIOMode()     !Set ADIOS2 recordfile to append
-#endif
-#if !defined(adios) && !defined(ADIOS2)
+#else
         posix_append_recordfile = .true. !Set POSIX recordfile to append
 #endif
       end subroutine setAppendIOMode
@@ -449,11 +439,9 @@ c     Begin program
 
 #if defined(adios)
       ierr = readADIOSRecordFile(unit,itime,time,dt,gammat,varray)
-#endif
-#if defined(ADIOS2)
+#elif defined(ADIOS2)
       ierr = readADIOS2RecordFile(unit,itime,time,dt,gammat,varray)
-#endif
-#if !defined(adios) && !defined(ADIOS2)
+#else
       ierr = readPOSIXRecordFile(unit,itime,time,dt,gammat,varray)
 #endif
 
@@ -542,12 +530,10 @@ c     Begin program
 #if defined(adios)
       call writeADIOSRecordFile(file,itime,time,dt,gammat,varray
      .                         ,init=init)
-#endif
-#if defined(ADIOS2)
-      call writeADIOS2RecordFile('out.bp',itime,time,dt,gammat,varray
-     .                         ,init=init)
-#endif
-#if !defined(adios) && !defined(ADIOS2)
+#elif defined(ADIOS2)
+      call writeADIOS2RecordFile(trim(recordfile),itime,time,dt,gammat
+     .                         ,varray,init=init)
+#else
       call writePOSIXRecordFile(file,itime,time,dt,gammat,varray
      .                         ,init=init)
 #endif
@@ -784,11 +770,9 @@ c     Begin program
 
 #if defined(adios)
       urecord = openADIOSRestartFileForRead()
-#endif
-#if defined(ADIOS2)
+#elif defined(ADIOS2)
       urecord = openADIOS2RestartFileForRead()
-#endif
-#if !defined(adios) && !defined(ADIOS2)
+#else
       if (np > 1) then
         urecord = openPOSIXRestartFileForRead()
       else
@@ -796,16 +780,6 @@ c     Begin program
      .                      ,ilog,ihig,jlog,jhig,klog,khig)
       endif
 #endif
-c$$$      if (np > 1) then
-c$$$        urecord = openRestartFileForRead()
-c$$$      else
-c$$$#if defined(adios)
-c$$$        urecord = openRestartFileForRead()
-c$$$#else
-c$$$        call openRecordFiles(urecord,recordfile
-c$$$     .                      ,ilog,ihig,jlog,jhig,klog,khig)
-c$$$#endif
-c$$$      endif
 
       end subroutine openGraphicsFiles
 
@@ -832,16 +806,14 @@ c     Begin program
      $            ,'Error closing ADIOS restart file')
       endif
       adios_err = destroy_ADIOS_IO()
-#endif
-#if defined(ADIOS2)
+#elif defined(ADIOS2)
       adios2_err = closeADIOS2RecordFileForRead()
       if (adios2_err /= 0) then
         call pstop('closeRestartFileForRead'
      $            ,'Error closing ADIOS restart file')
       endif
       adios2_err = destroy_ADIOS2_IO()
-#endif
-#if !defined(adios) && !defined(ADIOS2)
+#else
       if (associated(murecord)) then
         call closeFiles(murecord)
       else
