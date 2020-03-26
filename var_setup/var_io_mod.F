@@ -55,7 +55,6 @@ c     Local variables
 
 #if defined(ADIOS2)
       ierr = destroy_ADIOS2_IO()
-      print *, 'adios2 finalized'
 #endif
 
 c     Begin program
