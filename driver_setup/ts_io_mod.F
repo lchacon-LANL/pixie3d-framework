@@ -147,8 +147,8 @@ c     Begin program
       endif
       
       if ((TS_chk_dump(etime=exec_time,reset_counters=.true.).or.dump)
-     .    .and.(.not.no_graphics_io)) then
-        call writeRecordFile(recordfile,itime,time,dt,gammat,varray)
+     .     .and.(.not.no_graphics_io)) then
+         call writeRecordFile(recordfile,itime,time,dt,gammat,varray)
       endif
 
 #if defined(MK)
