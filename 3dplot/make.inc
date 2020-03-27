@@ -24,7 +24,7 @@ endif
 
 #Define dependencies
 
-graphics_mod.o: xdraw_graphics_mod.o HDF5_graphics_mod.o ADIOS_graphics_mod.o
+graphics_mod.o: xdraw_graphics_mod.o HDF5_graphics_mod.o ADIOS_graphics_mod.o ADIOS2_graphics_mod.o
 
 3dplot.o: acc_test_mod.o
 
