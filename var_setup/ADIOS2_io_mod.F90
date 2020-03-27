@@ -70,7 +70,7 @@
       function init_ADIOS2_IO() result(ierr)
 
 !     -----------------------------------------------------------------
-!     Initializes ADIOS2 IO according to adios2_config.xml
+!     Initializes ADIOS2 IO according to adios_config.xml
 !     -----------------------------------------------------------------
 
       implicit none
@@ -85,13 +85,13 @@
 
 !     Initialize ADIOS2 for componentized I/O
 
-      if (.not.is_file('adios2_config.xml')) then
+      if (.not.is_file('adios_config.xml')) then
          call pstop('init_ADIOS2_IO','ADIOS2 config file not present')
       else
          call MPI_Comm_dup (MPI_COMM_WORLD,adios2_world_comm,ierr)
          if (.not.adios2obj%valid) then
             call adios2_logging('ADIOS2 init')
-            call adios2_init(adios2obj,'adios2_config.xml', adios2_world_comm,.true.,ierr)
+            call adios2_init(adios2obj,'adios_config.xml', adios2_world_comm,.true.,ierr)
          endif
       endif
 
@@ -675,7 +675,7 @@
 
       call MPI_Comm_dup (MPI_COMM_WORLD,adios2_world_comm,ierr)
       call adios2_logging('ADIOS2 read init')
-      call adios2_init(adios2obj,'adios2_config.xml',adios2_world_comm,.true.,ierr)
+      call adios2_init(adios2obj,'adios_config.xml',adios2_world_comm,.true.,ierr)
 
       call openADIOS2RecordFileForRead(adios2_err,file=file,nx=nxd,ny=nyd,nz=nzd)
       if (adios2_err /= 0) then
