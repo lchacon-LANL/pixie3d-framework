@@ -410,14 +410,14 @@ ifeq ($(findstring quevedo,$(HOST)),quevedo)
     HDF5_MOD  = $(HDF5_HOME)/include
     HDF5_INC  = $(HDF5_MOD)
 
+    ADIOS = f
+
     ADIOS_BUFFER_MB = 100
     ADIOS_METHOD = MPI
 
-    ADIOS = f
-
     ADIOS_HOME = $(HOME)/lib/adios-1.10.0-openmpi-3.0.0
     ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1
-    ADIOS_VER  = 2.5.0
+    ADIOS_VER  = 1.10.0
 
     ADIOS2 = t
     ADIOS2_HOME = $(HOME)/lib/adios-2.5.0/gcc-6.5.0_openmpi-3.1.5
