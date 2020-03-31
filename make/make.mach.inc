@@ -40,19 +40,18 @@ ifeq ($(HOST),adiosVM)
     HDF5_MOD  = /opt/hdf5-parallel/lib
     HDF5_INC  = /opt/hdf5-parallel/include
 
-    ADIOS = f
-
-    ADIOS_BUFFER_MB = 100
-    ADIOS_METHOD = MPI
-
-    ADIOS_HOME = /home/adios/Software/adios-1.10.0/mpi-no-hdf5
-    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 
-    ADIOS_VER  = 1.10.0
+#    ADIOS = f
+#    ADIOS_BUFFER_MB = 100
+#    ADIOS_METHOD = MPI
+#    ADIOS_HOME = /home/adios/Software/adios-1.10.0/mpi-no-hdf5
+#    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 
+#    ADIOS_VER  = 1.10.0
 
     ADIOS2 = t
-    ADIOS2_HOME = /opt/adios2
-    ADIOS2_LIBS = $(shell $(ADIOS2_HOME)/bin/adios2-config -f)
-    ADIOS2_VER  = 2.5.0
+    ADIOS_HOME = /opt/adios2
+    ADIOS_LIBS = $(shell $(ADIOS_HOME)/bin/adios2-config -f)
+    ADIOS_MOD  = $(ADIOS_HOME)/include/adios2/fortran
+    ADIOS_VER  = 2.5.0
 
   else
     HDF5 = f
@@ -410,19 +409,19 @@ ifeq ($(findstring quevedo,$(HOST)),quevedo)
     HDF5_MOD  = $(HDF5_HOME)/include
     HDF5_INC  = $(HDF5_MOD)
 
-    ADIOS = f
-
-    ADIOS_BUFFER_MB = 100
-    ADIOS_METHOD = MPI
-
-    ADIOS_HOME = $(HOME)/lib/adios-1.10.0/gcc-6.5.0-openmpi-3.1.5
-    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1
-    ADIOS_VER  = 1.10.0
+#    ADIOS = f
+#    ADIOS_BUFFER_MB = 100
+#    ADIOS_METHOD = MPI
+#    ADIOS_HOME = $(HOME)/lib/adios-1.10.0/gcc-6.5.0-openmpi-3.1.5
+#    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1
+#    ADIOS_VER  = 1.10.0
 
     ADIOS2 = t
-    ADIOS2_HOME = $(HOME)/lib/adios-2.5.0/gcc-6.5.0_openmpi-3.1.5
-    ADIOS2_LIBS = $(shell $(ADIOS2_HOME)/bin/adios2-config -f)
-    ADIOS2_VER  = 2.5.0
+    ADIOS_METHOD = MPI
+    ADIOS_HOME = $(HOME)/lib/adios-2.5.0/gcc-6.5.0_openmpi-3.1.5
+    ADIOS_LIBS = $(shell $(ADIOS_HOME)/bin/adios2-config -f)
+    ADIOS_MOD  = $(ADIOS_HOME)/include/adios2/fortran
+    ADIOS_VER  = 2.5.0
 
 #    LIBS += -L/opt/local/lib -latlas
   else
