@@ -3210,7 +3210,11 @@ c     #################################################################
      .         result(tensor)
 c     -----------------------------------------------------------------
 c     Calculates the tensor components T^lm of nabla(vec v), with
-c     v contravariant, and fills tensor(l,m) at the following positions:
+c     v contravariant, given by:
+c
+c       T^lm = g^(lk)*(J*partial_k(v^m/J) + v_n Gamma(m)_kn),
+c
+c      and fills tensor(l,m) at the following positions:
 c       + half_elem=0 --> i,j,k
 c       + half_elem=1 --> i+1/2,j,k
 c       + half_elem=2 --> i,j+1/2,k
@@ -3402,227 +3406,156 @@ c     End program
 
       end function fnabla_v_cnv
 
-c     fnabla_v_mixed_cov
-c     #############################################################
-      function fnabla_v_mixed_cov(g_def,i,j,k,igrid,vcov,half_elem)
-     .         result(tensor)
-c     -------------------------------------------------------------
-c     Calculates the tensor components T^l_m of nabla(vec v), with
-c     v covariant, and fills tensor(l,m) at the following positions:
-c       + half_elem=0 --> i,j,k
-c       + half_elem=1 --> i+1/2,j,k
-c       + half_elem=2 --> i,j+1/2,k
-c       + half_elem=3 --> i,j,k+1/2
-c     -------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-        type(grid_mg_def),pointer :: g_def
-
-        integer :: i,j,k,half_elem,nx,ny,nz,igrid
-        real(8) :: tensor(3,3)
-        real(8) :: vcov(0:,0:,0:,:)
-
-c     Local variables
-
-        integer :: ig,jg,kg,ip,im,jp,jm,kp,km,ii,jj
-        real(8) :: dhx,dhy,dhz,idh(3)
-        real(8) :: v(3),vip(3),vim(3),vjp(3),vjm(3),vkp(3),vkm(3)
-        real(8) :: tsrc(3,3),gsuper(3,3)
-        real(8),pointer,dimension(:,:,:,:,:) :: gsup
-
-c     Begin program
-
-        !Defaults
-
-        call getMGmap(g_def,i,j,k,igrid,igrid,igrid,ig,jg,kg)
-
-        dhx = 2.*g_def%dxh(ig)
-        dhy = 2.*g_def%dyh(jg)
-        dhz = 2.*g_def%dzh(kg)
-
-        ip = i+1
-        im = i-1
-        jp = j+1
-        jm = j-1
-        kp = k+1
-        km = k-1
-
-        tsrc = nabla_v_src(i,j,k)
-
-        gsup => g_def%gmetric%grid(igrid)%gsup
-
-        select case(half_elem)
-        case (1)
-          dhx = g_def%dx(ig)
-
-          vip(:) = vcov(ip,j,k,:)
-          vim(:) = vcov(i ,j,k,:)
-
-          vjp(:) = 0.5*(vcov(ip,jp,k,:)+vcov(i,jp,k,:))
-          vjm(:) = 0.5*(vcov(ip,jm,k,:)+vcov(i,jm,k,:))
-
-          vkp(:) = 0.5*(vcov(ip,j,kp,:)+vcov(i,j,kp,:))
-          vkm(:) = 0.5*(vcov(ip,j,km,:)+vcov(i,j,km,:))
-
-          tsrc = 0.5*(nabla_v_src(ip,j,k)
-     .               +tsrc)
-
-          gsuper = 0.5*(gsup(ip,j,k,:,:)
-     .                 +gsup(i ,j,k,:,:))
-
-        case (2)
-          dhy = g_def%dy(jg)
-
-          vip(:) = 0.5*(vcov(ip,j,k,:)+vcov(ip,jp,k,:))
-          vim(:) = 0.5*(vcov(im,j,k,:)+vcov(im,jp,k,:))
-
-          vjp(:) = vcov(i,jp,k,:)
-          vjm(:) = vcov(i,j ,k,:)
-                
-          vkp(:) = 0.5*(vcov(i,j,kp,:)+vcov(i,jp,kp,:))
-          vkm(:) = 0.5*(vcov(i,j,km,:)+vcov(i,jp,km,:))
-
-          tsrc = 0.5*(nabla_v_src(i,jp,k)
-     .               +tsrc)
-
-          gsuper = 0.5*(gsup(i,jp,k,:,:)
-     .                 +gsup(i,j ,k,:,:))
-
-        case (3)
-          dhz = g_def%dz(kg)
-
-          vip(:) = 0.5*(vcov(ip,j,k,:)+vcov(ip,j,kp,:))
-          vim(:) = 0.5*(vcov(im,j,k,:)+vcov(im,j,kp,:))
-
-          vjp(:) = 0.5*(vcov(i,jp,k,:)+vcov(i,jp,kp,:))
-          vjm(:) = 0.5*(vcov(i,jm,k,:)+vcov(i,jm,kp,:))
-                
-          vkp(:) = vcov(i,j,kp,:)
-          vkm(:) = vcov(i,j,k ,:)
-
-          tsrc = 0.5*(nabla_v_src(i,j,kp)
-     .               +tsrc)
-
-          gsuper = 0.5*(gsup(i,j,kp,:,:)
-     .                 +gsup(i,j,k ,:,:))
-
-        case default
-
-          vip(:) = vcov(ip,j,k,:)
-          vim(:) = vcov(im,j,k,:)
-
-          vjp(:) = vcov(i,jp,k,:)
-          vjm(:) = vcov(i,jm,k,:)
-                
-          vkp(:) = vcov(i,j,kp,:)
-          vkm(:) = vcov(i,j,km,:)
-
-          gsuper = gsup(i,j,k,:,:)
-        end select
-
-        idh(1) = 1d0/dhx
-        idh(2) = 1d0/dhy
-        idh(3) = 1d0/dhz
-
-        !Add geometric source
-c$$$        tensor(1,:) = (vip(:)-vim(:))*idh(1)
-c$$$        tensor(2,:) = (vjp(:)-vjm(:))*idh(2)
-c$$$        tensor(3,:) = (vkp(:)-vkm(:))*idh(3)
-c$$$
-c$$$        tensor = tensor + tsrc
-c$$$
-c$$$        tensor = matmul(gsuper,tensor)
-        !Highly optimized, do NOT touch
-        do jj=1,3
-          do ii=1,3
-            tensor(ii,jj) =
-     $              gsuper(ii,1)*((vip(jj)-vim(jj))*idh(1) + tsrc(1,jj))
-     $             +gsuper(ii,2)*((vjp(jj)-vjm(jj))*idh(2) + tsrc(2,jj))
-     $             +gsuper(ii,3)*((vkp(jj)-vkm(jj))*idh(3) + tsrc(3,jj))
-          enddo
-        enddo
-
-c     End program
-
-      contains
-
-c     nabla_v_src
-c     #############################################################
-      function nabla_v_src(i,j,k) result(tensor)
-
-c     -------------------------------------------------------------
-c     Finds geometric source of tensor nabla(v) at cell (i,j,k)
-c     -------------------------------------------------------------
-
-        implicit none
-
-        integer :: i,j,k
-        real(8) :: tensor(3,3)
-
-        real(8) :: cov(3)
-        real(8),pointer,dimension(:,:,:,:,:,:) :: hessian
-
-c     Begin program
-
-        hessian => g_def%gmetric%grid(igrid)%Gamma
-
-        cov = vcov(i,j,k,:)
-
-      ! l = 1, m = 1
-        tensor(1,1) =-cov(1)*hessian(i,j,k,1,1,1)
-     .               -cov(2)*hessian(i,j,k,2,1,1)
-     .               -cov(3)*hessian(i,j,k,3,1,1)
-
-      ! l = 1, m = 2
-        tensor(1,2) =-cov(1)*hessian(i,j,k,1,1,2)
-     .               -cov(2)*hessian(i,j,k,2,1,2)
-     .               -cov(3)*hessian(i,j,k,3,1,2)
-
-      ! l = 1, m = 3
-        tensor(1,3) =-cov(1)*hessian(i,j,k,1,1,3)
-     .               -cov(2)*hessian(i,j,k,2,1,3)
-     .               -cov(3)*hessian(i,j,k,3,1,3)
-
-      ! l = 2, m = 1
-        tensor(2,1) =-cov(1)*hessian(i,j,k,1,2,1)
-     .               -cov(2)*hessian(i,j,k,2,2,1)
-     .               -cov(3)*hessian(i,j,k,3,2,1)
-
-      ! l = 2, m = 2
-        tensor(2,2) =-cov(1)*hessian(i,j,k,1,2,2)
-     .               -cov(2)*hessian(i,j,k,2,2,2)
-     .               -cov(3)*hessian(i,j,k,3,2,2)
-
-      ! l = 2, m = 3
-        tensor(2,3) =-cov(1)*hessian(i,j,k,1,2,3)
-     .               -cov(2)*hessian(i,j,k,2,2,3)
-     .               -cov(3)*hessian(i,j,k,3,2,3)
-
-      ! l = 3, m = 1
-        tensor(3,1) =-cov(1)*hessian(i,j,k,1,3,1)
-     .               -cov(2)*hessian(i,j,k,2,3,1)
-     .               -cov(3)*hessian(i,j,k,3,3,1)
-
-      ! l = 3, m = 2
-        tensor(3,2) =-cov(1)*hessian(i,j,k,1,3,2)
-     .               -cov(2)*hessian(i,j,k,2,3,2)
-     .               -cov(3)*hessian(i,j,k,3,3,2)
-
-      ! l = 3, m = 3
-        tensor(3,3) =-cov(1)*hessian(i,j,k,1,3,3)
-     .               -cov(2)*hessian(i,j,k,2,3,3)
-     .               -cov(3)*hessian(i,j,k,3,3,3)
-
-c     End program
-
-      end function nabla_v_src
-
-c$$$c     nabla_v_src2
+c$$$c     fnabla_v_mixed_cov
 c$$$c     #############################################################
-c$$$      function nabla_v_src2(i,j,k,he) result(tensor)
+c$$$      function fnabla_v_mixed_cov(g_def,i,j,k,igrid,vcov,half_elem)
+c$$$     .         result(tensor)
+c$$$c     -------------------------------------------------------------
+c$$$c     Calculates the tensor components T^l_m of nabla(vec v), with
+c$$$c     v covariant, and fills tensor(l,m) at the following positions:
+c$$$c       + half_elem=0 --> i,j,k
+c$$$c       + half_elem=1 --> i+1/2,j,k
+c$$$c       + half_elem=2 --> i,j+1/2,k
+c$$$c       + half_elem=3 --> i,j,k+1/2
+c$$$c     -------------------------------------------------------------
+c$$$
+c$$$        implicit none
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$        type(grid_mg_def),pointer :: g_def
+c$$$
+c$$$        integer :: i,j,k,half_elem,nx,ny,nz,igrid
+c$$$        real(8) :: tensor(3,3)
+c$$$        real(8) :: vcov(0:,0:,0:,:)
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$        integer :: ig,jg,kg,ip,im,jp,jm,kp,km,ii,jj
+c$$$        real(8) :: dhx,dhy,dhz,idh(3)
+c$$$        real(8) :: v(3),vip(3),vim(3),vjp(3),vjm(3),vkp(3),vkm(3)
+c$$$        real(8) :: tsrc(3,3),gsuper(3,3)
+c$$$        real(8),pointer,dimension(:,:,:,:,:) :: gsup
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$        !Defaults
+c$$$
+c$$$        call getMGmap(g_def,i,j,k,igrid,igrid,igrid,ig,jg,kg)
+c$$$
+c$$$        dhx = 2.*g_def%dxh(ig)
+c$$$        dhy = 2.*g_def%dyh(jg)
+c$$$        dhz = 2.*g_def%dzh(kg)
+c$$$
+c$$$        ip = i+1
+c$$$        im = i-1
+c$$$        jp = j+1
+c$$$        jm = j-1
+c$$$        kp = k+1
+c$$$        km = k-1
+c$$$
+c$$$        tsrc = nabla_v_src(i,j,k)
+c$$$
+c$$$        gsup => g_def%gmetric%grid(igrid)%gsup
+c$$$
+c$$$        select case(half_elem)
+c$$$        case (1)
+c$$$          dhx = g_def%dx(ig)
+c$$$
+c$$$          vip(:) = vcov(ip,j,k,:)
+c$$$          vim(:) = vcov(i ,j,k,:)
+c$$$
+c$$$          vjp(:) = 0.5*(vcov(ip,jp,k,:)+vcov(i,jp,k,:))
+c$$$          vjm(:) = 0.5*(vcov(ip,jm,k,:)+vcov(i,jm,k,:))
+c$$$
+c$$$          vkp(:) = 0.5*(vcov(ip,j,kp,:)+vcov(i,j,kp,:))
+c$$$          vkm(:) = 0.5*(vcov(ip,j,km,:)+vcov(i,j,km,:))
+c$$$
+c$$$          tsrc = 0.5*(nabla_v_src(ip,j,k)
+c$$$     .               +tsrc)
+c$$$
+c$$$          gsuper = 0.5*(gsup(ip,j,k,:,:)
+c$$$     .                 +gsup(i ,j,k,:,:))
+c$$$
+c$$$        case (2)
+c$$$          dhy = g_def%dy(jg)
+c$$$
+c$$$          vip(:) = 0.5*(vcov(ip,j,k,:)+vcov(ip,jp,k,:))
+c$$$          vim(:) = 0.5*(vcov(im,j,k,:)+vcov(im,jp,k,:))
+c$$$
+c$$$          vjp(:) = vcov(i,jp,k,:)
+c$$$          vjm(:) = vcov(i,j ,k,:)
+c$$$                
+c$$$          vkp(:) = 0.5*(vcov(i,j,kp,:)+vcov(i,jp,kp,:))
+c$$$          vkm(:) = 0.5*(vcov(i,j,km,:)+vcov(i,jp,km,:))
+c$$$
+c$$$          tsrc = 0.5*(nabla_v_src(i,jp,k)
+c$$$     .               +tsrc)
+c$$$
+c$$$          gsuper = 0.5*(gsup(i,jp,k,:,:)
+c$$$     .                 +gsup(i,j ,k,:,:))
+c$$$
+c$$$        case (3)
+c$$$          dhz = g_def%dz(kg)
+c$$$
+c$$$          vip(:) = 0.5*(vcov(ip,j,k,:)+vcov(ip,j,kp,:))
+c$$$          vim(:) = 0.5*(vcov(im,j,k,:)+vcov(im,j,kp,:))
+c$$$
+c$$$          vjp(:) = 0.5*(vcov(i,jp,k,:)+vcov(i,jp,kp,:))
+c$$$          vjm(:) = 0.5*(vcov(i,jm,k,:)+vcov(i,jm,kp,:))
+c$$$                
+c$$$          vkp(:) = vcov(i,j,kp,:)
+c$$$          vkm(:) = vcov(i,j,k ,:)
+c$$$
+c$$$          tsrc = 0.5*(nabla_v_src(i,j,kp)
+c$$$     .               +tsrc)
+c$$$
+c$$$          gsuper = 0.5*(gsup(i,j,kp,:,:)
+c$$$     .                 +gsup(i,j,k ,:,:))
+c$$$
+c$$$        case default
+c$$$
+c$$$          vip(:) = vcov(ip,j,k,:)
+c$$$          vim(:) = vcov(im,j,k,:)
+c$$$
+c$$$          vjp(:) = vcov(i,jp,k,:)
+c$$$          vjm(:) = vcov(i,jm,k,:)
+c$$$                
+c$$$          vkp(:) = vcov(i,j,kp,:)
+c$$$          vkm(:) = vcov(i,j,km,:)
+c$$$
+c$$$          gsuper = gsup(i,j,k,:,:)
+c$$$        end select
+c$$$
+c$$$        idh(1) = 1d0/dhx
+c$$$        idh(2) = 1d0/dhy
+c$$$        idh(3) = 1d0/dhz
+c$$$
+c$$$        !Add geometric source
+c$$$c$$$        tensor(1,:) = (vip(:)-vim(:))*idh(1)
+c$$$c$$$        tensor(2,:) = (vjp(:)-vjm(:))*idh(2)
+c$$$c$$$        tensor(3,:) = (vkp(:)-vkm(:))*idh(3)
+c$$$c$$$
+c$$$c$$$        tensor = tensor + tsrc
+c$$$c$$$
+c$$$c$$$        tensor = matmul(gsuper,tensor)
+c$$$        !Highly optimized, do NOT touch
+c$$$        do jj=1,3
+c$$$          do ii=1,3
+c$$$            tensor(ii,jj) =
+c$$$     $              gsuper(ii,1)*((vip(jj)-vim(jj))*idh(1) + tsrc(1,jj))
+c$$$     $             +gsuper(ii,2)*((vjp(jj)-vjm(jj))*idh(2) + tsrc(2,jj))
+c$$$     $             +gsuper(ii,3)*((vkp(jj)-vkm(jj))*idh(3) + tsrc(3,jj))
+c$$$          enddo
+c$$$        enddo
+c$$$
+c$$$c     End program
+c$$$
+c$$$      contains
+c$$$
+c$$$c     nabla_v_src
+c$$$c     #############################################################
+c$$$      function nabla_v_src(i,j,k) result(tensor)
 c$$$
 c$$$c     -------------------------------------------------------------
 c$$$c     Finds geometric source of tensor nabla(v) at cell (i,j,k)
@@ -3630,59 +3563,130 @@ c$$$c     -------------------------------------------------------------
 c$$$
 c$$$        implicit none
 c$$$
-c$$$        integer :: i,j,k,he
+c$$$        integer :: i,j,k
 c$$$        real(8) :: tensor(3,3)
 c$$$
-c$$$        real(8) :: hessian(3,3,3),gsuper(3,3),cov(3)
+c$$$        real(8) :: cov(3)
+c$$$        real(8),pointer,dimension(:,:,:,:,:,:) :: hessian
 c$$$
 c$$$c     Begin program
 c$$$
-c$$$        select case(he)
-c$$$        case (1)
+c$$$        hessian => g_def%gmetric%grid(igrid)%Gamma
 c$$$
-c$$$          hessian = 0.5*(g_def%gmetric%grid(igrid)%Gamma(i ,j,k,:,:,:)
-c$$$     .                  +g_def%gmetric%grid(igrid)%Gamma(ip,j,k,:,:,:))
+c$$$        cov = vcov(i,j,k,:)
 c$$$
-c$$$          cov = 0.5*(vcov(i ,j,k,:)
-c$$$     .              +vcov(ip,j,k,:))
-c$$$          
-c$$$        case (2)
+c$$$      ! l = 1, m = 1
+c$$$        tensor(1,1) =-cov(1)*hessian(i,j,k,1,1,1)
+c$$$     .               -cov(2)*hessian(i,j,k,2,1,1)
+c$$$     .               -cov(3)*hessian(i,j,k,3,1,1)
 c$$$
-c$$$          hessian = 0.5*(g_def%gmetric%grid(igrid)%Gamma(i,j ,k,:,:,:)
-c$$$     .                  +g_def%gmetric%grid(igrid)%Gamma(i,jp,k,:,:,:))
+c$$$      ! l = 1, m = 2
+c$$$        tensor(1,2) =-cov(1)*hessian(i,j,k,1,1,2)
+c$$$     .               -cov(2)*hessian(i,j,k,2,1,2)
+c$$$     .               -cov(3)*hessian(i,j,k,3,1,2)
 c$$$
-c$$$          cov = 0.5*(vcov(i,j ,k,:)
-c$$$     .              +vcov(i,jp,k,:))
+c$$$      ! l = 1, m = 3
+c$$$        tensor(1,3) =-cov(1)*hessian(i,j,k,1,1,3)
+c$$$     .               -cov(2)*hessian(i,j,k,2,1,3)
+c$$$     .               -cov(3)*hessian(i,j,k,3,1,3)
 c$$$
-c$$$        case (3)
-c$$$          
-c$$$          hessian = 0.5*(g_def%gmetric%grid(igrid)%Gamma(i,j,k ,:,:,:)
-c$$$     .                  +g_def%gmetric%grid(igrid)%Gamma(i,j,kp,:,:,:))
+c$$$      ! l = 2, m = 1
+c$$$        tensor(2,1) =-cov(1)*hessian(i,j,k,1,2,1)
+c$$$     .               -cov(2)*hessian(i,j,k,2,2,1)
+c$$$     .               -cov(3)*hessian(i,j,k,3,2,1)
 c$$$
-c$$$          cov = 0.5*(vcov(i,j,k ,:)
-c$$$     .              +vcov(i,j,kp,:))
+c$$$      ! l = 2, m = 2
+c$$$        tensor(2,2) =-cov(1)*hessian(i,j,k,1,2,2)
+c$$$     .               -cov(2)*hessian(i,j,k,2,2,2)
+c$$$     .               -cov(3)*hessian(i,j,k,3,2,2)
 c$$$
-c$$$        case default
-c$$$          
-c$$$          hessian = g_def%gmetric%grid(igrid)%Gamma(i,j,k,:,:,:)
+c$$$      ! l = 2, m = 3
+c$$$        tensor(2,3) =-cov(1)*hessian(i,j,k,1,2,3)
+c$$$     .               -cov(2)*hessian(i,j,k,2,2,3)
+c$$$     .               -cov(3)*hessian(i,j,k,3,2,3)
 c$$$
-c$$$          cov = vcov(i,j,k,:)
-c$$$          
-c$$$        end select
+c$$$      ! l = 3, m = 1
+c$$$        tensor(3,1) =-cov(1)*hessian(i,j,k,1,3,1)
+c$$$     .               -cov(2)*hessian(i,j,k,2,3,1)
+c$$$     .               -cov(3)*hessian(i,j,k,3,3,1)
 c$$$
-c$$$        tensor(:,1) = -matmul(cov,hessian(:,:,1))
-c$$$        tensor(:,2) = -matmul(cov,hessian(:,:,2))
-c$$$        tensor(:,3) = -matmul(cov,hessian(:,:,3))
+c$$$      ! l = 3, m = 2
+c$$$        tensor(3,2) =-cov(1)*hessian(i,j,k,1,3,2)
+c$$$     .               -cov(2)*hessian(i,j,k,2,3,2)
+c$$$     .               -cov(3)*hessian(i,j,k,3,3,2)
 c$$$
-c$$$cc        gsuper = g_def%gmetric%grid(igrid)%gsup(i,j,k,:,:)
-c$$$cc        tensor = matmul(gsuper,tensor)
+c$$$      ! l = 3, m = 3
+c$$$        tensor(3,3) =-cov(1)*hessian(i,j,k,1,3,3)
+c$$$     .               -cov(2)*hessian(i,j,k,2,3,3)
+c$$$     .               -cov(3)*hessian(i,j,k,3,3,3)
 c$$$
 c$$$c     End program
 c$$$
-c$$$      end function nabla_v_src2
+c$$$      end function nabla_v_src
+c$$$
+c$$$c$$$c     nabla_v_src2
+c$$$c$$$c     #############################################################
+c$$$c$$$      function nabla_v_src2(i,j,k,he) result(tensor)
+c$$$c$$$
+c$$$c$$$c     -------------------------------------------------------------
+c$$$c$$$c     Finds geometric source of tensor nabla(v) at cell (i,j,k)
+c$$$c$$$c     -------------------------------------------------------------
+c$$$c$$$
+c$$$c$$$        implicit none
+c$$$c$$$
+c$$$c$$$        integer :: i,j,k,he
+c$$$c$$$        real(8) :: tensor(3,3)
+c$$$c$$$
+c$$$c$$$        real(8) :: hessian(3,3,3),gsuper(3,3),cov(3)
+c$$$c$$$
+c$$$c$$$c     Begin program
+c$$$c$$$
+c$$$c$$$        select case(he)
+c$$$c$$$        case (1)
+c$$$c$$$
+c$$$c$$$          hessian = 0.5*(g_def%gmetric%grid(igrid)%Gamma(i ,j,k,:,:,:)
+c$$$c$$$     .                  +g_def%gmetric%grid(igrid)%Gamma(ip,j,k,:,:,:))
+c$$$c$$$
+c$$$c$$$          cov = 0.5*(vcov(i ,j,k,:)
+c$$$c$$$     .              +vcov(ip,j,k,:))
+c$$$c$$$          
+c$$$c$$$        case (2)
+c$$$c$$$
+c$$$c$$$          hessian = 0.5*(g_def%gmetric%grid(igrid)%Gamma(i,j ,k,:,:,:)
+c$$$c$$$     .                  +g_def%gmetric%grid(igrid)%Gamma(i,jp,k,:,:,:))
+c$$$c$$$
+c$$$c$$$          cov = 0.5*(vcov(i,j ,k,:)
+c$$$c$$$     .              +vcov(i,jp,k,:))
+c$$$c$$$
+c$$$c$$$        case (3)
+c$$$c$$$          
+c$$$c$$$          hessian = 0.5*(g_def%gmetric%grid(igrid)%Gamma(i,j,k ,:,:,:)
+c$$$c$$$     .                  +g_def%gmetric%grid(igrid)%Gamma(i,j,kp,:,:,:))
+c$$$c$$$
+c$$$c$$$          cov = 0.5*(vcov(i,j,k ,:)
+c$$$c$$$     .              +vcov(i,j,kp,:))
+c$$$c$$$
+c$$$c$$$        case default
+c$$$c$$$          
+c$$$c$$$          hessian = g_def%gmetric%grid(igrid)%Gamma(i,j,k,:,:,:)
+c$$$c$$$
+c$$$c$$$          cov = vcov(i,j,k,:)
+c$$$c$$$          
+c$$$c$$$        end select
+c$$$c$$$
+c$$$c$$$        tensor(:,1) = -matmul(cov,hessian(:,:,1))
+c$$$c$$$        tensor(:,2) = -matmul(cov,hessian(:,:,2))
+c$$$c$$$        tensor(:,3) = -matmul(cov,hessian(:,:,3))
+c$$$c$$$
+c$$$c$$$cc        gsuper = g_def%gmetric%grid(igrid)%gsup(i,j,k,:,:)
+c$$$c$$$cc        tensor = matmul(gsuper,tensor)
+c$$$c$$$
+c$$$c$$$c     End program
+c$$$c$$$
+c$$$c$$$      end function nabla_v_src2
+c$$$
+c$$$      end function fnabla_v_mixed_cov
 
-      end function fnabla_v_mixed_cov
-      
 c     fnabla_m_fnablaT_v_cov
 c     #############################################################
       function fnabla_m_fnablaT_v_cov(g_def,i,j,k,igrid,vcov,half_elem)
@@ -3786,7 +3790,7 @@ c$$$        tensor(1,:) = (vip(:)-vim(:))*idh(1)
 c$$$        tensor(2,:) = (vjp(:)-vjm(:))*idh(2)
 c$$$        tensor(3,:) = (vkp(:)-vkm(:))*idh(3)
 
-        tensor = fnabla_v_cov_reg(g_def,i,j,k,igrid,vcov,half_elem)
+c$$$        tensor = fnabla_v_cov_reg(g_def,i,j,k,igrid,vcov,half_elem)
 c$$$        tensor = fnabla_v_cov(g_def,i,j,k,igrid,vcov,half_elem)
 
         !Add transpose
@@ -3801,8 +3805,12 @@ c     #############################################################
       function fnabla_v_cov(g_def,i,j,k,igrid,vcov,half_elem)
      .         result(tensor)
 c     -------------------------------------------------------------
-c     Calculates the tensor components T^l_m of nabla(vec v), with
-c     v covariant, and fills tensor(l,m) at the following positions:
+c     Calculates the tensor components T_lm of nabla(vec v), with
+c     v covariant, given by:
+c
+c       T_lm = partial_l(v_m) - v_n Gamma(n)_lm,
+c
+c     and fills tensor(l,m) at the following positions:
 c       + half_elem=0 --> i,j,k
 c       + half_elem=1 --> i+1/2,j,k
 c       + half_elem=2 --> i,j+1/2,k
@@ -3988,11 +3996,17 @@ c     End program
 
 c     fnabla_v_cov_reg
 c     #############################################################
-      function fnabla_v_cov_reg(g_def,i,j,k,igrid,vcov,half_elem)
-     .         result(tensor)
+      function fnabla_v_cov_reg(g_def,i,j,k,igrid,vcov,ic,half_elem)
+     .         result(vec)
 c     -------------------------------------------------------------
 c     Calculates the tensor components T^l_m of nabla(vec v), with
-c     v covariant, and fills tensor(l,m) at the following positions:
+c     v covariant,
+c
+c       T^l_m = g^(lj)*(partial_j(v_m) - v_n Gamma(n)_jm)    , m=1,3
+c       T^l_m = g^(lj)*(J*partial_j(v_m/J) + v_m Gamma(k)_kj
+c                                          - v_n Gamma(n)_mj), m=2
+c
+c      and fills tensor(l,m) at the following positions:
 c       + half_elem=0 --> i,j,k
 c       + half_elem=1 --> i+1/2,j,k
 c       + half_elem=2 --> i,j+1/2,k
@@ -4006,8 +4020,8 @@ c     Call variables
 
         type(grid_mg_def),pointer :: g_def
 
-        integer :: i,j,k,half_elem,nx,ny,nz,igrid
-        real(8) :: tensor(3,3)
+        integer :: i,j,k,half_elem,nx,ny,nz,igrid,ic
+        real(8) :: vec(3)
         real(8) :: vcov(0:,0:,0:,:)
 
 c     Local variables
@@ -4015,7 +4029,7 @@ c     Local variables
         integer :: ig,jg,kg,ip,im,jp,jm,kp,km,ii,jj
         real(8) :: dhx,dhy,dhz,idh(3),jacp
         real(8) :: v(3),vip(3),vim(3),vjp(3),vjm(3),vkp(3),vkm(3)
-        real(8) :: tsrc(3,3)
+        real(8) :: src(3),gsuper(3),tensor(3,3)
 
         real(8),pointer,dimension(:,:,:) :: jac
         
@@ -4032,7 +4046,7 @@ c     Begin program
 
         jac => g_def%gmetric%grid(igrid)%jac
         
-        tsrc = nabla_v_src(i,j,k)
+        src = nabla_v_src(i,j,k,vcov(i,j,k,:))
 
         select case(half_elem)
         case (1)
@@ -4045,6 +4059,9 @@ c     Begin program
           else
             jacp = 0.5*(jac(i,j,k)+jac(ip,j,k))
           endif
+
+          gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(ip,j,k,ic,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup(i ,j,k,ic,:))
 
           vip(1) = vcov(ip,j,k,1)
           vim(1) = vcov(i ,j,k,1)
@@ -4071,14 +4088,16 @@ c     Begin program
           vkp(3) = 0.5*(vcov(ip,j,kp,3)+vcov(i,j,kp,3))
           vkm(3) = 0.5*(vcov(ip,j,km,3)+vcov(i,j,km,3))
 
-          tsrc = 0.5*(nabla_v_src(ip,j,k)+tsrc)
+          src = 0.5*(nabla_v_src(ip,j,k,vcov(ip,j,k,:))+src)
         case (2)
           dhx = 2.*g_def%dxh(ig)
           dhy =    g_def%dy (jg)
           dhz = 2.*g_def%dzh(kg)
 
-          jacp = 0.5*(jac(i,j,k)+jac(i,jp,k))
-          
+          jacp   = 0.5*(jac(i,j,k)+jac(i,jp,k))
+          gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,jp,k,ic,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup(i,j ,k,ic,:))
+
           vip(1) = 0.5*(vcov(ip,j,k,1)+vcov(ip,jp,k,1))
           vim(1) = 0.5*(vcov(im,j,k,1)+vcov(im,jp,k,1))
           vip(2) = 0.5*(vcov(ip,j ,k,2)/jac(ip,j ,k)
@@ -4104,14 +4123,16 @@ c     Begin program
           vkp(3) = 0.5*(vcov(i,j,kp,3)+vcov(i,jp,kp,3))
           vkm(3) = 0.5*(vcov(i,j,km,3)+vcov(i,jp,km,3))
 
-          tsrc = 0.5*(nabla_v_src(i,jp,k)+tsrc)
+          src = 0.5*(nabla_v_src(i,jp,k,vcov(i,jp,k,:))+src)
         case (3)
           dhx = 2.*g_def%dxh(ig)
           dhy = 2.*g_def%dyh(jg)
           dhz =    g_def%dz (kg)
 
-          jacp=0.5*(jac(i,j,k)+jac(i,j,kp))
-          
+          jacp   = 0.5*(jac(i,j,k)+jac(i,j,kp))
+          gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,j,kp,ic,:)
+     .                 +g_def%gmetric%grid(igrid)%gsup(i,j,k ,ic,:))
+
           vip(1) = 0.5*(vcov(ip,j,k,1)+vcov(ip,j,kp,1))
           vim(1) = 0.5*(vcov(im,j,k,1)+vcov(im,j,kp,1))
           vip(2) = 0.5*(vcov(ip,j,k ,2)/jac(ip,j,k )
@@ -4137,14 +4158,15 @@ c     Begin program
           vkp(3) = vcov(i,j,kp,3)
           vkm(3) = vcov(i,j,k ,3)
 
-          tsrc = 0.5*(nabla_v_src(i,j,kp)+tsrc)
+          src = 0.5*(nabla_v_src(i,j,kp,vcov(i,j,kp,:))+src)
         case default
           dhx = 2.*g_def%dxh(ig)
           dhy = 2.*g_def%dyh(jg)
           dhz = 2.*g_def%dzh(kg)
 
-          jacp = jac(i,j,k)
-          
+          jacp   = jac(i,j,k)
+          gsuper = g_def%gmetric%grid(igrid)%gsup(i,j,k,ic,:)
+
           vip(1) = vcov(ip,j,k,1)
           vim(1) = vcov(im,j,k,1)
           vip(2) = vcov(ip,j,k,2)/jac(ip,j,k)
@@ -4172,7 +4194,7 @@ c     Begin program
         idh(2) = 1d0/dhy
         idh(3) = 1d0/dhz
 
-        !Form tensor derivatives
+        !Form tensor derivatives (optimized; do not touch)
         tensor(1,:) = (vip(:)-vim(:))*idh(1)
         tensor(2,:) = (vjp(:)-vjm(:))*idh(2)
         tensor(3,:) = (vkp(:)-vkm(:))*idh(3)
@@ -4180,8 +4202,8 @@ c     Begin program
         !Affect jacobian factor to T^i_2
         tensor(:,2) = tensor(:,2)*jacp
 
-        !Add geometric source (optimized; do not touch)
-        tensor = tensor + tsrc
+        !Add geometric source
+        vec = matmul(gsuper(:),tensor) + src
 
 c     End program
 
@@ -4189,7 +4211,7 @@ c     End program
 
 c     nabla_v_src
 c     #############################################################
-      function nabla_v_src(i,j,k) result(tensor)
+      function nabla_v_src(i,j,k,cov) result(vec)
 
 c     -------------------------------------------------------------
 c     Finds geometric source of tensor nabla(v) at cell (i,j,k)
@@ -4198,17 +4220,15 @@ c     -------------------------------------------------------------
         implicit none
 
         integer :: i,j,k
-        real(8) :: tensor(3,3)
+        real(8) :: cov(3),vec(3)
 
-        real(8) :: cov(3),jac
+        real(8) :: tensor(3,3),gsuper(3)
         real(8),pointer,dimension(:,:,:,:,:,:) :: hessian
 
 c     Begin program
 
         hessian => g_def%gmetric%grid(igrid)%Gamma
-        jac = g_def%gmetric%grid(igrid)%jac(i,j,k)
-
-        cov = vcov(i,j,k,:)
+        gsuper  =  g_def%gmetric%grid(igrid)%gsup(i,j,k,ic,:)
 
       ! l = 1, m = 1
         tensor(1,1) =-cov(1)*hessian(i,j,k,1,1,1)
@@ -4264,99 +4284,102 @@ c     Begin program
      .               -cov(2)*hessian(i,j,k,2,3,3)
      .               -cov(3)*hessian(i,j,k,3,3,3)
 
+
+        vec = matmul(gsuper(:),tensor)
+        
 c     End program
 
       end function nabla_v_src
 
       end function fnabla_v_cov_reg
 
-c     nabla_v_cov_src
-c     #############################################################
-      function nabla_v_cov_src(g_def,igrid,i,j,k,cov,ic) result(vec)
-
-c     -------------------------------------------------------------
-c     Finds geometric source of nabla(v) tensor, gsuper(ic,:)*nabla(v),
-c     at cell (i,j,k)
-c     -------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-        
-        type(grid_mg_def),pointer :: g_def
-
-        integer :: i,j,k,igrid,ic
-        real(8) :: cov(3),vec(3)
-
-c     Local variables
-        
-        real(8) :: gsuper(3,3),tensor(3,3)
-        real(8),pointer,dimension(:,:,:,:,:,:) :: hessian
-
-c     Begin program
-
-        hessian => g_def%gmetric%grid(igrid)%Gamma
-        gsuper = g_def%gmetric%grid(igrid)%gsup(i,j,k,:,:)
-
-      ! l = 1, m = 1
-        tensor(1,1) =-cov(1)*hessian(i,j,k,1,1,1)
-     .               -cov(2)*hessian(i,j,k,2,1,1)
-     .               -cov(3)*hessian(i,j,k,3,1,1)
-
-      ! l = 1, m = 2
-        tensor(1,2) =-cov(1)*hessian(i,j,k,1,1,2)
-     .               -cov(2)*hessian(i,j,k,2,1,2)
-     .               -cov(3)*hessian(i,j,k,3,1,2)
-     .               +cov(2)*(hessian(i,j,k,1,1,1)
-     .                       +hessian(i,j,k,2,1,2)
-     .                       +hessian(i,j,k,3,1,3))
-
-      ! l = 1, m = 3
-        tensor(1,3) =-cov(1)*hessian(i,j,k,1,1,3)
-     .               -cov(2)*hessian(i,j,k,2,1,3)
-     .               -cov(3)*hessian(i,j,k,3,1,3)
-
-      ! l = 2, m = 1
-        tensor(2,1) =-cov(1)*hessian(i,j,k,1,2,1)
-     .               -cov(2)*hessian(i,j,k,2,2,1)
-     .               -cov(3)*hessian(i,j,k,3,2,1)
-
-      ! l = 2, m = 2
-        tensor(2,2) =-cov(1)*hessian(i,j,k,1,2,2)
-     .               -cov(2)*hessian(i,j,k,2,2,2)
-     .               -cov(3)*hessian(i,j,k,3,2,2)
-     .               +cov(2)*(hessian(i,j,k,1,2,1)
-     .                       +hessian(i,j,k,2,2,2)
-     .                       +hessian(i,j,k,3,2,3))
-
-      ! l = 2, m = 3
-        tensor(2,3) =-cov(1)*hessian(i,j,k,1,2,3)
-     .               -cov(2)*hessian(i,j,k,2,2,3)
-     .               -cov(3)*hessian(i,j,k,3,2,3)
-
-      ! l = 3, m = 1
-        tensor(3,1) =-cov(1)*hessian(i,j,k,1,3,1)
-     .               -cov(2)*hessian(i,j,k,2,3,1)
-     .               -cov(3)*hessian(i,j,k,3,3,1)
-
-      ! l = 3, m = 2
-        tensor(3,2) =-cov(1)*hessian(i,j,k,1,3,2)
-     .               -cov(2)*hessian(i,j,k,2,3,2)
-     .               -cov(3)*hessian(i,j,k,3,3,2)
-     .               +cov(2)*(hessian(i,j,k,1,3,1)
-     .                       +hessian(i,j,k,2,3,2)
-     .                       +hessian(i,j,k,3,3,3))
-
-      ! l = 3, m = 3
-        tensor(3,3) =-cov(1)*hessian(i,j,k,1,3,3)
-     .               -cov(2)*hessian(i,j,k,2,3,3)
-     .               -cov(3)*hessian(i,j,k,3,3,3)
-
-        vec = matmul(gsuper(ic,:),tensor)
-        
-c     End program
-
-      end function nabla_v_cov_src
+c$$$c     nabla_v_cov_src
+c$$$c     #############################################################
+c$$$      function nabla_v_cov_src(g_def,igrid,i,j,k,cov,ic) result(vec)
+c$$$
+c$$$c     -------------------------------------------------------------
+c$$$c     Finds geometric source of nabla(v) tensor, gsuper(ic,:)*nabla(v),
+c$$$c     at cell (i,j,k)
+c$$$c     -------------------------------------------------------------
+c$$$
+c$$$        implicit none
+c$$$
+c$$$c     Call variables
+c$$$        
+c$$$        type(grid_mg_def),pointer :: g_def
+c$$$
+c$$$        integer :: i,j,k,igrid,ic
+c$$$        real(8) :: cov(3),vec(3)
+c$$$
+c$$$c     Local variables
+c$$$        
+c$$$        real(8) :: gsuper(3,3),tensor(3,3)
+c$$$        real(8),pointer,dimension(:,:,:,:,:,:) :: hessian
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$        hessian => g_def%gmetric%grid(igrid)%Gamma
+c$$$        gsuper = g_def%gmetric%grid(igrid)%gsup(i,j,k,:,:)
+c$$$
+c$$$      ! l = 1, m = 1
+c$$$        tensor(1,1) =-cov(1)*hessian(i,j,k,1,1,1)
+c$$$     .               -cov(2)*hessian(i,j,k,2,1,1)
+c$$$     .               -cov(3)*hessian(i,j,k,3,1,1)
+c$$$
+c$$$      ! l = 1, m = 2
+c$$$        tensor(1,2) =-cov(1)*hessian(i,j,k,1,1,2)
+c$$$     .               -cov(2)*hessian(i,j,k,2,1,2)
+c$$$     .               -cov(3)*hessian(i,j,k,3,1,2)
+c$$$     .               +cov(2)*(hessian(i,j,k,1,1,1)
+c$$$     .                       +hessian(i,j,k,2,1,2)
+c$$$     .                       +hessian(i,j,k,3,1,3))
+c$$$
+c$$$      ! l = 1, m = 3
+c$$$        tensor(1,3) =-cov(1)*hessian(i,j,k,1,1,3)
+c$$$     .               -cov(2)*hessian(i,j,k,2,1,3)
+c$$$     .               -cov(3)*hessian(i,j,k,3,1,3)
+c$$$
+c$$$      ! l = 2, m = 1
+c$$$        tensor(2,1) =-cov(1)*hessian(i,j,k,1,2,1)
+c$$$     .               -cov(2)*hessian(i,j,k,2,2,1)
+c$$$     .               -cov(3)*hessian(i,j,k,3,2,1)
+c$$$
+c$$$      ! l = 2, m = 2
+c$$$        tensor(2,2) =-cov(1)*hessian(i,j,k,1,2,2)
+c$$$     .               -cov(2)*hessian(i,j,k,2,2,2)
+c$$$     .               -cov(3)*hessian(i,j,k,3,2,2)
+c$$$     .               +cov(2)*(hessian(i,j,k,1,2,1)
+c$$$     .                       +hessian(i,j,k,2,2,2)
+c$$$     .                       +hessian(i,j,k,3,2,3))
+c$$$
+c$$$      ! l = 2, m = 3
+c$$$        tensor(2,3) =-cov(1)*hessian(i,j,k,1,2,3)
+c$$$     .               -cov(2)*hessian(i,j,k,2,2,3)
+c$$$     .               -cov(3)*hessian(i,j,k,3,2,3)
+c$$$
+c$$$      ! l = 3, m = 1
+c$$$        tensor(3,1) =-cov(1)*hessian(i,j,k,1,3,1)
+c$$$     .               -cov(2)*hessian(i,j,k,2,3,1)
+c$$$     .               -cov(3)*hessian(i,j,k,3,3,1)
+c$$$
+c$$$      ! l = 3, m = 2
+c$$$        tensor(3,2) =-cov(1)*hessian(i,j,k,1,3,2)
+c$$$     .               -cov(2)*hessian(i,j,k,2,3,2)
+c$$$     .               -cov(3)*hessian(i,j,k,3,3,2)
+c$$$     .               +cov(2)*(hessian(i,j,k,1,3,1)
+c$$$     .                       +hessian(i,j,k,2,3,2)
+c$$$     .                       +hessian(i,j,k,3,3,3))
+c$$$
+c$$$      ! l = 3, m = 3
+c$$$        tensor(3,3) =-cov(1)*hessian(i,j,k,1,3,3)
+c$$$     .               -cov(2)*hessian(i,j,k,2,3,3)
+c$$$     .               -cov(3)*hessian(i,j,k,3,3,3)
+c$$$
+c$$$        vec = matmul(gsuper(ic,:),tensor)
+c$$$        
+c$$$c     End program
+c$$$
+c$$$      end function nabla_v_cov_src
 
 c$$$c     fnabla_v_cov
 c$$$c     #############################################################
@@ -5358,31 +5381,7 @@ c     Call variables
 
       logical,optional,intent(IN) :: vol
 
-      INTERFACE
-        subroutine flxx(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                 ,t11,t12,t13,flag)
-          use grid_def
-          type(grid_mg_def),pointer :: g_def
-          integer    :: i,j,k,flag,nx,ny,nz,igx,igy,igz
-          real(8)    :: t11,t12,t13
-        end subroutine flxx
-
-        subroutine flxy(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                 ,t11,t12,t13,flag)
-          use grid_def
-          type(grid_mg_def),pointer :: g_def
-          integer    :: i,j,k,flag,nx,ny,nz,igx,igy,igz
-          real(8)    :: t11,t12,t13
-        end subroutine flxy
-
-        subroutine flxz(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                 ,t11,t12,t13,flag)
-          use grid_def
-          type(grid_mg_def),pointer :: g_def
-          integer    :: i,j,k,flag,nx,ny,nz,igx,igy,igz
-          real(8)    :: t11,t12,t13
-        end subroutine flxz
-      END INTERFACE
+      external flxx,flxy,flxz
 
 c     Local variables
 
@@ -5443,7 +5442,8 @@ c     End program
 
 c     dtnsr_cov_reg_src_ijk
 c     ###############################################################
-      function dtnsr_cov_reg_src_ijk(g_def,i,j,k,nx,ny,nz,igr,fsrc)
+      function dtnsr_cov_reg_src_ijk(g_def,i,j,k,nx,ny,nz,igr
+     .                          ,flxx,flxy,flxz)
      .         result(src)
 c     ---------------------------------------------------------------
 c     Calculates source for contravariant components of div(tensor) in
@@ -5461,70 +5461,6 @@ c     Call variables
       real(8) :: src(3)
 
       integer :: i,j,k,igr,nx,ny,nz
-
-      INTERFACE
-        subroutine fsrc(g_def,i,j,k,nx,ny,nz,igx,igy,igz,src)
-          use grid_def
-          type(grid_mg_def),pointer :: g_def
-          integer    :: i,j,k,nx,ny,nz,igx,igy,igz
-          real(8)    :: src(3,3)
-        end subroutine fsrc
-      END INTERFACE
-
-c     Local variables
-
-      real(8) :: hess(3,3,3),to(3,3),jac,ijac,tot(3,3)
-
-c     Begin program
-
-      if (.not.no_map) then
-        hess = g_def%gmetric%grid(igr)%Gamma(i,j,k,:,:,:)
-
-        call fsrc(g_def,i,j,k,nx,ny,nz,igr,igr,igr,to)
-
-        tot = transpose(to)
-        src(1) =-sum(tot*hess(:,:,1))
-        src(2) = dot_product(to(:,2),hess(1,:,1))
-     .          +dot_product(to(:,2),hess(2,:,2))
-     .          +dot_product(to(:,2),hess(3,:,3))
-     .          -sum(tot*hess(:,:,2))
-        src(3) =-sum(tot*hess(:,:,3))
-      else
-        src = 0d0
-      endif
-
-c     End program
-
-      end function dtnsr_cov_reg_src_ijk
-
-c     div_tensor_cov_reg
-c     ###############################################################
-      function div_tensor_cov_reg(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                       ,flxx,flxy,flxz,fsrc,vol) result (divt)
-
-c     ---------------------------------------------------------------
-c     Calculates covariant components of div(tensor) at cell centers in
-c     general non-orthogonal coordinates, which is given by:
-c
-c     div(T)_i = partial_j(T^j_i/J)
-c               -T^l_m/J Gamma(m)_il
-c               +T^l_i/J Gamma(m)_ml
-c
-c     The routines flxx,flxy,flxz must provide mixed representation 
-c     tensor components T^l_m/J.
-c     ---------------------------------------------------------------
-
-      implicit none           !For safe fortran
-
-c     Call variables
-
-      type(grid_mg_def),pointer :: g_def
-
-      real(8) :: divt(3)
-
-      integer :: i,j,k,igx,igy,igz,nx,ny,nz
-
-      logical,optional,intent(IN) :: vol
 
       INTERFACE
         subroutine flxx(g_def,i,j,k,nx,ny,nz,igx,igy,igz
@@ -5550,14 +5486,72 @@ c     Call variables
           integer    :: i,j,k,flag,nx,ny,nz,igx,igy,igz
           real(8)    :: t11,t12,t13
         end subroutine flxz
-
-        subroutine fsrc(g_def,i,j,k,nx,ny,nz,igx,igy,igz,src)
-          use grid_def
-          type(grid_mg_def),pointer :: g_def
-          integer    :: i,j,k,nx,ny,nz,igx,igy,igz
-          real(8)    :: src(3,3)
-        end subroutine fsrc
       END INTERFACE
+
+c     Local variables
+
+      real(8) :: hess(3,3,3),to(3,3)
+
+c     Begin program
+
+      if (no_map) then
+        src = 0d0
+      else
+        hess = g_def%gmetric%grid(igr)%Gamma(i,j,k,:,:,:)
+
+        !Note we are filling transpose here
+        call flxx(g_def,i,j,k,nx,ny,nz,igr,igr,igr,to(1,1),to(2,1)
+     .           ,to(3,1),0)
+        call flxy(g_def,i,j,k,nx,ny,nz,igr,igr,igr,to(1,2),to(2,2)
+     .           ,to(3,2),0)
+        call flxz(g_def,i,j,k,nx,ny,nz,igr,igr,igr,to(1,3),to(2,3)
+     .           ,to(3,3),0)
+
+        src(1) =-sum(to*hess(:,:,1))
+        src(2) = dot_product(to(2,:),hess(1,:,1))
+     .          +dot_product(to(2,:),hess(2,:,2))
+     .          +dot_product(to(2,:),hess(3,:,3))
+     .          -sum(to*hess(:,:,2))
+        src(3) =-sum(to*hess(:,:,3))
+      endif
+
+c     End program
+
+      end function dtnsr_cov_reg_src_ijk
+
+c     div_tensor_cov_reg
+c     ###############################################################
+      function div_tensor_cov_reg(g_def,i,j,k,nx,ny,nz,igx,igy,igz
+     .                           ,flxx,flxy,flxz,vol) result (divt)
+
+c     ---------------------------------------------------------------
+c     Calculates covariant components of div(tensor) at cell centers in
+c     general non-orthogonal coordinates, which is given by:
+c
+c     div(T)_i = partial_j(T^j_i)
+c               -T^l_m Gamma(m)_il, i=1,3
+c
+c     div(T)_i = partial_j(T^j_i/J)
+c               -T^l_m/J Gamma(m)_il
+c               +T^l_i/J Gamma(m)_ml, i=2
+c
+c     The routines flxx,flxy,flxz must provide mixed representation 
+c     tensor components T^l_m.
+c     ---------------------------------------------------------------
+
+      implicit none           !For safe fortran
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
+
+      real(8) :: divt(3)
+
+      integer :: i,j,k,igx,igy,igz,nx,ny,nz
+
+      logical,optional,intent(IN) :: vol
+
+      external flxx,flxy,flxz
 
 c     Local variables
 
@@ -5599,7 +5593,8 @@ c     Fluxes
 
 c     Source
 
-      msource = dtnsr_cov_reg_src_ijk(g_def,i,j,k,nx,ny,nz,igx,fsrc)
+      msource = dtnsr_cov_reg_src_ijk(g_def,i,j,k,nx,ny,nz,igx
+     .                               ,flxx,flxy,flxz)
 
 c     Assemble divergence of tensor
 
@@ -5617,20 +5612,6 @@ c     Assemble divergence of tensor
       
       !Volume factor
       if (vol_wgt) divt=divt*g_def%gmetric%grid(igx)%dvol(i,j,k)
-
-c diag **** !Hard-wired cylindrical formulas for comparison (valid for k=0. in helical)
-c$$$      divt(1)=lap(g_def,i,j,k,nx,ny,nz,igx,igy,igz,vec(:,:,:,1)
-c$$$     .           ,vertex_metrics=.false.)
-c$$$     .       -(vec(i,j+1,k,2)-vec(i,j-1,k,2))/dyy/jac**3
-c$$$     .       - vec(i,j,k,1)/jac**2
-c$$$
-c$$$      divt(2)=jac*lap(g_def,i,j,k,nx,ny,nz,igx,igy,igz,vec(:,:,:,2)
-c$$$     .           ,div_by_J=.false.,vertex_metrics=.false.)
-c$$$     .       +(vec(i,j+1,k,1)-vec(i,j-1,k,1))/dyy/jac
-c$$$     .       - vec(i,j,k,2)/jac**2
-c$$$
-c$$$      divt(3)=lap(g_def,i,j,k,nx,ny,nz,igx,igy,igz,vec(:,:,:,3))
-c diag ****
 
 c     End program
 
@@ -6005,9 +5986,8 @@ c     ###############################################################
       function veclap_cnv_mesh(g_def,igrid,cnv,diff) result(cnv_out)
 
 c     ---------------------------------------------------------------
-c     Calculates curl(A) in general non-orthogonal coordinates. Is
-c     boundary-ready (can extrapolate). The vector A is
-c     covariant, and returns the contravariant component "comp".
+c     Calculates veclap(A) in general non-orthogonal coordinates. The
+c     vector A is contravariant.
 c     ---------------------------------------------------------------
 
       implicit none           !For safe fortran
@@ -6112,7 +6092,7 @@ c     #############################################################
      .                          ,alt_eom,t11,t12,t13,flag)
 c     -------------------------------------------------------------
 c     Calculates mixed representation tensor components t11-t13 for
-c     nabla(vec), [nab(vec))^l_m, with vec in contravariant rep.
+c     nabla(vec), nab(vec))^l_m, with vec in contravariant rep.
 c     -------------------------------------------------------------
 
         implicit none
@@ -6423,7 +6403,6 @@ c$$$     $             ,vol=vol_wgt)
      .             ,nabtensor_cov_reg_x
      .             ,nabtensor_cov_reg_y
      .             ,nabtensor_cov_reg_z
-     .             ,nabtensor_cov_reg_src
      .             ,vol=vol_wgt)
         if (PRESENT(dff)) nullify(coef)
       endif
@@ -6452,20 +6431,25 @@ c$$$        real(8)    :: t11,t12,t13
 c$$$
 c$$$c     Local variables
 c$$$
-c$$$        integer    :: ig,jg,kg,ip
+c$$$        integer    :: ig,jg,kg,ip,igrid
 c$$$        real(8)    :: x,y,z
-c$$$        real(8)    :: nabla_v(3,3),dd
+c$$$        real(8)    :: nabla_v(3,3),dd,gsuper(3)
 c$$$
 c$$$c     Begin program
 c$$$
+c$$$        igrid = igx
+c$$$
 c$$$        if (flag == 0) then
 c$$$          ip = i
+c$$$          gsuper = g_def%gmetric%grid(igrid)%gsup(i,j,k,1,:)
 c$$$
-c$$$          nabla_v = fnabla_v_mixed_cov(g_def,i,j,k,igx,vec,0)
+c$$$          nabla_v = fnabla_v_cov(g_def,i,j,k,igx,vec,0)
 c$$$        else
 c$$$          ip = i+1
-c$$$          
-c$$$          nabla_v = fnabla_v_mixed_cov(g_def,i,j,k,igx,vec,1)
+c$$$          gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(ip,j,k,1,:)
+c$$$     .                 +g_def%gmetric%grid(igrid)%gsup(i ,j,k,1,:))
+c$$$
+c$$$          nabla_v = fnabla_v_cov(g_def,i,j,k,igx,vec,1)
 c$$$        endif
 c$$$
 c$$$        if (associated(coef)) then
@@ -6474,9 +6458,17 @@ c$$$        else
 c$$$          dd = 1d0
 c$$$        endif
 c$$$
-c$$$        t11 = dd*nabla_v(1,1)
-c$$$        t12 = dd*nabla_v(1,2)
-c$$$        t13 = dd*nabla_v(1,3)
+c$$$        t11 = dd*( gsuper(1)*nabla_v(1,1)
+c$$$     .            +gsuper(2)*nabla_v(2,1)
+c$$$     .            +gsuper(3)*nabla_v(3,1))
+c$$$
+c$$$        t12 = dd*( gsuper(1)*nabla_v(1,2)
+c$$$     .            +gsuper(2)*nabla_v(2,2)
+c$$$     .            +gsuper(3)*nabla_v(3,2))
+c$$$
+c$$$        t13 = dd*( gsuper(1)*nabla_v(1,3)
+c$$$     .            +gsuper(2)*nabla_v(2,3)
+c$$$     .            +gsuper(3)*nabla_v(3,3))
 c$$$
 c$$$c     End program
 c$$$
@@ -6502,20 +6494,25 @@ c$$$        real(8)    :: t21,t22,t23
 c$$$
 c$$$c     Local variables
 c$$$
-c$$$        integer    :: ig,jg,kg,jp
+c$$$        integer    :: ig,jg,kg,jp,igrid
 c$$$        real(8)    :: x,y,z
-c$$$        real(8)    :: nabla_v(3,3),dd
+c$$$        real(8)    :: nabla_v(3,3),gsuper(3),dd
 c$$$
 c$$$c     Begin program
 c$$$
+c$$$        igrid = igx
+c$$$
 c$$$        if (flag == 0) then
 c$$$          jp = j
+c$$$          gsuper = g_def%gmetric%grid(igrid)%gsup(i,j,k,2,:)
 c$$$
-c$$$          nabla_v = fnabla_v_mixed_cov(g_def,i,j,k,igx,vec,0)
+c$$$          nabla_v = fnabla_v_cov(g_def,i,j,k,igx,vec,0)
 c$$$        else
 c$$$          jp = j+1
+c$$$          gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,jp,k,2,:)
+c$$$     .                 +g_def%gmetric%grid(igrid)%gsup(i,j ,k,2,:))
 c$$$
-c$$$          nabla_v = fnabla_v_mixed_cov(g_def,i,j,k,igx,vec,2)
+c$$$          nabla_v = fnabla_v_cov(g_def,i,j,k,igx,vec,2)
 c$$$        endif
 c$$$
 c$$$        if (associated(coef)) then
@@ -6524,9 +6521,17 @@ c$$$        else
 c$$$          dd = 1d0
 c$$$        endif
 c$$$
-c$$$        t21 = dd*nabla_v(2,1)
-c$$$        t22 = dd*nabla_v(2,2)
-c$$$        t23 = dd*nabla_v(2,3)
+c$$$        t21 = dd*( gsuper(1)*nabla_v(1,1)
+c$$$     .            +gsuper(2)*nabla_v(2,1)
+c$$$     .            +gsuper(3)*nabla_v(3,1))
+c$$$
+c$$$        t22 = dd*( gsuper(1)*nabla_v(1,2)
+c$$$     .            +gsuper(2)*nabla_v(2,2)
+c$$$     .            +gsuper(3)*nabla_v(3,2))
+c$$$
+c$$$        t23 = dd*( gsuper(1)*nabla_v(1,3)
+c$$$     .            +gsuper(2)*nabla_v(2,3)
+c$$$     .            +gsuper(3)*nabla_v(3,3))
 c$$$
 c$$$c     End program
 c$$$
@@ -6552,20 +6557,25 @@ c$$$        real(8)    :: t31,t32,t33
 c$$$
 c$$$c     Local variables
 c$$$
-c$$$        integer    :: ig,jg,kg,kp
+c$$$        integer    :: ig,jg,kg,kp,igrid
 c$$$        real(8)    :: x,y,z
-c$$$        real(8)    :: nabla_v(3,3),dd
+c$$$        real(8)    :: nabla_v(3,3),gsuper(3),dd
 c$$$
 c$$$c     Begin program
 c$$$
+c$$$        igrid = igx
+c$$$
 c$$$        if (flag == 0) then
 c$$$          kp = k
+c$$$          gsuper = g_def%gmetric%grid(igrid)%gsup(i,j,k,3,:)
 c$$$
-c$$$          nabla_v = fnabla_v_mixed_cov(g_def,i,j,k,igx,vec,0)
+c$$$          nabla_v = fnabla_v_cov(g_def,i,j,k,igx,vec,0)
 c$$$        else
 c$$$          kp = k+1
+c$$$          gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,j,kp,3,:)
+c$$$     .                 +g_def%gmetric%grid(igrid)%gsup(i,j,k ,3,:))
 c$$$
-c$$$          nabla_v = fnabla_v_mixed_cov(g_def,i,j,k,igx,vec,3)
+c$$$          nabla_v = fnabla_v_cov(g_def,i,j,k,igx,vec,3)
 c$$$        endif
 c$$$
 c$$$        if (associated(coef)) then
@@ -6574,246 +6584,21 @@ c$$$        else
 c$$$          dd = 1d0
 c$$$        endif
 c$$$
-c$$$        t31 = dd*nabla_v(3,1)
-c$$$        t32 = dd*nabla_v(3,2)
-c$$$        t33 = dd*nabla_v(3,3)
+c$$$        t31 = dd*( gsuper(1)*nabla_v(1,1)
+c$$$     .            +gsuper(2)*nabla_v(2,1)
+c$$$     .            +gsuper(3)*nabla_v(3,1))
+c$$$
+c$$$        t32 = dd*( gsuper(1)*nabla_v(1,2)
+c$$$     .            +gsuper(2)*nabla_v(2,2)
+c$$$     .            +gsuper(3)*nabla_v(3,2))
+c$$$
+c$$$        t33 = dd*( gsuper(1)*nabla_v(1,3)
+c$$$     .            +gsuper(2)*nabla_v(2,3)
+c$$$     .            +gsuper(3)*nabla_v(3,3))
 c$$$
 c$$$c     End program
 c$$$
 c$$$      end subroutine nabtensor_cov_z
-
-c     nabtensor_cov_x
-c     #############################################################
-      subroutine nabtensor_cov_x(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                          ,t11,t12,t13,flag)
-c     -------------------------------------------------------------
-c     Calculates mixed representation tensor components t11-t13 for
-c     nabla(vec), [nab(vec))^l_m.
-c     -------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-        type(grid_mg_def),pointer :: g_def
-
-        integer    :: i,j,k,flag,igx,igy,igz,nx,ny,nz
-        real(8)    :: t11,t12,t13
-
-c     Local variables
-
-        integer    :: ig,jg,kg,ip,igrid
-        real(8)    :: x,y,z
-        real(8)    :: nabla_v(3,3),dd,gsuper(3)
-
-c     Begin program
-
-        igrid = igx
-
-        if (flag == 0) then
-          ip = i
-          gsuper = g_def%gmetric%grid(igrid)%gsup(i,j,k,1,:)
-
-          nabla_v = fnabla_v_cov(g_def,i,j,k,igx,vec,0)
-        else
-          ip = i+1
-          gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(ip,j,k,1,:)
-     .                 +g_def%gmetric%grid(igrid)%gsup(i ,j,k,1,:))
-
-          nabla_v = fnabla_v_cov(g_def,i,j,k,igx,vec,1)
-        endif
-
-        if (associated(coef)) then
-          dd = 2./(1./coef(ip,j,k) + 1./coef(i,j,k))
-        else
-          dd = 1d0
-        endif
-
-        t11 = dd*( gsuper(1)*nabla_v(1,1)
-     .            +gsuper(2)*nabla_v(2,1)
-     .            +gsuper(3)*nabla_v(3,1))
-
-        t12 = dd*( gsuper(1)*nabla_v(1,2)
-     .            +gsuper(2)*nabla_v(2,2)
-     .            +gsuper(3)*nabla_v(3,2))
-
-        t13 = dd*( gsuper(1)*nabla_v(1,3)
-     .            +gsuper(2)*nabla_v(2,3)
-     .            +gsuper(3)*nabla_v(3,3))
-
-c     End program
-
-      end subroutine nabtensor_cov_x
-
-c     nabtensor_cov_y
-c     #############################################################
-      subroutine nabtensor_cov_y(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                          ,t21,t22,t23,flag)
-c     -------------------------------------------------------------
-c     Calculates mixed representation tensor components t21-t23 for
-c     nabla(vec), [nab(vec))^l_m.
-c     -------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-        type(grid_mg_def),pointer :: g_def
-
-        integer    :: i,j,k,flag,igx,igy,igz,nx,ny,nz
-        real(8)    :: t21,t22,t23
-
-c     Local variables
-
-        integer    :: ig,jg,kg,jp,igrid
-        real(8)    :: x,y,z
-        real(8)    :: nabla_v(3,3),gsuper(3),dd
-
-c     Begin program
-
-        igrid = igx
-
-        if (flag == 0) then
-          jp = j
-          gsuper = g_def%gmetric%grid(igrid)%gsup(i,j,k,2,:)
-
-          nabla_v = fnabla_v_cov(g_def,i,j,k,igx,vec,0)
-        else
-          jp = j+1
-          gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,jp,k,2,:)
-     .                 +g_def%gmetric%grid(igrid)%gsup(i,j ,k,2,:))
-
-          nabla_v = fnabla_v_cov(g_def,i,j,k,igx,vec,2)
-        endif
-
-        if (associated(coef)) then
-          dd = 2./(1./coef(i,jp,k) + 1./coef(i,j,k))
-        else
-          dd = 1d0
-        endif
-
-        t21 = dd*( gsuper(1)*nabla_v(1,1)
-     .            +gsuper(2)*nabla_v(2,1)
-     .            +gsuper(3)*nabla_v(3,1))
-
-        t22 = dd*( gsuper(1)*nabla_v(1,2)
-     .            +gsuper(2)*nabla_v(2,2)
-     .            +gsuper(3)*nabla_v(3,2))
-
-        t23 = dd*( gsuper(1)*nabla_v(1,3)
-     .            +gsuper(2)*nabla_v(2,3)
-     .            +gsuper(3)*nabla_v(3,3))
-
-c     End program
-
-      end subroutine nabtensor_cov_y
-
-c     nabtensor_cov_z
-c     #############################################################
-      subroutine nabtensor_cov_z(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                          ,t31,t32,t33,flag)
-c     -------------------------------------------------------------
-c     Calculates mixed representation tensor components t31-t33 for
-c     nabla(vec), [nab(vec))^l_m.
-c     -------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-        type(grid_mg_def),pointer :: g_def
-
-        integer    :: i,j,k,flag,igx,igy,igz,nx,ny,nz
-        real(8)    :: t31,t32,t33
-
-c     Local variables
-
-        integer    :: ig,jg,kg,kp,igrid
-        real(8)    :: x,y,z
-        real(8)    :: nabla_v(3,3),gsuper(3),dd
-
-c     Begin program
-
-        igrid = igx
-
-        if (flag == 0) then
-          kp = k
-          gsuper = g_def%gmetric%grid(igrid)%gsup(i,j,k,3,:)
-
-          nabla_v = fnabla_v_cov(g_def,i,j,k,igx,vec,0)
-        else
-          kp = k+1
-          gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,j,kp,3,:)
-     .                 +g_def%gmetric%grid(igrid)%gsup(i,j,k ,3,:))
-
-          nabla_v = fnabla_v_cov(g_def,i,j,k,igx,vec,3)
-        endif
-
-        if (associated(coef)) then
-          dd = 2./(1./coef(i,j,kp) + 1./coef(i,j,k))
-        else
-          dd = 1d0
-        endif
-
-        t31 = dd*( gsuper(1)*nabla_v(1,1)
-     .            +gsuper(2)*nabla_v(2,1)
-     .            +gsuper(3)*nabla_v(3,1))
-
-        t32 = dd*( gsuper(1)*nabla_v(1,2)
-     .            +gsuper(2)*nabla_v(2,2)
-     .            +gsuper(3)*nabla_v(3,2))
-
-        t33 = dd*( gsuper(1)*nabla_v(1,3)
-     .            +gsuper(2)*nabla_v(2,3)
-     .            +gsuper(3)*nabla_v(3,3))
-
-c     End program
-
-      end subroutine nabtensor_cov_z
-
-c     nabtensor_cov_reg_src
-c     #############################################################
-      subroutine nabtensor_cov_reg_src(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                                ,src)
-c     -------------------------------------------------------------
-c     Calculates mixed representation tensor components t11-t13 for
-c     nabla(vec), [nab(vec))^l_m.
-c     -------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-        type(grid_mg_def),pointer :: g_def
-
-        integer    :: i,j,k,igx,igy,igz,nx,ny,nz
-        real(8)    :: src(3,3)
-
-c     Local variables
-
-        integer    :: ig,jg,kg,ip,igrid,ic
-        real(8)    :: x,y,z,jac
-        real(8)    :: nabla_v_src(3),gsuper(3,3),dd,t1(3),nabla_v(3,3)
-
-c     Begin program
-
-        igrid = igx
-
-        gsuper = g_def%gmetric%grid(igrid)%gsup(i,j,k,:,:)
-
-        nabla_v = fnabla_v_cov_reg(g_def,i,j,k,igx,vec,0)
-          
-        if (associated(coef)) then
-          dd = coef(i,j,k)
-        else
-          dd = 1d0
-        endif
-
-        src = dd*matmul(gsuper,nabla_v)
-       
-c     End program
-
-      end subroutine nabtensor_cov_reg_src
 
 c     nabtensor_cov_reg_x
 c     #############################################################
@@ -6835,65 +6620,44 @@ c     Call variables
 
 c     Local variables
 
-        integer    :: ig,jg,kg,ip,igrid,ic
-        real(8)    :: x,y,z,jac,dd
-        real(8)    :: nabla_v_src(3),nabla_v_srcp(3)
+        integer    :: ip
+        real(8)    :: nabla_v(3),dd,ijac
 
 c     Begin program
 
-        ic = 1
-        
-        igrid = igx
+        if (flag == 0) then
+          ip = i
 
-        ip = i+1
-
-c$$$        jac  = 0.5*(g_def%gmetric%grid(igrid)%jac (ip,j,k)
-c$$$     .             +g_def%gmetric%grid(igrid)%jac (i ,j,k))
-c$$$
-c$$$        gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(ip,j,k,ic,:)
-c$$$     .               +g_def%gmetric%grid(igrid)%gsup(i ,j,k,ic,:))
-c$$$
-c$$$        nabla_v = 0.5*(
-c$$$     .         nabla_v_cov_src(g_def,igrid,ip,j,k,vec(ip,j,k,:),ic)
-c$$$     .        +nabla_v_cov_src(g_def,igrid,i ,j,k,vec(i ,j,k,:),ic))
-c$$$
-c$$$        nabla_v_src = matmul(gsuper,nabla_v)
-c$$$        
-c$$$        if (isSP2(g_def,ip,igrid)) then
-c$$$          nabla_v_src(2) = 0d0
-c$$$        else
-c$$$          nabla_v_src(2) = nabla_v_src(2)/jac
-c$$$        endif
-
-        nabla_v_src
-     .       = nabla_v_cov_src(g_def,igrid,i ,j,k,vec(i ,j,k,:),ic)
-        nabla_v_srcp
-     .       = nabla_v_cov_src(g_def,igrid,ip,j,k,vec(ip,j,k,:),ic)
-
-        nabla_v_src (2) = nabla_v_src (2)
-     .                   /g_def%gmetric%grid(igrid)%jac(i ,j,k)  !Return T12/J
-        nabla_v_srcp(2) = nabla_v_srcp(2)
-     .                   /g_def%gmetric%grid(igrid)%jac(ip,j,k)  !Return T12/J
-
-        nabla_v_src = 0.5*(nabla_v_src + nabla_v_srcp)
-
-        t11 = lap_flx_x_ijk(g_def,i,j,k,igrid,vec(:,:,:,1),diff=coef
-     .                     ,vertex=.false.)
-        t12 = lap_flx_x_ijk(g_def,i,j,k,igrid,vec(:,:,:,2),diff=coef
-     .                     ,vertex=.false.,divbyJ=.true.)   !Return T12/J
-        t13 = lap_flx_x_ijk(g_def,i,j,k,igrid,vec(:,:,:,3),diff=coef
-     .                     ,vertex=.false.)
+          nabla_v = fnabla_v_cov_reg(g_def,i,j,k,igx,vec,1,0)
+        else
+          ip = i+1
+          
+          nabla_v = fnabla_v_cov_reg(g_def,i,j,k,igx,vec,1,1)
+        endif
 
         if (associated(coef)) then
           dd = 2./(1./coef(ip,j,k) + 1./coef(i,j,k))
         else
           dd = 1d0
         endif
-        
-        t11 = t11 + dd*nabla_v_src(1)
-        t12 = t12 + dd*nabla_v_src(2)  !Return T12/J
-        t13 = t13 + dd*nabla_v_src(3)
-       
+
+        t11 = dd*nabla_v(1)
+        t12 = dd*nabla_v(2)
+        t13 = dd*nabla_v(3)
+
+c       Postprocessing
+
+        if (flag /= 0) then
+          if (isSP2(g_def,i+1,igx)) then
+            ijac = 1d0/SP_flsv
+          else
+            ijac = 2d0/(g_def%gmetric%grid(igx)%jac(ip,j,k)
+     .                 +g_def%gmetric%grid(igx)%jac(i ,j,k))
+          endif
+
+          t12 = t12*ijac
+        endif
+
 c     End program
 
       end subroutine nabtensor_cov_reg_x
@@ -6918,43 +6682,20 @@ c     Call variables
 
 c     Local variables
 
-        integer    :: ig,jg,kg,jp,igrid,ic
-        real(8)    :: x,y,z,jac,dd
-        real(8)    :: nabla_v_src(3),nabla_v_srcp(3)
+        integer    :: jp
+        real(8)    :: nabla_v(3),dd
 
 c     Begin program
 
-        ic = 2
-        
-        igrid = igx
+        if (flag == 0) then
+          jp = j
 
-        jp = j+1
-        
-c$$$        jac = 0.5*(g_def%gmetric%grid(igrid)%jac (i,jp,k)
-c$$$     .            +g_def%gmetric%grid(igrid)%jac (i,j ,k))
-c$$$
-c$$$        gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,jp,k,ic,:)
-c$$$     .               +g_def%gmetric%grid(igrid)%gsup(i,j ,k,ic,:))
-c$$$
-c$$$        nabla_v= 0.5*(
-c$$$     .          nabla_v_cov_src(g_def,igrid,i,jp,k,vec(i,jp,k,:),ic)
-c$$$     .         +nabla_v_cov_src(g_def,igrid,i,j ,k,vec(i,j ,k,:),ic))
-c$$$
-c$$$        nabla_v_src = matmul(gsuper,nabla_v)
-c$$$
-c$$$        nabla_v_src(2) = nabla_v_src(2)/jac
+          nabla_v = fnabla_v_cov_reg(g_def,i,j,k,igx,vec,2,0)
+        else
+          jp = j+1
 
-        nabla_v_src
-     .       = nabla_v_cov_src(g_def,igrid,i,j ,k,vec(i,j ,k,:),ic)
-        nabla_v_srcp
-     .       = nabla_v_cov_src(g_def,igrid,i,jp,k,vec(i,jp,k,:),ic)
-
-        nabla_v_src (2) = nabla_v_src (2)
-     .                   /g_def%gmetric%grid(igrid)%jac(i,j ,k)  !Return T22/J
-        nabla_v_srcp(2) = nabla_v_srcp(2)                   
-     .                   /g_def%gmetric%grid(igrid)%jac(i,jp,k)  !Return T22/J
-
-        nabla_v_src = 0.5*(nabla_v_src + nabla_v_srcp)
+          nabla_v = fnabla_v_cov_reg(g_def,i,j,k,igx,vec,2,2)
+        endif
 
         if (associated(coef)) then
           dd = 2./(1./coef(i,jp,k) + 1./coef(i,j,k))
@@ -6962,17 +6703,17 @@ c$$$        nabla_v_src(2) = nabla_v_src(2)/jac
           dd = 1d0
         endif
 
-        t21 = lap_flx_y_ijk(g_def,i,j,k,igrid,vec(:,:,:,1),diff=coef
-     .                     ,vertex=.false.)
-        t22 = lap_flx_y_ijk(g_def,i,j,k,igrid,vec(:,:,:,2),diff=coef
-     .                     ,vertex=.false.,divbyJ=.true.)  !Return T22/J
-        t23 = lap_flx_y_ijk(g_def,i,j,k,igrid,vec(:,:,:,3),diff=coef
-     .                     ,vertex=.false.)
+        t21 = dd*nabla_v(1)
+        t22 = dd*nabla_v(2)
+        t23 = dd*nabla_v(3)
 
-        t21 = t21 + dd*nabla_v_src(1)
-        t22 = t22 + dd*nabla_v_src(2)  !Return T22/J
-        t23 = t23 + dd*nabla_v_src(3)
- 
+c     Postprocessing
+
+        if (flag /= 0) then
+          t22 = t22*2d0/(g_def%gmetric%grid(igx)%jac(i,jp,k)
+     .                  +g_def%gmetric%grid(igx)%jac(i,j ,k))
+        endif
+
 c     End program
 
       end subroutine nabtensor_cov_reg_y
@@ -6997,50 +6738,20 @@ c     Call variables
 
 c     Local variables
 
-        integer    :: ig,jg,kg,kp,igrid,ic
-        real(8)    :: x,y,z,jac,dd
-        real(8)    :: nabla_v_src(3),nabla_v_srcp(3)
+        integer    :: kp
+        real(8)    :: nabla_v(3),dd
 
 c     Begin program
 
-        ic = 3
-        
-        igrid = igx
+        if (flag == 0) then
+          kp = k
 
-        kp = k+1
+          nabla_v = fnabla_v_cov_reg(g_def,i,j,k,igx,vec,3,0)
+        else
+          kp = k+1
 
-c$$$        jac    = 0.5*(g_def%gmetric%grid(igrid)%jac (i,j,kp)
-c$$$     .               +g_def%gmetric%grid(igrid)%jac (i,j,k ))
-c$$$
-c$$$        gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,j,kp,ic,:)
-c$$$     .               +g_def%gmetric%grid(igrid)%gsup(i,j,k ,ic,:))
-c$$$
-c$$$        nabla_v = 0.5*(
-c$$$     .          nabla_v_cov_src(g_def,igrid,i,j,kp,vec(i,j,kp,:),ic)
-c$$$     .         +nabla_v_cov_src(g_def,igrid,i,j,k ,vec(i,j,k ,:),ic))
-c$$$
-c$$$        nabla_v_src = matmul(gsuper,nabla_v)
-c$$$
-c$$$        nabla_v_src(2) = nabla_v_src(2)/jac
-
-        nabla_v_src
-     .       = nabla_v_cov_src(g_def,igrid,i,j,k ,vec(i,j,k ,:),ic)
-        nabla_v_srcp
-     .       = nabla_v_cov_src(g_def,igrid,i,j,kp,vec(i,j,kp,:),ic)
-
-        nabla_v_src (2) = nabla_v_src (2)
-     .                   /g_def%gmetric%grid(igrid)%jac(i,j,k )  !Return T32/J
-        nabla_v_srcp(2) = nabla_v_srcp(2)                     
-     .                   /g_def%gmetric%grid(igrid)%jac(i,j,kp)  !Return T22/J
-
-        nabla_v_src = 0.5*(nabla_v_src + nabla_v_srcp)
-
-        t31 = lap_flx_z_ijk(g_def,i,j,k,igrid,vec(:,:,:,1),diff=coef
-     .                     ,vertex=.false.)
-        t32 = lap_flx_z_ijk(g_def,i,j,k,igrid,vec(:,:,:,2),diff=coef
-     .                     ,vertex=.false.,divbyJ=.true.)  !Return T32/J
-        t33 = lap_flx_z_ijk(g_def,i,j,k,igrid,vec(:,:,:,3),diff=coef
-     .                     ,vertex=.false.)
+          nabla_v = fnabla_v_cov_reg(g_def,i,j,k,igx,vec,3,3)
+        endif
 
         if (associated(coef)) then
           dd = 2./(1./coef(i,j,kp) + 1./coef(i,j,k))
@@ -7048,13 +6759,259 @@ c$$$        nabla_v_src(2) = nabla_v_src(2)/jac
           dd = 1d0
         endif
 
-        t31 = t31 + dd*nabla_v_src(1)
-        t32 = t32 + dd*nabla_v_src(2)  !Return T32/J
-        t33 = t33 + dd*nabla_v_src(3)
+        t31 = dd*nabla_v(1)
+        t32 = dd*nabla_v(2)
+        t33 = dd*nabla_v(3)
+
+        if (flag /= 0) then
+          t32 = t32*2d0/(g_def%gmetric%grid(igx)%jac(i,j,kp)
+     .                  +g_def%gmetric%grid(igx)%jac(i,j,k ))
+        endif
 
 c     End program
 
       end subroutine nabtensor_cov_reg_z
+
+c$$$c     nabtensor_cov_reg_x
+c$$$c     #############################################################
+c$$$      subroutine nabtensor_cov_reg_x(g_def,i,j,k,nx,ny,nz,igx,igy,igz
+c$$$     .                          ,t11,t12,t13,flag)
+c$$$c     -------------------------------------------------------------
+c$$$c     Calculates mixed representation tensor components t11-t13 for
+c$$$c     nabla(vec), [nab(vec))^l_m.
+c$$$c     -------------------------------------------------------------
+c$$$
+c$$$        implicit none
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$        type(grid_mg_def),pointer :: g_def
+c$$$
+c$$$        integer    :: i,j,k,flag,igx,igy,igz,nx,ny,nz
+c$$$        real(8)    :: t11,t12,t13
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$        integer    :: ig,jg,kg,ip,igrid,ic
+c$$$        real(8)    :: x,y,z,jac,dd
+c$$$        real(8)    :: nabla_v_src(3),nabla_v_srcp(3)
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$        ic = 1
+c$$$        
+c$$$        igrid = igx
+c$$$
+c$$$        ip = i+1
+c$$$
+c$$$c$$$        jac  = 0.5*(g_def%gmetric%grid(igrid)%jac (ip,j,k)
+c$$$c$$$     .             +g_def%gmetric%grid(igrid)%jac (i ,j,k))
+c$$$c$$$
+c$$$c$$$        gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(ip,j,k,ic,:)
+c$$$c$$$     .               +g_def%gmetric%grid(igrid)%gsup(i ,j,k,ic,:))
+c$$$c$$$
+c$$$c$$$        nabla_v = 0.5*(
+c$$$c$$$     .         nabla_v_cov_src(g_def,igrid,ip,j,k,vec(ip,j,k,:),ic)
+c$$$c$$$     .        +nabla_v_cov_src(g_def,igrid,i ,j,k,vec(i ,j,k,:),ic))
+c$$$c$$$
+c$$$c$$$        nabla_v_src = matmul(gsuper,nabla_v)
+c$$$c$$$        
+c$$$c$$$        if (isSP2(g_def,ip,igrid)) then
+c$$$c$$$          nabla_v_src(2) = 0d0
+c$$$c$$$        else
+c$$$c$$$          nabla_v_src(2) = nabla_v_src(2)/jac
+c$$$c$$$        endif
+c$$$
+c$$$        nabla_v_src
+c$$$     .       = nabla_v_cov_src(g_def,igrid,i ,j,k,vec(i ,j,k,:),ic)
+c$$$        nabla_v_srcp
+c$$$     .       = nabla_v_cov_src(g_def,igrid,ip,j,k,vec(ip,j,k,:),ic)
+c$$$
+c$$$        nabla_v_src (2) = nabla_v_src (2)
+c$$$     .                   /g_def%gmetric%grid(igrid)%jac(i ,j,k)  !Return T12/J
+c$$$        nabla_v_srcp(2) = nabla_v_srcp(2)
+c$$$     .                   /g_def%gmetric%grid(igrid)%jac(ip,j,k)  !Return T12/J
+c$$$
+c$$$        nabla_v_src = 0.5*(nabla_v_src + nabla_v_srcp)
+c$$$
+c$$$        t11 = lap_flx_x_ijk(g_def,i,j,k,igrid,vec(:,:,:,1),diff=coef
+c$$$     .                     ,vertex=.false.)
+c$$$        t12 = lap_flx_x_ijk(g_def,i,j,k,igrid,vec(:,:,:,2),diff=coef
+c$$$     .                     ,vertex=.false.,divbyJ=.true.)   !Return T12/J
+c$$$        t13 = lap_flx_x_ijk(g_def,i,j,k,igrid,vec(:,:,:,3),diff=coef
+c$$$     .                     ,vertex=.false.)
+c$$$
+c$$$        if (associated(coef)) then
+c$$$          dd = 2./(1./coef(ip,j,k) + 1./coef(i,j,k))
+c$$$        else
+c$$$          dd = 1d0
+c$$$        endif
+c$$$        
+c$$$        t11 = t11 + dd*nabla_v_src(1)
+c$$$        t12 = t12 + dd*nabla_v_src(2)  !Return T12/J
+c$$$        t13 = t13 + dd*nabla_v_src(3)
+c$$$       
+c$$$c     End program
+c$$$
+c$$$      end subroutine nabtensor_cov_reg_x
+c$$$
+c$$$c     nabtensor_cov_reg_y
+c$$$c     #############################################################
+c$$$      subroutine nabtensor_cov_reg_y(g_def,i,j,k,nx,ny,nz,igx,igy,igz
+c$$$     .                          ,t21,t22,t23,flag)
+c$$$c     -------------------------------------------------------------
+c$$$c     Calculates mixed representation tensor components t21-t23 for
+c$$$c     nabla(vec), [nab(vec))^l_m.
+c$$$c     -------------------------------------------------------------
+c$$$
+c$$$        implicit none
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$        type(grid_mg_def),pointer :: g_def
+c$$$
+c$$$        integer    :: i,j,k,flag,igx,igy,igz,nx,ny,nz
+c$$$        real(8)    :: t21,t22,t23
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$        integer    :: ig,jg,kg,jp,igrid,ic
+c$$$        real(8)    :: x,y,z,jac,dd
+c$$$        real(8)    :: nabla_v_src(3),nabla_v_srcp(3)
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$        ic = 2
+c$$$        
+c$$$        igrid = igx
+c$$$
+c$$$        jp = j+1
+c$$$        
+c$$$c$$$        jac = 0.5*(g_def%gmetric%grid(igrid)%jac (i,jp,k)
+c$$$c$$$     .            +g_def%gmetric%grid(igrid)%jac (i,j ,k))
+c$$$c$$$
+c$$$c$$$        gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,jp,k,ic,:)
+c$$$c$$$     .               +g_def%gmetric%grid(igrid)%gsup(i,j ,k,ic,:))
+c$$$c$$$
+c$$$c$$$        nabla_v= 0.5*(
+c$$$c$$$     .          nabla_v_cov_src(g_def,igrid,i,jp,k,vec(i,jp,k,:),ic)
+c$$$c$$$     .         +nabla_v_cov_src(g_def,igrid,i,j ,k,vec(i,j ,k,:),ic))
+c$$$c$$$
+c$$$c$$$        nabla_v_src = matmul(gsuper,nabla_v)
+c$$$c$$$
+c$$$c$$$        nabla_v_src(2) = nabla_v_src(2)/jac
+c$$$
+c$$$        nabla_v_src
+c$$$     .       = nabla_v_cov_src(g_def,igrid,i,j ,k,vec(i,j ,k,:),ic)
+c$$$        nabla_v_srcp
+c$$$     .       = nabla_v_cov_src(g_def,igrid,i,jp,k,vec(i,jp,k,:),ic)
+c$$$
+c$$$        nabla_v_src (2) = nabla_v_src (2)
+c$$$     .                   /g_def%gmetric%grid(igrid)%jac(i,j ,k)  !Return T22/J
+c$$$        nabla_v_srcp(2) = nabla_v_srcp(2)                   
+c$$$     .                   /g_def%gmetric%grid(igrid)%jac(i,jp,k)  !Return T22/J
+c$$$
+c$$$        nabla_v_src = 0.5*(nabla_v_src + nabla_v_srcp)
+c$$$
+c$$$        if (associated(coef)) then
+c$$$          dd = 2./(1./coef(i,jp,k) + 1./coef(i,j,k))
+c$$$        else
+c$$$          dd = 1d0
+c$$$        endif
+c$$$
+c$$$        t21 = lap_flx_y_ijk(g_def,i,j,k,igrid,vec(:,:,:,1),diff=coef
+c$$$     .                     ,vertex=.false.)
+c$$$        t22 = lap_flx_y_ijk(g_def,i,j,k,igrid,vec(:,:,:,2),diff=coef
+c$$$     .                     ,vertex=.false.,divbyJ=.true.)  !Return T22/J
+c$$$        t23 = lap_flx_y_ijk(g_def,i,j,k,igrid,vec(:,:,:,3),diff=coef
+c$$$     .                     ,vertex=.false.)
+c$$$
+c$$$        t21 = t21 + dd*nabla_v_src(1)
+c$$$        t22 = t22 + dd*nabla_v_src(2)  !Return T22/J
+c$$$        t23 = t23 + dd*nabla_v_src(3)
+c$$$ 
+c$$$c     End program
+c$$$
+c$$$      end subroutine nabtensor_cov_reg_y
+c$$$
+c$$$c     nabtensor_cov_reg_z
+c$$$c     #############################################################
+c$$$      subroutine nabtensor_cov_reg_z(g_def,i,j,k,nx,ny,nz,igx,igy,igz
+c$$$     .                          ,t31,t32,t33,flag)
+c$$$c     -------------------------------------------------------------
+c$$$c     Calculates mixed representation tensor components t31-t33 for
+c$$$c     nabla(vec), [nab(vec))^l_m.
+c$$$c     -------------------------------------------------------------
+c$$$
+c$$$        implicit none
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$        type(grid_mg_def),pointer :: g_def
+c$$$
+c$$$        integer    :: i,j,k,flag,igx,igy,igz,nx,ny,nz
+c$$$        real(8)    :: t31,t32,t33
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$        integer    :: ig,jg,kg,kp,igrid,ic
+c$$$        real(8)    :: x,y,z,jac,dd
+c$$$        real(8)    :: nabla_v_src(3),nabla_v_srcp(3)
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$        ic = 3
+c$$$        
+c$$$        igrid = igx
+c$$$
+c$$$        kp = k+1
+c$$$
+c$$$c$$$        jac    = 0.5*(g_def%gmetric%grid(igrid)%jac (i,j,kp)
+c$$$c$$$     .               +g_def%gmetric%grid(igrid)%jac (i,j,k ))
+c$$$c$$$
+c$$$c$$$        gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,j,kp,ic,:)
+c$$$c$$$     .               +g_def%gmetric%grid(igrid)%gsup(i,j,k ,ic,:))
+c$$$c$$$
+c$$$c$$$        nabla_v = 0.5*(
+c$$$c$$$     .          nabla_v_cov_src(g_def,igrid,i,j,kp,vec(i,j,kp,:),ic)
+c$$$c$$$     .         +nabla_v_cov_src(g_def,igrid,i,j,k ,vec(i,j,k ,:),ic))
+c$$$c$$$
+c$$$c$$$        nabla_v_src = matmul(gsuper,nabla_v)
+c$$$c$$$
+c$$$c$$$        nabla_v_src(2) = nabla_v_src(2)/jac
+c$$$
+c$$$        nabla_v_src
+c$$$     .       = nabla_v_cov_src(g_def,igrid,i,j,k ,vec(i,j,k ,:),ic)
+c$$$        nabla_v_srcp
+c$$$     .       = nabla_v_cov_src(g_def,igrid,i,j,kp,vec(i,j,kp,:),ic)
+c$$$
+c$$$        nabla_v_src (2) = nabla_v_src (2)
+c$$$     .                   /g_def%gmetric%grid(igrid)%jac(i,j,k )  !Return T32/J
+c$$$        nabla_v_srcp(2) = nabla_v_srcp(2)                     
+c$$$     .                   /g_def%gmetric%grid(igrid)%jac(i,j,kp)  !Return T22/J
+c$$$
+c$$$        nabla_v_src = 0.5*(nabla_v_src + nabla_v_srcp)
+c$$$
+c$$$        t31 = lap_flx_z_ijk(g_def,i,j,k,igrid,vec(:,:,:,1),diff=coef
+c$$$     .                     ,vertex=.false.)
+c$$$        t32 = lap_flx_z_ijk(g_def,i,j,k,igrid,vec(:,:,:,2),diff=coef
+c$$$     .                     ,vertex=.false.,divbyJ=.true.)  !Return T32/J
+c$$$        t33 = lap_flx_z_ijk(g_def,i,j,k,igrid,vec(:,:,:,3),diff=coef
+c$$$     .                     ,vertex=.false.)
+c$$$
+c$$$        if (associated(coef)) then
+c$$$          dd = 2./(1./coef(i,j,kp) + 1./coef(i,j,k))
+c$$$        else
+c$$$          dd = 1d0
+c$$$        endif
+c$$$
+c$$$        t31 = t31 + dd*nabla_v_src(1)
+c$$$        t32 = t32 + dd*nabla_v_src(2)  !Return T32/J
+c$$$        t33 = t33 + dd*nabla_v_src(3)
+c$$$
+c$$$c     End program
+c$$$
+c$$$      end subroutine nabtensor_cov_reg_z
 
 c     veclap_vrtx
 c     ###############################################################
