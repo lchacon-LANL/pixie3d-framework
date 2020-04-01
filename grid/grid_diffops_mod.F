@@ -3204,8 +3204,8 @@ c     End program
       
 c     fnabla_v_cnv
 c     #################################################################
-      function fnabla_v_cnv(g_def,i,j,k,igrid,vcnv,half_elem)
-     .         result(tensor)
+      function fnabla_v_cnv(g_def,i,j,k,igrid,vcnv,ic,half_elem)
+     .         result(vec)
 c     -----------------------------------------------------------------
 c     Calculates the tensor components T^lm of nabla(vec v), with
 c     v contravariant, given by:
@@ -3225,8 +3225,8 @@ c     Call variables
 
         type(grid_mg_def),pointer :: g_def
 
-        integer :: i,j,k,half_elem,igrid
-        real(8) :: tensor(3,3)
+        integer :: i,j,k,half_elem,igrid,ic
+        real(8) :: vec(3)
         real(8) :: vcnv(0:,0:,0:,:)
 
 c     Local variables
@@ -3234,7 +3234,7 @@ c     Local variables
         integer :: ig,jg,kg,ip,im,jp,jm,kp,km,ii,jj
         real(8) :: dhx,dhy,dhz,idh(3)
         real(8) :: v(3),vip(3),vim(3),vjp(3),vjm(3),vkp(3),vkm(3)
-        real(8) :: tsrc(3,3),gsuper(3,3),jach
+        real(8) :: src(3),gsuper(3),jach
 
         real(8),pointer,dimension(:,:,:) :: jac
 
@@ -3251,9 +3251,9 @@ c     Begin program
 
         jac => g_def%gmetric%grid(igrid)%jac
 
-        tsrc = nabla_v_src(i,j,k)
+        src = nabla_v_src(i,j,k)
 
-        gsuper = g_def%gmetric%grid(igrid)%gsup(i,j,k,:,:)
+        gsuper = g_def%gmetric%grid(igrid)%gsup(i,j,k,ic,:)
 
         jach = g_def%gmetric%grid(igrid)%jac(i,j,k)
 
@@ -3276,9 +3276,9 @@ c     Begin program
           vkm(:) = 0.5*(vcnv(ip,j,km,:)/jac(ip,j,km)
      .                 +vcnv(i ,j,km,:)/jac(i ,j,km))
 
-          tsrc = 0.5*(nabla_v_src(ip,j,k)+tsrc)
+          src = 0.5*(nabla_v_src(ip,j,k)+src)
 
-          gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(ip,j,k,:,:)
+          gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(ip,j,k,ic,:)
      .                 +gsuper)
           jach  = 0.5*(g_def%gmetric%grid(igrid)%jac (ip,j,k)
      .                +jach)
@@ -3300,9 +3300,8 @@ c     Begin program
           vkm(:) = 0.5*(vcnv(i,j ,km,:)/jac(i,j ,km)
      .                 +vcnv(i,jp,km,:)/jac(i,jp,km))
 
-          tsrc = 0.5*(nabla_v_src(i,jp,k)
-     .               +tsrc)
-          gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,jp,k,:,:)
+          src = 0.5*(nabla_v_src(i,jp,k)+src)
+          gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,jp,k,ic,:)
      .                 +gsuper)
           jach  = 0.5*(g_def%gmetric%grid(igrid)%jac (i,jp,k)
      .                +jach)
@@ -3324,9 +3323,8 @@ c     Begin program
           vkp(:) = vcnv(i,j,kp,:)/jac(i,j,kp)
           vkm(:) = vcnv(i,j,k ,:)/jac(i,j,k )
 
-          tsrc = 0.5*(nabla_v_src(i,j,kp)
-     .               +tsrc)
-          gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,j,kp,:,:)
+          src = 0.5*(nabla_v_src(i,j,kp)+src)
+          gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,j,kp,ic,:)
      .                 +gsuper)
           jach  = 0.5*(g_def%gmetric%grid(igrid)%jac (i,j,kp)
      .                +jach)
@@ -3353,23 +3351,11 @@ c     Begin program
         idh(3) = jach/dhz
 
         do jj=1,3
-          do ii=1,3
-            tensor(ii,jj) =
-     $              gsuper(ii,1)*((vip(jj)-vim(jj))*idh(1) + tsrc(1,jj))
-     $             +gsuper(ii,2)*((vjp(jj)-vjm(jj))*idh(2) + tsrc(2,jj))
-     $             +gsuper(ii,3)*((vkp(jj)-vkm(jj))*idh(3) + tsrc(3,jj))
-          enddo
+          vec(jj) = gsuper(1)*((vip(jj)-vim(jj))*idh(1))
+     $             +gsuper(2)*((vjp(jj)-vjm(jj))*idh(2))
+     $             +gsuper(3)*((vkp(jj)-vkm(jj))*idh(3))
+     .             +src(jj)
         enddo
-
-c$$$        tensor(1,:) = (vip(:)-vim(:))*idh(1)
-c$$$        tensor(2,:) = (vjp(:)-vjm(:))*idh(2)
-c$$$        tensor(3,:) = (vkp(:)-vkm(:))*idh(3)
-c$$$
-c$$$        !Add geometric source
-c$$$
-c$$$        tensor = tensor + tsrc
-c$$$
-c$$$        tensor = matmul(gsuper,tensor)
 
 c     End program
 
@@ -3377,7 +3363,7 @@ c     End program
 
 c     nabla_v_src
 c     #############################################################
-      function nabla_v_src(i,j,k) result(tensor)
+      function nabla_v_src(i,j,k) result(vec)
 
 c     -------------------------------------------------------------
 c     Finds geometric source of tensor nabla(v) at cell (i,j,k)
@@ -3386,18 +3372,21 @@ c     -------------------------------------------------------------
         implicit none
 
         integer    :: i,j,k
-        real(8)    :: tensor(3,3)
+        real(8)    :: gsuper(3),vec(3)
 
-        real(8)    :: hessian(3,3,3)
+        real(8)    :: tensor(3,3),hessian(3,3,3)
 
 c     Begin program
 
         hessian = g_def%gmetric%grid(igrid)%Gamma(i,j,k,:,:,:)
+        gsuper  =  g_def%gmetric%grid(igrid)%gsup(i,j,k,ic,:)
 
         tensor(:,1) = matmul(vcnv(i,j,k,:),hessian(1,:,:))
         tensor(:,2) = matmul(vcnv(i,j,k,:),hessian(2,:,:))
         tensor(:,3) = matmul(vcnv(i,j,k,:),hessian(3,:,:))
 
+        vec = matmul(gsuper(:),tensor)
+        
 c     End program
 
       end function nabla_v_src
@@ -6100,18 +6089,20 @@ c     Call variables
 
 c     Local variables
 
-        integer    :: ig,jg,kg,ip
+        integer    :: ig,jg,kg,ip,ic
         real(8)    :: x,y,z,ijac,jac
-        real(8)    :: nabla_v(3,3),dd
+        real(8)    :: nabla_v(3),dd
 
 c     Begin program
 
+        ic = 1
+        
         if (flag == 0) then
           ip = i
 
           jac = g_def%gmetric%grid(igx)%jac(i,j,k)
 
-          nabla_v = fnabla_v_cnv(g_def,i,j,k,igx,vec,0)
+          nabla_v = fnabla_v_cnv(g_def,i,j,k,igx,vec,ic,0)
         else
           ip = i+1
 
@@ -6122,7 +6113,7 @@ c$$$     .               +g_def%gmetric%grid(igx)%jac_v(i,j-1,k-1))
           jac  = 0.5*(g_def%gmetric%grid(igx)%jac (ip,j,k)
      .               +g_def%gmetric%grid(igx)%jac (i ,j,k))
 
-          nabla_v = fnabla_v_cnv(g_def,i,j,k,igx,vec,1)
+          nabla_v = fnabla_v_cnv(g_def,i,j,k,igx,vec,ic,1)
         endif
 
         if (associated(coef)) then
@@ -6131,9 +6122,9 @@ c$$$     .               +g_def%gmetric%grid(igx)%jac_v(i,j-1,k-1))
           dd = 1d0
         endif
 
-        t11 = dd*nabla_v(1,1)
-        t12 = dd*nabla_v(1,2)
-        t13 = dd*nabla_v(1,3)
+        t11 = dd*nabla_v(1)
+        t12 = dd*nabla_v(2)
+        t13 = dd*nabla_v(3)
 
 c       Postprocessing
 
@@ -6175,17 +6166,19 @@ c     Call variables
 
 c     Local variables
 
-        integer    :: ig,jg,kg,jp
+        integer    :: ig,jg,kg,jp,ic
         real(8)    :: x,y,z,ijac,jac
-        real(8)    :: nabla_v(3,3),dd
+        real(8)    :: nabla_v(3),dd
 
 c     Begin program
 
+        ic = 2
+        
         if (flag == 0) then
           jp = j
           jac= g_def%gmetric%grid(igx)%jac(i,j,k)
 
-          nabla_v = fnabla_v_cnv(g_def,i,j,k,igx,vec,0)
+          nabla_v = fnabla_v_cnv(g_def,i,j,k,igx,vec,ic,0)
         else
           jp = j+1
 c$$$          jac= 0.25*(g_def%gmetric%grid(igx)%jac_v(i  ,j,k  )
@@ -6195,7 +6188,7 @@ c$$$     .              +g_def%gmetric%grid(igx)%jac_v(i-1,j,k-1))
           jac  = 0.5*(g_def%gmetric%grid(igx)%jac (i,jp,k)
      .               +g_def%gmetric%grid(igx)%jac (i,j ,k))
 
-          nabla_v = fnabla_v_cnv(g_def,i,j,k,igx,vec,2)
+          nabla_v = fnabla_v_cnv(g_def,i,j,k,igx,vec,ic,2)
         endif
 
         if (associated(coef)) then
@@ -6204,9 +6197,9 @@ c$$$     .              +g_def%gmetric%grid(igx)%jac_v(i-1,j,k-1))
           dd = 1d0
         endif
 
-        t21 = dd*nabla_v(2,1)
-        t22 = dd*nabla_v(2,2)
-        t23 = dd*nabla_v(2,3)
+        t21 = dd*nabla_v(1)
+        t22 = dd*nabla_v(2)
+        t23 = dd*nabla_v(3)
 
 c     Postprocessing
 
@@ -6244,17 +6237,19 @@ c     Call variables
 
 c     Local variables
 
-        integer :: ig,jg,kg,kp
+        integer :: ig,jg,kg,kp,ic
         real(8) :: x,y,z,ijac,jac
-        real(8) :: nabla_v(3,3),dd
+        real(8) :: nabla_v(3),dd
 
 c     Begin program
+
+        ic = 3
 
         if (flag == 0) then
           kp = k
           jac= g_def%gmetric%grid(igx)%jac(i,j,k)
 
-          nabla_v = fnabla_v_cnv(g_def,i,j,k,igx,vec,0)
+          nabla_v = fnabla_v_cnv(g_def,i,j,k,igx,vec,ic,0)
         else
           kp = k+1
 c$$$          jac= 0.25*(g_def%gmetric%grid(igx)%jac_v(i  ,j  ,k)
@@ -6264,7 +6259,7 @@ c$$$     .              +g_def%gmetric%grid(igx)%jac_v(i-1,j-1,k))
           jac  = 0.5*(g_def%gmetric%grid(igx)%jac (i,j,kp)
      .               +g_def%gmetric%grid(igx)%jac (i,j,k ))
 
-          nabla_v = fnabla_v_cnv(g_def,i,j,k,igx,vec,3)
+          nabla_v = fnabla_v_cnv(g_def,i,j,k,igx,vec,ic,3)
         endif
 
         if (associated(coef)) then
@@ -6273,9 +6268,9 @@ c$$$     .              +g_def%gmetric%grid(igx)%jac_v(i-1,j-1,k))
           dd = 1d0
         endif
 
-        t31 = dd*nabla_v(3,1)
-        t32 = dd*nabla_v(3,2)
-        t33 = dd*nabla_v(3,3)
+        t31 = dd*nabla_v(1)
+        t32 = dd*nabla_v(2)
+        t33 = dd*nabla_v(3)
 
 c     Postprocessing
 
