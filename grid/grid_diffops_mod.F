@@ -2796,17 +2796,17 @@ c ######################################################################
       contains
 
 c     fnabla_v
-c     #############################################################
-      function fnabla_v(g_def,i,j,k,nx,ny,nz,igx,igy,igz,aa
-     .                 ,half_elem,comp1,comp2,cnv) result(tensor)
-c     -------------------------------------------------------------
+c     #################################################################
+      function fnabla_v(g_def,i,j,k,igrid,aa,half_elem,comp1,comp2,cnv)
+     .         result(tensor)
+c     -----------------------------------------------------------------
 c     Calculates the tensor components T_l^m of nabla(vec v), with
 c     v covariant, and fills tensor(l,m) at the following positions:
 c       + half_elem=0 --> i,j,k
 c       + half_elem=1 --> i+1/2,j,k
 c       + half_elem=2 --> i,j+1/2,k
 c       + half_elem=3 --> i,j,k+1/2
-c     -------------------------------------------------------------
+c     -----------------------------------------------------------------
 
         implicit none
 
@@ -2814,23 +2814,21 @@ c     Call variables
 
         type(grid_mg_def),pointer :: g_def
 
-        integer :: i,j,k,half_elem,nx,ny,nz,igx,igy,igz,comp1,comp2
+        integer :: i,j,k,half_elem,igrid,comp1,comp2
         real(8) :: tensor(3,3)
-        real(8) :: aa(0:nx+1,0:ny+1,0:nz+1,3)
+        real(8) :: aa(0:,0:,0:,:)
 
         logical,optional :: cnv
 
 c     Local variables
 
-        integer :: ig,jg,kg,ip,im,jp,jm,kp,km,igrid,ii,jj,cc1,cc2
+        integer :: ig,jg,kg,ip,im,jp,jm,kp,km,ii,jj,cc1,cc2
         real(8) :: idh(3),v(3),vp(3,3),vm(3,3)
         real(8) :: tsrc(3,3),gsuper(3,3),dhx,dhy,dhz
         logical :: cntv
         real(8),pointer,dimension(:,:,:,:,:) :: gsup
 
 c     Begin program
-
-        igrid = igx
 
         if (PRESENT(cnv)) then
           cntv = cnv
@@ -2846,7 +2844,7 @@ c     Begin program
 
         !Defaults
 
-        call getMGmap(g_def,i,j,k,igx,igy,igz,ig,jg,kg)
+        call getMGmap(g_def,i,j,k,igrid,igrid,igrid,ig,jg,kg)
 
         ip = i+1
         im = i-1
@@ -5800,15 +5798,13 @@ c     Begin program
           ip = i
           jac = g_def%gmetric%grid(igrid)%jac(i,j,k)
 
-          nabla_v_cnv = fnabla_v(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                          ,vec,0,1,1,cnv=.true.)
+          nabla_v_cnv = fnabla_v(g_def,i,j,k,igrid,vec,0,1,1,cnv=.true.)
         else
           ip = i+1
           jac  = 0.5*(g_def%gmetric%grid(igrid)%jac (ip,j,k)
      .               +g_def%gmetric%grid(igrid)%jac (i ,j,k))
 
-          nabla_v_cnv = fnabla_v(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                          ,vec,1,1,1,cnv=.true.)
+          nabla_v_cnv = fnabla_v(g_def,i,j,k,igrid,vec,1,1,1,cnv=.true.)
         endif
 
         if (associated(coef)) then
@@ -5871,8 +5867,7 @@ c     Begin program
           jp = j
           jac= g_def%gmetric%grid(igrid)%jac(i,j,k)
 
-          nabla_v_cnv = fnabla_v(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                          ,vec,0,2,2,cnv=.true.)
+          nabla_v_cnv = fnabla_v(g_def,i,j,k,igrid,vec,0,2,2,cnv=.true.)
         else
           jp = j+1
 c$$$          jac= 0.25*(g_def%gmetric%grid(igrid)%jac_v(i  ,j,k  )
@@ -5882,8 +5877,7 @@ c$$$     .              +g_def%gmetric%grid(igrid)%jac_v(i-1,j,k-1))
           jac  = 0.5*(g_def%gmetric%grid(igrid)%jac (i,jp,k)
      .               +g_def%gmetric%grid(igrid)%jac (i,j ,k))
 
-          nabla_v_cnv = fnabla_v(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                          ,vec,2,2,2,cnv=.true.)
+          nabla_v_cnv = fnabla_v(g_def,i,j,k,igrid,vec,2,2,2,cnv=.true.)
         endif
 
         if (associated(coef)) then
@@ -5942,8 +5936,7 @@ c     Begin program
           kp = k
           jac= g_def%gmetric%grid(igrid)%jac(i,j,k)
 
-          nabla_v_cnv = fnabla_v(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                          ,vec,0,3,3,cnv=.true.)
+          nabla_v_cnv = fnabla_v(g_def,i,j,k,igrid,vec,0,3,3,cnv=.true.)
         else
           kp = k+1
 c$$$          jac= 0.25*(g_def%gmetric%grid(igrid)%jac_v(i  ,j  ,k)
@@ -5953,8 +5946,7 @@ c$$$     .              +g_def%gmetric%grid(igrid)%jac_v(i-1,j-1,k))
           jac  = 0.5*(g_def%gmetric%grid(igrid)%jac (i,j,kp)
      .               +g_def%gmetric%grid(igrid)%jac (i,j,k ))
 
-          nabla_v_cnv = fnabla_v(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                          ,vec,3,3,3,cnv=.true.)
+          nabla_v_cnv = fnabla_v(g_def,i,j,k,igrid,vec,3,3,3,cnv=.true.)
         endif
 
         if (associated(coef)) then
@@ -9685,7 +9677,7 @@ c     Begin program
         if (v1cov) then
           nabla_v=fnabla_v_cov(g_def,i,j,k,igx,v1,0)
         else
-          nabla_v=fnabla_v(g_def,i,j,k,nxx,nyy,nzz,igx,igy,igz,v1,0,1,3)
+          nabla_v=fnabla_v    (g_def,i,j,k,igx,v1,0,1,3)
         endif
       case default
         call pstop('tensor_nc_advc','Advection option not implemented')
