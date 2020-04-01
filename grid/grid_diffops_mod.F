@@ -3776,9 +3776,11 @@ c$$$
 c$$$        tensor(1,:) = (vip(:)-vim(:))*idh(1)
 c$$$        tensor(2,:) = (vjp(:)-vjm(:))*idh(2)
 c$$$        tensor(3,:) = (vkp(:)-vkm(:))*idh(3)
-
-c$$$        tensor = fnabla_v_cov_reg(g_def,i,j,k,igrid,vcov,half_elem)
-c$$$        tensor = fnabla_v_cov(g_def,i,j,k,igrid,vcov,half_elem)
+      
+c$$$        tensor(1,:) = fnabla_v_cov_reg(g_def,i,j,k,igrid,vcov,1,half_elem)
+c$$$        tensor(2,:) = fnabla_v_cov_reg(g_def,i,j,k,igrid,vcov,2,half_elem)
+c$$$        tensor(3,:) = fnabla_v_cov_reg(g_def,i,j,k,igrid,vcov,3,half_elem)
+        tensor = fnabla_v_cov(g_def,i,j,k,igrid,vcov,half_elem)
 
         !Add transpose
         tensor = tensor - transpose(tensor)
@@ -6113,7 +6115,7 @@ c$$$     .               +g_def%gmetric%grid(igx)%jac_v(i,j-1,k-1))
           jac  = 0.5*(g_def%gmetric%grid(igx)%jac (ip,j,k)
      .               +g_def%gmetric%grid(igx)%jac (i ,j,k))
 
-          nabla_v = fnabla_v_cnv(g_def,i,j,k,igx,vec,ic,1)
+          nabla_v = fnabla_v_cnv(g_def,i,j,k,igx,vec,ic,ic)
         endif
 
         if (associated(coef)) then
@@ -6188,7 +6190,7 @@ c$$$     .              +g_def%gmetric%grid(igx)%jac_v(i-1,j,k-1))
           jac  = 0.5*(g_def%gmetric%grid(igx)%jac (i,jp,k)
      .               +g_def%gmetric%grid(igx)%jac (i,j ,k))
 
-          nabla_v = fnabla_v_cnv(g_def,i,j,k,igx,vec,ic,2)
+          nabla_v = fnabla_v_cnv(g_def,i,j,k,igx,vec,ic,ic)
         endif
 
         if (associated(coef)) then
@@ -6259,7 +6261,7 @@ c$$$     .              +g_def%gmetric%grid(igx)%jac_v(i-1,j-1,k))
           jac  = 0.5*(g_def%gmetric%grid(igx)%jac (i,j,kp)
      .               +g_def%gmetric%grid(igx)%jac (i,j,k ))
 
-          nabla_v = fnabla_v_cnv(g_def,i,j,k,igx,vec,ic,3)
+          nabla_v = fnabla_v_cnv(g_def,i,j,k,igx,vec,ic,ic)
         endif
 
         if (associated(coef)) then
@@ -6607,19 +6609,21 @@ c     Call variables
 
 c     Local variables
 
-        integer    :: ip
+        integer    :: ip,ic
         real(8)    :: nabla_v(3),dd,ijac
 
 c     Begin program
 
+        ic = 1
+        
         if (flag == 0) then
           ip = i
 
-          nabla_v = fnabla_v_cov_reg(g_def,i,j,k,igx,vec,1,0)
+          nabla_v = fnabla_v_cov_reg(g_def,i,j,k,igx,vec,ic,0)
         else
           ip = i+1
           
-          nabla_v = fnabla_v_cov_reg(g_def,i,j,k,igx,vec,1,1)
+          nabla_v = fnabla_v_cov_reg(g_def,i,j,k,igx,vec,ic,ic)
         endif
 
         if (associated(coef)) then
@@ -6669,19 +6673,21 @@ c     Call variables
 
 c     Local variables
 
-        integer    :: jp
+        integer    :: jp,ic
         real(8)    :: nabla_v(3),dd
 
 c     Begin program
 
+        ic = 2
+        
         if (flag == 0) then
           jp = j
 
-          nabla_v = fnabla_v_cov_reg(g_def,i,j,k,igx,vec,2,0)
+          nabla_v = fnabla_v_cov_reg(g_def,i,j,k,igx,vec,ic,0)
         else
           jp = j+1
 
-          nabla_v = fnabla_v_cov_reg(g_def,i,j,k,igx,vec,2,2)
+          nabla_v = fnabla_v_cov_reg(g_def,i,j,k,igx,vec,ic,ic)
         endif
 
         if (associated(coef)) then
@@ -6725,19 +6731,21 @@ c     Call variables
 
 c     Local variables
 
-        integer    :: kp
+        integer    :: kp,ic
         real(8)    :: nabla_v(3),dd
 
 c     Begin program
 
+        ic = 3
+        
         if (flag == 0) then
           kp = k
 
-          nabla_v = fnabla_v_cov_reg(g_def,i,j,k,igx,vec,3,0)
+          nabla_v = fnabla_v_cov_reg(g_def,i,j,k,igx,vec,ic,0)
         else
           kp = k+1
 
-          nabla_v = fnabla_v_cov_reg(g_def,i,j,k,igx,vec,3,3)
+          nabla_v = fnabla_v_cov_reg(g_def,i,j,k,igx,vec,ic,ic)
         endif
 
         if (associated(coef)) then
