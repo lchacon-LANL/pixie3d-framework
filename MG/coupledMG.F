@@ -4494,21 +4494,16 @@ cc          if(bcSP()) solverOptions%mg_zebra_prefd = 1
           call assembleSolverHierarchy('gs',solverOptions)
         case('gm')
           solverOptions%stp_test        = 1 
-          solverOptions%krylov_subspace = solverOptions%iter 
-
+          solverOptions%krylov_subspace = 10 !solverOptions%iter 
+          solverOptions%iter            = 10
+          solverOptions%tol             = 1d-3
+          
           call assembleSolverHierarchy('gm',solverOptions)
 
-c$$$          !MG (smoothing mode)
-c$$$          call solverOptionsInit
-c$$$          solverOptions%vcyc   = 1
-c$$$          solverOptions%mg_smooth_only = .true.
-c$$$          
-c$$$          call assembleSolverHierarchy('mg')
-c$$$
           !JB
           call solverOptionsInit(solverOptions)
           solverOptions%omega = omg
-          solverOptions%iter  = 1
+          solverOptions%iter  = 2
           solverOptions%ncolors = nclrs
           call assembleSolverHierarchy('jb',solverOptions)
  
