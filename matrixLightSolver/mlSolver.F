@@ -438,7 +438,7 @@ c Begin program
 
       !Transfer grid config to PC
       call readSolverHierarchy (solver,depth1)
-cc      solver%options%diag => options%diag
+      solver%options%diag => options%diag
       solver%options%mg_grid_def => options%mg_grid_def
       call writeSolverHierarchy(solver,depth1)
 

@@ -4509,6 +4509,7 @@ c$$$
           call solverOptionsInit(solverOptions)
           solverOptions%omega = omg
           solverOptions%iter  = 1
+          solverOptions%ncolors = nclrs
           call assembleSolverHierarchy('jb',solverOptions)
  
 c$$$          call assembleSolverHierarchy('id',solverOptions)
@@ -4826,9 +4827,9 @@ c         Fill diagonal
 
           enddo
 
-          deallocate(x1,dummy)
-
         enddo
+
+        deallocate(x1,dummy)
 
 c     Invert diagonal and store in diag1
 
