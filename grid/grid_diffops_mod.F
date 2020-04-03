@@ -2801,7 +2801,11 @@ c     #################################################################
      .         result(tensor)
 c     -----------------------------------------------------------------
 c     Calculates the tensor components T_l^m of nabla(vec v), with
-c     v covariant, and fills tensor(l,m) at the following positions:
+c     v covariant, given by:
+c
+c       T^lm = g^(lk)*(partial_k(v^m) -v^m Gamma(n)_kn + v_n Gamma(m)_kn),
+c
+c     and fills tensor(l,m) at the following positions:
 c       + half_elem=0 --> i,j,k
 c       + half_elem=1 --> i+1/2,j,k
 c       + half_elem=2 --> i,j+1/2,k
@@ -2934,12 +2938,6 @@ c     Begin program
         idh(1) = 1d0/dhx
         idh(2) = 1d0/dhy
         idh(3) = 1d0/dhz
-        
-c$$$        tensor(1,:) = (vip(:)-vim(:))*idh(1) + tsrc(1,:)
-c$$$        tensor(2,:) = (vjp(:)-vjm(:))*idh(2) + tsrc(2,:)
-c$$$        tensor(3,:) = (vkp(:)-vkm(:))*idh(3) + tsrc(3,:)
-c$$$
-c$$$        if (cntv) tensor = matmul(gsuper,tensor)
 
         !Highly optimized, do NOT touch
         if (cntv) then
@@ -3777,9 +3775,6 @@ c$$$        tensor(1,:) = (vip(:)-vim(:))*idh(1)
 c$$$        tensor(2,:) = (vjp(:)-vjm(:))*idh(2)
 c$$$        tensor(3,:) = (vkp(:)-vkm(:))*idh(3)
       
-c$$$        tensor(1,:) = fnabla_v_cov_reg(g_def,i,j,k,igrid,vcov,1,half_elem)
-c$$$        tensor(2,:) = fnabla_v_cov_reg(g_def,i,j,k,igrid,vcov,2,half_elem)
-c$$$        tensor(3,:) = fnabla_v_cov_reg(g_def,i,j,k,igrid,vcov,3,half_elem)
         tensor = fnabla_v_cov(g_def,i,j,k,igrid,vcov,half_elem)
 
         !Add transpose
@@ -5653,7 +5648,7 @@ c     End program
 
 c     veclap_mesh
 c     ###############################################################
-      function veclap_mesh(g_def,igrid,cnv,diff) result(cnv_out)
+      function veclap_mesh(g_def,igrid,cnv,diff,alt_eom) result(cnv_out)
 
 c     ---------------------------------------------------------------
 c     Calculates curl(A) in general non-orthogonal coordinates. Is
@@ -5678,6 +5673,8 @@ c     Call variables
      $                        ,0:size(cnv,2)-1
      $                        ,0:size(cnv,3)-1)
 
+      logical,optional :: alt_eom
+
 c     Local variables
 
       integer :: nx,ny,nz,i,j,k
@@ -5693,7 +5690,7 @@ c     Begin program
           do i=1,nx
             cnv_out(i,j,k,:)=veclap_ijk(g_def,i,j,k,nx,ny,nz
      .                                 ,igrid,igrid,igrid,cnv
-     .                                 ,diff=diff)
+     .                                 ,diff=diff,alt_eom=alt_eom)
           enddo
         enddo
       enddo
@@ -5705,7 +5702,7 @@ c     End program
 c     veclap_ijk
 c     ###############################################################
       function veclap_ijk(g_def,i,j,k,nx,ny,nz,igx,igy,igz,vfield
-     .                   ,diff,vol) result (vlap)
+     .                   ,diff,vol,alt_eom) result (vlap)
 
 c     ---------------------------------------------------------------
 c     Calculates dvol*div(diff grad(vector)) at cell centers in general
@@ -5726,17 +5723,21 @@ c     Call variables
 
       real(8) :: vlap(3)
 
-      logical,optional,intent(IN) :: vol
+      logical,optional,intent(IN) :: vol,alt_eom
 
 c     Local variables
 
       integer :: icomp
 
-      logical :: alt_eom
+      logical :: alteom
 
 c     Begin program
 
-      alt_eom = alt__eom()
+      if (PRESENT(alt_eom)) then
+        alteom = alt_eom
+      else
+        alteom = alt__eom()
+      endif
 
       if (no_map) then
         do icomp=1,3
@@ -5747,7 +5748,7 @@ c     Begin program
       else
         vec  => vfield !Pointer passed to nabtensor routines
         if (PRESENT(diff)) coef => diff   !Pointer passed to nabtensor routines
-        vlap = div_tensor(g_def,i,j,k,nx,ny,nz,igx,igy,igz,alt_eom
+        vlap = div_tensor(g_def,i,j,k,nx,ny,nz,igx,igy,igz,alteom
      .                   ,nabtensor_x,nabtensor_y,nabtensor_z
      $                   ,vol=vol)
         if (PRESENT(diff)) nullify(coef)
@@ -5812,7 +5813,7 @@ c       Postprocessing
 
         if (flag /= 0) then
           if (isSP2(g_def,i+1,igx)) then
-            ijac = 0d0
+            ijac = 1d0/SP_flsv
           else
             ijac = 1d0/jac
           endif
@@ -5861,10 +5862,6 @@ c     Begin program
           nabla_v_cnv = fnabla_v(g_def,i,j,k,igrid,vec,0,2,2,cnv=.true.)
         else
           jp = j+1
-c$$$          jac= 0.25*(g_def%gmetric%grid(igrid)%jac_v(i  ,j,k  )
-c$$$     .              +g_def%gmetric%grid(igrid)%jac_v(i-1,j,k  )
-c$$$     .              +g_def%gmetric%grid(igrid)%jac_v(i  ,j,k-1)
-c$$$     .              +g_def%gmetric%grid(igrid)%jac_v(i-1,j,k-1))
           jac  = 0.5*(g_def%gmetric%grid(igrid)%jac (i,jp,k)
      .               +g_def%gmetric%grid(igrid)%jac (i,j ,k))
 
@@ -5930,10 +5927,6 @@ c     Begin program
           nabla_v_cnv = fnabla_v(g_def,i,j,k,igrid,vec,0,3,3,cnv=.true.)
         else
           kp = k+1
-c$$$          jac= 0.25*(g_def%gmetric%grid(igrid)%jac_v(i  ,j  ,k)
-c$$$     .              +g_def%gmetric%grid(igrid)%jac_v(i-1,j  ,k)
-c$$$     .              +g_def%gmetric%grid(igrid)%jac_v(i  ,j-1,k)
-c$$$     .              +g_def%gmetric%grid(igrid)%jac_v(i-1,j-1,k))
           jac  = 0.5*(g_def%gmetric%grid(igrid)%jac (i,j,kp)
      .               +g_def%gmetric%grid(igrid)%jac (i,j,k ))
 
@@ -6107,11 +6100,6 @@ c     Begin program
           nabla_v = fnabla_v_cnv(g_def,i,j,k,igx,vec,ic,0)
         else
           ip = i+1
-
-c$$$          jac = 0.25*(g_def%gmetric%grid(igx)%jac_v(i,j  ,k  )
-c$$$     .               +g_def%gmetric%grid(igx)%jac_v(i,j-1,k  )
-c$$$     .               +g_def%gmetric%grid(igx)%jac_v(i,j  ,k-1)
-c$$$     .               +g_def%gmetric%grid(igx)%jac_v(i,j-1,k-1))
           jac  = 0.5*(g_def%gmetric%grid(igx)%jac (ip,j,k)
      .               +g_def%gmetric%grid(igx)%jac (i ,j,k))
 
@@ -6183,10 +6171,6 @@ c     Begin program
           nabla_v = fnabla_v_cnv(g_def,i,j,k,igx,vec,ic,0)
         else
           jp = j+1
-c$$$          jac= 0.25*(g_def%gmetric%grid(igx)%jac_v(i  ,j,k  )
-c$$$     .              +g_def%gmetric%grid(igx)%jac_v(i-1,j,k  )
-c$$$     .              +g_def%gmetric%grid(igx)%jac_v(i  ,j,k-1)
-c$$$     .              +g_def%gmetric%grid(igx)%jac_v(i-1,j,k-1))
           jac  = 0.5*(g_def%gmetric%grid(igx)%jac (i,jp,k)
      .               +g_def%gmetric%grid(igx)%jac (i,j ,k))
 
@@ -6254,10 +6238,6 @@ c     Begin program
           nabla_v = fnabla_v_cnv(g_def,i,j,k,igx,vec,ic,0)
         else
           kp = k+1
-c$$$          jac= 0.25*(g_def%gmetric%grid(igx)%jac_v(i  ,j  ,k)
-c$$$     .              +g_def%gmetric%grid(igx)%jac_v(i-1,j  ,k)
-c$$$     .              +g_def%gmetric%grid(igx)%jac_v(i  ,j-1,k)
-c$$$     .              +g_def%gmetric%grid(igx)%jac_v(i-1,j-1,k))
           jac  = 0.5*(g_def%gmetric%grid(igx)%jac (i,j,kp)
      .               +g_def%gmetric%grid(igx)%jac (i,j,k ))
 
@@ -7136,9 +7116,6 @@ c     Begin program
       cov = div_tensor_cov(g_def,i,j,k,nx,ny,nz,igx,igy,igz
      .                ,curlcurl_cov_x,curlcurl_cov_y,curlcurl_cov_z
      .                ,vol=vol)
-c$$$      cov = div_tensor_cov_reg(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-c$$$     .                ,curlcurl_cov_x,curlcurl_cov_y,curlcurl_cov_z
-c$$$     .                ,vol=vol)
 
       nullify(vec)
 
@@ -7180,18 +7157,17 @@ c     Begin program
         if (flag == 0) then
           ip = i
           gsuper = g_def%gmetric%grid(igrid)%gsup(i,j,k,ic,:)
-     .            /g_def%gmetric%grid(igrid)%jac (i,j,k)
-
-          nabla_v =-fnabla_m_fnablaT_v_cov(g_def,i,j,k,igx,vec,0)
+ 
+          nabla_v =-fnabla_v_cov(g_def,i,j,k,igx,vec,0)
         else
           ip = i+1
           gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(ip,j,k,ic,:)
-     .                 /g_def%gmetric%grid(igrid)%jac (ip,j,k)
-     .                 +g_def%gmetric%grid(igrid)%gsup(i ,j,k,ic,:)
-     .                 /g_def%gmetric%grid(igrid)%jac (i ,j,k))
-
-          nabla_v =-fnabla_m_fnablaT_v_cov(g_def,i,j,k,igx,vec,ic)
+     .                 +g_def%gmetric%grid(igrid)%gsup(i ,j,k,ic,:))
+ 
+          nabla_v =-fnabla_v_cov(g_def,i,j,k,igx,vec,ic)
         endif
+
+        nabla_v = nabla_v - transpose(nabla_v)
 
         t11 =( gsuper(1)*nabla_v(1,1)
      .        +gsuper(2)*nabla_v(2,1)
@@ -7243,18 +7219,17 @@ c     Begin program
         if (flag == 0) then
           jp = j
           gsuper = g_def%gmetric%grid(igrid)%gsup(i,j,k,ic,:)
-     .            /g_def%gmetric%grid(igrid)%jac (i,j,k)
 
-          nabla_v =-fnabla_m_fnablaT_v_cov(g_def,i,j,k,igx,vec,0)
+          nabla_v =-fnabla_v_cov(g_def,i,j,k,igx,vec,0)
         else
           jp = j+1
           gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,jp,k,ic,:)
-     .                 /g_def%gmetric%grid(igrid)%jac (i,jp,k)
-     .                 +g_def%gmetric%grid(igrid)%gsup(i,j ,k,ic,:)
-     .                 /g_def%gmetric%grid(igrid)%jac (i,j ,k))
+     .                 +g_def%gmetric%grid(igrid)%gsup(i,j ,k,ic,:))
 
-          nabla_v =-fnabla_m_fnablaT_v_cov(g_def,i,j,k,igx,vec,ic)
+          nabla_v =-fnabla_v_cov(g_def,i,j,k,igx,vec,ic)
         endif
+
+        nabla_v = nabla_v - transpose(nabla_v)
 
         t21 =( gsuper(1)*nabla_v(1,1)
      .        +gsuper(2)*nabla_v(2,1)
@@ -7306,18 +7281,17 @@ c     Begin program
         if (flag == 0) then
           kp = k
           gsuper = g_def%gmetric%grid(igrid)%gsup(i,j,k,ic,:)
-     .            /g_def%gmetric%grid(igrid)%jac (i,j,k)
 
-          nabla_v =-fnabla_m_fnablaT_v_cov(g_def,i,j,k,igx,vec,0)
+          nabla_v =-fnabla_v_cov(g_def,i,j,k,igx,vec,0)
         else
           kp = k+1
           gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,j,kp,ic,:)
-     .                 /g_def%gmetric%grid(igrid)%jac (i,j,kp)
-     .                 +g_def%gmetric%grid(igrid)%gsup(i,j,k ,ic,:)
-     .                 /g_def%gmetric%grid(igrid)%jac (i,j,k )    )
+     .                 +g_def%gmetric%grid(igrid)%gsup(i,j,k ,ic,:))
 
-          nabla_v =-fnabla_m_fnablaT_v_cov(g_def,i,j,k,igx,vec,ic)
+          nabla_v =-fnabla_v_cov(g_def,i,j,k,igx,vec,ic)
         endif
+
+        nabla_v = nabla_v - transpose(nabla_v)
 
         t31 =( gsuper(1)*nabla_v(1,1)
      .        +gsuper(2)*nabla_v(2,1)
