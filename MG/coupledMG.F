@@ -4372,7 +4372,7 @@ c       Check whether GMRES is driving solve
 
         if (gm_drvr .or. cg_drvr) then
 
-          call solverOptionsInit
+          call solverOptionsInit(solverOptions)
 
           solverOptions%iter    = gmit
           solverOptions%tol     = r_tol
@@ -4386,19 +4386,19 @@ c       Check whether GMRES is driving solve
 
           if (gm_drvr) then
             solverOptions%singular_matrix = smat
-            call assembleSolverHierarchy('gm')
+            call assembleSolverHierarchy('gm',solverOptions)
           else
-            call assembleSolverHierarchy('cg')
+            call assembleSolverHierarchy('cg',solverOptions)
           endif
 
           if (vcyc == 0) then !Identity preconditioner
-            call assembleSolverHierarchy('id')
+            call assembleSolverHierarchy('id',solverOptions)
           endif
         endif
 
 c       MG solver options
 
-        call solverOptionsInit
+        call solverOptionsInit(solverOptions)
 
         solverOptions%tol     = r_tol
         solverOptions%atol    = a_tol
@@ -4422,17 +4422,20 @@ cc        solverOptions%vol_res  = vol_wgt
 
         if (PRESENT(dg)) solverOptions%diag => ddg
 
-        solverOptions%mg_grid_def=>mg_grid_def
+        if (.not.(gm_drvr .or. cg_drvr)) then
+          solverOptions%mg_grid_def=>mg_grid_def
+        endif
 
         solverOptions%ncolors  = nclrs
 
         !Coarse solve
         if (gm_crse_solve) then
         !With GMRES as coarse solver (defined below)
-          if (         (gm_drvr  .and. smth/='gm')
-     .       .or.((.not.gm_drvr) .and. smth=='gm') ) then
+          if (          gm_drvr  .and. smth/='gm' ) then
+            solverOptions%mg_coarse_solver_depth = 4 
+          elseif ((.not.gm_drvr) .and. smth=='gm' ) then
             solverOptions%mg_coarse_solver_depth = 4
-          elseif (gm_drvr .and. smth=='gm') then
+          elseif (      gm_drvr  .and. smth=='gm' ) then
             solverOptions%mg_coarse_solver_depth = 5
           else
             solverOptions%mg_coarse_solver_depth = 3
@@ -4464,11 +4467,11 @@ cc          solverOptions%mg_mu           = mu_cyc
           solverOptions%mg_line_coarse_solver_depth = 0
         endif
 
-        call assembleSolverHierarchy('mg')
+        call assembleSolverHierarchy('mg',solverOptions)
 
 c       MG smoother
 
-        call solverOptionsInit
+        call solverOptionsInit(solverOptions)
 
         solverOptions%iter            = smit
         solverOptions%tol             = r_tol
@@ -4488,25 +4491,35 @@ cc          if(bcSP()) solverOptions%mg_zebra_prefd = 1
           solverOptions%mg_zebra_it    = zit
           solverOptions%mg_zebra_omega = zomg
 
-cc          solverOptions%iter=ceiling(1.*smit/solverOptions%mg_zebra_it)
-          solverOptions%iter=smit
-
-          call assembleSolverHierarchy('gs')
+          call assembleSolverHierarchy('gs',solverOptions)
         case('gm')
           solverOptions%stp_test        = 1 
           solverOptions%krylov_subspace = solverOptions%iter 
 
-          call assembleSolverHierarchy('gm')
+          call assembleSolverHierarchy('gm',solverOptions)
 
-          call assembleSolverHierarchy('id')
+c$$$          !MG (smoothing mode)
+c$$$          call solverOptionsInit
+c$$$          solverOptions%vcyc   = 1
+c$$$          solverOptions%mg_smooth_only = .true.
+c$$$          
+c$$$          call assembleSolverHierarchy('mg')
+c$$$
+          !JB
+          call solverOptionsInit(solverOptions)
+          solverOptions%omega = omg
+          solverOptions%iter  = 1
+          call assembleSolverHierarchy('jb',solverOptions)
+ 
+c$$$          call assembleSolverHierarchy('id',solverOptions)
         case default !JB
           solverOptions%omega   = omg
-          call assembleSolverHierarchy('jb')
+          call assembleSolverHierarchy('jb',solverOptions)
         end select
 
 c       MG coarsest grid solve
 
-        call solverOptionsInit
+        call solverOptionsInit(solverOptions)
 
         solverOptions%tol             = 1d-5
         solverOptions%krylov_subspace = min(100,2*neq*ntotp)
@@ -4515,12 +4528,12 @@ c       MG coarsest grid solve
         solverOptions%omega           = 1d0
         solverOptions%singular_matrix = smat
 
-        call assembleSolverHierarchy('gm')
-        call assembleSolverHierarchy('id') !GMRES preconditioner
+        call assembleSolverHierarchy('gm',solverOptions)
+        call assembleSolverHierarchy('id',solverOptions) !GMRES preconditioner
 
 c       Coarsest grid solve for inner line/plane MG
 
-        call solverOptionsInit
+        call solverOptionsInit(solverOptions)
 
 cc        if (PRESENT(dg)) solverOptions%diag => ddg
 
@@ -4530,9 +4543,9 @@ cc        if (PRESENT(dg)) solverOptions%diag => ddg
         solverOptions%ncolors = nclrs
 
         solverOptions%omega   = 0.7
-        call assembleSolverHierarchy('jb')
+        call assembleSolverHierarchy('jb',solverOptions)
 cc        solverOptions%omega   = 1d0
-cc        call assembleSolverHierarchy('gs')
+cc        call assembleSolverHierarchy('gs',solverOptions)
 
 c       Invoke solver
 
@@ -4541,7 +4554,7 @@ c       Invoke solver
 
 c       Get output data
 
-        call getSolverOptions(1)
+        call getSolverOptions(1,solverOptions)
 
         if(PRESENT(iters)) iters = solverOptions%iter_out
         if(PRESENT(conv_tol)) conv_tol = solverOptions%tol_out
@@ -5579,9 +5592,9 @@ c Local variables
 
       logical :: fpointers=.false.,galerkin,mg_mode
 
-      type(mg_ctx),pointer :: mgctx
+      type(mg_ctx),pointer :: mgctx => null()
 
-      type(grid_mg_def),pointer :: MGgrid
+      type(grid_mg_def),pointer :: MGgrid => null()
 
       !Initialized from outside
       integer :: orderres,orderprol,igmax,vcyc,crsedpth,mu,ncolors
@@ -7620,7 +7633,8 @@ c Local variables
 
       real(8), pointer, dimension(:,:) :: diag
 
-      type(mg_ctx),pointer :: mgctx
+      type(mg_ctx),pointer :: mgctx => null()
+      type(grid_mg_def),pointer :: g_def => null()
 
 c Begin program
 
@@ -7643,10 +7657,15 @@ c Read solver configuration
 
       smat   = options%singular_matrix
 
-c Allocate pointers
+      if (associated(options%mgctx)) then
+        g_def => options%mgctx%g_def
+      else
+        g_def => options%mg_grid_def
+      endif
 
-      call allocMGPointers(neq,options%mgctx%g_def,options%mgctx
-     .                    ,fpointers)
+c Allocate pointers
+      
+      call allocMGPointers(neq,g_def,options%mgctx,fpointers)
 
       mgctx  => options%mgctx
 
@@ -7772,7 +7791,7 @@ c End program
 
       call deallocMGPointers(fpointers,options%mgctx)
 
-      nullify(mgctx)
+      nullify(mgctx,g_def)
 
  10   format (' JB Iteration:',i4,'; Residual:',1p,1e10.2,
      .        '; Ratio:',1e10.2)
