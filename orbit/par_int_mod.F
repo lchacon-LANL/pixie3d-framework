@@ -1230,7 +1230,7 @@ c     Assemble global temperature field
 c     Spline temperature field
 
         call splineFlds(vg,fldcoef=sp_coef)
-
+        
         deallocate(vg)
 
 c     Orbit integration
@@ -1297,7 +1297,8 @@ c     Free up orbit integral work space
 
 c     lag_3d_new
 c     ##############################################################
-      subroutine lag_3d_new(g_def,igrid,vec_in,vec_out,chi,iout,lsode_f)
+      subroutine lag_3d_new(g_def,igrid,vec_in,vec_out,chi,iout,lsode_f
+     .                     ,no_global_splines)
 
       implicit none
 
@@ -1324,6 +1325,8 @@ c     Call variables
           end subroutine lsode_f
         END INTERFACE
 
+        logical,optional :: no_global_splines
+        
 c     Local variables
 
         integer :: nx,ny,nz,i,j,k,ig,jg,kg,nxg,nyg,nzg,ieq,neq,nints
@@ -1332,9 +1335,17 @@ c     Local variables
      .            ,pkernel_dt,src_2dt,pkernel_2dt,b0_diag,lb0_diag
 
         real(8),pointer,dimension(:,:,:,:) :: vg
-
+        
+        logical :: no_global_spl
+        
 c     Begin program
 
+        if (PRESENT(no_global_splines)) then
+          no_global_spl = no_global_splines
+        else
+          no_global_spl = .false.
+        endif
+        
         nints = size(vec_out,4)
         orbit_conf%ode_conf%lsode_neq = 5+nints !Number of LSODE integrals
 
@@ -1384,7 +1395,11 @@ cc        endif
 #endif
 c     Spline temperature field
 
-        call splineFlds(vg,fldcoef=sp_coef)
+        if (no_global_spl) then
+          sp_coef = vg
+        else
+          call splineFlds(vg,fldcoef=sp_coef)
+        endif
 
         deallocate(vg)
 
@@ -2912,7 +2927,7 @@ cc     .               ,chi,iout,lsode_f=lsode_2d_cn_3eq)
 c     lag_xport_bdf2
 c     ##############################################################
       subroutine lag_xport_bdf2(g_def,igrid,in_flds,out_flds,chi,iout
-     .                         ,lsode_ext)
+     .                         ,lsode_ext,no_global_splines)
 
       implicit none
 
@@ -2928,6 +2943,8 @@ c     Call variables
         integer :: igrid,iout
 
         real(8) :: chi(:,:,:),in_flds(:,:,:,:),out_flds(:,:,:,:)
+
+        logical, optional :: no_global_splines
 
 c     Local variables
 
@@ -2961,13 +2978,15 @@ c     Begin program
 
         if (PRESENT(lsode_ext)) then
           call lag_3d_new(g_def,igrid,in_flds,out_flds
-     .               ,chi,iout,lsode_f=lsode_ext)
+     .               ,chi,iout,lsode_f=lsode_ext
+     .               ,no_global_splines=no_global_splines)
         elseif (l2d) then
           call lag_2d_new(g_def,igrid,in_flds,out_flds
      .               ,chi,iout,lsode_f=lsode_2d_bdf2_3eq)
         else
           call lag_3d_new(g_def,igrid,in_flds,out_flds
-     .               ,chi,iout,lsode_f=lsode_3d_bdf2)
+     .               ,chi,iout,lsode_f=lsode_3d_bdf2
+     .               ,no_global_splines=no_global_splines)
         endif
 
       end subroutine lag_xport_bdf2
@@ -3248,7 +3267,7 @@ c     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 c     lag_update_bdf2
 c     ###############################################################
       subroutine lag_update_bdf2(g_def,igrid,ivar,bcnd,tnm,tn,tnp,chi
-     .                          ,iout,lsode_ext)
+     .                          ,iout,lsode_ext,no_global_splines)
 
 c     ---------------------------------------------------------------
 c     Performs Lagrangian update of temperature at time n+1 (returned
@@ -3267,6 +3286,8 @@ c       * tnm,tn,tnp: 3-level temperature field (for BDF2); returns
 c                     lagrangian step result in tnp
 c       * chi: parallel transport coeff (array)
 c       * iout: output diagnostics level
+c       * lsode_ext (optional): external LSODE driver routine
+c       * no_global_splines (optional): do NOT perform global splines
 c     ---------------------------------------------------------------
 
       implicit none
@@ -3287,6 +3308,8 @@ c     Call variables
         end subroutine lsode_ext
       END INTERFACE
 
+      logical, optional :: no_global_splines
+      
 c     Local variables
 
       integer :: nx,ny,nz
