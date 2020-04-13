@@ -18,6 +18,49 @@ FC?=gfortran
 HDF5 ?= f
 ADIOS?= f
 
+###########
+# adiosVM #
+###########
+
+ifeq ($(HOST),adiosVM)
+
+  override MACHINE = adiosVM
+
+  FC = gfortran
+
+  ifdef BOPT
+    PETSC_DIR ?=$(HOME)/Software/petsc-3.0.0-p7
+
+    PETSC_ARCH = linux64_openmpi
+
+    HDF5 = f
+
+    #Determined via modules
+    HDF5_LIBS =-L/opt/hdf5-parallel/lib -lhdf5hl_fortran -lhdf5_fortran -lhdf5_hl -lhdf5 -lz -lm 
+    HDF5_MOD  = /opt/hdf5-parallel/lib
+    HDF5_INC  = /opt/hdf5-parallel/include
+
+#    ADIOS = f
+#    ADIOS_BUFFER_MB = 100
+#    ADIOS_METHOD = MPI
+#    ADIOS_HOME = /home/adios/Software/adios-1.10.0/mpi-no-hdf5
+#    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 
+#    ADIOS_VER  = 1.10.0
+
+    ADIOS2 = t
+    ADIOS_HOME = /opt/adios2
+    ADIOS_LIBS = $(shell $(ADIOS_HOME)/bin/adios2-config -f)
+    ADIOS_MOD  = $(ADIOS_HOME)/include/adios2/fortran
+    ADIOS_VER  = 2.5.0
+
+  else
+    HDF5 = f
+    LIBS += -L/home/adios/Software/spack/opt/spack/linux-ubuntu16.04-x86_64/gcc-5.4.0/netlib-lapack-3.8.0-entm4irbcn2b5io72rmkmivkounzeljd/lib -llapack -lblas
+
+    ADIOS = f
+  endif
+endif
+
 ###############################
 # lap0086227 (Mark Berrill's) #
 ###############################
@@ -164,7 +207,7 @@ ifeq ($(HOST),jetta)
       HDF5 = f
 
       #Determined via modules
-      HDF5_LIBS =-L$(PHDF5_LIB) -lhdf5hl_fortran -lhdf5_fortran -lhdf5_hl -lhdf5 -lz -lm 
+      HDF5_LIBS =-L$(PHDF5_LIB) -lhdf5hl_fortran -lhdf5_fortran -lhdf5_hl -lhdf5 -lz 
       HDF5_MOD  = $(PHDF5_INC)
       HDF5_INC  = $(PHDF5_INC)
 
@@ -183,7 +226,7 @@ ifeq ($(HOST),jetta)
 
       SPRNG = f
 
-      SPRNG_LIBS = $(SPRNG_PAR_HOME)/lib -lsprng -lstdc++ -lm -lmpi_cxx
+      SPRNG_LIBS = $(SPRNG_PAR_HOME)/lib -lsprng -lstdc++ -lmpi_cxx
       SPRNG_INC  = $(SPRNG_PAR_HOME)/include
     else
       LIBS += -L/usr/lib -llapack -lblas
@@ -199,7 +242,7 @@ ifeq ($(HOST),jetta)
 
       SPRNG = f
 
-      SPRNG_LIBS = $(SPRNG_SER_HOME)/lib -lsprng -lstdc++ -lm 
+      SPRNG_LIBS = $(SPRNG_SER_HOME)/lib -lsprng -lstdc++
       SPRNG_INC = $(SPRNG_SER_HOME)/include
     endif
   endif
@@ -354,31 +397,39 @@ ifeq ($(findstring quevedo,$(HOST)),quevedo)
     PETSC_DIR =$(HOME)/Software/petsc-3.0.0-p7
 
     ifeq ($(BOPT),O)
-      PETSC_ARCH = macosx_gcc6.5.0_openmpi3.0.0_O
+      PETSC_ARCH = macosx_gcc6.5.0_openmpi3.1.5_O
     else
-      PETSC_ARCH = macosx_gcc6.5.0_openmpi3.0.0_g
+      PETSC_ARCH = macosx_gcc6.5.0_openmpi3.1.5_g
     endif
 
     HDF5 = t
 
-    HDF5_HOME = /opt/local
+    HDF5_HOME = $(HOME)/lib/hdf5-1.8.13/gcc-6.5.0/openmpi-3.1.5
     HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
     HDF5_MOD  = $(HDF5_HOME)/include
     HDF5_INC  = $(HDF5_MOD)
 
-    ADIOS = t
+#    ADIOS = f
+#    ADIOS_BUFFER_MB = 100
+#    ADIOS_METHOD = MPI
+#    ADIOS_HOME = $(HOME)/lib/adios-1.10.0/gcc-6.5.0-openmpi-3.1.5
+#    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1
+#    ADIOS_VER  = 1.10.0
 
-    ADIOS_HOME = $(HOME)/lib/adios-1.10.0-openmpi-3.0.0
-    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1
-    ADIOS_VER  = 1.10.0
+    ADIOS2 = t
+    ADIOS_METHOD = MPI
+    ADIOS_HOME = $(HOME)/lib/adios-2.5.0/gcc-6.5.0_openmpi-3.1.5
+    ADIOS_LIBS = $(shell $(ADIOS_HOME)/bin/adios2-config -f)
+    ADIOS_MOD  = $(ADIOS_HOME)/include/adios2/fortran
+    ADIOS_VER  = 2.5.0
 
 #    LIBS += -L/opt/local/lib -latlas
   else
-    LIBS += -L/opt/local/lib -llapack -lblas
+    LIBS += -L/opt/local/lib/lapack -llapack -lblas
 
     HDF5 = t
 
-    HDF5_HOME = $(HOME)/lib/hdf5-1.8.13/gfortran/serial
+    HDF5_HOME = $(HOME)/lib/hdf5-1.8.13/gcc-6.5.0/serial
     HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
     HDF5_MOD  = $(HDF5_HOME)/include
     HDF5_INC  = $(HDF5_MOD)
@@ -1264,7 +1315,7 @@ ifeq ($(findstring gr,$(HOST)),gr)
       SPRNG = t
 
       SPRNG_PAR_HOME = /turquoise/usr/projects/magreconn/soft/sprng5
-      SPRNG_LIBS = $(SPRNG_PAR_HOME)/lib/grizzly-intel17.0.1-openmpi1.10.5/lib -lsprng -lstdc++ -lm
+      SPRNG_LIBS = $(SPRNG_PAR_HOME)/lib/grizzly-intel17.0.1-openmpi1.10.5/lib -lsprng -lstdc++
       SPRNG_INC  = $(SPRNG_PAR_HOME)/include
      else
       LIBS += -L/usr/lib -llapack -lblas
@@ -1306,6 +1357,66 @@ ifeq ($(findstring gr,$(HOST)),gr)
       ADIOS_VER  = 1.10.0
      endif
    endif
+
+  endif
+
+endif
+
+########
+# Snow #
+########
+
+ifeq ($(findstring sn,$(HOST)),sn)
+
+  override MACHINE = snow
+
+  ifeq ($(findstring ifort,$(FC)),ifort)
+
+    NETCDF=f
+
+    ifeq ($(MPI_NAME),openmpi)
+     ifdef BOPT
+      PETSC_DIR =/usr/projects/DPIC/Software/petsc-3.0.0-p7
+
+      ifeq ($(BOPT),O)
+       PETSC_ARCH = linux64_snow_intel-17.0.4_openmpi-2.1.2
+      else
+       PETSC_ARCH = linux64_snow_intel-17.0.4_openmpi-2.1.2_dbg
+      endif
+
+      HDF5 = f
+
+#      HDF5_ROOT = /usr/projects/hpcsoft/toss3/grizzly/hdf5/1.8.16_intel-17.0.4_openmpi-2.1.2
+      HDF5_LIBS =-L$(HDF5_ROOT)/lib -lhdf5_fortran -lhdf5 -lz
+      HDF5_MOD  = $(HDF5_ROOT)/include
+      HDF5_INC  = $(HDF5_MOD)
+
+      ADIOS = f
+
+      ADIOS_BUFFER_MB = 1000
+      ADIOS_METHOD = MPI_LUSTRE
+
+      ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.10.0/lib-grizzly-intel-17.0.1_openmpi-1.10.5
+      ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -llustreapi
+      ADIOS_VER  = 1.10.0
+
+      SPRNG = t
+
+      SPRNG_PAR_HOME = /usr/projects/DPIC/Software/sprng5
+      SPRNG_LIBS = $(SPRNG_PAR_HOME)/snow_intel-17.0.4-openmpi-2.1.2/lib -lsprng -lstdc++
+      SPRNG_INC  = $(SPRNG_PAR_HOME)/include
+     else
+      LIBS += -L/usr/lib -llapack -lblas
+
+      HDF5 = f
+
+      ADIOS = f
+
+      SPRNG = f
+
+     endif
+
+    endif
 
   endif
 
