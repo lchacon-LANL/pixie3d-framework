@@ -18,6 +18,49 @@ FC?=gfortran
 HDF5 ?= f
 ADIOS?= f
 
+###########
+# adiosVM #
+###########
+
+ifeq ($(HOST),adiosVM)
+
+  override MACHINE = adiosVM
+
+  FC = gfortran
+
+  ifdef BOPT
+    PETSC_DIR ?=$(HOME)/Software/petsc-3.0.0-p7
+
+    PETSC_ARCH = linux64_openmpi
+
+    HDF5 = f
+
+    #Determined via modules
+    HDF5_LIBS =-L/opt/hdf5-parallel/lib -lhdf5hl_fortran -lhdf5_fortran -lhdf5_hl -lhdf5 -lz -lm 
+    HDF5_MOD  = /opt/hdf5-parallel/lib
+    HDF5_INC  = /opt/hdf5-parallel/include
+
+#    ADIOS = f
+#    ADIOS_BUFFER_MB = 100
+#    ADIOS_METHOD = MPI
+#    ADIOS_HOME = /home/adios/Software/adios-1.10.0/mpi-no-hdf5
+#    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 
+#    ADIOS_VER  = 1.10.0
+
+    ADIOS2 = t
+    ADIOS_HOME = /opt/adios2
+    ADIOS_LIBS = $(shell $(ADIOS_HOME)/bin/adios2-config -f)
+    ADIOS_MOD  = $(ADIOS_HOME)/include/adios2/fortran
+    ADIOS_VER  = 2.5.0
+
+  else
+    HDF5 = f
+    LIBS += -L/home/adios/Software/spack/opt/spack/linux-ubuntu16.04-x86_64/gcc-5.4.0/netlib-lapack-3.8.0-entm4irbcn2b5io72rmkmivkounzeljd/lib -llapack -lblas
+
+    ADIOS = f
+  endif
+endif
+
 ###############################
 # lap0086227 (Mark Berrill's) #
 ###############################
@@ -354,23 +397,31 @@ ifeq ($(findstring quevedo,$(HOST)),quevedo)
     PETSC_DIR =$(HOME)/Software/petsc-3.0.0-p7
 
     ifeq ($(BOPT),O)
-      PETSC_ARCH = macosx_gcc6.5.0_openmpi3.0.0_O
+      PETSC_ARCH = macosx_gcc6.5.0_openmpi3.1.5_O
     else
-      PETSC_ARCH = macosx_gcc6.5.0_openmpi3.0.0_g
+      PETSC_ARCH = macosx_gcc6.5.0_openmpi3.1.5_g
     endif
 
     HDF5 = t
 
-    HDF5_HOME = /opt/local
+    HDF5_HOME = $(HOME)/lib/hdf5-1.8.13/gcc-6.5.0/openmpi-3.1.5
     HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
     HDF5_MOD  = $(HDF5_HOME)/include
     HDF5_INC  = $(HDF5_MOD)
 
-    ADIOS = t
+#    ADIOS = f
+#    ADIOS_BUFFER_MB = 100
+#    ADIOS_METHOD = MPI
+#    ADIOS_HOME = $(HOME)/lib/adios-1.10.0/gcc-6.5.0-openmpi-3.1.5
+#    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1
+#    ADIOS_VER  = 1.10.0
 
-    ADIOS_HOME = $(HOME)/lib/adios-1.10.0-openmpi-3.0.0
-    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1
-    ADIOS_VER  = 1.10.0
+    ADIOS2 = t
+    ADIOS_METHOD = MPI
+    ADIOS_HOME = $(HOME)/lib/adios-2.5.0/gcc-6.5.0_openmpi-3.1.5
+    ADIOS_LIBS = $(shell $(ADIOS_HOME)/bin/adios2-config -f)
+    ADIOS_MOD  = $(ADIOS_HOME)/include/adios2/fortran
+    ADIOS_VER  = 2.5.0
 
 #    LIBS += -L/opt/local/lib -latlas
   else
@@ -378,7 +429,7 @@ ifeq ($(findstring quevedo,$(HOST)),quevedo)
 
     HDF5 = t
 
-    HDF5_HOME = $(HOME)/lib/hdf5-1.8.13/gfortran/serial
+    HDF5_HOME = $(HOME)/lib/hdf5-1.8.13/gcc-6.5.0/serial
     HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
     HDF5_MOD  = $(HDF5_HOME)/include
     HDF5_INC  = $(HDF5_MOD)

@@ -36,6 +36,18 @@ ifeq ($(ADIOS),t)
   MODPATH     += $(ADDMODFLAG)$(ADIOS_HOME)/include
 endif
 
+# ADIOS2 setup
+
+ifeq ($(ADIOS2),t)
+  CONTRIBLIBS += $(ADIOS_LIBS)
+  ## jyc: ADIOS2 should be capital
+  CPPFLAGS    += $(PREPROC)ADIOS2 $(PREPROC)ADIOS2_VER=$(ADIOS_VER)  $(PREPROC)ADIOS2_FILE=\"record-$(ADIOS_VER).bp\"
+  ifdef ADIOS2_METHOD
+    CPPFLAGS  += $(PREPROC)ADIOS2_METHOD=\"$(ADIOS_METHOD)\"
+  endif
+  MODPATH     += $(ADDMODFLAG)$(ADIOS_MOD)
+endif
+
 # HDF5 setup
 
 ifeq ($(HDF5),t)
