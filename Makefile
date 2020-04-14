@@ -72,12 +72,12 @@ $(SUBDIRS):
 
 #Cleaning targets
 
-doclean: ;
+clean: ;
 	-@rm -f *.o *.mod *.a
 
-distclean: doclean
+distclean: clean
 	-@for subdir in $(SUBDIRS) ; do \
-		$(MAKE) -C $$subdir doclean;  done
+		$(MAKE) -C $$subdir clean;  done
 
 #Main setup targets
 
