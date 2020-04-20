@@ -3672,117 +3672,117 @@ c$$$c$$$      end function nabla_v_src2
 c$$$
 c$$$      end function fnabla_v_mixed_cov
 
-c     fnabla_m_fnablaT_v_cov
-c     #############################################################
-      function fnabla_m_fnablaT_v_cov(g_def,i,j,k,igrid,vcov,half_elem)
-     .         result(tensor)
-c     -------------------------------------------------------------
-c     Calculates the tensor components T^l_m of nabla(vec v), with
-c     v covariant, and fills tensor(l,m) at the following positions:
-c       + half_elem=0 --> i,j,k
-c       + half_elem=1 --> i+1/2,j,k
-c       + half_elem=2 --> i,j+1/2,k
-c       + half_elem=3 --> i,j,k+1/2
-c     -------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-        type(grid_mg_def),pointer :: g_def
-
-        integer :: i,j,k,half_elem,nx,ny,nz,igrid
-        real(8) :: tensor(3,3)
-        real(8) :: vcov(0:,0:,0:,:)
-
-c     Local variables
-
-        integer :: ig,jg,kg,ip,im,jp,jm,kp,km,ii,jj
-        real(8) :: dhx,dhy,dhz,idh(3)
-        real(8) :: v(3),vip(3),vim(3),vjp(3),vjm(3),vkp(3),vkm(3)
-
-c     Begin program
-
-c$$$        call getMGmap(g_def,i,j,k,igrid,igrid,igrid,ig,jg,kg)
+c$$$c     fnabla_m_fnablaT_v_cov
+c$$$c     #############################################################
+c$$$      function fnabla_m_fnablaT_v_cov(g_def,i,j,k,igrid,vcov,half_elem)
+c$$$     .         result(tensor)
+c$$$c     -------------------------------------------------------------
+c$$$c     Calculates the tensor components T^l_m of nabla(vec v), with
+c$$$c     v covariant, and fills tensor(l,m) at the following positions:
+c$$$c       + half_elem=0 --> i,j,k
+c$$$c       + half_elem=1 --> i+1/2,j,k
+c$$$c       + half_elem=2 --> i,j+1/2,k
+c$$$c       + half_elem=3 --> i,j,k+1/2
+c$$$c     -------------------------------------------------------------
 c$$$
-c$$$        ip = i+1
-c$$$        im = i-1
-c$$$        jp = j+1
-c$$$        jm = j-1
-c$$$        kp = k+1
-c$$$        km = k-1
+c$$$        implicit none
 c$$$
-c$$$        select case(half_elem)
-c$$$        case (1)
-c$$$          dhx =    g_def%dx (ig)
-c$$$          dhy = 2.*g_def%dyh(jg)
-c$$$          dhz = 2.*g_def%dzh(kg)
+c$$$c     Call variables
 c$$$
-c$$$          vip(:) = vcov(ip,j,k,:)
-c$$$          vim(:) = vcov(i ,j,k,:)
+c$$$        type(grid_mg_def),pointer :: g_def
 c$$$
-c$$$          vjp(:) = 0.5*(vcov(ip,jp,k,:)+vcov(i,jp,k,:))
-c$$$          vjm(:) = 0.5*(vcov(ip,jm,k,:)+vcov(i,jm,k,:))
+c$$$        integer :: i,j,k,half_elem,nx,ny,nz,igrid
+c$$$        real(8) :: tensor(3,3)
+c$$$        real(8) :: vcov(0:,0:,0:,:)
 c$$$
-c$$$          vkp(:) = 0.5*(vcov(ip,j,kp,:)+vcov(i,j,kp,:))
-c$$$          vkm(:) = 0.5*(vcov(ip,j,km,:)+vcov(i,j,km,:))
-c$$$        case (2)
-c$$$          dhx = 2.*g_def%dxh(ig)
-c$$$          dhy =    g_def%dy (jg)
-c$$$          dhz = 2.*g_def%dzh(kg)
+c$$$c     Local variables
 c$$$
-c$$$          vip(:) = 0.5*(vcov(ip,j,k,:)+vcov(ip,jp,k,:))
-c$$$          vim(:) = 0.5*(vcov(im,j,k,:)+vcov(im,jp,k,:))
+c$$$        integer :: ig,jg,kg,ip,im,jp,jm,kp,km,ii,jj
+c$$$        real(8) :: dhx,dhy,dhz,idh(3)
+c$$$        real(8) :: v(3),vip(3),vim(3),vjp(3),vjm(3),vkp(3),vkm(3)
 c$$$
-c$$$          vjp(:) = vcov(i,jp,k,:)
-c$$$          vjm(:) = vcov(i,j ,k,:)
-c$$$                
-c$$$          vkp(:) = 0.5*(vcov(i,j,kp,:)+vcov(i,jp,kp,:))
-c$$$          vkm(:) = 0.5*(vcov(i,j,km,:)+vcov(i,jp,km,:))
-c$$$        case (3)
-c$$$          dhx = 2.*g_def%dxh(ig)
-c$$$          dhy = 2.*g_def%dyh(jg)
-c$$$          dhz =    g_def%dz (kg)
+c$$$c     Begin program
 c$$$
-c$$$          vip(:) = 0.5*(vcov(ip,j,k,:)+vcov(ip,j,kp,:))
-c$$$          vim(:) = 0.5*(vcov(im,j,k,:)+vcov(im,j,kp,:))
+c$$$c$$$        call getMGmap(g_def,i,j,k,igrid,igrid,igrid,ig,jg,kg)
+c$$$c$$$
+c$$$c$$$        ip = i+1
+c$$$c$$$        im = i-1
+c$$$c$$$        jp = j+1
+c$$$c$$$        jm = j-1
+c$$$c$$$        kp = k+1
+c$$$c$$$        km = k-1
+c$$$c$$$
+c$$$c$$$        select case(half_elem)
+c$$$c$$$        case (1)
+c$$$c$$$          dhx =    g_def%dx (ig)
+c$$$c$$$          dhy = 2.*g_def%dyh(jg)
+c$$$c$$$          dhz = 2.*g_def%dzh(kg)
+c$$$c$$$
+c$$$c$$$          vip(:) = vcov(ip,j,k,:)
+c$$$c$$$          vim(:) = vcov(i ,j,k,:)
+c$$$c$$$
+c$$$c$$$          vjp(:) = 0.5*(vcov(ip,jp,k,:)+vcov(i,jp,k,:))
+c$$$c$$$          vjm(:) = 0.5*(vcov(ip,jm,k,:)+vcov(i,jm,k,:))
+c$$$c$$$
+c$$$c$$$          vkp(:) = 0.5*(vcov(ip,j,kp,:)+vcov(i,j,kp,:))
+c$$$c$$$          vkm(:) = 0.5*(vcov(ip,j,km,:)+vcov(i,j,km,:))
+c$$$c$$$        case (2)
+c$$$c$$$          dhx = 2.*g_def%dxh(ig)
+c$$$c$$$          dhy =    g_def%dy (jg)
+c$$$c$$$          dhz = 2.*g_def%dzh(kg)
+c$$$c$$$
+c$$$c$$$          vip(:) = 0.5*(vcov(ip,j,k,:)+vcov(ip,jp,k,:))
+c$$$c$$$          vim(:) = 0.5*(vcov(im,j,k,:)+vcov(im,jp,k,:))
+c$$$c$$$
+c$$$c$$$          vjp(:) = vcov(i,jp,k,:)
+c$$$c$$$          vjm(:) = vcov(i,j ,k,:)
+c$$$c$$$                
+c$$$c$$$          vkp(:) = 0.5*(vcov(i,j,kp,:)+vcov(i,jp,kp,:))
+c$$$c$$$          vkm(:) = 0.5*(vcov(i,j,km,:)+vcov(i,jp,km,:))
+c$$$c$$$        case (3)
+c$$$c$$$          dhx = 2.*g_def%dxh(ig)
+c$$$c$$$          dhy = 2.*g_def%dyh(jg)
+c$$$c$$$          dhz =    g_def%dz (kg)
+c$$$c$$$
+c$$$c$$$          vip(:) = 0.5*(vcov(ip,j,k,:)+vcov(ip,j,kp,:))
+c$$$c$$$          vim(:) = 0.5*(vcov(im,j,k,:)+vcov(im,j,kp,:))
+c$$$c$$$
+c$$$c$$$          vjp(:) = 0.5*(vcov(i,jp,k,:)+vcov(i,jp,kp,:))
+c$$$c$$$          vjm(:) = 0.5*(vcov(i,jm,k,:)+vcov(i,jm,kp,:))
+c$$$c$$$                
+c$$$c$$$          vkp(:) = vcov(i,j,kp,:)
+c$$$c$$$          vkm(:) = vcov(i,j,k ,:)
+c$$$c$$$        case default
+c$$$c$$$          dhx = 2.*g_def%dxh(ig)
+c$$$c$$$          dhy = 2.*g_def%dyh(jg)
+c$$$c$$$          dhz = 2.*g_def%dzh(kg)
+c$$$c$$$
+c$$$c$$$          vip(:) = vcov(ip,j,k,:)
+c$$$c$$$          vim(:) = vcov(im,j,k,:)
+c$$$c$$$
+c$$$c$$$          vjp(:) = vcov(i,jp,k,:)
+c$$$c$$$          vjm(:) = vcov(i,jm,k,:)
+c$$$c$$$                
+c$$$c$$$          vkp(:) = vcov(i,j,kp,:)
+c$$$c$$$          vkm(:) = vcov(i,j,km,:)
+c$$$c$$$        end select
+c$$$c$$$
+c$$$c$$$        idh(1) = 1d0/dhx
+c$$$c$$$        idh(2) = 1d0/dhy
+c$$$c$$$        idh(3) = 1d0/dhz
+c$$$c$$$
+c$$$c$$$        tensor(1,:) = (vip(:)-vim(:))*idh(1)
+c$$$c$$$        tensor(2,:) = (vjp(:)-vjm(:))*idh(2)
+c$$$c$$$        tensor(3,:) = (vkp(:)-vkm(:))*idh(3)
+c$$$      
+c$$$        tensor = fnabla_v_cov(g_def,i,j,k,igrid,vcov,half_elem)
 c$$$
-c$$$          vjp(:) = 0.5*(vcov(i,jp,k,:)+vcov(i,jp,kp,:))
-c$$$          vjm(:) = 0.5*(vcov(i,jm,k,:)+vcov(i,jm,kp,:))
-c$$$                
-c$$$          vkp(:) = vcov(i,j,kp,:)
-c$$$          vkm(:) = vcov(i,j,k ,:)
-c$$$        case default
-c$$$          dhx = 2.*g_def%dxh(ig)
-c$$$          dhy = 2.*g_def%dyh(jg)
-c$$$          dhz = 2.*g_def%dzh(kg)
+c$$$        !Add transpose
+c$$$        tensor = tensor - transpose(tensor)
+c$$$        
+c$$$c     End program
 c$$$
-c$$$          vip(:) = vcov(ip,j,k,:)
-c$$$          vim(:) = vcov(im,j,k,:)
-c$$$
-c$$$          vjp(:) = vcov(i,jp,k,:)
-c$$$          vjm(:) = vcov(i,jm,k,:)
-c$$$                
-c$$$          vkp(:) = vcov(i,j,kp,:)
-c$$$          vkm(:) = vcov(i,j,km,:)
-c$$$        end select
-c$$$
-c$$$        idh(1) = 1d0/dhx
-c$$$        idh(2) = 1d0/dhy
-c$$$        idh(3) = 1d0/dhz
-c$$$
-c$$$        tensor(1,:) = (vip(:)-vim(:))*idh(1)
-c$$$        tensor(2,:) = (vjp(:)-vjm(:))*idh(2)
-c$$$        tensor(3,:) = (vkp(:)-vkm(:))*idh(3)
-      
-        tensor = fnabla_v_cov(g_def,i,j,k,igrid,vcov,half_elem)
-
-        !Add transpose
-        tensor = tensor - transpose(tensor)
-        
-c     End program
-
-      end function fnabla_m_fnablaT_v_cov
+c$$$      end function fnabla_m_fnablaT_v_cov
       
 c     fnabla_v_cov
 c     #############################################################
