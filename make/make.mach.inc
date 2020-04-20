@@ -113,8 +113,6 @@ endif
 
 ifeq ($(HOST),jetta)
 
-#  CPPFLAGS += $(PREPROC)RFX
-  
   override MACHINE = jetta
 
   FC ?= gfortran
@@ -380,8 +378,6 @@ endif
 ###########
 
 ifeq ($(findstring quevedo,$(HOST)),quevedo)
-
-#  CPPFLAGS += $(PREPROC)RFX
 
   FC=gfortran
 
