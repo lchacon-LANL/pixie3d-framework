@@ -34,7 +34,7 @@ ifeq ($(ADIOS),t)
     CPPFLAGS  += $(PREPROC)ADIOS_METHOD=\"$(ADIOS_METHOD)\"
   endif
   MODPATH     += $(ADDMODFLAG)$(ADIOS_HOME)/include
-  ADIOS_CONFIG = adios1.10.0_config.xml
+  export ADIOS_CONFIG = adios1.10.0_config.xml
 endif
 
 # ADIOS2 setup
@@ -47,7 +47,7 @@ ifeq ($(ADIOS2),t)
     CPPFLAGS  += $(PREPROC)ADIOS2_METHOD=\"$(ADIOS2_METHOD)\"
   endif
   MODPATH     += $(ADIOS2_MOD)
-  ADIOS_CONFIG = adios2.5.0_config.xml
+  export ADIOS_CONFIG = adios2.5.0_config.xml
 endif
 
 # HDF5 setup
