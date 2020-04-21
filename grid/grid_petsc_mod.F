@@ -272,7 +272,7 @@ c     ##################################################################
       implicit none
 
       !Set profiling stages
-      call PetscLogStageRegister('Setup'   ,prof_stage(iSTUP) ,prof_err)
+      call PetscLogStageRegister('Setup   ',prof_stage(iSTUP) ,prof_err)
       call PetscLogStageRegister('NL solve',prof_stage(iNL)   ,prof_err)
       call PetscLogStageRegister('PC setup',prof_stage(iPCSTP),prof_err)  
       call PetscLogStageRegister('PC main ',prof_stage(iPCSLV),prof_err)  

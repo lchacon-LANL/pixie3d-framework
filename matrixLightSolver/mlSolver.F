@@ -59,8 +59,8 @@ c Local variables
 
       type (solver_unit)   :: solver_def
 
-      type (solver_options):: options
-      character*(2)  solver
+cc      type (solver_options):: options
+cc      character*(2)  solver
 
 c Begin program
 
@@ -68,9 +68,9 @@ c Read solver definition from solver hierarchy
 
       call readSolverHierarchy (solver_def,depth)
 
-      solver  = solver_def%solver
+cc      solver  = solver_def%solver
 cc      options = solver_def%options
-      call xferSolverOptions(options,solver_def%options)
+cc      call xferSolverOptions(options,solver_def%options)
 
 c Symmetry test
 
@@ -79,20 +79,22 @@ c$$$     .     call symm_test(neq,options%ngrd_tst,matvec,bcnd)
 
 c Invoke solver
 
-      call solver_meth(neq,ntot,b,x,matvec,igrid,bcnd
-     .                ,guess,out,solver,options,depth)
+      call solver_meth(neq,ntot,b,x,matvec,igrid,bcnd,guess,out
+     .                ,solver_def%solver,solver_def%options,depth)
 
 c Check convergence
 
-      if (options%tol_out.gt.options%tol.and.out.ge.2) then
-        if (my_rank == 0)
-     .     write (*,100) solver,options%tol_out,options%tol
+      if (solver_def%options%tol_out
+     .   >solver_def%options%tol.and.out.ge.2.and.my_rank==0) then
+           write (*,100) solver_def%solver
+     .                  ,solver_def%options%tol_out
+     .                  ,solver_def%options%tol
       endif
 
 c Output information
 
-      solver_def%options%tol_out  = options%tol_out
-      solver_def%options%iter_out = options%iter_out
+cc      solver_def%options%tol_out  = options%tol_out
+cc      solver_def%options%iter_out = options%iter_out
 
       call writeSolverHierarchy(solver_def,depth)
 
@@ -225,6 +227,8 @@ c Local variables
       real(8)    :: rtol,atol,stol
       real(8)    :: rr(ntot),zz(ntot),pp(ntot),qq(ntot)
 
+      type (solver_unit) :: solver
+
 c Begin program
 
       nn = ntot
@@ -232,6 +236,11 @@ c Begin program
       precout = max(0,out-2)
 
       depth1 = depth + 1
+      !Transfer grid config to PC
+      call readSolverHierarchy (solver,depth1)
+cc      solver%options%diag => options%diag
+      solver%options%mg_grid_def => options%mg_grid_def
+      call writeSolverHierarchy(solver,depth1)
 
 c Extract options
 
@@ -264,7 +273,6 @@ c     For zero initial guess
 
 c     For arbitrary initial guess (rr = b - Ax)
 
-cc        MGgrid => options%mg_grid_def
         call matvec(options%mg_grid_def,0,neq,ntot,x,rr,igrid,bcnd)
 
         rr = b - rr
@@ -303,7 +311,6 @@ c     CG step
 
         rho0 = rho1
 
-cc        MGgrid => options%mg_grid_def
         call matvec(options%mg_grid_def,0,neq,ntot,pp,qq,igrid,bcnd)
 
         alpha = rho0/dot3(pp,qq,mpi_comm=mpi_comm)
@@ -416,6 +423,8 @@ c Local variables
 
       logical    :: sing_mat,sing_mat_stop,roundoff_stop
 
+      type (solver_unit) :: solver
+
 c Begin program
 
       epsmac = find_mach_eps()
@@ -426,6 +435,12 @@ c Begin program
       precout = max(0,iout-2)
 
       depth1 = depth + 1
+
+      !Transfer grid config to PC
+      call readSolverHierarchy (solver,depth1)
+      solver%options%diag => options%diag
+      solver%options%mg_grid_def => options%mg_grid_def
+      call writeSolverHierarchy(solver,depth1)
 
       sing_mat_stop = .false.
       roundoff_stop = .false.
@@ -474,7 +489,6 @@ c     For zero initial guess
 
 c     For arbitrary initial guess (vv(:,1) = b - Ax)
 
-cc        MGgrid => options%mg_grid_def
         call matvec(options%mg_grid_def,0,neq,ntot,x,vv(:,1),igrid,bcnd)
 
         vv(:,1) = b(:) - vv(:,1)
@@ -533,7 +547,6 @@ c        Call preconditioner
           call getSolver(neq,ntot,vv(:,i),zz(:,i),matvec,igrid,bcnd,0
      .                  ,precout,depth1)
 
-cc          MGgrid => options%mg_grid_def
           call matvec(options%mg_grid_def,0,neq,ntot,zz(:,i),vv(:,i1)
      .               ,igrid,bcnd)
 
