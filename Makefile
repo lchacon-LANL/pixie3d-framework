@@ -84,12 +84,17 @@ distclean: clean
 setup: contrib_setup
 	-@for subdir in `find . -name "make.inc" -exec dirname {} \;` ; do \
 		rm $$subdir/makefile 2>/dev/null ; \
-		ln -s -f $(PWD)/Makefile $$subdir/makefile 2>/dev/null ; \
+		ln -sf $(PWD)/Makefile $$subdir/makefile 2>/dev/null ; \
 		$(MAKE) -C $$subdir setup_lnk; done
 
 setup_lnk: ;
+ifdef ADIOS_CONFIG
+ifeq (var_setup,$(notdir $(CURDIR)))
+	-@ln -sf $(ADIOS_CONFIG) adios_config.xml 2>/dev/null ;
+endif
+endif
 	-@for file in $(LNK_FILES) ; do \
-		ln -s $$file 2>/dev/null ; done
+		ln -sf $$file 2>/dev/null ; done
 
 #Library setup
 

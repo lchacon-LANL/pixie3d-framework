@@ -3,20 +3,19 @@
 ! ##################################################################
       module ADIOS2_graphics
 
-#if defined(ADIOS2)
         use graphics_io
 
         use var_io
 
         use ts_setup
 
-        use adios2
-
-#if !defined(ADIOS2)
+#if !defined(ADIOS2) && !defined(adios)
         ! almost empty mod definition to be able to compile and link
-        character(20) :: adios2_fname  ! set in ./plot/defineGraphics.F
+        character(20) :: adios_fname  ! set in ./plot/defineGraphics.F
 
 #else
+        use adios2
+
 !       generic constants
         integer, parameter :: ARRAY_RANK = 3
         integer, parameter :: ATTR_RANK = 1
@@ -31,7 +30,7 @@
 
 !       ADIOS2 function call variables
         integer        :: num_open    ! first create, then append file
-        character(20)  :: adios2_fname="adios2.bp" ! set in ./plot/defineGraphics.F
+        character(20)  :: adios_fname="adios2.bp" ! set in ./plot/defineGraphics.F
         integer        :: adios2_rank  ! ?=? my_rank ???
 
         logical,private :: adios2_debug=.false.
@@ -228,7 +227,7 @@
       slth = len(trim(vexp))
 
       if (num_open == 0) then
-         if (adios2_debug) print *, 'ADIOS2: Writing restart_3db from ', trim(adios2_fname)
+         if (adios2_debug) print *, 'ADIOS2: Writing restart_3db from ', trim(adios_fname)
          call adios2_declare_io(io, adios2obj, "pixplot", ierr)
          
          ! Define global dimension variables a the first time
@@ -356,8 +355,8 @@
            enddo
 
            ! open only once
-           if (adios2_debug) print *, 'ADIOS2: adios2_fname= ', adios2_fname
-           call adios2_open(engine, io, adios2_fname, adios2_mode_write, adios2_world_comm, ierr)
+           if (adios2_debug) print *, 'ADIOS2: adios_fname= ', adios_fname
+           call adios2_open(engine, io, adios_fname, adios2_mode_write, adios2_world_comm, ierr)
       endif  ! first open
 
       call adios2_begin_step(engine, adios2_step_mode_append, 0.0, istatus, ierr)
@@ -527,6 +526,5 @@
 
       end subroutine writeADIOS2Plotfile
 
-#endif
 #endif
       end module ADIOS2_graphics
