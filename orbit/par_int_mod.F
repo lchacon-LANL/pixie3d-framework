@@ -119,8 +119,6 @@ c     Begin program
         tkernel = 0.5d0*isqrpi*isct0*exp(-0.25*s2*isct0*isct0) !ct0=chi_par*t0 
         ex_loop = (abs(ss)>15*dt)  ! (ss*ss > 225*dt**2) !4*T_cutoff2*ct0)
 
-c        print *,ss ,ex_loop,dt
-c  
 c        if (ss<0) then
 c          ex_loop = (ss < dt - 15d0*sqrt(T_cutoff2*ct0))
 c        else
@@ -246,9 +244,7 @@ cc        ex_loop = (abs(ss) > slim)
 
         dum=1d0/dt
         sigss= dsign(1d0,ss) 
-c        print *,ss,sigss
-c        if (ss<0) print *,'hello'
-        ! exponential exp(vs/D)
+        !exponential exp(vs/D)
         ex=exp(ss/chi)
  
         ! erf((s+vt)/sqrt(4Dt))
@@ -262,7 +258,6 @@ c        if (ss<0) print *,'hello'
 
         skernel= 0.5d0*(ex*(erf1-sigss)-erf2+sigss)*dum
         
-c        print *,skernel
         ex_loop = (z > 15*dt)
 
 c        if (ss<0) then
@@ -1393,7 +1388,6 @@ cc        endif
 #endif
 c     Spline temperature field
 
-c        print *,'no_global_spl',no_global_spl 
         if (no_global_spl) then
           sp_coef = vg
         else
