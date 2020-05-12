@@ -10,7 +10,7 @@ c #############################################################################
         real(8),private :: t_tol,T_cutoff2,S_cutoff2,alpha=0d0
      .                    ,aa(0:10,0:10),cc(0:10)
 
-        real(8),parameter :: sqrpi=sqrt(pi),isqrpi=1d0/sqrpi,ipi=1d0/pi
+        real(8),parameter :: sqrpi=dsqrt(pi),isqrpi=1d0/sqrpi,ipi=1d0/pi
 
       contains
 
@@ -100,8 +100,6 @@ c     Local variables
       real(8) :: isct0,s2
       real(8) :: dt
 
-  
-
 c     Begin program
 
       if (alpha == 2d0) then
@@ -119,15 +117,15 @@ c     Begin program
         isct0 = 1d0/dt
         s2 = (ss-dt)*(ss-dt)
         tkernel = 0.5d0*isqrpi*isct0*exp(-0.25*s2*isct0*isct0) !ct0=chi_par*t0 
-        ex_loop = (s2 > 225*dt) !4*T_cutoff2*ct0)
+        ex_loop = (abs(ss)>15*dt)  ! (ss*ss > 225*dt**2) !4*T_cutoff2*ct0)
 
+c        print *,ss ,ex_loop,dt
+c  
 c        if (ss<0) then
 c          ex_loop = (ss < dt - 15d0*sqrt(T_cutoff2*ct0))
 c        else
 c          ex_loop = (ss > dt + 15d0*sqrt(T_cutoff2*ct0))   ! v=1
 c        endif
-
-
       else
         call pstop('tkernel_3d','Fractional order not implemented')
       endif
@@ -248,8 +246,8 @@ cc        ex_loop = (abs(ss) > slim)
 
         dum=1d0/dt
         sigss= dsign(1d0,ss) 
-        print *,ss,sigss
-        if (ss<0) print *,'hello'
+c        print *,ss,sigss
+c        if (ss<0) print *,'hello'
         ! exponential exp(vs/D)
         ex=exp(ss/chi)
  
@@ -1395,6 +1393,7 @@ cc        endif
 #endif
 c     Spline temperature field
 
+c        print *,'no_global_spl',no_global_spl 
         if (no_global_spl) then
           sp_coef = vg
         else
@@ -3355,7 +3354,7 @@ c     Find rhs of delta_T iteration
       where (b0 > 0d0) chi_local = chi/b0  !Divide by beta
 
       call lag_xport_bdf2(g_def,igrid,flds,integrals,chi_local,iout
-     .                   ,lsode_ext=lsode_ext)
+     .        ,lsode_ext=lsode_ext,no_global_splines=no_global_splines)
 
       if (bdf2) then
         sgamma = dt/(dt+dtold)
