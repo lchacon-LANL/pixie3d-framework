@@ -185,6 +185,7 @@ c     Local variables
         character (len=20), dimension(1)  :: gnamelist  ! list of groups (=1)
         character(len=1024) :: rfile
         logical :: inq_adios_var
+        print *, my_rank, 'openADIOSRecordFileForRead'
 
 c     Begin program
 
@@ -234,7 +235,7 @@ cc     .                       ,adios_attrsize,ierr)
 cc          write (*,*) adios_attrlist(i),adios_attrtype,adios_attrsize
 cc        enddo
 
-        adios_tread = 0  ! next time read first timestep
+        adios_tread = 0  ! next time read first timestep          
 
         if (adios_debug) then
           write (*,"(a,i0,a,a)")
@@ -286,6 +287,7 @@ c     Global variables
 
       integer :: ufile
       character(*),optional :: file
+      print *, my_rank, 'openADIOSRestartFileForRead'
 
 c     Local variables
 
@@ -336,6 +338,7 @@ c     Local variables
       integer*8       :: start(1), readcount(1)  ! dimensions are 64bit in adios
       integer*8       :: m ! actually read bytes
       logical, save   :: firstread = .true.
+      print *, my_rank, 'readADIOSRecordFile'
 
 c     Begin program
 
@@ -732,7 +735,7 @@ c          will not be accessible from file (everybody writes these vars)
 
 c     write all boundary conditions into one array buffer
 
-        if (addl_write) then
+        if (addl_write) then 
             do ieq=1,varray%nvar
                 bconds( (ieq-1)*6+1:ieq*6 ) = 
      .                  varray%array_var(ieq)%bconds(:)

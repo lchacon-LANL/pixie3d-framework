@@ -3746,7 +3746,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: ci(9),ipcl,isp,numspcs,numpcles
+      integer :: ci(9),ipcl,isp,numspcs,numpcles!,diag_row
 
       integer :: i,j,k,im,ip,jm,jp,ijk,ijkim,ijkip,ijkjm,ijkjp
      .          ,ijkimjm,ijkimjp,ijkipjm,ijkipjp,igl,jgl,kgl
@@ -3759,12 +3759,12 @@ c     Local variables
 
 c     Begin program
 
-      allocate(MM2(nng,3**_Dimx,n_sp)) !Global
-
-      MM2 = 0d0
-
       numspcs = size(spcs)
 
+      allocate(MM2(nng,3**_Dimx,numspcs)) !Global
+
+      MM2 = 0d0
+      
       do isp=1,numspcs
         numpcles = size(spcs(isp)%pcles)
 !$omp parallel DEFAULT(SHARED) private(ipcl,i,j,ip,im,jp,jm,ci,ijk
@@ -3885,15 +3885,129 @@ c     Begin program
 
       !Wrap GLOBAL mass matrix
 #if defined(petsc)
-      allocate(send_buf(size(mm2))
-     $        ,rec_buf (size(mm2)))
-      send_buf = reshape(mm2, (/size(mm2)/))
+      allocate(send_buf(size(MM2))
+     $        ,rec_buf (size(MM2)))
+      send_buf = reshape(MM2, (/size(MM2)/))
       call MPI_Allreduce(send_buf,rec_buf,size(send_buf)
      $                  ,MPI_DOUBLE_PRECISION
      .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-      mm2 = reshape(rec_buf,shape(mm2))
+      MM2 = reshape(rec_buf,shape(MM2))
       deallocate(send_buf,rec_buf)
 #endif
+
+c$$$      !Regularize matrix (add one particle per cell if none)
+c$$$      diag_row = (3**_Dimx)/2 + 1
+c$$$      do isp=1,numspcs
+c$$$!$omp parallel DEFAULT(SHARED) private(i,j,ip,im,jp,jm,ci,ijk
+c$$$!$omp.         ,ijkim,ijkip,ijkjm,ijkjp,ijkimjm,ijkimjp,ijkipjm
+c$$$!$omp.         ,ijkipjp,Mx2,My2,Mxy2)
+c$$$!$         call set_omp_thread_id()
+c$$$!$omp DO 
+c$$$        do j=1,nyg
+c$$$          do i=1,nxg
+c$$$            ijk = i + nxg*(j-1)
+c$$$            
+c$$$cc            if (sum(MM2(ijk,:,isp))==0d0) then
+c$$$            if (MM2(ijk,diag_row,isp)==0d0) then
+c$$$              Mx2(:,1) = shape2_offset_scalar(0.5d0)
+c$$$              My2(1,:) = shape2_offset_scalar(0.5d0)
+c$$$#ifdef __GNU
+c$$$              Mxy2(:,:)= opt_vecvec_3(Mx2,My2)
+c$$$#else
+c$$$              Mxy2(:,:)= matmul(Mx2,My2)
+c$$$#endif
+c$$$
+c$$$              Mxy2 = Mxy2*1d-10
+c$$$              
+c$$$              ip = i + 1
+c$$$              im = i - 1
+c$$$              jp = j + 1
+c$$$              jm = j - 1
+c$$$
+c$$$              !Set up the contributing matrix index
+c$$$              ci(7)=3; ci(8)=2; ci(9)=1
+c$$$              ci(4)=6; ci(5)=5; ci(6)=4
+c$$$              ci(1)=9; ci(2)=8; ci(3)=7
+c$$$
+c$$$              if (i==1) then
+c$$$                if (pbcond(1)==pPER) then
+c$$$                  im = nxg
+c$$$                else
+c$$$                  im = i
+c$$$                  ci(1) = ci(1)-2
+c$$$                  ci(4) = ci(4)-2
+c$$$                  ci(7) = ci(7)-2
+c$$$                endif              
+c$$$              endif
+c$$$
+c$$$              if (i==nxg) then
+c$$$                if (pbcond(2)==pPER) then
+c$$$                  ip = 1
+c$$$                else
+c$$$                  ip = i
+c$$$                  ci(3) = ci(3)+2
+c$$$                  ci(6) = ci(6)+2
+c$$$                  ci(9) = ci(9)+2                
+c$$$                endif
+c$$$              endif
+c$$$
+c$$$              if (j==1) then
+c$$$                if (pbcond(3)==pPER) then
+c$$$                  jm = nyg
+c$$$                else
+c$$$                  jm = j
+c$$$                  ci(1) = ci(1)-6 
+c$$$                  ci(2) = ci(2)-6 
+c$$$                  ci(3) = ci(3)-6                 
+c$$$                endif
+c$$$              endif
+c$$$
+c$$$              if (j==nyg) then
+c$$$                if (pbcond(4)==pPER) then
+c$$$                  jp = 1
+c$$$                else
+c$$$                  jp = j
+c$$$                  ci(7) = ci(7)+6 
+c$$$                  ci(8) = ci(8)+6 
+c$$$                  ci(9) = ci(9)+6 
+c$$$                endif
+c$$$              endif
+c$$$
+c$$$              ijkip   = ijk + ip-i
+c$$$              ijkim   = ijk + im-i
+c$$$              ijkjp   = ijk + (jp-j)*nxg
+c$$$              ijkjm   = ijk + (jm-j)*nxg
+c$$$              ijkimjm = ijk + im-i + (jm-j)*nxg
+c$$$              ijkipjm = ijk + ip-i + (jm-j)*nxg
+c$$$              ijkimjp = ijk + im-i + (jp-j)*nxg
+c$$$              ijkipjp = ijk + ip-i + (jp-j)*nxg
+c$$$
+c$$$!$omp atomic update
+c$$$              MM2(ijkipjp,ci(9),isp)=MM2(ijkipjp,ci(9),isp)+Mxy2(3,3)
+c$$$!$omp atomic update
+c$$$              MM2(ijkjp  ,ci(8),isp)=MM2(ijkjp  ,ci(8),isp)+Mxy2(2,3)
+c$$$!$omp atomic update
+c$$$              MM2(ijkimjp,ci(7),isp)=MM2(ijkimjp,ci(7),isp)+Mxy2(1,3)
+c$$$                                                     
+c$$$!$omp atomic update
+c$$$              MM2(ijkip  ,ci(6),isp)=MM2(ijkip  ,ci(6),isp)+Mxy2(3,2)
+c$$$!$omp atomic update
+c$$$              MM2(ijk    ,ci(5),isp)=MM2(ijk    ,ci(5),isp)+Mxy2(2,2)
+c$$$!$omp atomic update
+c$$$              MM2(ijkim  ,ci(4),isp)=MM2(ijkim  ,ci(4),isp)+Mxy2(1,2)
+c$$$                                                     
+c$$$!$omp atomic update
+c$$$              MM2(ijkipjm,ci(3),isp)=MM2(ijkipjm,ci(3),isp)+Mxy2(3,1)
+c$$$!$omp atomic update
+c$$$              MM2(ijkjm  ,ci(2),isp)=MM2(ijkjm  ,ci(2),isp)+Mxy2(2,1)
+c$$$!$omp atomic update
+c$$$              MM2(ijkimjm,ci(1),isp)=MM2(ijkimjm,ci(1),isp)+Mxy2(1,1)
+c$$$            endif
+c$$$          enddo
+c$$$        enddo
+c$$$!$omp end do 
+c$$$!$omp end parallel 
+c$$$      enddo
 
       !Assign LOCAL mass matrix
       do j=1,nyl
@@ -3904,9 +4018,12 @@ c     Begin program
           ijk   = i   + nxl*(j  -1)
              
           MM2l(ijk,:,:) = MM2(ijkgl,:,:)
+c$$$          write (*,*) sum(MM2l(ijk,:,:),1)
         enddo
       enddo
 
+cc      where(MM2l(:,diag_row,:)<1d-10) MM2l(:,diag_row,:) = 1d0
+      
       deallocate(MM2)
 
       end subroutine build_mass_matrix
@@ -5105,7 +5222,7 @@ c ######################################################################
 
 c     plotPDF_xv
 c     ##################################################################
-      subroutine plotPDF_xv(nv,label,init) 
+      subroutine plotPDF_xv(nv,label,init,v_min,v_max) 
 
 c     ------------------------------------------------------------------
 c     Accumulates particles on mesh, returning result in mesh array garr.
@@ -5120,6 +5237,8 @@ c     Call variables
       integer :: nv
       character(*) :: label
       logical :: init
+
+      real(8),optional :: v_min,v_max
       
 c     Local variables
 
@@ -5181,6 +5300,9 @@ c     Gather 1d-1v PDF
      .                    ,MPI_MIN,MPI_COMM_WORLD,mpierr)
 #endif
 
+        if (PRESENT(v_max)) vmax = v_max
+        if (PRESENT(v_min)) vmin = v_min
+        
         !Construct velocity domain (CHECK)
         if (vmax==vmin) then
 cc          vmax = 1.1*vmax
@@ -5208,10 +5330,16 @@ c$$$        write (*,*) isp,vmin,vmax
 
           !Velocity index of particle and offset
           iv = int((spcs(isp)%pcles(ip)%v_n(:,1)-vmin)*ihv)
-          vp = (spcs(isp)%pcles(ip)%v_n(:,1)- (vmin + iv*hv))*ihv
-          iv = iv + 1
 
           w_pcle = spcs(isp)%pcles(ip)%w_n
+
+          where (iv < 0)
+            w_pcle = 0d0
+            iv     = 0
+          end where
+          
+          vp = (spcs(isp)%pcles(ip)%v_n(:,1)- (vmin + iv*hv))*ihv
+          iv = iv + 1
 
           call xform_pcle_idx(spcs(isp)%pcles(ip)%ijk_n,nxg,i_np,j_np)   
 
@@ -5837,10 +5965,11 @@ c     Begin program
         !Scan first
 
 !$OMP PARALLEL DEFAULT(SHARED) firstprivate(locl_cell_index) 
-!$OMP. private(tid,nthreads,ct,i)
+!$OMP. private(tid,nthreads,ct,ipc,ijk,k,ip,kl,ipl,i,j)
         call set_omp_thread_id()
         call get_omp_thread_id(tid,nthreads)
-!$OMP DO private(ijk,k) schedule(static,2) 
+
+!$OMP DO schedule(static,2) 
         do ipc=nip+1,Np
           ijk = spcs(isp)%pcles(ipc)%ijk_np
           !Do NOT vectorize: Memory race issues
@@ -5849,7 +5978,7 @@ c     Begin program
           enddo
         end do
 !$OMP END DO nowait 
-
+        
 !$OMP critical !one thread at a time
         part_cell_index = part_cell_index  + locl_cell_index
 !$OMP end critical
@@ -5877,7 +6006,7 @@ c     Begin program
         end do
 
         !Copy next
-!$OMP DO PRIVATE(ijk,ip,ipl,k,kl,i,j) schedule(static,2)
+!$OMP DO schedule(static,2)
 !!$OMP.REDUCTION (+:Np_cell)
         do ipc=nip+1,Np
           ijk = spcs(isp)%pcles(ipc)%ijk_np
@@ -5908,6 +6037,7 @@ c     Begin program
           enddo
         end do
 !$OMP END DO
+
 !$OMP END PARALLEL 
 
         if(present(pcle_cell_idx)) pcle_cell_idx(:,isp)=part_cell_index
@@ -6014,21 +6144,6 @@ c Calculate matrix-vector product
             call getMGmap(g_def,i,j,k,igrid,igrid,igrid,ig,jg,kg)
 
             ijk = i + nxx*(j-1) + nxx*nyy*(k-1)
-
-c$$$            call fromLocalToGlobalLimits(i,j,k,igl,jgl,kgl
-c$$$     .                                  ,igrid,igrid,igrid)
-c$$$
-c$$$            ijkgl = igl + nxg*(jgl-1) + nxg*nyg*(kgl-1)
-c$$$
-c$$$            y(neq*(ijk-1)+1:neq*ijk) = xarr(i  ,j  ,k,:)*MM2(ijkgl,5,:)
-c$$$     .                               + xarr(i+1,j  ,k,:)*MM2(ijkgl,6,:)
-c$$$     .                               + xarr(i-1,j  ,k,:)*MM2(ijkgl,4,:)
-c$$$     .                               + xarr(i  ,j+1,k,:)*MM2(ijkgl,8,:)
-c$$$     .                               + xarr(i  ,j-1,k,:)*MM2(ijkgl,2,:)
-c$$$     .                               + xarr(i-1,j-1,k,:)*MM2(ijkgl,1,:)
-c$$$     .                               + xarr(i+1,j-1,k,:)*MM2(ijkgl,3,:)
-c$$$     .                               + xarr(i-1,j+1,k,:)*MM2(ijkgl,7,:)
-c$$$     .                               + xarr(i+1,j+1,k,:)*MM2(ijkgl,9,:)
 
             y(neq*(ijk-1)+1:neq*ijk) = xarr(i-1,j-1,k,:)*MM2l(ijk,1,:)
      .                               + xarr(i  ,j-1,k,:)*MM2l(ijk,2,:)

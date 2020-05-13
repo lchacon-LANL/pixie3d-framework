@@ -404,11 +404,56 @@ c     Begin program
      .                                ,x1,x2,x3)
 
         if (vrtx) then
+          call getCurvilinearCoordinates(gl_def,i+1,j,k,igx,igy,igz
+     .                                  ,ig,jg,kg,x1p,x2p,x3p)
+          x1 = x1+x1p
+          x2 = x2+x2p
+          x3 = x3+x3p
+          
+          call getCurvilinearCoordinates(gl_def,i,j+1,k,igx,igy,igz
+     .                                  ,ig,jg,kg,x1p,x2p,x3p)
+          x1 = x1+x1p
+          x2 = x2+x2p
+          x3 = x3+x3p
+
+          call getCurvilinearCoordinates(gl_def,i,j,k+1,igx,igy,igz
+     .                                  ,ig,jg,kg,x1p,x2p,x3p)
+          x1 = x1+x1p
+          x2 = x2+x2p
+          x3 = x3+x3p
+
+          call getCurvilinearCoordinates(gl_def,i+1,j+1,k,igx,igy,igz
+     .                                  ,ig,jg,kg,x1p,x2p,x3p)
+          x1 = x1+x1p
+          x2 = x2+x2p
+          x3 = x3+x3p
+
+          call getCurvilinearCoordinates(gl_def,i+1,j,k+1,igx,igy,igz
+     .                                  ,ig,jg,kg,x1p,x2p,x3p)
+          x1 = x1+x1p
+          x2 = x2+x2p
+          x3 = x3+x3p
+
+          call getCurvilinearCoordinates(gl_def,i,j+1,k+1,igx,igy,igz
+     .                                  ,ig,jg,kg,x1p,x2p,x3p)
+          x1 = x1+x1p
+          x2 = x2+x2p
+          x3 = x3+x3p
+
           call getCurvilinearCoordinates(gl_def,i+1,j+1,k+1,igx,igy,igz
      .                                  ,ig,jg,kg,x1p,x2p,x3p)
-          x1 = 0.5*(x1+x1p)
-          x2 = 0.5*(x2+x2p)
-          x3 = 0.5*(x3+x3p)
+          x1 = x1+x1p
+          x2 = x2+x2p
+          x3 = x3+x3p
+          
+          x1 = 0.125*x1
+          x2 = 0.125*x2
+          x3 = 0.125*x3
+c$$$          call getCurvilinearCoordinates(gl_def,i+1,j+1,k+1,igx,igy,igz
+c$$$     .                                  ,ig,jg,kg,x1p,x2p,x3p)
+c$$$          x1 = 0.5*(x1+x1p)
+c$$$          x2 = 0.5*(x2+x2p)
+c$$$          x3 = 0.5*(x3+x3p)
         endif
 
         if (coords /= 'lpk') then
@@ -541,11 +586,51 @@ c     Begin program
      .                                ,x1,x2,x3)
 
         if (vrtx) then
+          call getCurvilinearCoordinates(gl_def,i+1,j,k,igx,igy,igz
+     .                                  ,ig,jg,kg,x1p,x2p,x3p)
+          x1 = x1+x1p
+          x2 = x2+x2p
+          x3 = x3+x3p
+          
+          call getCurvilinearCoordinates(gl_def,i,j+1,k,igx,igy,igz
+     .                                  ,ig,jg,kg,x1p,x2p,x3p)
+          x1 = x1+x1p
+          x2 = x2+x2p
+          x3 = x3+x3p
+
+          call getCurvilinearCoordinates(gl_def,i,j,k+1,igx,igy,igz
+     .                                  ,ig,jg,kg,x1p,x2p,x3p)
+          x1 = x1+x1p
+          x2 = x2+x2p
+          x3 = x3+x3p
+
+          call getCurvilinearCoordinates(gl_def,i+1,j+1,k,igx,igy,igz
+     .                                  ,ig,jg,kg,x1p,x2p,x3p)
+          x1 = x1+x1p
+          x2 = x2+x2p
+          x3 = x3+x3p
+
+          call getCurvilinearCoordinates(gl_def,i+1,j,k+1,igx,igy,igz
+     .                                  ,ig,jg,kg,x1p,x2p,x3p)
+          x1 = x1+x1p
+          x2 = x2+x2p
+          x3 = x3+x3p
+
+          call getCurvilinearCoordinates(gl_def,i,j+1,k+1,igx,igy,igz
+     .                                  ,ig,jg,kg,x1p,x2p,x3p)
+          x1 = x1+x1p
+          x2 = x2+x2p
+          x3 = x3+x3p
+
           call getCurvilinearCoordinates(gl_def,i+1,j+1,k+1,igx,igy,igz
      .                                  ,ig,jg,kg,x1p,x2p,x3p)
-          x1 = 0.5*(x1+x1p)
-          x2 = 0.5*(x2+x2p)
-          x3 = 0.5*(x3+x3p)
+          x1 = x1+x1p
+          x2 = x2+x2p
+          x3 = x3+x3p
+          
+          x1 = 0.125*x1
+          x2 = 0.125*x2
+          x3 = 0.125*x3
         endif
 
         if (coords /= 'lpk') then
@@ -567,10 +652,7 @@ c     Begin program
               vec = (/ 0d0,0d0,1d0 /)
           end select
         case ('cyl')
-          if (x1 == 0d0) then
-            vec = 0d0
-            return
-          endif
+          if (curv(1) == 0d0) curv(1) = SP_flsv
 
           select case (comp)
             case (1)
@@ -581,14 +663,11 @@ c     Begin program
               vec = (/ 0d0,0d0,1d0 /)
           end select
         case ('hel')
-          if (x1 == 0d0) then
-            vec = 0d0
-            return
-          endif
-
           mm = gp(1)
           kk = gp(2)
           phi = (curv(2)-kk*curv(3))/mm
+
+          if (curv(1) == 0d0) curv(1) = mm*SP_flsv
 
           select case (comp)
             case (1)
@@ -615,10 +694,7 @@ c     Begin program
               vec = (/ 0d0,0d0,1d0 /)
           end select
         case ('tor')
-          if (x1 == 0d0) then
-            vec = 0d0
-            return
-          endif
+          if (curv(1) == 0d0) curv(1) = SP_flsv
 
           major_r = gp(1)
           aa      = gp(2)
@@ -644,10 +720,7 @@ c     Begin program
 ! y = (R0 + r*sum_i(ai*cos(i*theta))*sin(-phi)
 ! z = r*sum_i(bi*sin(i*theta)
 
-          if (x1 == 0d0) then
-            vec = 0d0
-            return
-          endif
+          if (curv(1) == 0d0) curv(1) = SP_flsv
 
           major_r = gp(1)  !Major radius
 
@@ -981,11 +1054,57 @@ c     Begin program
      .                                ,x1,x2,x3)
 
         if (vrtx) then
+          call getCurvilinearCoordinates(gl_def,i+1,j,k,igx,igy,igz
+     .                                  ,ig,jg,kg,x1p,x2p,x3p)
+          x1 = x1+x1p
+          x2 = x2+x2p
+          x3 = x3+x3p
+          
+          call getCurvilinearCoordinates(gl_def,i,j+1,k,igx,igy,igz
+     .                                  ,ig,jg,kg,x1p,x2p,x3p)
+          x1 = x1+x1p
+          x2 = x2+x2p
+          x3 = x3+x3p
+
+          call getCurvilinearCoordinates(gl_def,i,j,k+1,igx,igy,igz
+     .                                  ,ig,jg,kg,x1p,x2p,x3p)
+          x1 = x1+x1p
+          x2 = x2+x2p
+          x3 = x3+x3p
+
+          call getCurvilinearCoordinates(gl_def,i+1,j+1,k,igx,igy,igz
+     .                                  ,ig,jg,kg,x1p,x2p,x3p)
+          x1 = x1+x1p
+          x2 = x2+x2p
+          x3 = x3+x3p
+
+          call getCurvilinearCoordinates(gl_def,i+1,j,k+1,igx,igy,igz
+     .                                  ,ig,jg,kg,x1p,x2p,x3p)
+          x1 = x1+x1p
+          x2 = x2+x2p
+          x3 = x3+x3p
+
+          call getCurvilinearCoordinates(gl_def,i,j+1,k+1,igx,igy,igz
+     .                                  ,ig,jg,kg,x1p,x2p,x3p)
+          x1 = x1+x1p
+          x2 = x2+x2p
+          x3 = x3+x3p
+
           call getCurvilinearCoordinates(gl_def,i+1,j+1,k+1,igx,igy,igz
      .                                  ,ig,jg,kg,x1p,x2p,x3p)
-          x1 = 0.5*(x1+x1p)
-          x2 = 0.5*(x2+x2p)
-          x3 = 0.5*(x3+x3p)
+          x1 = x1+x1p
+          x2 = x2+x2p
+          x3 = x3+x3p
+          
+          x1 = 0.125*x1
+          x2 = 0.125*x2
+          x3 = 0.125*x3
+          
+c$$$          call getCurvilinearCoordinates(gl_def,i+1,j+1,k+1,igx,igy,igz
+c$$$     .                                  ,ig,jg,kg,x1p,x2p,x3p)
+c$$$          x1 = 0.5*(x1+x1p)
+c$$$          x2 = 0.5*(x2+x2p)
+c$$$          x3 = 0.5*(x3+x3p)
         endif
 
         if (coords /= 'lpk') then
@@ -1007,10 +1126,7 @@ c     Begin program
               vec = (/ 0d0,0d0,1d0 /)
           end select
         case ('cyl')
-          if (x1 == 0d0) then
-            vec = 0d0
-            return
-          endif
+          if (curv(1) == 0d0) curv(1) = SP_flsv
 
           select case (comp)
             case (1)
@@ -1021,21 +1137,20 @@ c     Begin program
               vec = (/ 0d0,0d0,1d0 /)/curv(1)
           end select
         case ('hel')
-          if (x1 == 0d0) then
-            vec = 0d0
-            return
-          endif
-
           mm = gp(1)
           kk = gp(2)
-          phi = (curv(2)-aa*curv(3))/mm
+          phi = (curv(2)-kk*curv(3))/mm
+
           select case (comp)
             case (1)
+              if (curv(1) == 0d0) curv(1) = mm*SP_flsv
               vec = (/ cos(phi),sin(phi),0d0 /)*mm/curv(1)
             case (2)
               vec = (/-sin(phi),cos(phi),0d0 /)
             case (3)
-              vec = (/ kk*sin(phi),-kk*cos(phi),mm/curv(1) /)
+              vec=(/kk*sin(phi)*curv(1)/mm,-kk*cos(phi)*curv(1)/mm,1d0/)
+              if (curv(1) == 0d0) curv(1) = mm*SP_flsv
+              vec = vec*mm/curv(1)
           end select
         case ('hl2')
           curv = (/ sign(sqrt(2*abs(x1)),x1),x2,x3 /)
@@ -1053,10 +1168,7 @@ c     Begin program
               vec = (/ aa*sin(phi)*curv(1),-aa*cos(phi)*curv(1),1d0 /)
           end select
         case ('tor')
-          if (x1 == 0d0) then
-            vec = 0d0
-            return
-          endif
+          if (curv(1) == 0d0) curv(1) = SP_flsv
 
           major_r = gp(1)
           aa      = gp(2)
@@ -1084,10 +1196,7 @@ c     Begin program
 ! y = (R0 + r*sum_i(ai*cos(i*theta))*sin(-phi)
 ! z = r*sum_i(bi*sin(i*theta)
 
-          if (x1 == 0d0) then
-            vec = 0d0
-            return
-          endif
+          if (curv(1) == 0d0) curv(1) = SP_flsv
 
           major_r = gp(1)  !Major radius
 
@@ -1390,7 +1499,7 @@ c     #################################################################
 c     -----------------------------------------------------------------
 c     Calculates hessian elements of curvilinear coordinate system in
 c     the covariant basis, i.e., 
-c            hessian[l](i,j) = J^2 <cnv(i)|grad(cov[l])|cnv(j)>
+c            hessian[l](n,m) = J^2 <cnv(n)|grad(cov[l])|cnv(m)>
 c     -----------------------------------------------------------------
 
         implicit none

@@ -16,4 +16,5 @@ SUBDIRS = $(COMMONDIR)/math\
 var_bc_mod.o: var_setup_mod.o
 var_mod.o: var_bc_mod.o
 ADIOS_io_mod.o: var_mod.o
-var_io_mod.o: ADIOS_io_mod.o
+ADIOS2_io_mod.o: var_mod.o
+var_io_mod.o: ADIOS_io_mod.o ADIOS2_io_mod.o
