@@ -35,6 +35,7 @@ ifeq ($(ADIOS),t)
   endif
   MODPATH     += $(ADDMODFLAG)$(ADIOS_HOME)/include
   export ADIOS_CONFIG = adios1.10.0_config.xml
+  export ADIOS_VER
 endif
 
 # ADIOS2 setup
@@ -48,6 +49,7 @@ ifeq ($(ADIOS2),t)
   endif
   MODPATH     += $(ADIOS2_MOD)
   export ADIOS_CONFIG = adios2.5.0_config.xml
+  export ADIOS_VER = $(ADIOS2_VER)
 endif
 
 # HDF5 setup
