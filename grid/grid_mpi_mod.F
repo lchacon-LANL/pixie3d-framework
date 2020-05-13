@@ -1598,7 +1598,8 @@ c     ##############################################################
       implicit none
 
 c     --------------------------------------------------------------
-c     Performs parallel reduction to find global field.
+c     Performs parallel reduction to find global field INCLUDING
+c     ghost cells.
 c     --------------------------------------------------------------
 
 c     Call variables
@@ -1758,7 +1759,8 @@ c     ##############################################################
       implicit none
 
 c     --------------------------------------------------------------
-c     Performs parallel reduction to find global field.
+c     Performs parallel reduction to find global field EXCLUDING
+c     ghost cells.
 c     --------------------------------------------------------------
 
 c     Call variables
@@ -1856,7 +1858,8 @@ c     ##############################################################
       implicit none
 
 c     --------------------------------------------------------------
-c     Performs parallel reduction to find global field.
+c     Performs parallel reduction to find global field INCLUDIN
+c     ghost cells.
 c     --------------------------------------------------------------
 
 c     Call variables
@@ -1983,7 +1986,8 @@ c     ##############################################################
       implicit none
 
 c     --------------------------------------------------------------
-c     Performs parallel reduction to find global field with no BCs.
+c     Performs parallel reduction to find global field EXCLUDING
+c     ghost cells.
 c     --------------------------------------------------------------
 
 c     Call variables
