@@ -9,10 +9,10 @@ c ######################################################################
 
         use HDF5_graphics
 
-#if defined(adios)
-        use ADIOS_graphics
-#elif defined(ADIOS2)
+#if defined(ADIOS2)
         use ADIOS2_graphics
+#else
+        use ADIOS_graphics
 #endif
       contains
 
