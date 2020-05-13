@@ -9,11 +9,8 @@
 
         use ts_setup
 
-#if !defined(ADIOS2) && !defined(adios)
-        ! almost empty mod definition to be able to compile and link
-        character(20) :: adios_fname  ! set in ./plot/defineGraphics.F
+#if defined(ADIOS2)
 
-#else
         use adios2
 
 !       generic constants
