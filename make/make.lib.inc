@@ -106,7 +106,7 @@ MODPATH     += $(ADDMODFLAG)$(COMMONDIR)/contrib/btridiag/lib
 
 # PTRIDIAG (parallel tridiagonal solver) setup
 
-ifeq ($(PTRID),t)
+ifdef BOPT
   CONTRIBLIBS += -L$(COMMONDIR)/contrib/ptridiag/lib -lptrid
 endif
 

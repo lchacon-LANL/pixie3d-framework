@@ -124,10 +124,8 @@ endif
 ifeq ($(PIT),t)
 	$(MAKE) --no-print-directory -e -C contrib/parareal all	
 endif
-ifeq ($(PTRID),t)
 ifdef BOPT
 	$(MAKE) --no-print-directory -e -C contrib/ptridiag lib
-endif
 endif
 
 contrib_clean: ;
