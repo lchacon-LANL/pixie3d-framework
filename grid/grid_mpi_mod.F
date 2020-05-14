@@ -1290,13 +1290,9 @@ c     Begin program
         mpic = MPI_COMM_WORLD
       endif
 
-      psum = sum(vec1)
-
-      if (.not.asm) then
-        lsum = psum
-        call MPI_Allreduce(lsum,psum,1,MPI_DOUBLE_PRECISION
-     .                    ,MPI_SUM,mpic,mpierr)
-      endif
+      lsum = sum(vec1)
+      call MPI_Allreduce(lsum,psum,1,MPI_DOUBLE_PRECISION
+     .                  ,MPI_SUM,mpic,mpierr)
 
       end function psum
 #endif
@@ -1321,8 +1317,6 @@ c     Call variables
 
 c     Local variables
 
-      integer    :: imin,imax,jmin,jmax,kmin,kmax
-     .             ,i,j,k,iii,ieq
       real(8)    :: ldot
 
 c     Begin program
@@ -1330,16 +1324,14 @@ c     Begin program
       dot = dot_product(vec1,vec2)
 
 #if defined(petsc)
-      if (.not.asm) then
-        ldot = dot
-        call MPI_Allreduce(ldot,dot,1,MPI_DOUBLE_PRECISION
-     .                    ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-      endif
+      ldot = dot
+      call MPI_Allreduce(ldot,dot,1,MPI_DOUBLE_PRECISION
+     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
 #endif
 
       end function dot1
 
-c     dot2
+c     dot2 (Needed for FPA)
 c     ###################################################################
       function dot2(vec1,vec2)
 
@@ -1366,11 +1358,9 @@ c     Begin program
       dot2 = dot_product(vec1,vec2)
 
 #if defined(petsc)
-      if (.not.asm) then
-        ldot = dot2
-        call MPI_Allreduce(ldot,dot2,1,MPI_DOUBLE_PRECISION
-     .                    ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-      endif
+      ldot = dot2
+      call MPI_Allreduce(ldot,dot2,1,MPI_DOUBLE_PRECISION
+     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
 #endif
 
       end function dot2
@@ -1409,11 +1399,9 @@ c     Begin program
         mpicomm = MPI_COMM_WORLD
       endif
 
-      if (.not.asm) then
-        ldot = dot3
-        call MPI_Allreduce(ldot,dot3,1,MPI_DOUBLE_PRECISION
-     .                    ,MPI_SUM,mpicomm,mpierr)
-      endif
+      ldot = dot3
+      call MPI_Allreduce(ldot,dot3,1,MPI_DOUBLE_PRECISION
+     .                  ,MPI_SUM,mpicomm,mpierr)
 #endif
 
       end function dot3
@@ -1598,7 +1586,8 @@ c     ##############################################################
       implicit none
 
 c     --------------------------------------------------------------
-c     Performs parallel reduction to find global field.
+c     Performs parallel reduction to find global field INCLUDING
+c     ghost cells.
 c     --------------------------------------------------------------
 
 c     Call variables
@@ -1758,7 +1747,8 @@ c     ##############################################################
       implicit none
 
 c     --------------------------------------------------------------
-c     Performs parallel reduction to find global field.
+c     Performs parallel reduction to find global field EXCLUDING
+c     ghost cells.
 c     --------------------------------------------------------------
 
 c     Call variables
@@ -1856,7 +1846,8 @@ c     ##############################################################
       implicit none
 
 c     --------------------------------------------------------------
-c     Performs parallel reduction to find global field.
+c     Performs parallel reduction to find global field INCLUDIN
+c     ghost cells.
 c     --------------------------------------------------------------
 
 c     Call variables
@@ -1983,7 +1974,8 @@ c     ##############################################################
       implicit none
 
 c     --------------------------------------------------------------
-c     Performs parallel reduction to find global field with no BCs.
+c     Performs parallel reduction to find global field EXCLUDING
+c     ghost cells.
 c     --------------------------------------------------------------
 
 c     Call variables
