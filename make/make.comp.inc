@@ -148,3 +148,5 @@ endif
 ifneq (,$(findstring om,$(OPT)))
 FFLAGS += $(FOPENMP)
 endif
+
+export FFLAGS MODFLAG ADDMODFLAG LDFLAGS PREPROC OPT
