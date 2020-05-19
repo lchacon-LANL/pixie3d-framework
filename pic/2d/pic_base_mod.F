@@ -3075,56 +3075,56 @@ c     Define current
 
 c     find_kin_energy
 c     ############################################################
-      subroutine find_kin_energy(KE,KEn)
+      subroutine find_kin_energy(KE,moms_l)
 
       implicit none
 
 c     Call variables
 
-      real(8) :: KE(:),KEn(:)
+      real(8) :: KE(:)
+      real(8),optional,target :: moms_l(0:,0:,0:,:,0:)
 
 c     Local variables
 
       integer :: isp,nx,ny,nz,nsp,ipc
       real(8),allocatable,dimension(:) :: send_buf,recv_buf
+      real(8),pointer,dimension(:,:,:,:,:) :: momsp
 
 c     Get kinetic energies
 
-      nsp = size(KE)
+      nsp = size(spcs)
 
-      nx = size(moms,1)-2
-      ny = size(moms,2)-2
-      nz = size(moms,3)-2
+      if (PRESENT(moms_l)) then
+        momsp => moms_l
 
-      do isp=1,nsp
-        KE(isp) = 0.5d0*spcs(isp)%m*(
-     .           sum(moms(1:nx,1:ny,1:nz,isp,IS11))
-     .          +sum(moms(1:nx,1:ny,1:nz,isp,IS22))
-     .          +sum(moms(1:nx,1:ny,1:nz,isp,IS33)) )
-        KEn(isp) = 0.5d0*spcs(isp)%m*(
-     .           sum(momsn(1:nx,1:ny,1:nz,isp,IS11))
-     .          +sum(momsn(1:nx,1:ny,1:nz,isp,IS22))
-     .          +sum(momsn(1:nx,1:ny,1:nz,isp,IS33)) )
-      enddo
+        nx = size(momsp,1)-2
+        ny = size(momsp,2)-2
+        nz = size(momsp,3)-2
 
-c$$$      KE = 0d0
-c$$$      do isp=1,nsp
-c$$$         do ipc=nip+1,size(spcs(isp)%pcles)
-c$$$           KE(isp) = KE(isp) + sum(spcs(isp)%pcles(ipc)%w_np
-c$$$     .                            *sum(spcs(isp)%pcles(ipc)%v_np**2,2))
-c$$$         enddo
-c$$$         KE(isp) =  0.5d0*spcs(isp)%m*KE(isp)
-c$$$      enddo
+        do isp=1,nsp
+          KE(isp) = 0.5d0*spcs(isp)%m*(
+     .             sum(momsp(1:nx,1:ny,1:nz,isp,IS11))
+     .            +sum(momsp(1:nx,1:ny,1:nz,isp,IS22))
+     .            +sum(momsp(1:nx,1:ny,1:nz,isp,IS33)) )
+        enddo
+      else
+        KE = 0d0
+        do isp=1,nsp
+          do ipc=nip+1,size(spcs(isp)%pcles)
+            KE(isp) = KE(isp) + sum(spcs(isp)%pcles(ipc)%w_np
+     .                         *sum(spcs(isp)%pcles(ipc)%v_np
+     .                             *spcs(isp)%pcles(ipc)%v_np,2))
+          enddo
+          KE(isp) =  0.5d0*spcs(isp)%m*KE(isp)
+        enddo
+      endif
 
 #if defined(petsc)
-      allocate(send_buf(2*nsp),recv_buf(2*nsp))
+      allocate(send_buf(nsp),recv_buf(nsp))
       send_buf(1:nsp) = KE
-      send_buf(nsp+1:2*nsp) = KEn
-      call MPI_Allreduce(send_buf,recv_buf,2*nsp,MPI_DOUBLE_PRECISION
+      call MPI_Allreduce(send_buf,recv_buf,nsp,MPI_DOUBLE_PRECISION
      .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
       KE = recv_buf(1:nsp)
-      KEn = recv_buf(nsp+1:2*nsp)
-
       deallocate(send_buf,recv_buf)
 #endif
 
