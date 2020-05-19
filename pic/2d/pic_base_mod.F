@@ -2291,18 +2291,18 @@ c     Begin program
 !$omp DO 
         do ip=nip+1,numpcles
 
-          xp = spcs(isp)%pcles(ip)%x_n(:,1)*ihx
-          yp = spcs(isp)%pcles(ip)%x_n(:,2)*ihy
+          xp = spcs(isp)%pcles(ip)%x_np(:,1)*ihx
+          yp = spcs(isp)%pcles(ip)%x_np(:,2)*ihy
 
-          w_pcle = spcs(isp)%pcles(ip)%w_n
+          w_pcle = spcs(isp)%pcles(ip)%w_np
 
-          call xform_pcle_idx(spcs(isp)%pcles(ip)%ijk_n,nxg,i_np,j_np)   
+          call xform_pcle_idx(spcs(isp)%pcles(ip)%ijk_np,nxg,i_np,j_np)   
 
           if (no_map) then
              vcurv = spcs(isp)%pcles(ip)%v_np
           else
-             vcurv = find_vcurv(i_np,j_np,spcs(isp)%pcles(ip)%x_n
-     .                                   ,spcs(isp)%pcles(ip)%v_n)
+             vcurv = find_vcurv(i_np,j_np,spcs(isp)%pcles(ip)%x_np
+     .                                   ,spcs(isp)%pcles(ip)%v_np)
           endif
 
           do i=1,_Npg
@@ -2361,22 +2361,22 @@ c     Begin program
      .                + vcurv(i,3)*Mxy2(il,jl)*w_pcle(i)
 
                  !accumulate v^2 (2nd in x,y)
-                 v2 = spcs(isp)%pcles(ip)%v_n(i,1)
-     .               *spcs(isp)%pcles(ip)%v_n(i,1)
+                 v2 = spcs(isp)%pcles(ip)%v_np(i,1)
+     .               *spcs(isp)%pcles(ip)%v_np(i,1)
 !$omp atomic update
                  mments(i_np(i)-2+il,j_np(i)-2+jl,isp,IS11) = 
      .           mments(i_np(i)-2+il,j_np(i)-2+jl,isp,IS11)
      .                +v2*Mxy2(il,jl)*w_pcle(i)
 
-                 v2 = spcs(isp)%pcles(ip)%v_n(i,2)
-     .               *spcs(isp)%pcles(ip)%v_n(i,2)
+                 v2 = spcs(isp)%pcles(ip)%v_np(i,2)
+     .               *spcs(isp)%pcles(ip)%v_np(i,2)
 !$omp atomic update
                  mments(i_np(i)-2+il,j_np(i)-2+jl,isp,IS22) = 
      .           mments(i_np(i)-2+il,j_np(i)-2+jl,isp,IS22)
      .                +v2*Mxy2(il,jl)*w_pcle(i)
 
-                 v2 = spcs(isp)%pcles(ip)%v_n(i,3)
-     .               *spcs(isp)%pcles(ip)%v_n(i,3)
+                 v2 = spcs(isp)%pcles(ip)%v_np(i,3)
+     .               *spcs(isp)%pcles(ip)%v_np(i,3)
 !$omp atomic update
                  mments(i_np(i)-2+il,j_np(i)-2+jl,isp,IS33) = 
      .           mments(i_np(i)-2+il,j_np(i)-2+jl,isp,IS33)
@@ -2442,18 +2442,18 @@ c     Begin program
 !$omp DO 
         do ip=nip+1,numpcles
 
-          xp = spcs(isp)%pcles(ip)%x_n(:,1)*ihx
-          yp = spcs(isp)%pcles(ip)%x_n(:,2)*ihy
+          xp = spcs(isp)%pcles(ip)%x_np(:,1)*ihx
+          yp = spcs(isp)%pcles(ip)%x_np(:,2)*ihy
 
-          w_pcle = spcs(isp)%pcles(ip)%w_n
+          w_pcle = spcs(isp)%pcles(ip)%w_np
 
-          call xform_pcle_idx(spcs(isp)%pcles(ip)%ijk_n,nxg,i_np,j_np)   
+          call xform_pcle_idx(spcs(isp)%pcles(ip)%ijk_np,nxg,i_np,j_np)   
           
           if (no_map) then
-             vcurv = spcs(isp)%pcles(ip)%v_n
+             vcurv = spcs(isp)%pcles(ip)%v_np
           else
-             vcurv = find_vcurv(i_np,j_np,spcs(isp)%pcles(ip)%x_n
-     .                                   ,spcs(isp)%pcles(ip)%v_n)
+             vcurv = find_vcurv(i_np,j_np,spcs(isp)%pcles(ip)%x_np
+     .                                   ,spcs(isp)%pcles(ip)%v_np)
           endif
 
           do i=1,_Npg
@@ -2479,20 +2479,20 @@ c     Begin program
      .       mments(i_np(i),j_np(i),isp,Ipz ) + vcurv(i,3)*w_pcle(i)
           
              !accumulate v^2
-             v2 = spcs(isp)%pcles(ip)%v_n(i,1)
-     .           *spcs(isp)%pcles(ip)%v_n(i,1)
+             v2 = spcs(isp)%pcles(ip)%v_np(i,1)
+     .           *spcs(isp)%pcles(ip)%v_np(i,1)
 !$omp atomic update
              mments(i_np(i),j_np(i),isp,IS11) = 
      .       mments(i_np(i),j_np(i),isp,IS11) + v2*w_pcle(i)
 
-             v2 = spcs(isp)%pcles(ip)%v_n(i,2)
-     .           *spcs(isp)%pcles(ip)%v_n(i,2)
+             v2 = spcs(isp)%pcles(ip)%v_np(i,2)
+     .           *spcs(isp)%pcles(ip)%v_np(i,2)
 !$omp atomic update
              mments(i_np(i),j_np(i),isp,IS22) = 
      .       mments(i_np(i),j_np(i),isp,IS22) + v2*w_pcle(i)  
 
-             v2 = spcs(isp)%pcles(ip)%v_n(i,3)
-     .           *spcs(isp)%pcles(ip)%v_n(i,3)
+             v2 = spcs(isp)%pcles(ip)%v_np(i,3)
+     .           *spcs(isp)%pcles(ip)%v_np(i,3)
 !$omp atomic update
              mments(i_np(i),j_np(i),isp,IS33) = 
      .       mments(i_np(i),j_np(i),isp,IS33) + v2*w_pcle(i)
@@ -2608,20 +2608,20 @@ c     Begin program
 !$omp DO 
         do ip=nip+1,numpcles
 
-          xp = spcs(isp)%pcles(ip)%x_n(:,1)*ihx
-          yp = spcs(isp)%pcles(ip)%x_n(:,2)*ihy
+          xp = spcs(isp)%pcles(ip)%x_np(:,1)*ihx
+          yp = spcs(isp)%pcles(ip)%x_np(:,2)*ihy
 
-          w_pcle = spcs(isp)%pcles(ip)%w_n
+          w_pcle = spcs(isp)%pcles(ip)%w_np
 
-          call xform_pcle_idx(spcs(isp)%pcles(ip)%ijk_n,nxg,i_np,j_np)   
+          call xform_pcle_idx(spcs(isp)%pcles(ip)%ijk_np,nxg,i_np,j_np)   
 
           i_L = select_bin(spcs(isp)%pcles(ip)%v_np(:,1))
           
           if (no_map) then
              vcurv = spcs(isp)%pcles(ip)%v_np
           else
-             vcurv = find_vcurv(i_np,j_np,spcs(isp)%pcles(ip)%x_n
-     .                                   ,spcs(isp)%pcles(ip)%v_n)
+             vcurv = find_vcurv(i_np,j_np,spcs(isp)%pcles(ip)%x_np
+     .                                   ,spcs(isp)%pcles(ip)%v_np)
           endif
 
           do i=1,_Npg
@@ -2680,22 +2680,22 @@ c     Begin program
      .                + vcurv(i,3)*Mxy2(il,jl)*w_pcle(i)
 
                  !accumulate v^2 (2nd in x,y)
-                 v2 = spcs(isp)%pcles(ip)%v_n(i,1)
-     .               *spcs(isp)%pcles(ip)%v_n(i,1)
+                 v2 = spcs(isp)%pcles(ip)%v_np(i,1)
+     .               *spcs(isp)%pcles(ip)%v_np(i,1)
 !$omp atomic update
                  mments(i_np(i)-2+il,j_np(i)-2+jl,isp,IS11,i_L(i)) = 
      .           mments(i_np(i)-2+il,j_np(i)-2+jl,isp,IS11,i_L(i))
      .                +v2*Mxy2(il,jl)*w_pcle(i)
 
-                 v2 = spcs(isp)%pcles(ip)%v_n(i,2)
-     .               *spcs(isp)%pcles(ip)%v_n(i,2)
+                 v2 = spcs(isp)%pcles(ip)%v_np(i,2)
+     .               *spcs(isp)%pcles(ip)%v_np(i,2)
 !$omp atomic update
                  mments(i_np(i)-2+il,j_np(i)-2+jl,isp,IS22,i_L(i)) = 
      .           mments(i_np(i)-2+il,j_np(i)-2+jl,isp,IS22,i_L(i))
      .                +v2*Mxy2(il,jl)*w_pcle(i)
 
-                 v2 = spcs(isp)%pcles(ip)%v_n(i,3)
-     .               *spcs(isp)%pcles(ip)%v_n(i,3)
+                 v2 = spcs(isp)%pcles(ip)%v_np(i,3)
+     .               *spcs(isp)%pcles(ip)%v_np(i,3)
 !$omp atomic update
                  mments(i_np(i)-2+il,j_np(i)-2+jl,isp,IS33,i_L(i)) = 
      .           mments(i_np(i)-2+il,j_np(i)-2+jl,isp,IS33,i_L(i))
@@ -3377,7 +3377,8 @@ c     Assign particle weights and perform particle accounting
               do i=1,_Npg
                 spcs(isp)%pcles(ip)%w_n(i) = spcs(isp)%pcles(ip)%w_n(i)
      .                                      +solg(i_n(i),j_n(i),1,isp)
-                sump(isp) = sump(isp)+spcs(isp)%pcles(ip)%w_n(i)
+                spcs(isp)%pcles(ip)%w_np(i) = spcs(isp)%pcles(ip)%w_n(i)
+                sump(isp) = sump(isp)+spcs(isp)%pcles(ip)%w_np(i)
               enddo
             end if
           end do
@@ -3399,7 +3400,8 @@ c     Assign particle weights and perform particle accounting
               do i=1,_Npg
                 spcs(isp)%pcles(ip)%w_n(i) = spcs(isp)%pcles(ip)%w_n(i)*
      .                                     (1+solg(i_n(i),j_n(i),1,isp))
-                sump(isp) = sump(isp)+spcs(isp)%pcles(ip)%w_n(i)
+                spcs(isp)%pcles(ip)%w_np(i) = spcs(isp)%pcles(ip)%w_n(i)
+                sump(isp) = sump(isp)+spcs(isp)%pcles(ip)%w_np(i)
               enddo
             end if
           end do
@@ -3545,17 +3547,17 @@ c     Assign particle drift velocity vz (Stardard curvilinear convention, i.e., 
 !$OMP DO
         do ip=1,numpcles
           if(ip.le.nip) then    !reserved inflow particles
-            spcs(isp)%pcles(ip)%v_n (:,3) = 0d0
-            spcs(isp)%pcles(ip)%v_np(:,3) =
+            spcs(isp)%pcles(ip)%v_n (:,IPz) = 0d0
+            spcs(isp)%pcles(ip)%v_np(:,IPz) =
      .           spcs(isp)%pcles(ip)%v_n(:,IPz)
           else
             call xform_pcle_idx(spcs(isp)%pcles(ip)%ijk_n,nxg,i_n,j_n)
             do i=1, _Npg
-              spcs(isp)%pcles(ip)%v_n(i,3) =
+              spcs(isp)%pcles(ip)%v_n(i,IPz) =
      .             spcs(isp)%pcles(ip)%v_n(i,IPz)
      .            + solg(i_n(i),j_n(i),1,isp)
 cc     .                                     -v0_z(isp)
-              spcs(isp)%pcles(ip)%v_np(i,3)=
+              spcs(isp)%pcles(ip)%v_np(i,IPz)=
      .             spcs(isp)%pcles(ip)%v_n(i,Ipz)
             end do
           end if
@@ -3693,15 +3695,15 @@ c     Assign particle drift velocity vz (Stardard curvilinear convention, i.e., 
               if(imp==0.and.bcs(1,isp)==PER) imp = nxg
               xp = spcs(isp)%pcles(ip)%x_n(i,1)*ihx
               if(xp>0.5d0) then
-                 spcs(isp)%pcles(ip)%v_n(i,1) =
+                 spcs(isp)%pcles(ip)%v_n(i,IPx) =
      .                    spcs(isp)%pcles(ip)%v_n(i,IPx)
      .                   +solg(i_n(i),j_n(i),1,isp)
               else
-                 spcs(isp)%pcles(ip)%v_n(i,1) =
+                 spcs(isp)%pcles(ip)%v_n(i,IPx) =
      .                    spcs(isp)%pcles(ip)%v_n(i,IPx)
      .                   +solg(imp   ,j_n(i),1,isp)
               end if
-              spcs(isp)%pcles(ip)%v_np(i,1)
+              spcs(isp)%pcles(ip)%v_np(i,IPx)
      .                  = spcs(isp)%pcles(ip)%v_n(i,IPx)
 	    end do
           end if
@@ -3838,15 +3840,15 @@ c     Assign particle drift velocity vy (Stardard curvilinear convention, i.e., 
               if(jmp==0.and.bcs(3,isp)==PER) jmp = nyg
               yp = spcs(isp)%pcles(ip)%x_n(i,2)*ihy
               if(yp>0.5d0) then
-                 spcs(isp)%pcles(ip)%v_n(i,2) =
+                 spcs(isp)%pcles(ip)%v_n(i,Ipy) =
      .                    spcs(isp)%pcles(ip)%v_n(i,Ipy)
      .                   +solg(i_n(i),j_n(i),1,isp)
               else
-                 spcs(isp)%pcles(ip)%v_n(i,2) =
+                 spcs(isp)%pcles(ip)%v_n(i,Ipy) =
      .                    spcs(isp)%pcles(ip)%v_n(i,Ipy)
      .                   +solg(i_n(i),jmp   ,1,isp)
               end if
-              spcs(isp)%pcles(ip)%v_np(i,2)
+              spcs(isp)%pcles(ip)%v_np(i,Ipy)
      .                  = spcs(isp)%pcles(ip)%v_n(i,Ipy)
 	    end do
           end if
