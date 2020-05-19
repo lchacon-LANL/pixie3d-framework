@@ -1548,3 +1548,5 @@ ifeq ($(HOST),kigal)
     
     # What is CPPFLAGS? is it FFLAGS?
 endif
+
+export FC HOST MACHINE LIBS

@@ -67,6 +67,8 @@ endif
 ifeq ($(ARPACK),t)
   CONTRIBLIBS += $(ARPACK_LIBS)
   CPPFLAGS    += $(PREPROC)arpack
+
+  export ARPACK
 endif
 
 # PETSC setup
@@ -80,6 +82,8 @@ ifdef BOPT
     CPPFLAGS += $(PREPROC)petsc_c
     SNES_OPT = -snes_mf
   endif
+
+  export PETSC_DIR PETSC_ARCH FLINKER PETSC_SNES_LIB BOPT SNES_OPT
 endif
 
 #SAMRAI setup
@@ -94,6 +98,10 @@ ifdef SAMR
   OBJECT=${SAMRAI}
 
   CPPFLAGS += $(PREPROC)samrai
+
+  export CPPFLAGS_EXTRA \
+         CXXFLAGS_EXTRA LDFLAGS_EXTRA LDLIBS_EXTRA SAMR SAMRAI LIBSAMRAI3D LIBSAMRAI \
+         AMRUTILITIES_HOME SAMRSOLVERS_HOME
 endif
 
 # RNG setup
