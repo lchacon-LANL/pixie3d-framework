@@ -2647,7 +2647,7 @@ c     Begin program
 
       numspcs = size(spcs)
 
-      nL = size(mments,5)
+      nL = size(vxL)-1
       
       mments = 0d0
 
@@ -5420,7 +5420,7 @@ c     Call variables
 
       integer :: nxg,nv,isp,ierr
 
-      real(8) :: pdf(0:nxg+1,0:nv+1)
+      real(8) :: pdf(0:nxg+1,nv)
       
       real(8),optional :: vin_min,vin_max,vout_max,vout_min
       
@@ -5430,7 +5430,7 @@ c     Local variables
      .          ,i_np(_Npg),j_np(_Npg),numspcs,numpcles
       real(8) :: ihx,ihy,ihz,hv,ihv,vmax(1),vmin(1)
       real(_prec) :: xp(_Npg),vp(_Npg),w_pcle(_Npg)
-      real(8) :: My2(1,3),Mx2(3,1),Mxy2(3,3)
+      real(8) :: My2(1,3),Mx2(3,1),Mxy2(3,3),ivol
 
       real(8),allocatable,dimension(:) :: send_buf,rec_buf
 
@@ -5475,6 +5475,8 @@ c     Gather 1d-1v PDF
 
       ihv = 1d0/hv
 
+      ivol = ihx*ihv/npcles(isp)
+
 !     note that there is some issue with valgrind and libgomp.
 !$omp parallel DEFAULT(SHARED) private(ip,xp,vp,i_np,j_np,i,iv,il,jl
 !$omp.                                ,Mx2,My2,Mxy2,w_pcle)
@@ -5511,15 +5513,14 @@ c$$$        end where
 #else
           Mxy2(:,:)= matmul(Mx2,My2)
 #endif
-
           do jl=1,3
             do il=1,3
               !Ensure off-limit particles are not counted
-              if ((iv(i)-2+jl)<0.or.(iv(i)-2+jl)>nv+1) cycle
+              if ((iv(i)-2+jl)<1.or.(iv(i)-2+jl)>nv) cycle
 !$omp atomic update
               pdf(i_np(i)-2+il,iv(i)-2+jl) = 
      .              pdf(i_np(i)-2+il,iv(i)-2+jl)
-     .            + max(Mxy2(il,jl)-1d-15,0d0)*w_pcle(i) !Remove round-off
+     .            + max(Mxy2(il,jl)-1d-15,0d0)*w_pcle(i)*ivol !Remove round-off; normalize to unity
             enddo
           enddo
           
@@ -5536,7 +5537,7 @@ c$$$        end where
       call MPI_Allreduce(send_buf,rec_buf,size(send_buf)
      $                    ,MPI_DOUBLE_PRECISION
      .                    ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-      pdf(0:,0:) = reshape(rec_buf,shape(pdf))
+      pdf(0:,:) = reshape(rec_buf,shape(pdf))
       deallocate(send_buf,rec_buf)
 #endif
 
@@ -5589,7 +5590,7 @@ c     Begin program
 
 c     Gather 1d-1v PDF
 
-      allocate(garr(0:nxg+1,0:nv+1))
+      allocate(garr(0:nxg+1,nv))
 
       do isp=1,size(spcs)
 
@@ -5674,16 +5675,13 @@ c     Call variables
 c     Local variables
 
       integer :: isp,ierr,nxg,nyg,nzg,funit,iv
-      real(8) :: xmin,ymin,zmin,xmax,ymax,zmax,vmin,vmax,hv
-     .          ,vm(0:nv+1),f0(0:nv+1)
+      real(8) :: vmin,vmax,hv,vm(nv),f0(nv)
 
       real(8),allocatable,dimension(:,:) :: garr
 
       character(100) :: suffix
 
 c     Begin program
-
-      call get_domain_limits(xmin,xmax,ymin,ymax,zmin,zmax)
 
       call get_global_grid_size(nxg,nyg,nzg)
 
@@ -5695,7 +5693,7 @@ c     Begin program
       
 c     Gather 1d-1v PDF
 
-      allocate(garr(0:nxg+1,0:nv+1))
+      allocate(garr(0:nxg+1,nv))
 
       do isp=1,size(spcs)
 
@@ -5706,11 +5704,11 @@ c     Gather 1d-1v PDF
 
         !Construct UNIFORM cell-centered v-mesh for I/O
         hv = (vmax-vmin)/nv
-        vm(0) = vmin - 0.5*hv
-        do iv=1,nv+1
+        vm(1) = vmin + 0.5*hv
+        do iv=2,nv
           vm(iv) = vm(iv-1) + hv
         enddo
-
+        
         !Dump file (gnuplot-friendly format)
         if (my_rank_pic == 0) then
           suffix = trim(label)//'-sp'//trim(int2char(isp))
@@ -5732,7 +5730,7 @@ cc            write (funit,*)
           endif
 
           write (funit,'(a,1pe9.3)') "time=",time
-          do iv=0,nv+1
+          do iv=1,nv
             write (funit,*) vm(iv),f0(iv)
           enddo
           write (funit,*)
