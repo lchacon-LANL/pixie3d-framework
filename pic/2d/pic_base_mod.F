@@ -5531,7 +5531,7 @@ c$$$        end where
 !$omp end do 
 !$omp end parallel 
 
-     !Reduce in parallel
+     !!Reduce in parallel
 #if defined(petsc)
       allocate(send_buf(size(pdf))
      $         ,rec_buf (size(pdf)))
