@@ -1258,7 +1258,6 @@ c     Call local error handler
 
       end subroutine pstop
 
-#if defined(petsc)
 c     psum
 c     ###################################################################
       function psum(vec1,mpi_comm)
@@ -1284,6 +1283,7 @@ c     Local variables
 
 c     Begin program
 
+#if defined(petsc)
       if (PRESENT(mpi_comm)) then
         mpic = mpi_comm
       else
@@ -1293,9 +1293,11 @@ c     Begin program
       lsum = sum(vec1)
       call MPI_Allreduce(lsum,psum,1,MPI_DOUBLE_PRECISION
      .                  ,MPI_SUM,mpic,mpierr)
+#else
+      psum = sum(vec1)
+#endif
 
       end function psum
-#endif
 
 c     dot
 c     ###################################################################

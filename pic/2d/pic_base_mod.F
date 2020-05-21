@@ -1271,14 +1271,16 @@ c ######################################################################
       use grid_splines
 
       use pic_io, ONLY: nip,spcs
-      
+#if defined(petsc)
+     .          ,MPI_COMM_WORLD,MPI_MIN,MPI_MAX,MPI_DOUBLE_PRECISION
+#endif
+
       use pic_shape_f
 
       use pic_BCs
 
-      use grid, ONLY: createGrid,MPI_COMM_WORLD,MPI_MIN,MPI_MAX
-     .               ,MPI_DOUBLE_PRECISION
-
+      use grid, ONLY: createGrid
+      
       use math
 
       type(grid_mg_def),pointer :: gpicdef => null()
