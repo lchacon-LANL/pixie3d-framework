@@ -5721,7 +5721,7 @@ c     Gather 1d-1v PDF
           if (init) then
             open(unit=funit,file=trim(suffix)//'.txt',status='unknown')
             write (funit,*)"#Gnuplot with:"
-            write (funit,*)'#plot for [i=0:*] "'//trim(suffix)//'.txt"'
+            write (funit,'(a)')' #plot for [i=0:*] "'//trim(suffix)//'.txt"'
      .        //' index i u 1:2 w l t columnheader(1)'
 cc            write (funit,*) nv+2
 cc            write (funit,*)
