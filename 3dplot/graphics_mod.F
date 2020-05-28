@@ -9,8 +9,11 @@ c ######################################################################
 
         use HDF5_graphics
 
+#if defined(ADIOS2)
+        use ADIOS2_graphics
+#else
         use ADIOS_graphics
-
+#endif
       contains
 
 c     initializeGraphics
@@ -112,7 +115,9 @@ c     Initialize ADIOS
 #if defined(adios)
         if (adios_plot) call initializeADIOSPlot
 #endif
-
+#if defined(ADIOS2)
+        if (adios_plot) call initializeADIOS2Plot
+#endif
 ccc     Define application I/O (external)
 cc
 cc      call defineGraphicsIO
@@ -284,7 +289,9 @@ c     Begin program
 #if defined(adios)
         if (adios_plot) call writeADIOSPlotfile
 #endif
-
+#if defined(ADIOS2)
+        if (adios_plot) call writeADIOS2Plotfile
+#endif
 c     End program
 
       end subroutine dumpTimeStepPlots

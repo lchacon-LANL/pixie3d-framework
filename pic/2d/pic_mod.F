@@ -61,14 +61,6 @@ c     Local variables
      .              ,Ep(_Npg,3),Bp(_Npg,3)
      .              ,Ep_avg(_Npg,3),Bp_avg(_Npg,3)
 
-c$$$      real(_prec),allocatable,dimension(:,:) :: garr_n  
-c$$$     $                                         ,garr_vx 
-c$$$     $                                         ,garr_vy 
-c$$$     $                                         ,garr_vz 
-c$$$     $                                         ,garr_vx2
-c$$$     $                                         ,garr_vy2
-c$$$     $                                         ,garr_vz2
-
       real(_prec) :: My2(_Npg,1,3),Mx2(_Npg,3,1),My1(_Npg,1,2)
       real(_prec) :: Mx1(_Npg,2,1),Mxy2(_Npg,3,3)
       real(_prec) :: M_w_prod(_Npg,3,3),dum1(_Npg,3),dum2(_Npg,3)
@@ -84,14 +76,6 @@ c$$$     $                                         ,garr_vz2
 
       real(_prec) :: work
 c     Begin program
-
-c$$$      allocate(garr_n  (0:size(A,1)-1,0:size(A,2)-1)
-c$$$     $        ,garr_vx (0:size(A,1)-1,0:size(A,2)-1)
-c$$$     $        ,garr_vy (0:size(A,1)-1,0:size(A,2)-1)
-c$$$     $        ,garr_vz (0:size(A,1)-1,0:size(A,2)-1)
-c$$$     $        ,garr_vx2(0:size(A,1)-1,0:size(A,2)-1)
-c$$$     $        ,garr_vy2(0:size(A,1)-1,0:size(A,2)-1)
-c$$$     $        ,garr_vz2(0:size(A,1)-1,0:size(A,2)-1))
 
 c     Particle pusher timer - C. Mikida, 05/16
 
@@ -138,16 +122,6 @@ c     Move particles
 
          ntot_pcles = ntot_pcles + (numpcles - nip)
 
-c$$$         garr_n = 0d0
-c$$$
-c$$$         garr_vx = 0d0
-c$$$         garr_vy = 0d0
-c$$$         garr_vz = 0d0
-c$$$
-c$$$         garr_vx2= 0d0
-c$$$         garr_vy2= 0d0
-c$$$         garr_vz2= 0d0
-
          m_sp = spcs(isp)%m
          q_sp = spcs(isp)%q
 
@@ -161,8 +135,6 @@ c$$$         garr_vz2= 0d0
 !$         call set_omp_thread_id()
 !$omp DO SCHEDULE (DYNAMIC,4)
 !$omp.reduction(+:pml
-c$$$!$omp.reduction(+:garr_n,garr_vx,garr_vy,garr_vz
-c$$$!$omp.           ,garr_vx2,garr_vy2,garr_vz2,pml
 #if defined(PIC_CM_DIAG)        
 !$omp.           ,cmex,cml
 #endif
@@ -336,33 +308,6 @@ cc             work=work+Ep(1,1)*dx(1,1)+Ep(1,2)*dx(1,2)+Ep(1,3)*dx(1,3)
      $                          +matmul(Mx2(k,:,:),My2(k,:,:))
 #endif
 
-c$$$#ifdef __GNU
-c$$$                !accumulate vx (linear in x, 2nd in y)
-c$$$                garr_vx(i(k)-1:i(k)  ,j(k)-1:j(k)+1) = 
-c$$$     .          garr_vx(i(k)-1:i(k)  ,j(k)-1:j(k)+1) + 
-c$$$     .          dx(k,1)*opt_vecvec_23(Mx1(k,:,:),My2(k,:,:))*w_pcle(k)
-c$$$
-
-c$$$  !accumulate vy (linear in y, 2nd in x)
-c$$$                garr_vy(i(k)-1:i(k)+1,j(k)-1:j(k)) = 
-c$$$     .          garr_vy(i(k)-1:i(k)+1,j(k)-1:j(k)) + 
-c$$$     .          dx(k,2)*opt_vecvec_32(Mx2(k,:,:),My1(k,:,:))*w_pcle(k)
-c$$$#else                
-c$$$                !accumulate vx (linear in x, 2nd in y)
-c$$$                garr_vx(i(k)-1:i(k)  ,j(k)-1:j(k)+1) = 
-c$$$     .          garr_vx(i(k)-1:i(k)  ,j(k)-1:j(k)+1) + 
-c$$$     .          dx(k,1)*matmul(Mx1(k,:,:),My2(k,:,:))*w_pcle(k)
-c$$$
-c$$$                !accumulate vy (linear in y, 2nd in x)
-c$$$                garr_vy(i(k)-1:i(k)+1,j(k)-1:j(k)) = 
-c$$$     .          garr_vy(i(k)-1:i(k)+1,j(k)-1:j(k)) +
-c$$$     .          dx(k,2)*matmul(Mx2(k,:,:),My1(k,:,:))*w_pcle(k)
-c$$$#endif
-c$$$                !accumulate vz (2nd in x,y)
-c$$$                garr_vz(i(k)-1:i(k)+1,j(k)-1:j(k)+1) =
-c$$$     .          garr_vz(i(k)-1:i(k)+1,j(k)-1:j(k)+1) +
-c$$$     .          dx(k,3)*Mxy2(k,:,:)*w_pcle(k)
-
 #ifdef __GNU
                 dum23 = opt_vecvec_23(Mx1(k,:,:),My2(k,:,:))
                 dum32 = opt_vecvec_32(Mx2(k,:,:),My1(k,:,:))
@@ -486,30 +431,11 @@ cc          spcs(isp)%pcles(ipc)%v_np   = pcle_nu%v_np
            enddo
 
            !Do NOT put SIMD statement, reduction!!!!
-           v0 = pcle_nu%v_n
-           call xform_pcle_idx(pcle_nu%ijk_n,nxg,i0,j0)
+           v0 = pcle_nu%v_n                             !Local register, equal to v_np after loop
+           call xform_pcle_idx(pcle_nu%ijk_n,nxg,i0,j0) !Local register, equal to ijk_np after loop
 
            !Do NOT vectorize: memory race issues
            do k=1,_Npg
-c$$$              !accumulate n (quadratic in x,y)
-c$$$              garr_n(i0(k)-1:i0(k)+1,j0(k)-1:j0(k)+1) = 
-c$$$     .        garr_n(i0(k)-1:i0(k)+1,j0(k)-1:j0(k)+1) + M_w_prod(k,:,:)
-c$$$
-c$$$              !accumulate v^2 (2nd in x,y, cell-centered)
-c$$$              v2(k) = v0(k,1)*v0(k,1)
-c$$$              garr_vx2(i0(k)-1:i0(k)+1,j0(k)-1:j0(k)+1) = 
-c$$$     .        garr_vx2(i0(k)-1:i0(k)+1,j0(k)-1:j0(k)+1) + 
-c$$$     .                             v2(k)*M_w_prod(k,:,:)
-c$$$
-c$$$              v2(k) = v0(k,2)*v0(k,2)
-c$$$              garr_vy2(i0(k)-1:i0(k)+1,j0(k)-1:j0(k)+1) = 
-c$$$     .        garr_vy2(i0(k)-1:i0(k)+1,j0(k)-1:j0(k)+1) + 
-c$$$     .                             v2(k)*M_w_prod(k,:,:)
-c$$$
-c$$$              v2(k) = v0(k,3)*v0(k,3)
-c$$$              garr_vz2(i0(k)-1:i0(k)+1,j0(k)-1:j0(k)+1) = 
-c$$$     .        garr_vz2(i0(k)-1:i0(k)+1,j0(k)-1:j0(k)+1) + 
-c$$$     .                             v2(k)*M_w_prod(k,:,:)
              do jl=1,3
                do il=1,3
                  !accumulate n (quadratic in x,y)
@@ -566,15 +492,6 @@ c$$$     .                             v2(k)*M_w_prod(k,:,:)
 
          !orbit-averaged
          moms_g(:,:,1,isp,Ipx:Ipz) = moms_g(:,:,1,isp,Ipx:Ipz)*idtx
-c$$$         moms_g(:,:,1,isp,Ipx) = garr_vx/dtx
-c$$$         moms_g(:,:,1,isp,Ipy) = garr_vy/dtx
-c$$$         moms_g(:,:,1,isp,Ipz) = garr_vz/dtx
-c$$$
-c$$$         !non-orbit-averaged
-c$$$         moms_g(:,:,1,isp,Ins ) = garr_n !careful        
-c$$$         moms_g(:,:,1,isp,IS11) = garr_vx2
-c$$$         moms_g(:,:,1,isp,IS22) = garr_vy2
-c$$$         moms_g(:,:,1,isp,IS33) = garr_vz2
 
       end do                    !species
 c$$$      print *, "particle energy balance=",work
@@ -1233,7 +1150,6 @@ c     End program
 
       end subroutine Boris_solve
 
-      
 c     scatter_fields_nomap
 c     ######################################################################
       subroutine scatter_fields_nomap(x0,dtau,dx,A_1,A_2,A_3

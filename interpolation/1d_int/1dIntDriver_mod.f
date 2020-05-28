@@ -82,12 +82,7 @@ c     Begin program
 
         if (   maxval(x1) > maxval(x)
      .     .or.minval(x1) < minval(x)) then  !Extrapolation needed
-          if (derv > 1) then
-            messg = 'Cannot compute this order derivative'
-            call sstop(0,'IntDriver1d',messg)
-          else
-            call cubic_int
-          endif
+          call cubic_int
         else
           call slatec
         endif

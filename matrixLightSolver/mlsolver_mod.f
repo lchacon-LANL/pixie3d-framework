@@ -120,7 +120,9 @@ c     Local variables
 
 c     solverOptionsInit
 c     ###################################################################
-        subroutine solverOptionsInit
+      subroutine solverOptionsInit(solverOptions)
+
+          type(solver_options) :: solverOptions
 
 c       Initializes solver options
 
@@ -319,12 +321,18 @@ c       Deallocates solver queue
      
 c     assembleSolverHierarchy
 c     ###################################################################
-        subroutine assembleSolverHierarchy (solver)
+        subroutine assembleSolverHierarchy (solver,solverOptions)
 
 c       Assembles solver queue
 
+        !Call variables
+
           character*2 :: solver
 
+          type(solver_options) :: solverOptions
+
+        !Local variables
+          
           type (solver_unit) :: solver_def
 
         !Begin
@@ -368,11 +376,12 @@ c       Modifies solver definition at depth 'depth' in solver hierarchy
 
 c     getSolverOptions
 c     ###################################################################
-        subroutine getSolverOptions(depth)
+        subroutine getSolverOptions(depth,solverOptions)
 
 c       Gets solver options at depth 'depth'
 
           integer :: depth
+          type (solver_options) :: solverOptions
           type (solver_unit) :: solver_def
 
         !Begin
