@@ -44,38 +44,23 @@ c     Call variables
 
 c     Local variables
 
-      integer :: ipc,isp,i0(_Npg),j0(_Npg),i(_Npg),j(_Npg)
-      integer :: im,it,k,psh_sum,il,jl
+      integer :: ipc,isp
+      integer :: im,it,k,psh_sum
      .          ,pits,pit_sum
      .          ,psts,pst_sum,pit
-      integer(8) :: pitmax,pstmax
       integer :: numpcles,numspcs,nxg,nyg,nzg
-      real(_prec) :: d_x (_Npg,3)
-      real(_prec) :: v_np(_Npg,3)
-      real(_prec) :: x_nh(_Npg,3)
+      integer(8) :: pitmax,pstmax
 
+      real(_prec) :: dx(_Npg,3),d_x(_Npg,3)
       real(_prec) :: dt_sub(_Npg),dtp(_Npg)
-      real(_prec) :: v0(_Npg,3),dx(_Npg,3)
-      real(_prec) :: xp(_Npg),yp(_Npg),xfp(_Npg),yfp(_Npg)
-     .              ,v2(_Npg),w_pcle(_Npg),m_sp,q_sp
-     .              ,Ep(_Npg,3),Bp(_Npg,3)
+      real(_prec) :: Ep(_Npg,3),Bp(_Npg,3)
      .              ,Ep_avg(_Npg,3),Bp_avg(_Npg,3)
-
-      real(_prec) :: My2(_Npg,1,3),Mx2(_Npg,3,1),My1(_Npg,1,2)
-      real(_prec) :: Mx1(_Npg,2,1),Mxy2(_Npg,3,3)
-      real(_prec) :: M_w_prod(_Npg,3,3),dum1(_Npg,3),dum2(_Npg,3)
-     .              ,dum23(2,3),dum32(3,2)
-
-      real(_prec) :: rhon,rho,jip,ji,ecc,cml(3),pml(3),cmex(3)
-     .              ,lacc(9),gacc(9)
-
+      real(_prec) :: m_sp,q_sp,cml(3),pml(3),cmex(3),lacc(9),gacc(9)
       real(_prec) :: dtv,dtx,idtx
       real(8) :: ihx,ihy,ihz
 
       type(particle) :: pcle_nu
-
-      real(_prec) :: work
-      
+    
 c     Begin program
 
 c     Particle pusher timer - C. Mikida, 05/16
@@ -109,7 +94,7 @@ c     Move particles
       psh_sum = 0
       pst_sum = 0
       pit_sum = 0
-      pitmax  = 0
+      pitmax  = 3
       pstmax  = 0
 
       numspcs = size(spcs)
@@ -117,7 +102,6 @@ c     Move particles
       ntot_pcles = 0
 
       moms_g = 0d0
-      work = 0      
       do isp=1, numspcs
          numpcles = size(spcs(isp)%pcles)
 
@@ -127,11 +111,8 @@ c     Move particles
          q_sp = spcs(isp)%q
 
 !     note that there is some issue with valgrind and libgomp.
-!$omp parallel DEFAULT(SHARED) private(ipc,it,v0,v2,dtp,dt_sub
-!$omp.              ,d_x,dx,xp,yp,xfp,yfp,x_nh,dum1,dum2,il,jl
-!$omp.              ,i,j,k,i0,j0,Mx1,Mx2,My1,My2,Mxy2,w_pcle
-!$omp.              ,psts,M_w_prod,pits,pcle_nu,dum23,dum32
-!$omp.              ,Ep,Bp,Ep_avg,Bp_avg,work,pit)
+!$omp parallel DEFAULT(SHARED) private(ipc,it,dtp,dt_sub
+!$omp.         ,d_x,dx,psts,pits,pcle_nu,Ep,Bp,Ep_avg,Bp_avg,pit)
 !$         call set_omp_thread_id()
 !$omp DO SCHEDULE (DYNAMIC,4)
 !$omp.reduction(+:pml
@@ -139,37 +120,42 @@ c     Move particles
 !$omp.           ,cmex,cml
 #endif
 !$omp.           ,pst_sum,psh_sum,pit_sum)
-!$omp.reduction(max:pitmax,pstmax)
+!$omp.reduction(max:pstmax)
          do ipc=nip+1,numpcles
 
-           !Predictor step for final pcle velocity
-           do pit = 1, 2
+           !Picard iteration loop
+           do pit = 1, pitmax
              
              pcle_nu%ijk_n = spcs(isp)%pcles(ipc)%ijk_n
              pcle_nu%x_n   = spcs(isp)%pcles(ipc)%x_n
              pcle_nu%v_n   = spcs(isp)%pcles(ipc)%v_n
              pcle_nu%w_n   = spcs(isp)%pcles(ipc)%w_n
+
              Ep_avg = 0d0
              Bp_avg = 0d0
+             it = 0
 
 #if defined(PIC_CM_DIAG)
-             d_x = 0d0
+             if(pit==pitmax) d_x = 0d0
 #endif
              dtp = dtx
 
              do while(maxval(dtp)>0)
+               it = it+1
+               
                !Find pcle position update w/ given velocity
                call update_pcle_position(spcs(isp)%q_m,pcle_nu
-     .                                  ,spcs(isp)%pcles(ipc)
+     $                                  ,spcs(isp)%pcles(ipc)
      $                                  ,dt,dtp,dt_sub
      $                                  ,DtA,B0,A,phi,dx
      $                                  ,psts,Ep,Bp)
-
+#if defined(PIC_CM_DIAG)
+               !accumulate particle displacement (for diagnose canonical mom conservation)
+               if(pit==pitmax) d_x = d_x + dx
+#endif
                !Update pcle counters
                pst_sum = pst_sum + 1    !Particle substep counter
-
                pit_sum = pit_sum + 1    !Total number of picard iterations
-
                psh_sum = psh_sum + psts !Total number of particle pushes (including ALL picard iterations)
 
                !Accumulate fields
@@ -180,6 +166,9 @@ c     Move particles
                Bp_avg(:,2) = Bp_avg(:,2) + Bp(:,2)*dt_sub(:)
                Bp_avg(:,3) = Bp_avg(:,3) + Bp(:,3)*dt_sub(:)
 
+               !Gather ORBIT AVERAGED moments (only in last picard iteration)
+               if(pit==pitmax) call gather_orbit_avg_moments(pcle_nu,dx)
+
                !Prepare for next substep (except new-time velocity)
                pcle_nu%ijk_n = pcle_nu%ijk_np
                pcle_nu%x_n   = pcle_nu%x_np
@@ -189,16 +178,15 @@ c     Move particles
 
              end do             !sub-stepping
 
-             !Find average pcle velocity w/ averaged fields
-             Ep_avg = Ep_avg/dt
-             Bp_avg = Bp_avg/dt
+             !Find new-time pcle velocity w/ averaged fields
+             Ep_avg = Ep_avg*idtx
+             Bp_avg = Bp_avg*idtx
           
              call update_pcle_vel(spcs(isp)%q_m
      .                           ,pcle_nu%v_n
      $                           ,pcle_nu%v_np
      .                           ,dt,Ep_avg,Bp_avg)
 
-             !(LC: added, bug??)
              pcle_nu%v_np = pcle_nu%v_n + 2d0*(pcle_nu%v_np-pcle_nu%v_n)
 
              !Update final pcle quantities
@@ -207,88 +195,14 @@ c     Move particles
              spcs(isp)%pcles(ipc)%x_np   = pcle_nu%x_np   
              spcs(isp)%pcles(ipc)%w_np   = pcle_nu%w_np
 
-           end do
-           
-c$$$           pcle_nu%v_np = spcs(isp)%pcles(ipc)%v_np  (LC: removed, bug??)
-
-           !Corrector step (accumulates orbit-averaged and final-time moments)
-           pcle_nu%ijk_n = spcs(isp)%pcles(ipc)%ijk_n
-           pcle_nu%x_n   = spcs(isp)%pcles(ipc)%x_n
-           pcle_nu%v_n   = spcs(isp)%pcles(ipc)%v_n
-           pcle_nu%w_n   = spcs(isp)%pcles(ipc)%w_n
-          
-           Ep_avg = 0d0
-           Bp_avg = 0d0
-           it = 0
-
-#if defined(PIC_CM_DIAG)
-           d_x = 0d0
-#endif
-           dtp = dtx
-
-           do while(maxval(dtp)>0)
-             it = it+1
-
-             !Perform pcle substep with given velocity
-             call update_pcle_position(spcs(isp)%q_m,pcle_nu
-     .                                ,spcs(isp)%pcles(ipc)
-     $                                ,dt,dtp,dt_sub
-     $                                ,DtA,B0,A,phi,dx
-     $                                ,psts,Ep,Bp)
-
-#if defined(PIC_CM_DIAG)
-             !accumulate particle displacement (for diagnose canonical mom conservation)
-             d_x = d_x + dx
-#endif
-
-             Ep_avg(:,1) = Ep_avg(:,1) + Ep(:,1)*dt_sub(:)
-             Ep_avg(:,2) = Ep_avg(:,2) + Ep(:,2)*dt_sub(:)
-             Ep_avg(:,3) = Ep_avg(:,3) + Ep(:,3)*dt_sub(:)
-             Bp_avg(:,1) = Bp_avg(:,1) + Bp(:,1)*dt_sub(:)
-             Bp_avg(:,2) = Bp_avg(:,2) + Bp(:,2)*dt_sub(:)
-             Bp_avg(:,3) = Bp_avg(:,3) + Bp(:,3)*dt_sub(:)
-
-             !Update pcle counters
-             pst_sum = pst_sum + 1      !Particle substep counter
-
-             pit_sum = pit_sum + 1      !Total number of picard iterations
-
-             psh_sum = psh_sum + psts   !Total number of particle pushes (including ALL picard iterations)
-
-             !Gather ORBIT AVERAGED moments
-             call compute_orbit_avg_moments(pcle_nu,dx)
-                  
-             !Prepare for next substep
-             pcle_nu%ijk_n = pcle_nu%ijk_np
-             pcle_nu%x_n   = pcle_nu%x_np
-             pcle_nu%w_n   = pcle_nu%w_np
-
-             dtp = dtp-dt_sub
-
-           end do               !sub-stepping
-
-           !Find new-time pcle velocity with averaged fields
-           Ep_avg = Ep_avg/dt
-           Bp_avg = Bp_avg/dt
-          
-           call update_pcle_vel(spcs(isp)%q_m
-     .                         ,pcle_nu%v_n
-     $                         ,pcle_nu%v_np
-     .                         ,dt,Ep_avg,Bp_avg)
-
-           pcle_nu%v_np = pcle_nu%v_n + 2d0*(pcle_nu%v_np-pcle_nu%v_n)
-
-           !Store final-time pcle properties
-           spcs(isp)%pcles(ipc)%v_np   = pcle_nu%v_np
-           spcs(isp)%pcles(ipc)%ijk_np = pcle_nu%ijk_np 
-           spcs(isp)%pcles(ipc)%x_np   = pcle_nu%x_np   
-           spcs(isp)%pcles(ipc)%w_np   = pcle_nu%w_np   
-
-           !Maximum number of substeps per timestep
-           pstmax  = max(it,pstmax)
+             !Maximum number of substeps per timestep
+             pstmax  = max(it,pstmax)
              
-           !Compute NEW TIME moments
-           call compute_new_time_moments(pcle_nu)
+             !Compute NEW TIME moments (only in last picard iteration)
+             if(pit==pitmax)
+     .            call gather_new_time_moments(pcle_nu,d_x,pml,cml,cmex)
+
+           end do
            
          end do                 !particles
 !$omp end do 
@@ -404,9 +318,9 @@ c     Begin program
 
       end subroutine update_pcle_vel
 
-c     compute_orbit_avg_moments
+c     gather_orbit_avg_moments
 c     ######################################################################
-      subroutine compute_orbit_avg_moments(pcle_nu,dx)
+      subroutine gather_orbit_avg_moments(pcle_nu,dx)
 
       implicit none
 
@@ -518,17 +432,18 @@ c     Begin program
              
       end do
 
-      end subroutine compute_orbit_avg_moments
+      end subroutine gather_orbit_avg_moments
 
-c     compute_new_time_moments
+c     gather_new_time_moments
 c     ######################################################################
-      subroutine compute_new_time_moments(pcle_nu)
+      subroutine gather_new_time_moments(pcle_nu,d_x,pml,cml,cmex)
 
       implicit none
 
 c     Call variables
 
       type(particle) :: pcle_nu
+      real(_prec) :: d_x(_Npg,3),pml(3),cml(3),cmex(3)
 
 c     Local variables
 
@@ -618,7 +533,7 @@ c     Begin program
 #endif
       end do 
 
-      end subroutine compute_new_time_moments
+      end subroutine gather_new_time_moments
       
       end subroutine pic_mover_2d
 
