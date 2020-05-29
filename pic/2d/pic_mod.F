@@ -57,7 +57,7 @@ c     Local variables
      .              ,Ep_avg(_Npg,3),Bp_avg(_Npg,3)
       real(_prec) :: m_sp,q_sp,cml(3),pml(3),cmex(3),lacc(9),gacc(9)
       real(_prec) :: dtv,dtx,idtx
-      real(8) :: ihx,ihy,ihz
+      real(8) :: ihx,ihy,ihz,q_m
 
       type(particle) :: pcle_nu
     
@@ -109,6 +109,7 @@ c     Move particles
 
          m_sp = spcs(isp)%m
          q_sp = spcs(isp)%q
+         q_m  = spcs(isp)%q_m
 
 !     note that there is some issue with valgrind and libgomp.
 !$omp parallel DEFAULT(SHARED) private(ipc,it,dtp,dt_sub
@@ -123,6 +124,8 @@ c     Move particles
 !$omp.reduction(max:pstmax)
          do ipc=nip+1,numpcles
 
+           pcle_nu%v_np  = spcs(isp)%pcles(ipc)%v_np
+             
            !Picard iteration loop
            do pit = 1, pitmax
              
@@ -144,11 +147,9 @@ c     Move particles
                it = it+1
                
                !Find pcle position update w/ given velocity
-               call update_pcle_position(spcs(isp)%q_m,pcle_nu
-     $                                  ,spcs(isp)%pcles(ipc)
-     $                                  ,dt,dtp,dt_sub
-     $                                  ,DtA,B0,A,phi,dx
-     $                                  ,psts,Ep,Bp)
+               call update_pcle_position(pcle_nu,dt,dtp,dt_sub
+     $                                  ,DtA,B0,A,phi,dx,psts,Ep,Bp)
+               
 #if defined(PIC_CM_DIAG)
                !accumulate particle displacement (for diagnose canonical mom conservation)
                if(pit==pitmax) d_x = d_x + dx
@@ -182,18 +183,12 @@ c     Move particles
              Ep_avg = Ep_avg*idtx
              Bp_avg = Bp_avg*idtx
           
-             call update_pcle_vel(spcs(isp)%q_m
+             call update_pcle_vel(q_m
      .                           ,pcle_nu%v_n
      $                           ,pcle_nu%v_np
      .                           ,dt,Ep_avg,Bp_avg)
 
              pcle_nu%v_np = pcle_nu%v_n + 2d0*(pcle_nu%v_np-pcle_nu%v_n)
-
-             !Update final pcle quantities
-             spcs(isp)%pcles(ipc)%v_np   = pcle_nu%v_np
-             spcs(isp)%pcles(ipc)%ijk_np = pcle_nu%ijk_np 
-             spcs(isp)%pcles(ipc)%x_np   = pcle_nu%x_np   
-             spcs(isp)%pcles(ipc)%w_np   = pcle_nu%w_np
 
              !Maximum number of substeps per timestep
              pstmax  = max(it,pstmax)
@@ -203,7 +198,13 @@ c     Move particles
      .            call gather_new_time_moments(pcle_nu,d_x,pml,cml,cmex)
 
            end do
-           
+
+           !Update final pcle quantities
+           spcs(isp)%pcles(ipc)%v_np   = pcle_nu%v_np
+           spcs(isp)%pcles(ipc)%ijk_np = pcle_nu%ijk_np 
+           spcs(isp)%pcles(ipc)%x_np   = pcle_nu%x_np   
+           spcs(isp)%pcles(ipc)%w_np   = pcle_nu%w_np
+
          end do                 !particles
 !$omp end do 
 !$omp end parallel 
@@ -539,7 +540,7 @@ c     Begin program
 
 c     update_pcle_position
 c     ##################################################################
-      subroutine update_pcle_position (q_m,pcle_nu,pcle,dt,dtp,dt_sub
+      subroutine update_pcle_position(pcle_nu,dt,dtp,dt_sub
      $                               ,DtA,B0,A,phi,dx,substeps,Ep,Bp)
 
       implicit none
@@ -547,9 +548,9 @@ c     ##################################################################
 c     Call variables
 
       type(particle), intent(inout) :: pcle_nu
-      type(particle), intent(inout) :: pcle
+cc      type(particle), intent(inout) :: pcle
 
-      real(8),intent(in) :: dt,q_m
+      real(8),intent(in) :: dt
       real(8),intent(in) :: A(0:,0:,:),phi(0:,0:),DtA(0:,0:,:),B0(3)
 
       real(_prec),intent(inout) :: dtp(_Npg)
@@ -565,26 +566,8 @@ c     Local variables
 
       real(8) :: ihx,ihy,ihz,hx,hy,hz
 
-      real(_prec) :: rx(_Npg),ry(_Npg),rz(_Npg)
-
       real(_prec), parameter :: eps  = 1d-12 !Buffer for dt computation in pcle Xing
      .                         ,eps2 = 1d-10 !1d-8  !Buffer for pcle Xing
-
-      real(_prec) :: ptola,alpha=0d0!,dt_coeff=62.8 !31.4 !25.12 !12.56 !6.28 !3.14 !1.256 !0.2
-
-      real(_prec) :: am(_Npg,_Dim)
-
-      real(_prec) :: x_k(_Npg),x_nh(_Npg),y_nh(_Npg),d_err(_Npg)
-      real(_prec) :: dx_k(_Npg,3),vh_k(_Npg,3),dx_err
-      
-      real(_prec) :: ac0(_Npg,3),v0curv(_Npg,3),vh(_Npg,3),vhes(_Npg,3)
-     $              ,vhcurv(_Npg,3)
-
-      real(_prec) :: Omegac(_Npg),omb(_Npg),qm(_Npg)
-     $              ,Bmax(_Npg),vdotB(_Npg)
-
-      real(_prec) :: xnp(_Npg),ynp(_Npg)
-      real(_prec) :: dxl(_Npg,2),dxr(_Npg,2)
 
       real(_prec) :: DtA_1 (_Npg,2,3),DtA_2 (_Npg,3,2),DtA_3 (_Npg,3,3)
       real(_prec) :: A_1   (_Npg,2,3),A_2   (_Npg,3,2),A_3   (_Npg,3,3)
@@ -592,15 +575,8 @@ c     Local variables
 
       real(_prec) :: phi_loc(_Npg,3,3),xnp_loc(_Npg,3),vnp_loc(_Npg,3)
       real(_prec) :: x0_loc(_Npg,3),v0_loc(_Npg,3),wp_loc(_Npg)
-      real(_prec) :: x0p(_Npg),y0p(_Npg)
-      real(_prec) :: Sx2_o(_Npg,3),Sy2_o(_Npg,3)
-      real(_prec) :: dteq0(_Npg)
 
 c     Begin program
-
-      qm = q_m
-
-      dteq0 = 0d0
 
       call get_global_grid_size(nxg,nyg,nzg)
       call get_inverse_h(ihx,ihy,ihz)
@@ -611,8 +587,8 @@ c     Initialize local registers
       call xform_pcle_idx(pcle_nu%ijk_n,nxg,i0,j0)
 
       x0_loc = pcle_nu%x_n
-      v0_loc = pcle_nu%v_n
       wp_loc = pcle_nu%w_n
+      v0_loc = 0.5d0*(pcle_nu%v_n+pcle_nu%v_np)
 
 c     Also define some insets of arrays for later use (C. Mikida)
 
@@ -635,13 +611,11 @@ c     Also define some insets of arrays for later use (C. Mikida)
          E_3(i,:,:) =-DtA_3(i,:,:)
       end do
 
-c     Estimate sub-time-step 
-
+c     Find dx
+      
       dt_sub = dtp
 
-c     Find dx
-
-      call find_dx(0.5d0*(pcle%v_n+pcle%v_np),dt_sub,dx)
+      call find_dx(v0_loc,dt_sub,dx)  !This may change dt_sub
 
 c     Scatter fields
 
@@ -666,7 +640,7 @@ c     Cell crossing and particle b.c.
 
       call cell_crossing(dx,xnp_loc,vnp_loc,inp_loc,jnp_loc,wp_loc)
 
-c     Update particle registers
+c     Update particle registers (except new-time velocity)
 
       pcle_nu%ijk_np = inp_loc + nxg*(jnp_loc - 1)
       pcle_nu%x_np = xnp_loc
@@ -688,8 +662,8 @@ c     Call variables
 
 c     Local variables
 
-      real(_prec) :: dx_pn,dv_pn(_Npg),vha(_Npg),ama(_Npg),am(_Npg,_Dim)
-      real(_prec) :: vhcurv_inv(_Npg,3)
+      real(_prec) :: vhcurv(_Npg,3),vhcurv_inv(_Npg,3)
+      real(_prec) :: dxl(_Npg,2),dxr(_Npg,2)
 
 c     Begin program
 
