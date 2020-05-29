@@ -75,6 +75,7 @@ c     Local variables
       type(particle) :: pcle_nu
 
       real(_prec) :: work
+      
 c     Begin program
 
 c     Particle pusher timer - C. Mikida, 05/16
@@ -494,14 +495,6 @@ cc          spcs(isp)%pcles(ipc)%v_np   = pcle_nu%v_np
          moms_g(:,:,1,isp,Ipx:Ipz) = moms_g(:,:,1,isp,Ipx:Ipz)*idtx
 
       end do                    !species
-c$$$      print *, "particle energy balance=",work
-c$$$      deallocate(garr_n  
-c$$$     $          ,garr_vx 
-c$$$     $          ,garr_vy 
-c$$$     $          ,garr_vz 
-c$$$     $          ,garr_vx2
-c$$$     $          ,garr_vy2
-c$$$     $          ,garr_vz2)
 
 c     Particle pusher timing end - C. Mikida, 05/16
       
@@ -608,8 +601,7 @@ c     Begin program
         vh(:,3) = (vhes(:,3)+qmdth*(vhes(:,1)*Bp(:,2)-vhes(:,2)*Bp(:,1) 
      .                            + vdotB*Bp(:,3)))*iDenom
 
-
-        end subroutine Boris_solve2
+      end subroutine Boris_solve2
       
       end subroutine pic_mover_2d
 

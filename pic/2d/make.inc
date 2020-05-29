@@ -19,16 +19,6 @@ SUBDIRS = $(COMMONDIR)/math\
 
 #Module order
 
-#PIC config
-
-#Precision
-override CPPFLAGS += $(PREPROC)_prec=8
-
-#Size of particle groups
-PCLE_GROUPING=1
-
-override CPPFLAGS += $(PREPROC)_Npg=$(PCLE_GROUPING)
-
 #Whether canonical momenta diag are compiled
 PIC_CM_DIAG?=t
 
