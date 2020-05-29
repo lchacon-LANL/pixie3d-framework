@@ -126,7 +126,6 @@ c     Move particles
          m_sp = spcs(isp)%m
          q_sp = spcs(isp)%q
 
-         
 !     note that there is some issue with valgrind and libgomp.
 !$omp parallel DEFAULT(SHARED) private(ipc,it,v0,v2,dtp,dt_sub
 !$omp.              ,d_x,dx,xp,yp,xfp,yfp,x_nh,dum1,dum2,il,jl
@@ -143,15 +142,83 @@ c     Move particles
 !$omp.reduction(max:pitmax,pstmax)
          do ipc=nip+1,numpcles
 
-!     first round pridictor
-            do pit = 1, 2
+           !Predictor step for final pcle velocity
+           do pit = 1, 2
+             
+             pcle_nu%ijk_n = spcs(isp)%pcles(ipc)%ijk_n
+             pcle_nu%x_n   = spcs(isp)%pcles(ipc)%x_n
+             pcle_nu%v_n   = spcs(isp)%pcles(ipc)%v_n
+             pcle_nu%w_n   = spcs(isp)%pcles(ipc)%w_n
+             Ep_avg = 0d0
+             Bp_avg = 0d0
+
+#if defined(PIC_CM_DIAG)
+             d_x = 0d0
+#endif
+             dtp = dtx
+
+             do while(maxval(dtp)>0)
+               !Find pcle position update w/ given velocity
+               call update_pcle_position(spcs(isp)%q_m,pcle_nu
+     .                                  ,spcs(isp)%pcles(ipc)
+     $                                  ,dt,dtp,dt_sub
+     $                                  ,DtA,B0,A,phi,dx
+     $                                  ,psts,Ep,Bp)
+
+               !Update pcle counters
+               pst_sum = pst_sum + 1    !Particle substep counter
+
+               pit_sum = pit_sum + 1    !Total number of picard iterations
+
+               psh_sum = psh_sum + psts !Total number of particle pushes (including ALL picard iterations)
+
+               !Accumulate fields
+               Ep_avg(:,1) = Ep_avg(:,1) + Ep(:,1)*dt_sub(:)
+               Ep_avg(:,2) = Ep_avg(:,2) + Ep(:,2)*dt_sub(:)
+               Ep_avg(:,3) = Ep_avg(:,3) + Ep(:,3)*dt_sub(:)
+               Bp_avg(:,1) = Bp_avg(:,1) + Bp(:,1)*dt_sub(:)
+               Bp_avg(:,2) = Bp_avg(:,2) + Bp(:,2)*dt_sub(:)
+               Bp_avg(:,3) = Bp_avg(:,3) + Bp(:,3)*dt_sub(:)
+
+               !Prepare for next substep (except new-time velocity)
+               pcle_nu%ijk_n = pcle_nu%ijk_np
+               pcle_nu%x_n   = pcle_nu%x_np
+               pcle_nu%w_n   = pcle_nu%w_np
+
+               dtp = dtp-dt_sub
+
+             end do             !sub-stepping
+
+             !Find average pcle velocity w/ averaged fields
+             Ep_avg = Ep_avg/dt
+             Bp_avg = Bp_avg/dt
+          
+             call update_pcle_vel(spcs(isp)%q_m
+     .                           ,pcle_nu%v_n
+     $                           ,pcle_nu%v_np
+     .                           ,dt,Ep_avg,Bp_avg)
+
+             !(LC: added, bug??)
+             pcle_nu%v_np = pcle_nu%v_n + 2d0*(pcle_nu%v_np-pcle_nu%v_n)
+
+             !Update final pcle quantities
+             spcs(isp)%pcles(ipc)%v_np   = pcle_nu%v_np
+             spcs(isp)%pcles(ipc)%ijk_np = pcle_nu%ijk_np 
+             spcs(isp)%pcles(ipc)%x_np   = pcle_nu%x_np   
+             spcs(isp)%pcles(ipc)%w_np   = pcle_nu%w_np
+
+           end do
+           
+c$$$           pcle_nu%v_np = spcs(isp)%pcles(ipc)%v_np  (LC: removed, bug??)
+
+           !Corrector step (accumulates orbit-averaged and final-time moments)
            pcle_nu%ijk_n = spcs(isp)%pcles(ipc)%ijk_n
            pcle_nu%x_n   = spcs(isp)%pcles(ipc)%x_n
            pcle_nu%v_n   = spcs(isp)%pcles(ipc)%v_n
            pcle_nu%w_n   = spcs(isp)%pcles(ipc)%w_n
+          
            Ep_avg = 0d0
            Bp_avg = 0d0
-
            it = 0
 
 #if defined(PIC_CM_DIAG)
@@ -162,72 +229,15 @@ c     Move particles
            do while(maxval(dtp)>0)
              it = it+1
 
-             !Perform pcle substep
-             call ACC_CN_incell_offset(spcs(isp)%q_m,pcle_nu
+             !Perform pcle substep with given velocity
+             call update_pcle_position(spcs(isp)%q_m,pcle_nu
      .                                ,spcs(isp)%pcles(ipc)
      $                                ,dt,dtp,dt_sub
      $                                ,DtA,B0,A,phi,dx
-     $                                ,psts,pits,Ep,Bp)
+     $                                ,psts,Ep,Bp)
 
-             Ep_avg(:,1) = Ep_avg(:,1) + Ep(:,1)*dt_sub(:)
-             Ep_avg(:,2) = Ep_avg(:,2) + Ep(:,2)*dt_sub(:)
-             Ep_avg(:,3) = Ep_avg(:,3) + Ep(:,3)*dt_sub(:)
-             Bp_avg(:,1) = Bp_avg(:,1) + Bp(:,1)*dt_sub(:)
-             Bp_avg(:,2) = Bp_avg(:,2) + Bp(:,2)*dt_sub(:)
-             Bp_avg(:,3) = Bp_avg(:,3) + Bp(:,3)*dt_sub(:)
-
-             !Prepare for next substep
-             pcle_nu%ijk_n = pcle_nu%ijk_np
-             pcle_nu%x_n   = pcle_nu%x_np
-cc             pcle_nu%v_n   = pcle_nu%v_np
-             pcle_nu%w_n   = pcle_nu%w_np
-
-             dtp = dtp-dt_sub
-
-          end do                !sub-stepping
-c     Boris push
-          Ep_avg = Ep_avg/dt
-          Bp_avg = Bp_avg/dt
-          
-          call Boris_solve2(spcs(isp)%q_m,spcs(isp)%pcles(ipc)%v_n
-     $         ,spcs(isp)%pcles(ipc)%v_np,dt,Ep_avg,Bp_avg)
-
-          spcs(isp)%pcles(ipc)%v_np   = spcs(isp)%pcles(ipc)%v_n + 2d0
-     $         *(spcs(isp)%pcles(ipc)%v_np-spcs(isp)%pcles(ipc)%v_n)
-
-          spcs(isp)%pcles(ipc)%ijk_np = pcle_nu%ijk_np 
-          spcs(isp)%pcles(ipc)%x_np   = pcle_nu%x_np   
-          spcs(isp)%pcles(ipc)%w_np   = pcle_nu%w_np
-       end do
-          
-       pcle_nu%v_np = spcs(isp)%pcles(ipc)%v_np
-       
-!     final round
-           pcle_nu%ijk_n = spcs(isp)%pcles(ipc)%ijk_n
-           pcle_nu%x_n   = spcs(isp)%pcles(ipc)%x_n
-           pcle_nu%v_n   = spcs(isp)%pcles(ipc)%v_n
-           pcle_nu%w_n   = spcs(isp)%pcles(ipc)%w_n
-           Ep_avg = 0d0
-           Bp_avg = 0d0
-           it = 0
-
-#if defined(PIC_CM_DIAG)
-           d_x = 0d0
-#endif
-           dtp = dtx
-
-           do while(maxval(dtp)>0)
-             it = it+1
-
-             !Perform pcle substep
-             call ACC_CN_incell_offset(spcs(isp)%q_m,pcle_nu
-     .                                ,spcs(isp)%pcles(ipc)
-     $                                ,dt,dtp,dt_sub
-     $                                ,DtA,B0,A,phi,dx
-     $                                ,psts,pits,Ep,Bp)
-
-             dx(:,1) = 0.5d0*(spcs(isp)%pcles(ipc)%v_n(:,1)
-     $            +spcs(isp)%pcles(ipc)%v_np(:,1))*dt_sub
+c$$$             dx(:,1) = 0.5d0*(spcs(isp)%pcles(ipc)%v_n(:,1)
+c$$$     $            +spcs(isp)%pcles(ipc)%v_np(:,1))*dt_sub
 c$$$             dx(:,2) = 0.5d0*(spcs(isp)%pcles(ipc)%v_n(:,2)
 c$$$     $            +spcs(isp)%pcles(ipc)%v_np(:,2))*dt_sub
 c$$$             dx(:,3) = 0.5d0*(spcs(isp)%pcles(ipc)%v_n(:,3)
@@ -248,17 +258,15 @@ cc             work=work+Ep(1,1)*dx(1,1)+Ep(1,2)*dx(1,2)+Ep(1,3)*dx(1,3)
              !Update pcle counters
              pst_sum = pst_sum + 1      !Particle substep counter
 
-             pitmax  = max(pits,pitmax) !Maximum number of Picard iterations per substep
+             pit_sum = pit_sum + 1      !Total number of picard iterations
 
-             pit_sum = pit_sum + pits   !Total number of picard iterations
              psh_sum = psh_sum + psts   !Total number of particle pushes (including ALL picard iterations)
 
-             !Gather moments
+             !>>>>>> Gather ORBIT AVERAGED moments <<<<<<
 #if defined(PIC_CM_DIAG)
              !accumulate particle displacement (for diagnose canonical mom conservation)
              d_x = d_x + dx
 #endif
-
              call xform_pcle_idx(pcle_nu%ijk_n,nxg,i,j)
 
              x_nh = pcle_nu%x_n + dx*0.5d0
@@ -351,34 +359,36 @@ cc             work=work+Ep(1,1)*dx(1,1)+Ep(1,2)*dx(1,2)+Ep(1,3)*dx(1,3)
              !Prepare for next substep
              pcle_nu%ijk_n = pcle_nu%ijk_np
              pcle_nu%x_n   = pcle_nu%x_np
-cc             pcle_nu%v_n   = pcle_nu%v_np
              pcle_nu%w_n   = pcle_nu%w_np
-c$$$             pcle_nu%ijk_n = spcs(isp)%pcles(ipc)%ijk_np
-c$$$             pcle_nu%x_n   = spcs(isp)%pcles(ipc)%x_np
-c$$$             pcle_nu%v_n   = spcs(isp)%pcles(ipc)%v_np
-c$$$             pcle_nu%w_n   = spcs(isp)%pcles(ipc)%w_np
 
              dtp = dtp-dt_sub
 
-          end do                !sub-stepping
+           end do               !sub-stepping
 
-c     Boris push
-          Ep_avg = Ep_avg/dt
-          Bp_avg = Bp_avg/dt
+           !Find new-time pcle velocity with averaged fields
+           Ep_avg = Ep_avg/dt
+           Bp_avg = Bp_avg/dt
           
-          call Boris_solve2(spcs(isp)%q_m,spcs(isp)%pcles(ipc)%v_n
-     $         ,spcs(isp)%pcles(ipc)%v_np,dt,Ep_avg,Bp_avg)
+           call update_pcle_vel(spcs(isp)%q_m
+     .                         ,pcle_nu%v_n
+     $                         ,pcle_nu%v_np
+     .                         ,dt,Ep_avg,Bp_avg)
 
-          spcs(isp)%pcles(ipc)%v_np   = spcs(isp)%pcles(ipc)%v_n + 2d0
-     $         *(spcs(isp)%pcles(ipc)%v_np-spcs(isp)%pcles(ipc)%v_n)
+           pcle_nu%v_np = pcle_nu%v_n + 2d0*(pcle_nu%v_np-pcle_nu%v_n)
 
-          dx(:,1) = 0.5d0*(spcs(isp)%pcles(ipc)%v_n(:,1)
-     $         +spcs(isp)%pcles(ipc)%v_np(:,1))*dt
-          dx(:,2) = 0.5d0*(spcs(isp)%pcles(ipc)%v_n(:,2)
-     $         +spcs(isp)%pcles(ipc)%v_np(:,2))*dt
-          dx(:,3) = 0.5d0*(spcs(isp)%pcles(ipc)%v_n(:,3)
-     $         +spcs(isp)%pcles(ipc)%v_np(:,3))*dt
+           !Store final-time pcle properties
+           spcs(isp)%pcles(ipc)%v_np   = pcle_nu%v_np
+           spcs(isp)%pcles(ipc)%ijk_np = pcle_nu%ijk_np 
+           spcs(isp)%pcles(ipc)%x_np   = pcle_nu%x_np   
+           spcs(isp)%pcles(ipc)%w_np   = pcle_nu%w_np   
 
+c$$$           dx(:,1) = 0.5d0*(spcs(isp)%pcles(ipc)%v_n(:,1)
+c$$$     $         +spcs(isp)%pcles(ipc)%v_np(:,1))*dt
+c$$$           dx(:,2) = 0.5d0*(spcs(isp)%pcles(ipc)%v_n(:,2)
+c$$$     $         +spcs(isp)%pcles(ipc)%v_np(:,2))*dt
+c$$$           dx(:,3) = 0.5d0*(spcs(isp)%pcles(ipc)%v_n(:,3)
+c$$$     $         +spcs(isp)%pcles(ipc)%v_np(:,3))*dt
+c$$$
 c$$$          work = work + 0.5d0*
 c$$$     $         (spcs(isp)%pcles(ipc)%v_np(1,1)
 c$$$     $         *spcs(isp)%pcles(ipc)%v_np(1,1)
@@ -401,20 +411,13 @@ c$$$     $         +(spcs(isp)%pcles(ipc)%v_np(1,3)-pcle_nu%v_np(1,3))**2)/
 c$$$     $         (spcs(isp)%pcles(ipc)%v_np(1,1)**2
 c$$$     $         +spcs(isp)%pcles(ipc)%v_np(1,2)**2
 c$$$     $         +spcs(isp)%pcles(ipc)%v_np(1,3)**2)
-          
-c     Back to the global registers now:
-          spcs(isp)%pcles(ipc)%ijk_np = pcle_nu%ijk_np 
-          spcs(isp)%pcles(ipc)%x_np   = pcle_nu%x_np   
-cc          spcs(isp)%pcles(ipc)%v_np   = pcle_nu%v_np   
-          spcs(isp)%pcles(ipc)%w_np   = pcle_nu%w_np   
-          
-           
+
            !Maximum number of substeps per timestep
            pstmax  = max(it,pstmax)
              
-           !2nd order (for checking charge conservation) careful
-           xp = pcle_nu%x_n(:,1)*ihx
-           yp = pcle_nu%x_n(:,2)*ihy
+           !Compute NEW TIME moments
+           xp = pcle_nu%x_np(:,1)*ihx
+           yp = pcle_nu%x_np(:,2)*ihy
 
            call shape1_offset(xp,Mx1(:,1:2,1))
            call shape1_offset(yp,My1(:,1,1:2))               
@@ -432,8 +435,8 @@ cc          spcs(isp)%pcles(ipc)%v_np   = pcle_nu%v_np
            enddo
 
            !Do NOT put SIMD statement, reduction!!!!
-           v0 = pcle_nu%v_n                             !Local register, equal to v_np after loop
-           call xform_pcle_idx(pcle_nu%ijk_n,nxg,i0,j0) !Local register, equal to ijk_np after loop
+           v0 = pcle_nu%v_np
+           call xform_pcle_idx(pcle_nu%ijk_np,nxg,i0,j0)
 
            !Do NOT vectorize: memory race issues
            do k=1,_Npg
@@ -491,14 +494,13 @@ cc          spcs(isp)%pcles(ipc)%v_np   = pcle_nu%v_np
 !$omp end do 
 !$omp end parallel 
 
-         !orbit-averaged
+         !Finalized ORBIT-AVERAGED moments
          moms_g(:,:,1,isp,Ipx:Ipz) = moms_g(:,:,1,isp,Ipx:Ipz)*idtx
 
       end do                    !species
 
 c     Particle pusher timing end - C. Mikida, 05/16
       
-c      call stop_collection()
       call system_clock(count=clock_stop)
 
 c     Append to particle pusher timer/counters
@@ -557,17 +559,16 @@ c     End program
 
       contains
       
-c     Boris_solve2
+c     update_pcle_vel
 c     ######################################################################
-      subroutine Boris_solve2(qm,v0,vh,dt_sub,Ep,Bp) 
+      subroutine update_pcle_vel(qm,v0,vh,dt_sub,Ep,Bp) 
 
       implicit none
       
 c     Call variables
 
         real(_prec) :: v0(_Npg,3)
-        real(_prec) :: vh(_Npg,3),dt_sub,Ep(_Npg,3),Bp(_Npg,3)
-     $       ,qm
+        real(_prec) :: vh(_Npg,3),dt_sub,Ep(_Npg,3),Bp(_Npg,3),qm
 
 c     Logical variables
 
@@ -601,14 +602,14 @@ c     Begin program
         vh(:,3) = (vhes(:,3)+qmdth*(vhes(:,1)*Bp(:,2)-vhes(:,2)*Bp(:,1) 
      .                            + vdotB*Bp(:,3)))*iDenom
 
-      end subroutine Boris_solve2
+      end subroutine update_pcle_vel
       
       end subroutine pic_mover_2d
 
-c     ACC_CN_incell_offset
+c     update_pcle_position
 c     ##################################################################
-      subroutine ACC_CN_incell_offset (q_m,pcle_nu,pcle,dt,dtp,dt_sub
-     $                               ,DtA,B0,A,phi,dx,substeps,it,Ep,Bp)
+      subroutine update_pcle_position (q_m,pcle_nu,pcle,dt,dtp,dt_sub
+     $                               ,DtA,B0,A,phi,dx,substeps,Ep,Bp)
 
       implicit none
       
@@ -623,7 +624,7 @@ c     Call variables
       real(_prec),intent(inout) :: dtp(_Npg)
       real(_prec),intent(out)   :: dt_sub(_Npg),dx(_Npg,3)
 
-      integer,intent(out):: substeps,it
+      integer,intent(out):: substeps
       real(_prec),intent(out) :: Ep(_Npg,3),Bp(_Npg,3)
       
 c     Local variables
@@ -707,60 +708,24 @@ c     Estimate sub-time-step
 
       dt_sub = dtp
 
-cc      call estimate_dtp(dt_sub)
+c     Find dx
 
-c     Initialize Picard
+      call find_dx(0.5d0*(pcle%v_n+pcle%v_np),dt_sub,dx)
 
-cc      call initialize_it(v0_loc,dt_sub,dx)
+c     Scatter fields
 
-      call initialize_it(0.5d0*(pcle%v_n+pcle%v_np),dt_sub,dx)
-      
-      it=0
-
-      substeps = 0
-
-c$$$      do
-        it = it+1
-c$$$
-c$$$        vh_k = vh
-c$$$        dx_k = dx
- 
-        substeps = substeps + _Npg
-
-        !Perform Boris push
-        call Boris_solve(it,x0_loc,v0_loc,dx,vh,dt_sub)
-
-c$$$        !Check convergence (very expensive!!!)
-c$$$        if (mod(it,2) /= 0) cycle  !Check everyother iteration
-c$$$
-c$$$#if defined(L1_NORM)
-c$$$        dx_err = 0d0
-c$$$        do i=1,_Npg
-c$$$           dx_err = max(dx_err, abs(dx(i,1)-dx_k(i,1))
-c$$$     $                         +abs(dx(i,2)-dx_k(i,2))
-c$$$     $                         +abs(dx(i,3)-dx_k(i,3))
-c$$$     $                         +abs(vh(i,1)-vh_k(i,1))
-c$$$     $                         +abs(vh(i,2)-vh_k(i,2))
-c$$$     $                         +abs(vh(i,3)-vh_k(i,3)))
-c$$$        enddo
-c$$$#else
-c$$$c$$$        dx_err = (sum(abs(dx-dx_k))
-c$$$c$$$     $           +sum(abs(vh-vh_k)))/(2*_Npg)
-c$$$        dx_err = max(maxval(abs(dx-dx_k)),maxval(abs(vh-vh_k)))
-c$$$#endif
-c$$$
-c$$$#if _prec == 8
-c$$$        if (dx_err < 1d-13 .or. it>500) exit
-c$$$#else
-c$$$        if (dx_err < 1d-6  .or. it>500) exit
-c$$$  #endif
-
-c$$$        if(it>0) exit
-c$$$      end do             
+      substeps = _Npg
+        
+      if (no_map) then
+        call scatter_fields_nomap(x0_loc,dt_sub,dx,A_1,A_2,A_3
+     $                           ,dtA_1,dtA_2,dtA_3,Ep,Bp)
+      else
+        call scatter_fields_curv (x0_loc,dt_sub,dx,A_1,A_2,A_3
+     $                           ,dtA_1,dtA_2,dtA_3,Ep,Bp)
+      endif
 
 c     Update particle quantities
 
-c$$$      vnp_loc = v0_loc + 2d0*(vh - v0_loc) !2d0*vh - v0
       xnp_loc = x0_loc + dx
 
       inp_loc = i0
@@ -777,7 +742,6 @@ c$$$      pcle%v_np = vnp_loc
 c$$$      pcle%x_np = xnp_loc
 c$$$      pcle%w_np = wp_loc
 
-
       pcle_nu%ijk_np = inp_loc + nxg*(jnp_loc - 1)
 c$$$      pcle_nu%v_np = vnp_loc
       pcle_nu%x_np = xnp_loc
@@ -787,9 +751,9 @@ c     End program
 
       contains
 
-c     initialize_it
+c     find_dx
 c     ######################################################################
-      subroutine initialize_it(vh,dts,dx)
+      subroutine find_dx(vh,dts,dx)
 
       implicit none
 
@@ -801,7 +765,6 @@ c     Local variables
 
       real(_prec) :: dx_pn,dv_pn(_Npg),vha(_Npg),ama(_Npg),am(_Npg,_Dim)
       real(_prec) :: vhcurv_inv(_Npg,3)
-cc      real(_prec) :: Chrtof2(_Npg,3,3,3),ainert(_Npg,3)
 
 c     Begin program
 
@@ -811,21 +774,6 @@ c     Find dx
         vhcurv = vh
       else
         vhcurv = find_vcurv(i0,j0,x0_loc,vh)
-
-c WARNING: CHRISTOFFEL SYMBOL NOT IMPLEMENTED IN 3D.
-
-c$$$           vhcurv = find_vcurv(i0,j0,x0_loc,vh,gamma=Chrtof2)
-c$$$           ainert(:,:) = 0d0
-c$$$
-c$$$           do i=1,3
-c$$$              do j=1,3
-c$$$                !VECTOR SIMD
-c$$$                 do ii=1,3
-c$$$                    ainert(ii,:)=ainert(ii,:)
-c$$$     .                      +vhcurv(:,j)*Chrtof2(ii,i,j,:)*vhcurv(i,:)
-c$$$                 end do
-c$$$              end do
-c$$$           end do
       endif
 
       vhcurv_inv = 1d0/(vhcurv + 1d-44)
@@ -846,200 +794,93 @@ c$$$           end do
       dx(:,2) = vhcurv(:,2)*dts
       dx(:,3) = vhcurv(:,3)*dts
 
-c     Guess for dx error
+      end subroutine find_dx
 
-c$$$      if (no_map) then
-c$$$        call scatter_fields_nomap(x0_loc,dteq0,dx,A_1,A_2,A_3
-c$$$     $                           ,dtA_1,dtA_2,dtA_3,Ep,Bp)
-c$$$      else
-c$$$        call scatter_fields_curv (x0_loc,dteq0,dx,A_1,A_2,A_3
-c$$$     $                           ,dtA_1,dtA_2,dtA_3,Ep,Bp)
-c$$$      endif
+c$$$c     estimate_dtp
+c$$$c     ######################################################################
+c$$$      subroutine estimate_dtp(dt_sub)
 c$$$
-c$$$      am(:,1) = qm*(Ep(:,1) + vh(:,2)*Bp(:,3) - vh(:,3)*Bp(:,2))
-c$$$      am(:,2) = qm*(Ep(:,2) + vh(:,3)*Bp(:,1) - vh(:,1)*Bp(:,3))
-c$$$      am(:,3) = qm*(Ep(:,3) + vh(:,1)*Bp(:,2) - vh(:,2)*Bp(:,1))
+c$$$      implicit none
+c$$$      
+c$$$c     Call variables
 c$$$
-c$$$      !VECTOR SIMD
-c$$$      do i=1, _Npg
-c$$$#if defined(L1_NORM)
-c$$$        ama(i) = sum(abs(am(i,:))) !L1 norm
-c$$$#else
-c$$$        ama(i) = sqrt(dot_product(am(i,:),am(i,:))) !L2 norm
-c$$$#endif
-c$$$      end do
+c$$$        real(_prec) :: dt_sub(_Npg)
 c$$$
-c$$$      dv_pn = dts*ama
+c$$$c     Logical variables
 c$$$
-c$$$#if defined(L1_NORM)
-c$$$      vha = sum(abs(vh),2) !L1 norm
-c$$$#else
-c$$$      vha = sqrt(vh(:,1)*vh(:,1) + vh(:,2)*vh(:,2) + vh(:,3)*vh(:,3)) !L2 norm
-c$$$#endif
+c$$$        integer :: i,j,k
+c$$$        real(_prec) :: dts(_Npg)    !Test timestep to estimate qtys
+c$$$     .                ,xtoll=1d-2 !1d-3   !Tolerance for timestep estimator
+c$$$        real(_prec) :: iDenom(_Npg),at(_Npg,3),accl(_Npg,3),anup(_Npg)
+c$$$        real(_prec) :: qmdth(_Npg)
 c$$$
-c$$$      dv_pn = max(dts*vha + 0.5*dts**2*ama,dv_pn)
-c$$$      dx_pn = maxval(dv_pn)
-
-      end subroutine initialize_it
-
-c     estimate_dtp
-c     ######################################################################
-      subroutine estimate_dtp(dt_sub)
-
-      implicit none
-      
-c     Call variables
-
-        real(_prec) :: dt_sub(_Npg)
-
-c     Logical variables
-
-        integer :: i,j,k
-        real(_prec) :: dts(_Npg)    !Test timestep to estimate qtys
-     .                ,xtoll=1d-2 !1d-3   !Tolerance for timestep estimator
-        real(_prec) :: iDenom(_Npg),at(_Npg,3),accl(_Npg,3),anup(_Npg)
-        real(_prec) :: qmdth(_Npg)
-
-c     Begin program
-
-        dts = min(2d-4,dt_sub) !1d-8     !Test timestep to estimate qtys
-
-c     Scatter fields
-
-        dx = 0d0
-
-        if (no_map) then
-          call scatter_fields_nomap(x0_loc,dteq0,dx,A_1,A_2,A_3
-     $                             ,dtA_1,dtA_2,dtA_3,Ep,Bp)
-        else
-          call scatter_fields_curv (x0_loc,dteq0,dx,A_1,A_2,A_3
-     $                             ,dtA_1,dtA_2,dtA_3,Ep,Bp)
-        endif
-
-c     Cyclotron freq.
-
-c$$$#if _Dim>1
-c$$$#if defined(L1_NORM)
-c$$$        Bmax = sum(abs(Bp),2)     !L1 norm
-c$$$#else
-c$$$        Bmax = sqrt(sum(Bp**2,2)) !L2 norm
-c$$$#endif
-c$$$        Omegac = qm * Bmax
-c$$$        Omegac = abs(Omegac) + 1d-44  !careful
-c$$$        omb = 1d0/Omegac
-c$$$        dt_sub = min(dt_sub,dt_coeff*omb)
-c$$$#endif
-
-c     Initial acceleration
-
-        vh = v0_loc
-
-        !VECTOR SIMD
-        do i=1,_Npg
-           ac0(i,1)= qm(i)*(Ep(i,1) + vh(i,2)*Bp(i,3) - vh(i,3)*Bp(i,2))
-           ac0(i,2)= qm(i)*(Ep(i,2) + vh(i,3)*Bp(i,1) - vh(i,1)*Bp(i,3))
-           ac0(i,3)= qm(i)*(Ep(i,3) + vh(i,1)*Bp(i,2) - vh(i,2)*Bp(i,1))
-        enddo
-
-c     Test for dts (presumably no cell-crossing with a small timestep)
-
-        if (no_map) then
-           vhcurv = vh
-        else
-           vhcurv = find_vcurv(i0,j0,x0_loc,vh)
-        endif
-        v0curv = vhcurv
-
-        dx(:,1) = dts*vhcurv(:,1)
-        dx(:,2) = dts*vhcurv(:,2)
-        dx(:,3) = dts*vhcurv(:,3)
-
-        if (no_map) then
-          call scatter_fields_nomap(x0_loc,dts,dx,A_1,A_2,A_3
-     $                             ,dtA_1,dtA_2,dtA_3,Ep,Bp) !mid-point
-        else
-          call scatter_fields_curv (x0_loc,dts,dx,A_1,A_2,A_3
-     $                             ,dtA_1,dtA_2,dtA_3,Ep,Bp) !mid-point
-        endif
-        
-        !Velocity update
-        qmdth = qm*dts*0.5d0
-        vhes(:,1) = v0_loc(:,1) + qmdth*Ep(:,1)
-        vhes(:,2) = v0_loc(:,2) + qmdth*Ep(:,2)
-        vhes(:,3) = v0_loc(:,3) + qmdth*Ep(:,3)
-
-        !VECTOR SIMD
-        do i=1,_Npg
-           iDenom(i) = (1d0
-     $                 + qmdth(i)*qmdth(i)*dot_product(Bp(i,:),Bp(i,:)))
-           iDenom(i) = 1d0/iDenom(i)
-        end do
-
-        vdotB = (vhes(:,1)*Bp(:,1)+vhes(:,2)*Bp(:,2)+vhes(:,3)*Bp(:,3))
-
-        vdotB = qmdth*vdotB
-
-        vh(:,1) = (vhes(:,1)+qmdth*(vhes(:,2)*Bp(:,3)-vhes(:,3)*Bp(:,2)
-     .                            + vdotB*Bp(:,1)))*iDenom
-        vh(:,2) = (vhes(:,2)+qmdth*(vhes(:,3)*Bp(:,1)-vhes(:,1)*Bp(:,3) 
-     .                            + vdotB*Bp(:,2)))*iDenom
-        vh(:,3) = (vhes(:,3)+qmdth*(vhes(:,1)*Bp(:,2)-vhes(:,2)*Bp(:,1) 
-     .                            + vdotB*Bp(:,3)))*iDenom
-
-        at(:,1) = qm*(Ep(:,1) + vh(:,2)*Bp(:,3) - vh(:,3)*Bp(:,2))
-        at(:,2) = qm*(Ep(:,2) + vh(:,3)*Bp(:,1) - vh(:,1)*Bp(:,3))
-        at(:,3) = qm*(Ep(:,3) + vh(:,1)*Bp(:,2) - vh(:,2)*Bp(:,1))
-
-        !VECTOR SIMD
-        do i=1,_Npg 
-          accl(i,:) = (at(i,:) - ac0(i,:))*2d0 !/dts added below in dt_sub
-#if defined(L1_NORM)
-          anup(i) = sum(abs(accl(i,:)))                    !L1 norm
-#else
-          anup(i) = sqrt(dot_product(accl(i,:),accl(i,:))) !L2 norm
-#endif
-        end do
-
-        dt_sub = min(dt_sub,(6d0*xtoll*dts/(anup+1d-30*dts))
-     $                      **(0.333333333333333d0))
-
-      end subroutine estimate_dtp
-
-c     Boris_solve
-c     ######################################################################
-      subroutine Boris_solve(it,x0,v0,dx,vh,dt_sub) 
-
-      implicit none
-      
-c     Call variables
-
-        integer :: it
-        real(_prec) :: x0(_Npg,3)
-        real(_prec) :: v0(_Npg,3)
-        real(_prec) :: dx(_Npg,3)
-        real(_prec) :: vh(_Npg,3),dt_sub(_Npg)
-
-c     Logical variables
-
-        real(_prec) :: vhes(_Npg,3),vhcurv(_Npg,3),vhcurv_inv(_Npg,3)
-        real(_prec) :: qmdth(_Npg),iDenom(_Npg),dtb(_Npg,3)
-        real(_prec) :: xp_vhcurv(_Npg,3)
-
-c     Begin program
-
-        if (no_map) then
-          call scatter_fields_nomap(x0,dt_sub,dx,A_1,A_2,A_3
-     $                           ,dtA_1,dtA_2,dtA_3,Ep,Bp)
-        else
-          call scatter_fields_curv (x0,dt_sub,dx,A_1,A_2,A_3
-     $                           ,dtA_1,dtA_2,dtA_3,Ep,Bp)
-        endif
-
+c$$$c     Begin program
+c$$$
+c$$$        dts = min(2d-4,dt_sub) !1d-8     !Test timestep to estimate qtys
+c$$$
+c$$$c     Scatter fields
+c$$$
+c$$$        dx = 0d0
+c$$$
+c$$$        if (no_map) then
+c$$$          call scatter_fields_nomap(x0_loc,dteq0,dx,A_1,A_2,A_3
+c$$$     $                             ,dtA_1,dtA_2,dtA_3,Ep,Bp)
+c$$$        else
+c$$$          call scatter_fields_curv (x0_loc,dteq0,dx,A_1,A_2,A_3
+c$$$     $                             ,dtA_1,dtA_2,dtA_3,Ep,Bp)
+c$$$        endif
+c$$$
+c$$$c     Cyclotron freq.
+c$$$
+c$$$c$$$#if _Dim>1
+c$$$c$$$#if defined(L1_NORM)
+c$$$c$$$        Bmax = sum(abs(Bp),2)     !L1 norm
+c$$$c$$$#else
+c$$$c$$$        Bmax = sqrt(sum(Bp**2,2)) !L2 norm
+c$$$c$$$#endif
+c$$$c$$$        Omegac = qm * Bmax
+c$$$c$$$        Omegac = abs(Omegac) + 1d-44  !careful
+c$$$c$$$        omb = 1d0/Omegac
+c$$$c$$$        dt_sub = min(dt_sub,dt_coeff*omb)
+c$$$c$$$#endif
+c$$$
+c$$$c     Initial acceleration
+c$$$
+c$$$        vh = v0_loc
+c$$$
+c$$$        !VECTOR SIMD
+c$$$        do i=1,_Npg
+c$$$           ac0(i,1)= qm(i)*(Ep(i,1) + vh(i,2)*Bp(i,3) - vh(i,3)*Bp(i,2))
+c$$$           ac0(i,2)= qm(i)*(Ep(i,2) + vh(i,3)*Bp(i,1) - vh(i,1)*Bp(i,3))
+c$$$           ac0(i,3)= qm(i)*(Ep(i,3) + vh(i,1)*Bp(i,2) - vh(i,2)*Bp(i,1))
+c$$$        enddo
+c$$$
+c$$$c     Test for dts (presumably no cell-crossing with a small timestep)
+c$$$
+c$$$        if (no_map) then
+c$$$           vhcurv = vh
+c$$$        else
+c$$$           vhcurv = find_vcurv(i0,j0,x0_loc,vh)
+c$$$        endif
+c$$$        v0curv = vhcurv
+c$$$
+c$$$        dx(:,1) = dts*vhcurv(:,1)
+c$$$        dx(:,2) = dts*vhcurv(:,2)
+c$$$        dx(:,3) = dts*vhcurv(:,3)
+c$$$
+c$$$        if (no_map) then
+c$$$          call scatter_fields_nomap(x0_loc,dts,dx,A_1,A_2,A_3
+c$$$     $                             ,dtA_1,dtA_2,dtA_3,Ep,Bp) !mid-point
+c$$$        else
+c$$$          call scatter_fields_curv (x0_loc,dts,dx,A_1,A_2,A_3
+c$$$     $                             ,dtA_1,dtA_2,dtA_3,Ep,Bp) !mid-point
+c$$$        endif
+c$$$        
 c$$$        !Velocity update
-c$$$        qmdth = qm*dt_sub*0.5d0
-c$$$        vhes(:,1) = v0(:,1) + qmdth*Ep(:,1)
-c$$$        vhes(:,2) = v0(:,2) + qmdth*Ep(:,2)
-c$$$        vhes(:,3) = v0(:,3) + qmdth*Ep(:,3)
+c$$$        qmdth = qm*dts*0.5d0
+c$$$        vhes(:,1) = v0_loc(:,1) + qmdth*Ep(:,1)
+c$$$        vhes(:,2) = v0_loc(:,2) + qmdth*Ep(:,2)
+c$$$        vhes(:,3) = v0_loc(:,3) + qmdth*Ep(:,3)
 c$$$
 c$$$        !VECTOR SIMD
 c$$$        do i=1,_Npg
@@ -1059,88 +900,161 @@ c$$$     .                            + vdotB*Bp(:,2)))*iDenom
 c$$$        vh(:,3) = (vhes(:,3)+qmdth*(vhes(:,1)*Bp(:,2)-vhes(:,2)*Bp(:,1) 
 c$$$     .                            + vdotB*Bp(:,3)))*iDenom
 c$$$
-c$$$        !Time step estimate for cell crossing
+c$$$        at(:,1) = qm*(Ep(:,1) + vh(:,2)*Bp(:,3) - vh(:,3)*Bp(:,2))
+c$$$        at(:,2) = qm*(Ep(:,2) + vh(:,3)*Bp(:,1) - vh(:,1)*Bp(:,3))
+c$$$        at(:,3) = qm*(Ep(:,3) + vh(:,1)*Bp(:,2) - vh(:,2)*Bp(:,1))
+c$$$
+c$$$        !VECTOR SIMD
+c$$$        do i=1,_Npg 
+c$$$          accl(i,:) = (at(i,:) - ac0(i,:))*2d0 !/dts added below in dt_sub
+c$$$#if defined(L1_NORM)
+c$$$          anup(i) = sum(abs(accl(i,:)))                    !L1 norm
+c$$$#else
+c$$$          anup(i) = sqrt(dot_product(accl(i,:),accl(i,:))) !L2 norm
+c$$$#endif
+c$$$        end do
+c$$$
+c$$$        dt_sub = min(dt_sub,(6d0*xtoll*dts/(anup+1d-30*dts))
+c$$$     $                      **(0.333333333333333d0))
+c$$$
+c$$$      end subroutine estimate_dtp
+c$$$
+c$$$c     Boris_solve
+c$$$c     ######################################################################
+c$$$      subroutine Boris_solve(it,x0,v0,dx,vh,dt_sub) 
+c$$$
+c$$$      implicit none
+c$$$      
+c$$$c     Call variables
+c$$$
+c$$$        integer :: it
+c$$$        real(_prec) :: x0(_Npg,3)
+c$$$        real(_prec) :: v0(_Npg,3)
+c$$$        real(_prec) :: dx(_Npg,3)
+c$$$        real(_prec) :: vh(_Npg,3),dt_sub(_Npg)
+c$$$
+c$$$c     Logical variables
+c$$$
+c$$$        real(_prec) :: vhes(_Npg,3),vhcurv(_Npg,3),vhcurv_inv(_Npg,3)
+c$$$        real(_prec) :: qmdth(_Npg),iDenom(_Npg),dtb(_Npg,3)
+c$$$        real(_prec) :: xp_vhcurv(_Npg,3)
+c$$$
+c$$$c     Begin program
+c$$$
 c$$$        if (no_map) then
-c$$$          vhcurv = vh
+c$$$          call scatter_fields_nomap(x0,dt_sub,dx,A_1,A_2,A_3
+c$$$     $                           ,dtA_1,dtA_2,dtA_3,Ep,Bp)
 c$$$        else
-c$$$          xp_vhcurv = x0 + 0.5*dx
-c$$$          vhcurv = find_vcurv(i0,j0,xp_vhcurv,vh)
+c$$$          call scatter_fields_curv (x0,dt_sub,dx,A_1,A_2,A_3
+c$$$     $                           ,dtA_1,dtA_2,dtA_3,Ep,Bp)
 c$$$        endif
 c$$$
-c$$$        dx(:,1) = dt_sub*vhcurv(:,1)
-c$$$        dx(:,2) = dt_sub*vhcurv(:,2)
-c$$$        dx(:,3) = dt_sub*vhcurv(:,3)
+c$$$c$$$        !Velocity update
+c$$$c$$$        qmdth = qm*dt_sub*0.5d0
+c$$$c$$$        vhes(:,1) = v0(:,1) + qmdth*Ep(:,1)
+c$$$c$$$        vhes(:,2) = v0(:,2) + qmdth*Ep(:,2)
+c$$$c$$$        vhes(:,3) = v0(:,3) + qmdth*Ep(:,3)
+c$$$c$$$
+c$$$c$$$        !VECTOR SIMD
+c$$$c$$$        do i=1,_Npg
+c$$$c$$$           iDenom(i) = (1d0
+c$$$c$$$     $                 + qmdth(i)*qmdth(i)*dot_product(Bp(i,:),Bp(i,:)))
+c$$$c$$$           iDenom(i) = 1d0/iDenom(i)
+c$$$c$$$        end do
+c$$$c$$$
+c$$$c$$$        vdotB = (vhes(:,1)*Bp(:,1)+vhes(:,2)*Bp(:,2)+vhes(:,3)*Bp(:,3))
+c$$$c$$$
+c$$$c$$$        vdotB = qmdth*vdotB
+c$$$c$$$
+c$$$c$$$        vh(:,1) = (vhes(:,1)+qmdth*(vhes(:,2)*Bp(:,3)-vhes(:,3)*Bp(:,2)
+c$$$c$$$     .                            + vdotB*Bp(:,1)))*iDenom
+c$$$c$$$        vh(:,2) = (vhes(:,2)+qmdth*(vhes(:,3)*Bp(:,1)-vhes(:,1)*Bp(:,3) 
+c$$$c$$$     .                            + vdotB*Bp(:,2)))*iDenom
+c$$$c$$$        vh(:,3) = (vhes(:,3)+qmdth*(vhes(:,1)*Bp(:,2)-vhes(:,2)*Bp(:,1) 
+c$$$c$$$     .                            + vdotB*Bp(:,3)))*iDenom
+c$$$c$$$
+c$$$c$$$        !Time step estimate for cell crossing
+c$$$c$$$        if (no_map) then
+c$$$c$$$          vhcurv = vh
+c$$$c$$$        else
+c$$$c$$$          xp_vhcurv = x0 + 0.5*dx
+c$$$c$$$          vhcurv = find_vcurv(i0,j0,xp_vhcurv,vh)
+c$$$c$$$        endif
+c$$$c$$$
+c$$$c$$$        dx(:,1) = dt_sub*vhcurv(:,1)
+c$$$c$$$        dx(:,2) = dt_sub*vhcurv(:,2)
+c$$$c$$$        dx(:,3) = dt_sub*vhcurv(:,3)
+c$$$c$$$
+c$$$c$$$cc        if(it<3) then
+c$$$c$$$           vhcurv_inv = 1d0/(vhcurv + 1d-44)
+c$$$c$$$        
+c$$$c$$$           dt_sub = min(dt_sub
+c$$$c$$$     .            ,max((dxl(:,1)-eps2)*vhcurv_inv(:,1)
+c$$$c$$$     .                ,(dxr(:,1)+eps2)*vhcurv_inv(:,1))
+c$$$c$$$     .            ,max((dxl(:,2)-eps2)*vhcurv_inv(:,2)
+c$$$c$$$     .                ,(dxr(:,2)+eps2)*vhcurv_inv(:,2)))
+c$$$c$$$
+c$$$c$$$           dx(:,1) = vhcurv(:,1)*dt_sub
+c$$$c$$$           dx(:,2) = vhcurv(:,2)*dt_sub
+c$$$c$$$           dx(:,3) = vhcurv(:,3)*dt_sub
+c$$$c$$$cc      end if
 c$$$
-c$$$cc        if(it<3) then
-c$$$           vhcurv_inv = 1d0/(vhcurv + 1d-44)
-c$$$        
-c$$$           dt_sub = min(dt_sub
-c$$$     .            ,max((dxl(:,1)-eps2)*vhcurv_inv(:,1)
-c$$$     .                ,(dxr(:,1)+eps2)*vhcurv_inv(:,1))
-c$$$     .            ,max((dxl(:,2)-eps2)*vhcurv_inv(:,2)
-c$$$     .                ,(dxr(:,2)+eps2)*vhcurv_inv(:,2)))
+c$$$c$$$  
+c$$$c$$$        if(it<2) then
+c$$$c$$$        !VECTOR SIMD
+c$$$c$$$        do i=1,_Npg
+c$$$c$$$           !x-direction
+c$$$c$$$           dtb(i,1) = dt_sub(i)
+c$$$c$$$           if((dx(i,1)<dxl(i,1)-eps) .or. (dx(i,1)>dxr(i,1)+eps) ) then
+c$$$c$$$             if(v0curv(i,1)*vhcurv(i,1)<0d0) then
+c$$$c$$$               dtb(i,1) = 0.5d0*dt_sub(i)
+c$$$c$$$               vh(i,:) = v0(i,:)
+c$$$c$$$               vhcurv(i,:) = v0curv(i,:)
+c$$$c$$$             else
+c$$$c$$$c$$$               if(it<5) then  !This branch needs to be taken out of the pcle loop!
+c$$$c$$$c$$$                 vhcurv_inv(i,1) = 1d0/vhcurv(i,1)
+c$$$c$$$c$$$                 dtb(i,1) = min(dt_sub(i),
+c$$$c$$$c$$$     .              max((dxl(i,1)-eps)*vhcurv_inv(i,1)
+c$$$c$$$c$$$     .                 ,(dxr(i,1)+eps)*vhcurv_inv(i,1)))
+c$$$c$$$c$$$               else if((dx(i,1)<dxl(i,1)-eps2)
+c$$$c$$$c$$$     .             .or. dx(i,1)>dxr(i,1)+eps2) then
+c$$$c$$$c$$$                 dtb(i,1) = 0.5d0*dtb(i,1)
+c$$$c$$$c$$$               end if
+c$$$c$$$             end if
+c$$$c$$$           end if
+c$$$c$$$
+c$$$c$$$           !y-direction
+c$$$c$$$           dtb(i,2) = dt_sub(i)
+c$$$c$$$           if((dx(i,2)<dxl(i,2)-eps) .or. dx(i,2)>dxr(i,2)+eps) then
+c$$$c$$$             if(v0curv(i,2)*vhcurv(i,2)<0d0) then
+c$$$c$$$               dtb(i,2) = 0.5d0*dt_sub(i)
+c$$$c$$$               vh(i,:) = v0(i,:)
+c$$$c$$$               vhcurv(i,:) = v0curv(i,:)
+c$$$c$$$             else 
+c$$$c$$$c$$$               if(it<5) then  !This branch needs to be taken out of the pcle loop!
+c$$$c$$$c$$$                 vhcurv_inv(i,2) = 1d0/vhcurv(i,2)
+c$$$c$$$c$$$                 dtb(i,2) = min(dt_sub(i),
+c$$$c$$$c$$$     .              max((dxl(i,2)-eps)*vhcurv_inv(i,2)
+c$$$c$$$c$$$     .                 ,(dxr(i,2)+eps)*vhcurv_inv(i,2)))
+c$$$c$$$c$$$               else if(dx(i,2)<dxl(i,2)-eps2 
+c$$$c$$$c$$$     .            .or. dx(i,2)>dxr(i,2)+eps2) then
+c$$$c$$$c$$$                 dtb(i,2) = 0.5d0*dtb(i,2)
+c$$$c$$$c$$$               end if
+c$$$c$$$             end if
+c$$$c$$$           end if
+c$$$c$$$
+c$$$c$$$           dt_sub(i) = min(dt_sub(i),dtb(i,1),dtb(i,2))
+c$$$c$$$        
+c$$$c$$$        end do
+c$$$c$$$        end if
+c$$$c$$$
+c$$$c$$$        dx(:,1) = dt_sub*vhcurv(:,1)
+c$$$c$$$        dx(:,2) = dt_sub*vhcurv(:,2)
+c$$$c$$$        dx(:,3) = dt_sub*vhcurv(:,3)
 c$$$
-c$$$           dx(:,1) = vhcurv(:,1)*dt_sub
-c$$$           dx(:,2) = vhcurv(:,2)*dt_sub
-c$$$           dx(:,3) = vhcurv(:,3)*dt_sub
-c$$$cc      end if
-
-c$$$  
-c$$$        if(it<2) then
-c$$$        !VECTOR SIMD
-c$$$        do i=1,_Npg
-c$$$           !x-direction
-c$$$           dtb(i,1) = dt_sub(i)
-c$$$           if((dx(i,1)<dxl(i,1)-eps) .or. (dx(i,1)>dxr(i,1)+eps) ) then
-c$$$             if(v0curv(i,1)*vhcurv(i,1)<0d0) then
-c$$$               dtb(i,1) = 0.5d0*dt_sub(i)
-c$$$               vh(i,:) = v0(i,:)
-c$$$               vhcurv(i,:) = v0curv(i,:)
-c$$$             else
-c$$$c$$$               if(it<5) then  !This branch needs to be taken out of the pcle loop!
-c$$$c$$$                 vhcurv_inv(i,1) = 1d0/vhcurv(i,1)
-c$$$c$$$                 dtb(i,1) = min(dt_sub(i),
-c$$$c$$$     .              max((dxl(i,1)-eps)*vhcurv_inv(i,1)
-c$$$c$$$     .                 ,(dxr(i,1)+eps)*vhcurv_inv(i,1)))
-c$$$c$$$               else if((dx(i,1)<dxl(i,1)-eps2)
-c$$$c$$$     .             .or. dx(i,1)>dxr(i,1)+eps2) then
-c$$$c$$$                 dtb(i,1) = 0.5d0*dtb(i,1)
-c$$$c$$$               end if
-c$$$             end if
-c$$$           end if
+c$$$c     End program
 c$$$
-c$$$           !y-direction
-c$$$           dtb(i,2) = dt_sub(i)
-c$$$           if((dx(i,2)<dxl(i,2)-eps) .or. dx(i,2)>dxr(i,2)+eps) then
-c$$$             if(v0curv(i,2)*vhcurv(i,2)<0d0) then
-c$$$               dtb(i,2) = 0.5d0*dt_sub(i)
-c$$$               vh(i,:) = v0(i,:)
-c$$$               vhcurv(i,:) = v0curv(i,:)
-c$$$             else 
-c$$$c$$$               if(it<5) then  !This branch needs to be taken out of the pcle loop!
-c$$$c$$$                 vhcurv_inv(i,2) = 1d0/vhcurv(i,2)
-c$$$c$$$                 dtb(i,2) = min(dt_sub(i),
-c$$$c$$$     .              max((dxl(i,2)-eps)*vhcurv_inv(i,2)
-c$$$c$$$     .                 ,(dxr(i,2)+eps)*vhcurv_inv(i,2)))
-c$$$c$$$               else if(dx(i,2)<dxl(i,2)-eps2 
-c$$$c$$$     .            .or. dx(i,2)>dxr(i,2)+eps2) then
-c$$$c$$$                 dtb(i,2) = 0.5d0*dtb(i,2)
-c$$$c$$$               end if
-c$$$             end if
-c$$$           end if
-c$$$
-c$$$           dt_sub(i) = min(dt_sub(i),dtb(i,1),dtb(i,2))
-c$$$        
-c$$$        end do
-c$$$        end if
-c$$$
-c$$$        dx(:,1) = dt_sub*vhcurv(:,1)
-c$$$        dx(:,2) = dt_sub*vhcurv(:,2)
-c$$$        dx(:,3) = dt_sub*vhcurv(:,3)
-
-c     End program
-
-      end subroutine Boris_solve
+c$$$      end subroutine Boris_solve
 
 c     scatter_fields_nomap
 c     ######################################################################
@@ -1395,7 +1309,7 @@ c     End program
 
       end subroutine scatter_fields_curv
 
-      end subroutine ACC_CN_incell_offset
+      end subroutine update_pcle_position
 
       end module pic_mover
 
