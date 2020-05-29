@@ -236,24 +236,17 @@ c$$$           pcle_nu%v_np = spcs(isp)%pcles(ipc)%v_np  (LC: removed, bug??)
      $                                ,DtA,B0,A,phi,dx
      $                                ,psts,Ep,Bp)
 
-c$$$             dx(:,1) = 0.5d0*(spcs(isp)%pcles(ipc)%v_n(:,1)
-c$$$     $            +spcs(isp)%pcles(ipc)%v_np(:,1))*dt_sub
-c$$$             dx(:,2) = 0.5d0*(spcs(isp)%pcles(ipc)%v_n(:,2)
-c$$$     $            +spcs(isp)%pcles(ipc)%v_np(:,2))*dt_sub
-c$$$             dx(:,3) = 0.5d0*(spcs(isp)%pcles(ipc)%v_n(:,3)
-c$$$     $            +spcs(isp)%pcles(ipc)%v_np(:,3))*dt_sub
-c$$$             
+#if defined(PIC_CM_DIAG)
+             !accumulate particle displacement (for diagnose canonical mom conservation)
+             d_x = d_x + dx
+#endif
+
              Ep_avg(:,1) = Ep_avg(:,1) + Ep(:,1)*dt_sub(:)
              Ep_avg(:,2) = Ep_avg(:,2) + Ep(:,2)*dt_sub(:)
              Ep_avg(:,3) = Ep_avg(:,3) + Ep(:,3)*dt_sub(:)
              Bp_avg(:,1) = Bp_avg(:,1) + Bp(:,1)*dt_sub(:)
              Bp_avg(:,2) = Bp_avg(:,2) + Bp(:,2)*dt_sub(:)
              Bp_avg(:,3) = Bp_avg(:,3) + Bp(:,3)*dt_sub(:)
-
-cc             work=work+Ep(1,1)*dx(1,1)+Ep(1,2)*dx(1,2)+Ep(1,3)*dx(1,3)
-             
-             !Use local registers for performance (C. Mikida)
-             w_pcle = spcs(isp)%pcles(ipc)%w_np
 
              !Update pcle counters
              pst_sum = pst_sum + 1      !Particle substep counter
@@ -262,99 +255,8 @@ cc             work=work+Ep(1,1)*dx(1,1)+Ep(1,2)*dx(1,2)+Ep(1,3)*dx(1,3)
 
              psh_sum = psh_sum + psts   !Total number of particle pushes (including ALL picard iterations)
 
-             !>>>>>> Gather ORBIT AVERAGED moments <<<<<<
-#if defined(PIC_CM_DIAG)
-             !accumulate particle displacement (for diagnose canonical mom conservation)
-             d_x = d_x + dx
-#endif
-             call xform_pcle_idx(pcle_nu%ijk_n,nxg,i,j)
-
-             x_nh = pcle_nu%x_n + dx*0.5d0
-             xp = x_nh(:,1)*ihx
-             yp = x_nh(:,2)*ihy 
-             
-             call shape1_offset(xp,Mx1(:,1:2,1))
-             call shape1_offset(yp,My1(:,1,1:2))               
-
-             xp = pcle_nu%x_n(:,1)*ihx
-             yp = pcle_nu%x_n(:,2)*ihy
-
-             xfp = (pcle_nu%x_n(:,1)+dx(:,1))*ihx
-             yfp = (pcle_nu%x_n(:,2)+dx(:,2))*ihy
-
-             call shape2_offset(xp ,dum1)
-             call shape2_offset(xfp,dum2)
-             Mx2(:,1:3,1) = (dum2-dum1)*0.5d0 !careful
-
-             call shape2_offset(yp ,dum1)
-             call shape2_offset(yfp,dum2)
-             My2(:,1,1:3) = (dum2-dum1)*0.5d0
-
-             !VECTOR SIMD
-             do k=1,_Npg
-#ifdef __GNU
-                Mxy2(k,1:3,1:3)= opt_vecvec_3(Mx2(k,:,:),My2(k,:,:))
-#else
-                Mxy2(k,1:3,1:3)= matmul      (Mx2(k,:,:),My2(k,:,:))
-#endif
-             end do
-
-             call shape2_offset(xp ,dum1)
-             call shape2_offset(xfp,dum2)
-             Mx2(:,1:3,1) = (dum1+dum2)*0.5d0 !careful
-
-             call shape2_offset(yp ,dum1)
-             call shape2_offset(yfp,dum2)
-             My2(:,1,1:3) = (dum1+dum2)*0.5d0
-
-             !Do NOT vectorize: memory race issues
-             do k=1, _Npg
-#ifdef __GNU
-                Mxy2(k,1:3,1:3)= Mxy2(k,1:3,1:3)
-     $                          +opt_vecvec_3(Mx2(k,:,:),My2(k,:,:))
-#else
-                Mxy2(k,1:3,1:3)= Mxy2(k,1:3,1:3)
-     $                          +matmul(Mx2(k,:,:),My2(k,:,:))
-#endif
-
-#ifdef __GNU
-                dum23 = opt_vecvec_23(Mx1(k,:,:),My2(k,:,:))
-                dum32 = opt_vecvec_32(Mx2(k,:,:),My1(k,:,:))
-#else                
-                dum23 = matmul(Mx1(k,:,:),My2(k,:,:))
-                dum32 = matmul(Mx2(k,:,:),My1(k,:,:))
-#endif
-                !accumulate vx (linear in x, 2nd in y)
-                do jl=1,3
-                  do il=1,2
-!$omp atomic update
-                    moms_g(i(k)-2+il,j(k)-2+jl,1,isp,Ipx) = 
-     .              moms_g(i(k)-2+il,j(k)-2+jl,1,isp,Ipx)
-     .                   + dx(k,1)*dum23(il,jl)*w_pcle(k)
-                  enddo
-                enddo
-
-                !accumulate vy (linear in y, 2nd in x)
-                do jl=1,2
-                  do il=1,3
-!$omp atomic update
-                    moms_g(i(k)-2+il,j(k)-2+jl,1,isp,Ipy) = 
-     .              moms_g(i(k)-2+il,j(k)-2+jl,1,isp,Ipy)
-     .                   + dx(k,2)*dum32(il,jl)*w_pcle(k)
-                  enddo
-                enddo
-
-                !accumulate vz (2nd in x,y)
-                do jl=1,3
-                  do il=1,3
-!$omp atomic update
-                    moms_g(i(k)-2+il,j(k)-2+jl,1,isp,Ipz) = 
-     .              moms_g(i(k)-2+il,j(k)-2+jl,1,isp,Ipz)
-     .                   + dx(k,3)*Mxy2(k,il,jl)*w_pcle(k)
-                  enddo
-                enddo
-
-             end do
+             !Gather ORBIT AVERAGED moments
+             call compute_orbit_avg_moments(pcle_nu,dx)
                   
              !Prepare for next substep
              pcle_nu%ijk_n = pcle_nu%ijk_np
@@ -382,114 +284,12 @@ cc             work=work+Ep(1,1)*dx(1,1)+Ep(1,2)*dx(1,2)+Ep(1,3)*dx(1,3)
            spcs(isp)%pcles(ipc)%x_np   = pcle_nu%x_np   
            spcs(isp)%pcles(ipc)%w_np   = pcle_nu%w_np   
 
-c$$$           dx(:,1) = 0.5d0*(spcs(isp)%pcles(ipc)%v_n(:,1)
-c$$$     $         +spcs(isp)%pcles(ipc)%v_np(:,1))*dt
-c$$$           dx(:,2) = 0.5d0*(spcs(isp)%pcles(ipc)%v_n(:,2)
-c$$$     $         +spcs(isp)%pcles(ipc)%v_np(:,2))*dt
-c$$$           dx(:,3) = 0.5d0*(spcs(isp)%pcles(ipc)%v_n(:,3)
-c$$$     $         +spcs(isp)%pcles(ipc)%v_np(:,3))*dt
-c$$$
-c$$$          work = work + 0.5d0*
-c$$$     $         (spcs(isp)%pcles(ipc)%v_np(1,1)
-c$$$     $         *spcs(isp)%pcles(ipc)%v_np(1,1)
-c$$$     $         +spcs(isp)%pcles(ipc)%v_np(1,2)
-c$$$     $         *spcs(isp)%pcles(ipc)%v_np(1,2)
-c$$$     $         +spcs(isp)%pcles(ipc)%v_np(1,3)
-c$$$     $         *spcs(isp)%pcles(ipc)%v_np(1,3)
-c$$$     $         -spcs(isp)%pcles(ipc)%v_n(1,1)
-c$$$     $         *spcs(isp)%pcles(ipc)%v_n(1,1)
-c$$$     $         -spcs(isp)%pcles(ipc)%v_n(1,2)
-c$$$     $         *spcs(isp)%pcles(ipc)%v_n(1,2)
-c$$$     $         -spcs(isp)%pcles(ipc)%v_n(1,3)
-c$$$     $         *spcs(isp)%pcles(ipc)%v_n(1,3))
-cc          print *, ipc,work
-c$$$     $         ,(Ep_avg(1,1)*dx(1,1)
-c$$$     $         +Ep_avg(1,2)*dx(1,2)+Ep_avg(1,3)*dx(1,3)),
-c$$$     $         ((spcs(isp)%pcles(ipc)%v_np(1,1)-pcle_nu%v_np(1,1))**2
-c$$$     $         +(spcs(isp)%pcles(ipc)%v_np(1,2)-pcle_nu%v_np(1,2))**2
-c$$$     $         +(spcs(isp)%pcles(ipc)%v_np(1,3)-pcle_nu%v_np(1,3))**2)/
-c$$$     $         (spcs(isp)%pcles(ipc)%v_np(1,1)**2
-c$$$     $         +spcs(isp)%pcles(ipc)%v_np(1,2)**2
-c$$$     $         +spcs(isp)%pcles(ipc)%v_np(1,3)**2)
-
            !Maximum number of substeps per timestep
            pstmax  = max(it,pstmax)
              
            !Compute NEW TIME moments
-           xp = pcle_nu%x_np(:,1)*ihx
-           yp = pcle_nu%x_np(:,2)*ihy
-
-           call shape1_offset(xp,Mx1(:,1:2,1))
-           call shape1_offset(yp,My1(:,1,1:2))               
-           call shape2_offset(xp,Mx2(:,1:3,1))
-           call shape2_offset(yp,My2(:,1,1:3))
-
-           !VECTOR SIMD
-           do k=1,_Npg
-#ifdef __GNU
-              Mxy2(k,1:3,1:3)= opt_vecvec_3(Mx2(k,:,:),My2(k,:,:))
-#else
-              Mxy2(k,1:3,1:3)= matmul(Mx2(k,:,:),My2(k,:,:))
-#endif
-              M_w_prod(k,:,:) = Mxy2(k,:,:)*w_pcle(k)
-           enddo
-
-           !Do NOT put SIMD statement, reduction!!!!
-           v0 = pcle_nu%v_np
-           call xform_pcle_idx(pcle_nu%ijk_np,nxg,i0,j0)
-
-           !Do NOT vectorize: memory race issues
-           do k=1,_Npg
-             do jl=1,3
-               do il=1,3
-                 !accumulate n (quadratic in x,y)
-!$omp atomic update
-                 moms_g(i(k)-2+il,j(k)-2+jl,1,isp,Ins ) = 
-     .           moms_g(i(k)-2+il,j(k)-2+jl,1,isp,Ins )
-     .                + M_w_prod(k,il,jl)
-
-                 !accumulate v^2 (2nd in x,y, cell-centered)
-                 v2(k) = v0(k,1)*v0(k,1)
-!$omp atomic update
-                 moms_g(i(k)-2+il,j(k)-2+jl,1,isp,IS11) = 
-     .           moms_g(i(k)-2+il,j(k)-2+jl,1,isp,IS11)
-     .                + v2(k)*M_w_prod(k,il,jl)
-
-                 v2(k) = v0(k,2)*v0(k,2)
-!$omp atomic update
-                 moms_g(i(k)-2+il,j(k)-2+jl,1,isp,IS22) = 
-     .           moms_g(i(k)-2+il,j(k)-2+jl,1,isp,IS22)
-     .                + v2(k)*M_w_prod(k,il,jl)
-
-                 v2(k) = v0(k,3)*v0(k,3)
-!$omp atomic update
-                 moms_g(i(k)-2+il,j(k)-2+jl,1,isp,IS33) = 
-     .           moms_g(i(k)-2+il,j(k)-2+jl,1,isp,IS33)
-     .                + v2(k)*M_w_prod(k,il,jl)
-               enddo
-             enddo
-           end do 
-
-           !Diagnostics
-           !Do NOT vectorize: memory race issues
-           do k=1,_Npg
-              !Gather momenta
-              pml = pml + m_sp*v0(k,:)*w_pcle(k)
-
-#if defined(PIC_CM_DIAG)
-              !Gather canonical momenta
-              cml = cml + m_sp*v0(k,:)
-     $             + cmp(spcs(isp)%q,i0(k),j0(k),xp(k),yp(k),A(:,:,:))
-     .      + 0.5*dt*cmp(spcs(isp)%q,i0(k),j0(k),xp(k),yp(k),DtA(:,:,:))
-
-              !Canonical momenta exchange
-              cmex(2) = cmex(2)+q_sp*B0(3)*d_x(k,1)
-     .                         -q_sp*B0(1)*d_x(k,3)
-              cmex(3) = cmex(3)+q_sp*B0(1)*d_x(k,2)
-     .                         -q_sp*B0(2)*d_x(k,1)
-#endif
-           end do 
-
+           call compute_new_time_moments(pcle_nu)
+           
          end do                 !particles
 !$omp end do 
 !$omp end parallel 
@@ -603,6 +403,222 @@ c     Begin program
      .                            + vdotB*Bp(:,3)))*iDenom
 
       end subroutine update_pcle_vel
+
+c     compute_orbit_avg_moments
+c     ######################################################################
+      subroutine compute_orbit_avg_moments(pcle_nu,dx)
+
+      implicit none
+
+c     Call variables
+
+      type(particle) :: pcle_nu
+      real(_prec) :: dx(_Npg,3)
+
+c     Local variables
+
+      integer :: i(_Npg),j(_Npg),k,il,jl
+      
+      real(_prec) :: x_nh(_Npg,3)
+      real(_prec) :: xp(_Npg),yp(_Npg),xfp(_Npg),yfp(_Npg)
+      real(_prec) :: My2(_Npg,1,3),Mx2(_Npg,3,1),My1(_Npg,1,2)
+      real(_prec) :: Mx1(_Npg,2,1),Mxy2(_Npg,3,3),w_pcle(_Npg)
+      real(_prec) :: dum1(_Npg,3),dum2(_Npg,3),dum23(2,3),dum32(3,2)
+
+c     Begin program
+
+      w_pcle = pcle_nu%w_np
+
+      call xform_pcle_idx(pcle_nu%ijk_n,nxg,i,j)
+
+      x_nh = pcle_nu%x_n + dx*0.5d0
+      xp = x_nh(:,1)*ihx
+      yp = x_nh(:,2)*ihy 
+             
+      call shape1_offset(xp,Mx1(:,1:2,1))
+      call shape1_offset(yp,My1(:,1,1:2))               
+
+      xp = pcle_nu%x_n(:,1)*ihx
+      yp = pcle_nu%x_n(:,2)*ihy
+
+      xfp = (pcle_nu%x_n(:,1)+dx(:,1))*ihx
+      yfp = (pcle_nu%x_n(:,2)+dx(:,2))*ihy
+
+      call shape2_offset(xp ,dum1)
+      call shape2_offset(xfp,dum2)
+      Mx2(:,1:3,1) = (dum2-dum1)*0.5d0 !careful
+
+      call shape2_offset(yp ,dum1)
+      call shape2_offset(yfp,dum2)
+      My2(:,1,1:3) = (dum2-dum1)*0.5d0
+
+      !VECTOR SIMD
+      do k=1,_Npg
+#ifdef __GNU
+        Mxy2(k,1:3,1:3)= opt_vecvec_3(Mx2(k,:,:),My2(k,:,:))
+#else
+        Mxy2(k,1:3,1:3)= matmul      (Mx2(k,:,:),My2(k,:,:))
+#endif
+      end do
+
+      call shape2_offset(xp ,dum1)
+      call shape2_offset(xfp,dum2)
+      Mx2(:,1:3,1) = (dum1+dum2)*0.5d0 !careful
+
+      call shape2_offset(yp ,dum1)
+      call shape2_offset(yfp,dum2)
+      My2(:,1,1:3) = (dum1+dum2)*0.5d0
+
+      !Do NOT vectorize: memory race issues
+      do k=1, _Npg
+#ifdef __GNU
+        Mxy2(k,1:3,1:3)= Mxy2(k,1:3,1:3)
+     $                 +opt_vecvec_3(Mx2(k,:,:),My2(k,:,:))
+#else
+        Mxy2(k,1:3,1:3)= Mxy2(k,1:3,1:3)
+     $                 +matmul(Mx2(k,:,:),My2(k,:,:))
+#endif
+
+#ifdef __GNU
+        dum23 = opt_vecvec_23(Mx1(k,:,:),My2(k,:,:))
+        dum32 = opt_vecvec_32(Mx2(k,:,:),My1(k,:,:))
+#else                
+        dum23 = matmul(Mx1(k,:,:),My2(k,:,:))
+        dum32 = matmul(Mx2(k,:,:),My1(k,:,:))
+#endif
+        !accumulate vx (linear in x, 2nd in y)
+        do jl=1,3
+          do il=1,2
+!$omp atomic update
+            moms_g(i(k)-2+il,j(k)-2+jl,1,isp,Ipx) = 
+     .              moms_g(i(k)-2+il,j(k)-2+jl,1,isp,Ipx)
+     .                   + dx(k,1)*dum23(il,jl)*w_pcle(k)
+          enddo
+        enddo
+
+        !accumulate vy (linear in y, 2nd in x)
+        do jl=1,2
+          do il=1,3
+!$omp atomic update
+            moms_g(i(k)-2+il,j(k)-2+jl,1,isp,Ipy) = 
+     .              moms_g(i(k)-2+il,j(k)-2+jl,1,isp,Ipy)
+     .                   + dx(k,2)*dum32(il,jl)*w_pcle(k)
+          enddo
+        enddo
+
+        !accumulate vz (2nd in x,y)
+        do jl=1,3
+          do il=1,3
+!$omp atomic update
+            moms_g(i(k)-2+il,j(k)-2+jl,1,isp,Ipz) = 
+     .              moms_g(i(k)-2+il,j(k)-2+jl,1,isp,Ipz)
+     .                   + dx(k,3)*Mxy2(k,il,jl)*w_pcle(k)
+          enddo
+        enddo
+             
+      end do
+
+      end subroutine compute_orbit_avg_moments
+
+c     compute_new_time_moments
+c     ######################################################################
+      subroutine compute_new_time_moments(pcle_nu)
+
+      implicit none
+
+c     Call variables
+
+      type(particle) :: pcle_nu
+
+c     Local variables
+
+      integer :: i(_Npg),j(_Npg),k,il,jl
+      
+      real(_prec) :: v0(_Npg,3),xp(_Npg),yp(_Npg),v2(_Npg)
+      real(_prec) :: My2(_Npg,1,3),Mx2(_Npg,3,1),My1(_Npg,1,2)
+      real(_prec) :: Mx1(_Npg,2,1),Mxy2(_Npg,3,3),w_pcle(_Npg)
+      real(_prec) :: M_w_prod(_Npg,3,3)
+
+c     Begin program
+
+      xp = pcle_nu%x_np(:,1)*ihx
+      yp = pcle_nu%x_np(:,2)*ihy
+
+      call shape1_offset(xp,Mx1(:,1:2,1))
+      call shape1_offset(yp,My1(:,1,1:2))               
+      call shape2_offset(xp,Mx2(:,1:3,1))
+      call shape2_offset(yp,My2(:,1,1:3))
+
+      !Use local registers for performance (C. Mikida)
+      w_pcle = pcle_nu%w_np
+
+      !VECTOR SIMD
+      do k=1,_Npg
+#ifdef __GNU
+        Mxy2(k,1:3,1:3)= opt_vecvec_3(Mx2(k,:,:),My2(k,:,:))
+#else
+        Mxy2(k,1:3,1:3)= matmul(Mx2(k,:,:),My2(k,:,:))
+#endif
+        M_w_prod(k,:,:) = Mxy2(k,:,:)*w_pcle(k)
+      enddo
+
+      !Do NOT put SIMD statement, reduction!!!!
+      v0 = pcle_nu%v_np
+      call xform_pcle_idx(pcle_nu%ijk_np,nxg,i,j)
+
+      !Do NOT vectorize: memory race issues
+      do k=1,_Npg
+        do jl=1,3
+          do il=1,3
+            !accumulate n (quadratic in x,y)
+!$omp atomic update
+            moms_g(i(k)-2+il,j(k)-2+jl,1,isp,Ins ) = 
+     .           moms_g(i(k)-2+il,j(k)-2+jl,1,isp,Ins )
+     .                + M_w_prod(k,il,jl)
+
+            !accumulate v^2 (2nd in x,y, cell-centered)
+            v2(k) = v0(k,1)*v0(k,1)
+!$omp atomic update
+            moms_g(i(k)-2+il,j(k)-2+jl,1,isp,IS11) = 
+     .           moms_g(i(k)-2+il,j(k)-2+jl,1,isp,IS11)
+     .                + v2(k)*M_w_prod(k,il,jl)
+
+            v2(k) = v0(k,2)*v0(k,2)
+!$omp atomic update
+            moms_g(i(k)-2+il,j(k)-2+jl,1,isp,IS22) = 
+     .           moms_g(i(k)-2+il,j(k)-2+jl,1,isp,IS22)
+     .                + v2(k)*M_w_prod(k,il,jl)
+
+            v2(k) = v0(k,3)*v0(k,3)
+!$omp atomic update
+            moms_g(i(k)-2+il,j(k)-2+jl,1,isp,IS33) = 
+     .           moms_g(i(k)-2+il,j(k)-2+jl,1,isp,IS33)
+     .                + v2(k)*M_w_prod(k,il,jl)
+          enddo
+        enddo
+      end do 
+
+      !Diagnostics
+      !Do NOT vectorize: memory race issues
+      do k=1,_Npg
+        !Gather momenta
+        pml = pml + m_sp*v0(k,:)*w_pcle(k)
+
+#if defined(PIC_CM_DIAG)
+        !Gather canonical momenta
+        cml = cml + m_sp*v0(k,:)
+     $             + cmp(spcs(isp)%q,i(k),j(k),xp(k),yp(k),A  (:,:,:))
+     .      + 0.5*dt*cmp(spcs(isp)%q,i(k),j(k),xp(k),yp(k),DtA(:,:,:))
+
+        !Canonical momenta exchange
+        cmex(2) = cmex(2)+q_sp*B0(3)*d_x(k,1)
+     .                   -q_sp*B0(1)*d_x(k,3)
+        cmex(3) = cmex(3)+q_sp*B0(1)*d_x(k,2)
+     .                   -q_sp*B0(2)*d_x(k,1)
+#endif
+      end do 
+
+      end subroutine compute_new_time_moments
       
       end subroutine pic_mover_2d
 
@@ -639,7 +655,7 @@ c     Local variables
       real(_prec), parameter :: eps  = 1d-12 !Buffer for dt computation in pcle Xing
      .                         ,eps2 = 1d-10 !1d-8  !Buffer for pcle Xing
 
-      real(_prec) :: ptola,alpha=0d0,dt_coeff=62.8 !31.4 !25.12 !12.56 !6.28 !3.14 !1.256 !0.2
+      real(_prec) :: ptola,alpha=0d0!,dt_coeff=62.8 !31.4 !25.12 !12.56 !6.28 !3.14 !1.256 !0.2
 
       real(_prec) :: am(_Npg,_Dim)
 
@@ -735,15 +751,9 @@ c     Cell crossing and particle b.c.
 
       call cell_crossing(dx,xnp_loc,vnp_loc,inp_loc,jnp_loc,wp_loc)
 
-c     Back to the global registers now:
-
-c$$$      pcle%ijk_np = inp_loc + nxg*(jnp_loc - 1)
-c$$$      pcle%v_np = vnp_loc
-c$$$      pcle%x_np = xnp_loc
-c$$$      pcle%w_np = wp_loc
+c     Update particle registers
 
       pcle_nu%ijk_np = inp_loc + nxg*(jnp_loc - 1)
-c$$$      pcle_nu%v_np = vnp_loc
       pcle_nu%x_np = xnp_loc
       pcle_nu%w_np = wp_loc
       
