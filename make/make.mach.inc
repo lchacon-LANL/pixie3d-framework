@@ -18,6 +18,43 @@ FC?=gfortran
 HDF5 ?= f
 ADIOS?= f
 
+
+
+###############################
+#  (Koshkarov O.  ) #
+###############################
+
+
+ifeq ($(HOST),cascabel)
+    FC=gfortran
+    #FC=mpif90
+    #CC=mpicc
+    #CXX=mpic++
+    HDF5 = f
+    HDF5_HOME = /home/koshmar/.local/hdf5
+    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+    HDF5_MOD  = $(HDF5_HOME)/lib
+    HDF5_INC  = $(HDF5_HOME)/include
+    LIBS +=  -llapack -lblas
+endif
+
+ifeq ($(HOST),kigal)
+    FC=gfortran
+    #FC=mpif90
+    #CC=mpicc
+    #CXX=mpic++
+    HDF5 = t
+    HDF5_HOME = /home/koshmar/.local/hdf5
+    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+    HDF5_MOD  = $(HDF5_HOME)/lib
+    HDF5_INC  = $(HDF5_HOME)/include
+    LIBS +=  -llapack -lblas
+    
+    # What is CPPFLAGS? is it FFLAGS?
+
+endif
+
+
 ###############################
 # lap0086227 (Mark Berrill's) #
 ###############################

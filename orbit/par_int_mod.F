@@ -1992,6 +1992,15 @@ c-----------------------------------------------
 c END OMP PARALLEL REGION
 c-----------------------------------------------
 
+c Output length added by O. Koshkarov 10/09/2019
+c     open(666,file='test_ll')
+c     do i=0,nx+1
+c        write(666,*),ll(i,:,1)
+c     end do
+c     close(666)
+
+
+
         call orbit_destroy
 
       end subroutine find_length
@@ -3047,7 +3056,7 @@ c     Begin program
 
       end subroutine lag_xport_res
 
-c Modification added by O. Koshkarov, Apr 1, 2019      
+c Modification added by O. Koshkarov, Apr 1, 2019, added 3d on Aug 29, 2019      
 c     lag_xport_P_prop
 c     ##############################################################
       subroutine lag_xport_P_prop(g_def,igrid,in_flds,out_flds,chi,iout)
@@ -3076,13 +3085,22 @@ c     Local variables
           end subroutine lsode_2d_P_prop
         END INTERFACE
 
+        INTERFACE
+          subroutine lsode_3d_P_prop(neq,t,y,ydot)
+          integer :: neq
+          real(8) :: t,y(neq),ydot(neq)
+          end subroutine lsode_3d_P_prop
+        END INTERFACE
+
+
 c     Begin program
 
         if (l2d) then
           call lag_2d_new(g_def,igrid,in_flds,out_flds,chi,iout
      .                   ,lsode_2d_P_prop)
         else
-          call pstop('lag_xport_P_prop','3D not yet implemented')
+          call lag_3d_new(g_def,igrid,in_flds,out_flds,chi,iout
+     .                   ,lsode_3d_P_prop)
         endif
 
       end subroutine lag_xport_P_prop
@@ -5773,3 +5791,67 @@ c End program
       end subroutine lsode_2d_P_prop
 
 c End of modification added by O. Koshkarov, Apr 1, 2019      
+
+c Modification added by O. Koshkarov, Aug 29, 2019      
+c lsode_3d_P_prop
+c #########################################################################
+      subroutine lsode_3d_P_prop(neq,t,y,ydot)
+
+c -------------------------------------------------------------------------
+c     Driver routine for LSODE integration: ydot = ff(y,t)
+c -------------------------------------------------------------------------
+
+      use par_int
+
+      implicit none
+
+c Call variables
+
+      integer :: neq
+      real(8) :: t,y(neq),ydot(neq)
+
+c Local variables
+
+      integer :: ierror
+      real(8) :: x1,y1,z1,s1,flds(size(sp_coef,4)),B2,iB2
+      logical :: exl1
+
+c Begin program
+
+      if (neq /= 6) then
+        call pstop('lsode_3d_P_prop','Wrong number of equations')
+      endif
+
+c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
+
+      call lsode_orbit_f(5,t,y(1:5),ydot(1:5),xx1=x1,yy1=y1,zz1=z1
+     .                  ,B2=B2)
+
+      if (.not.bwgt) then
+        iB2=1d0
+      else
+        iB2=1d0/B2
+      endif
+
+c Call additional integrators
+
+      s1 = abs(y(5))
+
+      call evalFlds(x1,y1,z1,sp_coef,flds)
+
+      !Src @ dt
+      ydot(6) = flds(1)*skernel_3d(s1,ieps*dt,exl1)*iB2
+
+      !Transform back to arc-length integral
+      ydot(6:neq) = ydot(6:neq)*ydot(5)
+
+c Are we done?
+
+      call set_orbit_exit(exl1)
+
+c End program
+
+      end subroutine lsode_3d_P_prop
+
+c End of modification added by O. Koshkarov, Aug 29, 2019      
+

@@ -275,11 +275,11 @@ c     Begin program
 
 c     Plot PC solution
 
-        call vec_plot_gl(gv%gparams,neqd,x,igrid,'sol','Solution')
+        call vec_plot_gl(gv%gparams,neqd,-x,igrid,'sol','Solution')
 
 c     Plot PC RHS
 
-        call vec_plot_gl(gv%gparams,neqd,y,igrid,'rhs','RHS')
+        call vec_plot_gl(gv%gparams,neqd,-y,igrid,'rhs','RHS')
 
 c     Plot corresponding linear residual to PC solution
 
