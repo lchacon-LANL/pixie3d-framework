@@ -4694,7 +4694,7 @@ c ######################################################################
 
       character*(100) :: ext_pic_file = "" !External particle def file
 
-      character*(3) :: pic_mover_type = "sub" !Particle mover type
+      character*(3) :: pic_mover_type = "sub" !Particle mover type ("sub","avg")
       
       contains
 
