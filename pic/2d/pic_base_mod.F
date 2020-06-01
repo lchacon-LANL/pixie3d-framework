@@ -10,7 +10,7 @@ c ######################################################################
       
 #if defined(petsc)
       use grid, ONLY: MPI_COMM_WORLD,MPI_DOUBLE_PRECISION,MPI_SUM
-     .               ,MPI_INTEGER,mpierr,MPI_MAX,MPI_MIN
+     .               ,MPI_INTEGER,MPI_INTEGER8,mpierr,MPI_MAX,MPI_MIN
 #endif
 
       integer, parameter :: nsp_max=5,Npg=_Npg,dim=_Dim,dimt=_Dim+_Dimx
@@ -4694,7 +4694,7 @@ c ######################################################################
 
       character*(100) :: ext_pic_file = "" !External particle def file
 
-      character*(3) :: pic_mover_type = "avg" !Particle mover type
+      character*(3) :: pic_mover_type = "sub" !Particle mover type
       
       contains
 
