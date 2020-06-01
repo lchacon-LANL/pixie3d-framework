@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<adios-config>
+    <io name="record">
+        <engine type="BPFile">
+            <parameter key="Profile" value="Off"/>
+        </engine>
+    </io>
+    <io name="record.read">
+        <engine type="BPFile">
+            <parameter key="Profile" value="Off"/>
+        </engine>
+    </io>
+</adios-config>

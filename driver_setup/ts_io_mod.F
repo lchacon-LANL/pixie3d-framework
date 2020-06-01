@@ -118,16 +118,19 @@ c     End program
 
 c     TS_dump
 c     ##################################################################
-      subroutine TS_dump(varray)
+      subroutine TS_dump(varray,dump_now)
 
       implicit none
 
 c     Call variables
 
       type(var_array),pointer :: varray
-
+      logical, optional :: dump_now
+      
 c     Local variables
 
+      logical :: dump
+      
       INTERFACE
         subroutine perturbEquilibrium(varray)
         use var_setup
@@ -137,20 +140,24 @@ c     Local variables
 
 c     Begin program
 
-        if (TS_chk_dump(etime=exec_time,reset_counters=.true.)
+      if (PRESENT(dump_now)) then
+        dump = dump_now
+      else
+        dump = .false.
+      endif
+      
+      if ((TS_chk_dump(etime=exec_time,reset_counters=.true.).or.dump)
      .     .and.(.not.no_graphics_io)) then
-cc          if (.not.relax_init_grid) nrst  = 0
-cc          if(itime-init_grid_offset > 0) tmrst=tmrst-dstep
-          call writeRecordFile(recordfile,itime,time,dt,gammat,varray)
-        endif
+         call writeRecordFile(recordfile,itime,time,dt,gammat,varray)
+      endif
 
 #if defined(MK)
-        if (relax_init_grid) then
-          relax_init_grid = .false.
+      if (relax_init_grid) then
+        relax_init_grid = .false.
 cc          if (source) call get_src(varray,.true.) !Update source with interpolated equilibrium
-          call equateDerivedType (u_n,varray)     !Save interpolated (unperturbed) equilibrium
-          call perturbEquilibrium(varray)         !Perturb interpolated equilibrium
-        endif
+        call equateDerivedType (u_n,varray) !Save interpolated (unperturbed) equilibrium
+        call perturbEquilibrium(varray) !Perturb interpolated equilibrium
+      endif
 #endif
 
 c     End program

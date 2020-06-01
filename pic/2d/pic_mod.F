@@ -45,7 +45,7 @@ c     Call variables
 c     Local variables
 
       integer :: ipc,isp,i0(_Npg),j0(_Npg),i(_Npg),j(_Npg)
-      integer :: im,it,k,psh_sum
+      integer :: im,it,k,psh_sum,il,jl
      .          ,pits,pit_sum
      .          ,psts,pst_sum
       integer(8) :: pitmax,pstmax
@@ -59,35 +59,20 @@ c     Local variables
       real(_prec) :: xp(_Npg),yp(_Npg),xfp(_Npg),yfp(_Npg)
      .              ,v2(_Npg),w_pcle(_Npg),m_sp,q_sp
 
-      real(_prec),allocatable,dimension(:,:) :: garr_n  
-     $                                         ,garr_vx 
-     $                                         ,garr_vy 
-     $                                         ,garr_vz 
-     $                                         ,garr_vx2
-     $                                         ,garr_vy2
-     $                                         ,garr_vz2
-
       real(_prec) :: My2(_Npg,1,3),Mx2(_Npg,3,1),My1(_Npg,1,2)
       real(_prec) :: Mx1(_Npg,2,1),Mxy2(_Npg,3,3)
       real(_prec) :: M_w_prod(_Npg,3,3),dum1(_Npg,3),dum2(_Npg,3)
+     .              ,dum23(2,3),dum32(3,2)
 
       real(_prec) :: rhon,rho,jip,ji,ecc,cml(3),pml(3),cmex(3)
      .              ,lacc(9),gacc(9)
 
-      real(_prec) :: dtv,dtx
+      real(_prec) :: dtv,dtx,idtx
       real(8) :: ihx,ihy,ihz
 
       type(particle) :: pcle_nu
 
 c     Begin program
-
-      allocate(garr_n  (0:size(A,1)-1,0:size(A,2)-1)
-     $        ,garr_vx (0:size(A,1)-1,0:size(A,2)-1)
-     $        ,garr_vy (0:size(A,1)-1,0:size(A,2)-1)
-     $        ,garr_vz (0:size(A,1)-1,0:size(A,2)-1)
-     $        ,garr_vx2(0:size(A,1)-1,0:size(A,2)-1)
-     $        ,garr_vy2(0:size(A,1)-1,0:size(A,2)-1)
-     $        ,garr_vz2(0:size(A,1)-1,0:size(A,2)-1))
 
 c     Particle pusher timer - C. Mikida, 05/16
 
@@ -108,6 +93,8 @@ c      call start_collection()
          dtx = dt
       end if
 
+      idtx = 1d0/dtx
+      
       cml = 0d0 ; pml = 0d0 ; cmex = 0d0
 
       call get_global_grid_size(nxg,nyg,nzg)
@@ -125,33 +112,24 @@ c     Move particles
 
       ntot_pcles = 0
 
+      moms_g = 0d0
+      
       do isp=1, numspcs
          numpcles = size(spcs(isp)%pcles)
 
          ntot_pcles = ntot_pcles + (numpcles - nip)
-
-         garr_n = 0d0
-
-         garr_vx = 0d0
-         garr_vy = 0d0
-         garr_vz = 0d0
-
-         garr_vx2= 0d0
-         garr_vy2= 0d0
-         garr_vz2= 0d0
 
          m_sp = spcs(isp)%m
          q_sp = spcs(isp)%q
 
 !     note that there is some issue with valgrind and libgomp.
 !$omp parallel DEFAULT(SHARED) private(ipc,it,v0,v2,dtp,dt_sub
-!$omp.              ,d_x,dx,xp,yp,xfp,yfp,x_nh,dum1,dum2
+!$omp.              ,d_x,dx,xp,yp,xfp,yfp,x_nh,dum1,dum2,il,jl
 !$omp.              ,i,j,k,i0,j0,Mx1,Mx2,My1,My2,Mxy2,w_pcle
-!$omp.              ,psts,M_w_prod,pits,pcle_nu)
+!$omp.              ,psts,M_w_prod,pits,pcle_nu,dum23,dum32)
 !$         call set_omp_thread_id()
 !$omp DO SCHEDULE (DYNAMIC,4)
-!$omp.reduction(+:garr_n,garr_vx,garr_vy,garr_vz
-!$omp.           ,garr_vx2,garr_vy2,garr_vz2,pml
+!$omp.reduction(+:pml
 #if defined(PIC_CM_DIAG)        
 !$omp.           ,cmex,cml
 #endif
@@ -249,30 +227,41 @@ c     Move particles
 #endif
 
 #ifdef __GNU
-                !accumulate vx (linear in x, 2nd in y)
-                garr_vx(i(k)-1:i(k)  ,j(k)-1:j(k)+1) = 
-     .          garr_vx(i(k)-1:i(k)  ,j(k)-1:j(k)+1) + 
-     .          dx(k,1)*opt_vecvec_23(Mx1(k,:,:),My2(k,:,:))*w_pcle(k)
-
-                !accumulate vy (linear in y, 2nd in x)
-                garr_vy(i(k)-1:i(k)+1,j(k)-1:j(k)) = 
-     .          garr_vy(i(k)-1:i(k)+1,j(k)-1:j(k)) + 
-     .          dx(k,2)*opt_vecvec_32(Mx2(k,:,:),My1(k,:,:))*w_pcle(k)
+                dum23 = opt_vecvec_23(Mx1(k,:,:),My2(k,:,:))
+                dum32 = opt_vecvec_32(Mx2(k,:,:),My1(k,:,:))
 #else                
+                dum23 = matmul(Mx1(k,:,:),My2(k,:,:))
+                dum32 = matmul(Mx2(k,:,:),My1(k,:,:))
+#endif
                 !accumulate vx (linear in x, 2nd in y)
-                garr_vx(i(k)-1:i(k)  ,j(k)-1:j(k)+1) = 
-     .          garr_vx(i(k)-1:i(k)  ,j(k)-1:j(k)+1) + 
-     .          dx(k,1)*matmul(Mx1(k,:,:),My2(k,:,:))*w_pcle(k)
+                do jl=1,3
+                  do il=1,2
+!$omp atomic update
+                    moms_g(i(k)-2+il,j(k)-2+jl,1,isp,Ipx) = 
+     .              moms_g(i(k)-2+il,j(k)-2+jl,1,isp,Ipx)
+     .                   + dx(k,1)*dum23(il,jl)*w_pcle(k)
+                  enddo
+                enddo
 
                 !accumulate vy (linear in y, 2nd in x)
-                garr_vy(i(k)-1:i(k)+1,j(k)-1:j(k)) = 
-     .          garr_vy(i(k)-1:i(k)+1,j(k)-1:j(k)) +
-     .          dx(k,2)*matmul(Mx2(k,:,:),My1(k,:,:))*w_pcle(k)
-#endif
+                do jl=1,2
+                  do il=1,3
+!$omp atomic update
+                    moms_g(i(k)-2+il,j(k)-2+jl,1,isp,Ipy) = 
+     .              moms_g(i(k)-2+il,j(k)-2+jl,1,isp,Ipy)
+     .                   + dx(k,2)*dum32(il,jl)*w_pcle(k)
+                  enddo
+                enddo
+
                 !accumulate vz (2nd in x,y)
-                garr_vz(i(k)-1:i(k)+1,j(k)-1:j(k)+1) =
-     .          garr_vz(i(k)-1:i(k)+1,j(k)-1:j(k)+1) +
-     .          dx(k,3)*Mxy2(k,:,:)*w_pcle(k)
+                do jl=1,3
+                  do il=1,3
+!$omp atomic update
+                    moms_g(i(k)-2+il,j(k)-2+jl,1,isp,Ipz) = 
+     .              moms_g(i(k)-2+il,j(k)-2+jl,1,isp,Ipz)
+     .                   + dx(k,3)*Mxy2(k,il,jl)*w_pcle(k)
+                  enddo
+                enddo
 
              end do
                   
@@ -309,30 +298,39 @@ c     Move particles
            enddo
 
            !Do NOT put SIMD statement, reduction!!!!
-           v0 = pcle_nu%v_n
-           call xform_pcle_idx(pcle_nu%ijk_n,nxg,i0,j0)
+           v0 = pcle_nu%v_n                             !Local register, equal to v_np after loop
+           call xform_pcle_idx(pcle_nu%ijk_n,nxg,i0,j0) !Local register, equal to ijk_np after loop
 
            !Do NOT vectorize: memory race issues
            do k=1,_Npg
-              !accumulate n (quadratic in x,y)
-              garr_n(i0(k)-1:i0(k)+1,j0(k)-1:j0(k)+1) = 
-     .        garr_n(i0(k)-1:i0(k)+1,j0(k)-1:j0(k)+1) + M_w_prod(k,:,:)
+             do jl=1,3
+               do il=1,3
+                 !accumulate n (quadratic in x,y)
+!$omp atomic update
+                 moms_g(i(k)-2+il,j(k)-2+jl,1,isp,Ins ) = 
+     .           moms_g(i(k)-2+il,j(k)-2+jl,1,isp,Ins )
+     .                + M_w_prod(k,il,jl)
 
-              !accumulate v^2 (2nd in x,y, cell-centered)
-              v2(k) = v0(k,1)*v0(k,1)
-              garr_vx2(i0(k)-1:i0(k)+1,j0(k)-1:j0(k)+1) = 
-     .        garr_vx2(i0(k)-1:i0(k)+1,j0(k)-1:j0(k)+1) + 
-     .                             v2(k)*M_w_prod(k,:,:)
+                 !accumulate v^2 (2nd in x,y, cell-centered)
+                 v2(k) = v0(k,1)*v0(k,1)
+!$omp atomic update
+                 moms_g(i(k)-2+il,j(k)-2+jl,1,isp,IS11) = 
+     .           moms_g(i(k)-2+il,j(k)-2+jl,1,isp,IS11)
+     .                + v2(k)*M_w_prod(k,il,jl)
 
-              v2(k) = v0(k,2)*v0(k,2)
-              garr_vy2(i0(k)-1:i0(k)+1,j0(k)-1:j0(k)+1) = 
-     .        garr_vy2(i0(k)-1:i0(k)+1,j0(k)-1:j0(k)+1) + 
-     .                             v2(k)*M_w_prod(k,:,:)
+                 v2(k) = v0(k,2)*v0(k,2)
+!$omp atomic update
+                 moms_g(i(k)-2+il,j(k)-2+jl,1,isp,IS22) = 
+     .           moms_g(i(k)-2+il,j(k)-2+jl,1,isp,IS22)
+     .                + v2(k)*M_w_prod(k,il,jl)
 
-              v2(k) = v0(k,3)*v0(k,3)
-              garr_vz2(i0(k)-1:i0(k)+1,j0(k)-1:j0(k)+1) = 
-     .        garr_vz2(i0(k)-1:i0(k)+1,j0(k)-1:j0(k)+1) + 
-     .                             v2(k)*M_w_prod(k,:,:)
+                 v2(k) = v0(k,3)*v0(k,3)
+!$omp atomic update
+                 moms_g(i(k)-2+il,j(k)-2+jl,1,isp,IS33) = 
+     .           moms_g(i(k)-2+il,j(k)-2+jl,1,isp,IS33)
+     .                + v2(k)*M_w_prod(k,il,jl)
+               enddo
+             enddo
            end do 
 
            !Diagnostics
@@ -360,25 +358,9 @@ c     Move particles
 !$omp end parallel 
 
          !orbit-averaged
-         moms_g(:,:,1,isp,Ipx) = garr_vx/dtx
-         moms_g(:,:,1,isp,Ipy) = garr_vy/dtx
-         moms_g(:,:,1,isp,Ipz) = garr_vz/dtx
-
-         !non-orbit-averaged
-         moms_g(:,:,1,isp,Ins ) = garr_n !careful        
-         moms_g(:,:,1,isp,IS11) = garr_vx2
-         moms_g(:,:,1,isp,IS22) = garr_vy2
-         moms_g(:,:,1,isp,IS33) = garr_vz2
+         moms_g(:,:,1,isp,Ipx:Ipz) = moms_g(:,:,1,isp,Ipx:Ipz)*idtx
 
       end do                    !species
-
-      deallocate(garr_n  
-     $          ,garr_vx 
-     $          ,garr_vy 
-     $          ,garr_vz 
-     $          ,garr_vx2
-     $          ,garr_vy2
-     $          ,garr_vz2)
 
 c     Particle pusher timing end - C. Mikida, 05/16
       
@@ -392,9 +374,7 @@ c     Append to particle pusher timer/counters
 
 c     Synchronize moments
 
-      call wrap_moments_nodes(moms_g(:,:,1,:,:),wrap_density=.false.)
-      moms_g(:,:,0,:,:) = moms_g(:,:,1,:,:)
-      moms_g(:,:,2,:,:) = moms_g(:,:,1,:,:)
+      call wrap_moments_nodes(moms_g(:,:,1,:,:))
 
 c     Scatter moments to local mesh
 
@@ -404,7 +384,7 @@ c     Scatter moments to local mesh
 
 c     Apply BCs to moments
 
-      call applyBC_moms(gpicdef)
+      call applyBC_moms(gpicdef,moms)
 
 c     Output info
 
@@ -1992,11 +1972,12 @@ c     Update particle info
         if(nip>0) then
           !keep the first cell particle number constant
           npl = (npc1/_Npg-npc1_0(1))
-           
-          do while(npl<0) 
-            nip = nip - 1
-            npl = npl + 1
-          end do
+
+          if (npl < 0) nip = nip + npl
+c$$$          do while(npl<0) 
+c$$$            nip = nip - 1
+c$$$            npl = npl + 1
+c$$$          end do
 
           if (my_rank_pic == 0.and.(.not.tst_flg)) then
             write (*,*) 'Particle buffer number',nip*_Npg
@@ -2008,7 +1989,7 @@ c     Update particle info
 !$OMP PARALLEL DEFAULT(SHARED) private(ipc,xp,yp,i0,j0,i)
 !$OMP DO 
 !$OMP.REDUCTION (+:v2,cm)
-            do ipc = nip+1,nip+npa_int  !What is npa_int for????
+            do ipc = nip+1,nip-npl
               xp = spcs(isp)%pcles(ipc)%x_np(:,1)*ihx 
               yp = spcs(isp)%pcles(ipc)%x_np(:,2)*ihy
               call xform_pcle_idx(spcs(isp)%pcles(ipc)%ijk_np,nxg,i0,j0)
@@ -2067,7 +2048,8 @@ c     Update particle info
 
 c     Dump particles for restart
 
-      if ((TS_chk_dump().or.itime==0).and.(.not.tst_flg)) then
+      if ((TS_chk_dump().or.itime==0.or.TS_chk_end())
+     .    .and.(.not.tst_flg)) then
         ierr = pic_dump_pcles(time)
       endif
 

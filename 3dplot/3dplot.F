@@ -127,7 +127,7 @@ c Finalize graphics
 
       call finalizeDiagnostics
 
-      call closeRecordFiles
+      call closeGraphicsFiles
 
       call fortranDestroy
 
@@ -319,16 +319,7 @@ c Allocate global variable
 
 c Open graphics files
 
-      if (np > 1) then
-        urecord = openRestartFileForRead()
-      else
-#if defined(adios)
-        urecord = openRestartFileForRead()
-#else
-        call openRecordFiles(urecord,recordfile
-     .                      ,ilog,ihig,jlog,jhig,klog,khig)
-#endif
-      endif
+      call openGraphicsFiles
 
 c Read geometry (if appropriate)
 

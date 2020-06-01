@@ -33,14 +33,32 @@ ifeq ($(ADIOS),t)
   ifdef ADIOS_METHOD
     CPPFLAGS  += $(PREPROC)ADIOS_METHOD=\"$(ADIOS_METHOD)\"
   endif
-  MODPATH     += $(ADDMODFLAG)$(ADIOS_INC)
+  MODPATH     += $(ADDMODFLAG)$(ADIOS_HOME)/include
+  export ADIOS_CONFIG = adios1.10.0_config.xml
+  export ADIOS_VER
+  export ADIOS
+endif
+
+# ADIOS2 setup
+
+ifeq ($(ADIOS2),t)
+  CONTRIBLIBS += $(ADIOS2_LIBS)
+  ## jyc: ADIOS2 should be capital
+  CPPFLAGS    += $(PREPROC)ADIOS2 $(PREPROC)ADIOS2_VER=$(ADIOS2_VER)  $(PREPROC)ADIOS2_FILE=\"record-$(ADIOS2_VER).bp\"
+  ifdef ADIOS2_METHOD
+    CPPFLAGS  += $(PREPROC)ADIOS2_METHOD=\"$(ADIOS2_METHOD)\"
+  endif
+  MODPATH     += $(ADIOS2_MOD)
+  export ADIOS_CONFIG = adios2.5.0_config.xml
+  export ADIOS_VER = $(ADIOS2_VER)
+  export ADIOS2
 endif
 
 # HDF5 setup
 
 ifeq ($(HDF5),t)
   CONTRIBLIBS += $(HDF5_LIBS) 
-  CPPFLAGS    += $(PREPROC)hdf5 $(PREPROC)H5_USE_16_API -I$(HDF5_INC)
+  CPPFLAGS    += $(PREPROC)hdf5 -I$(HDF5_INC)
   MODPATH     += $(ADDMODFLAG)$(HDF5_MOD)
 endif
 
@@ -49,6 +67,8 @@ endif
 ifeq ($(ARPACK),t)
   CONTRIBLIBS += $(ARPACK_LIBS)
   CPPFLAGS    += $(PREPROC)arpack
+
+  export ARPACK
 endif
 
 # PETSC setup
@@ -62,6 +82,8 @@ ifdef BOPT
     CPPFLAGS += $(PREPROC)petsc_c
     SNES_OPT = -snes_mf
   endif
+
+  export PETSC_DIR PETSC_ARCH FLINKER PETSC_SNES_LIB BOPT SNES_OPT
 endif
 
 #SAMRAI setup
@@ -76,6 +98,10 @@ ifdef SAMR
   OBJECT=${SAMRAI}
 
   CPPFLAGS += $(PREPROC)samrai
+
+  export CPPFLAGS_EXTRA \
+         CXXFLAGS_EXTRA LDFLAGS_EXTRA LDLIBS_EXTRA SAMR SAMRAI LIBSAMRAI3D LIBSAMRAI \
+         AMRUTILITIES_HOME SAMRSOLVERS_HOME
 endif
 
 # RNG setup
@@ -90,7 +116,7 @@ MODPATH     += $(ADDMODFLAG)$(COMMONDIR)/contrib/btridiag/lib
 
 # PTRIDIAG (parallel tridiagonal solver) setup
 
-ifeq ($(PTRID),t)
+ifdef BOPT
   CONTRIBLIBS += -L$(COMMONDIR)/contrib/ptridiag/lib -lptrid
 endif
 

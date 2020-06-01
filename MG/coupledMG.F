@@ -670,7 +670,7 @@ c ######################################################################
         end type garray
 
         type :: mg_array
-          type(grid_mg_def),pointer :: g_def
+          type(grid_mg_def),pointer :: g_def => null()
           type(garray),pointer,dimension(:) :: grid
           type(mg_array),pointer :: mg_crse_array => null()
         end type mg_array
@@ -3834,7 +3834,33 @@ c     ##################################################################
         
         private :: find_mf_diag_std,find_mf_diag_clr,find_mf_diag_vbr
 
+        integer :: zebrags_current_dir=0
+        
       contains
+
+c     MG_set_zebra_dir
+c     #################################################################
+      subroutine MG_set_zebra_dir(zd)
+
+      implicit none
+
+      integer :: zd
+
+      zebrags_current_dir = zd
+      
+      end subroutine MG_set_zebra_dir
+
+c     MG_get_zebra_dir
+c     #################################################################
+      function MG_get_zebra_dir() result(zd)
+
+      implicit none
+
+      integer :: zd
+
+      zd = zebrags_current_dir
+      
+      end function MG_get_zebra_dir
 
 c     MG_set_res_vol_wgt
 c     #################################################################
@@ -4224,7 +4250,7 @@ c$$$        endif
         if (PRESENT(sm_zebra_it)) then
           zit = sm_zebra_it
         else
-          zit = 3
+          zit = 2
         endif
 
         if (PRESENT(sm_zebra_dir)) then
@@ -4346,7 +4372,7 @@ c       Check whether GMRES is driving solve
 
         if (gm_drvr .or. cg_drvr) then
 
-          call solverOptionsInit
+          call solverOptionsInit(solverOptions)
 
           solverOptions%iter    = gmit
           solverOptions%tol     = r_tol
@@ -4360,19 +4386,19 @@ c       Check whether GMRES is driving solve
 
           if (gm_drvr) then
             solverOptions%singular_matrix = smat
-            call assembleSolverHierarchy('gm')
+            call assembleSolverHierarchy('gm',solverOptions)
           else
-            call assembleSolverHierarchy('cg')
+            call assembleSolverHierarchy('cg',solverOptions)
           endif
 
           if (vcyc == 0) then !Identity preconditioner
-            call assembleSolverHierarchy('id')
+            call assembleSolverHierarchy('id',solverOptions)
           endif
         endif
 
 c       MG solver options
 
-        call solverOptionsInit
+        call solverOptionsInit(solverOptions)
 
         solverOptions%tol     = r_tol
         solverOptions%atol    = a_tol
@@ -4396,17 +4422,20 @@ cc        solverOptions%vol_res  = vol_wgt
 
         if (PRESENT(dg)) solverOptions%diag => ddg
 
-        solverOptions%mg_grid_def=>mg_grid_def
+        if (.not.(gm_drvr .or. cg_drvr)) then
+          solverOptions%mg_grid_def=>mg_grid_def
+        endif
 
         solverOptions%ncolors  = nclrs
 
         !Coarse solve
         if (gm_crse_solve) then
         !With GMRES as coarse solver (defined below)
-          if (         (gm_drvr  .and. smth/='gm')
-     .       .or.((.not.gm_drvr) .and. smth=='gm') ) then
+          if (          gm_drvr  .and. smth/='gm' ) then
+            solverOptions%mg_coarse_solver_depth = 4 
+          elseif ((.not.gm_drvr) .and. smth=='gm' ) then
             solverOptions%mg_coarse_solver_depth = 4
-          elseif (gm_drvr .and. smth=='gm') then
+          elseif (      gm_drvr  .and. smth=='gm' ) then
             solverOptions%mg_coarse_solver_depth = 5
           else
             solverOptions%mg_coarse_solver_depth = 3
@@ -4438,11 +4467,11 @@ cc          solverOptions%mg_mu           = mu_cyc
           solverOptions%mg_line_coarse_solver_depth = 0
         endif
 
-        call assembleSolverHierarchy('mg')
+        call assembleSolverHierarchy('mg',solverOptions)
 
 c       MG smoother
 
-        call solverOptionsInit
+        call solverOptionsInit(solverOptions)
 
         solverOptions%iter            = smit
         solverOptions%tol             = r_tol
@@ -4462,25 +4491,31 @@ cc          if(bcSP()) solverOptions%mg_zebra_prefd = 1
           solverOptions%mg_zebra_it    = zit
           solverOptions%mg_zebra_omega = zomg
 
-cc          solverOptions%iter=ceiling(1.*smit/solverOptions%mg_zebra_it)
-          solverOptions%iter=smit
-
-          call assembleSolverHierarchy('gs')
+          call assembleSolverHierarchy('gs',solverOptions)
         case('gm')
           solverOptions%stp_test        = 1 
-          solverOptions%krylov_subspace = solverOptions%iter 
+          solverOptions%krylov_subspace = 10 !solverOptions%iter 
+          solverOptions%iter            = 10
+          solverOptions%tol             = 1d-3
+          
+          call assembleSolverHierarchy('gm',solverOptions)
 
-          call assembleSolverHierarchy('gm')
-
-          call assembleSolverHierarchy('id')
+          !JB
+          call solverOptionsInit(solverOptions)
+          solverOptions%omega = omg
+          solverOptions%iter  = 2
+          solverOptions%ncolors = nclrs
+          call assembleSolverHierarchy('jb',solverOptions)
+ 
+c$$$          call assembleSolverHierarchy('id',solverOptions)
         case default !JB
           solverOptions%omega   = omg
-          call assembleSolverHierarchy('jb')
+          call assembleSolverHierarchy('jb',solverOptions)
         end select
 
 c       MG coarsest grid solve
 
-        call solverOptionsInit
+        call solverOptionsInit(solverOptions)
 
         solverOptions%tol             = 1d-5
         solverOptions%krylov_subspace = min(100,2*neq*ntotp)
@@ -4489,12 +4524,12 @@ c       MG coarsest grid solve
         solverOptions%omega           = 1d0
         solverOptions%singular_matrix = smat
 
-        call assembleSolverHierarchy('gm')
-        call assembleSolverHierarchy('id') !GMRES preconditioner
+        call assembleSolverHierarchy('gm',solverOptions)
+        call assembleSolverHierarchy('id',solverOptions) !GMRES preconditioner
 
 c       Coarsest grid solve for inner line/plane MG
 
-        call solverOptionsInit
+        call solverOptionsInit(solverOptions)
 
 cc        if (PRESENT(dg)) solverOptions%diag => ddg
 
@@ -4504,9 +4539,9 @@ cc        if (PRESENT(dg)) solverOptions%diag => ddg
         solverOptions%ncolors = nclrs
 
         solverOptions%omega   = 0.7
-        call assembleSolverHierarchy('jb')
+        call assembleSolverHierarchy('jb',solverOptions)
 cc        solverOptions%omega   = 1d0
-cc        call assembleSolverHierarchy('gs')
+cc        call assembleSolverHierarchy('gs',solverOptions)
 
 c       Invoke solver
 
@@ -4515,7 +4550,7 @@ c       Invoke solver
 
 c       Get output data
 
-        call getSolverOptions(1)
+        call getSolverOptions(1,solverOptions)
 
         if(PRESENT(iters)) iters = solverOptions%iter_out
         if(PRESENT(conv_tol)) conv_tol = solverOptions%tol_out
@@ -4787,9 +4822,9 @@ c         Fill diagonal
 
           enddo
 
-          deallocate(x1,dummy)
-
         enddo
+
+        deallocate(x1,dummy)
 
 c     Invert diagonal and store in diag1
 
@@ -5553,9 +5588,9 @@ c Local variables
 
       logical :: fpointers=.false.,galerkin,mg_mode
 
-      type(mg_ctx),pointer :: mgctx
+      type(mg_ctx),pointer :: mgctx => null()
 
-      type(grid_mg_def),pointer :: MGgrid
+      type(grid_mg_def),pointer :: MGgrid => null()
 
       !Initialized from outside
       integer :: orderres,orderprol,igmax,vcyc,crsedpth,mu,ncolors
@@ -7134,8 +7169,8 @@ c$$$     .   ,MG_get_coarse_solve()
 
           if (outc.ge.1.and.prnt) then
             write (*,*)
-            write (*,*) 'BEGIN solution of COARSE MG problem'
             write (*,*) 'Grid Level',igr
+            write (*,*) 'BEGIN solution of COARSE MG problem'
           endif
 
           !Local mesh in last level of fine grid
@@ -7594,7 +7629,8 @@ c Local variables
 
       real(8), pointer, dimension(:,:) :: diag
 
-      type(mg_ctx),pointer :: mgctx
+      type(mg_ctx),pointer :: mgctx => null()
+      type(grid_mg_def),pointer :: g_def => null()
 
 c Begin program
 
@@ -7617,10 +7653,15 @@ c Read solver configuration
 
       smat   = options%singular_matrix
 
-c Allocate pointers
+      if (associated(options%mgctx)) then
+        g_def => options%mgctx%g_def
+      else
+        g_def => options%mg_grid_def
+      endif
 
-      call allocMGPointers(neq,options%mgctx%g_def,options%mgctx
-     .                    ,fpointers)
+c Allocate pointers
+      
+      call allocMGPointers(neq,g_def,options%mgctx,fpointers)
 
       mgctx  => options%mgctx
 
@@ -7746,7 +7787,7 @@ c End program
 
       call deallocMGPointers(fpointers,options%mgctx)
 
-      nullify(mgctx)
+      nullify(mgctx,g_def)
 
  10   format (' JB Iteration:',i4,'; Residual:',1p,1e10.2,
      .        '; Ratio:',1e10.2)
@@ -8253,6 +8294,8 @@ c     ###################################################################
 
         do zd=minzd,maxzd  !Cycle in zebra directions
 
+          call MG_set_zebra_dir(zd)
+          
           call scheduleColors(mgctx,igrid,ncolors,nrbg1,nrbg2,nrbg3
      .                     ,i1min,i1max,j1min,j1max,k1min,k1max
      .                     ,zebra_dir=zd)
@@ -8314,7 +8357,7 @@ cc                    if (prnt)
 
 c diag ****
 cc                    ii = i + nxf*(j-1) + nxf*nyf*(k-1)
-cc                    call MGmatvec(-ii,neq,ntot,zz,yy,igrid,bcnd,matvec)
+cc                    call MGmatvec(mgctx,-ii,zz,yy,igrid,bcnd,matvec)
 c diag ****
 
                     !nxf,nyf,nzf are the original grid's even in line relaxation.
@@ -8369,6 +8412,8 @@ cc                    summ = summ + zz(iii+1:iii+neq)
           enddo
 
         enddo
+
+        call MG_set_zebra_dir(0)
 
 #if defined(petsc)
         if (.not.asm) then

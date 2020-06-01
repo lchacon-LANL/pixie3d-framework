@@ -579,6 +579,15 @@ c     Begin program
      .                            ,ig,jg,kg,x,y,z)
 
       select case (coords)
+c$$$      case('hel')
+c$$$
+c$$$        rr = sign(1d0,x1)*sqrt(x**2+y**2)
+c$$$        th = atan2(y,x)
+c$$$        if (rr < 0d0) th = th + pi
+c$$$        mm = g_def%params(1) !Poloidal mode number
+c$$$        th = th/mm
+c$$$        zz = z
+c$$$
       case('cyl','hel')
 
         rr = sign(1d0,x1)*sqrt(x**2+y**2)
@@ -730,18 +739,6 @@ cc        write (*,*)
 
         if (rr < 0d0) th = th + pi
 
-c$$$      case('hel')
-c$$$        gp = g_def%params
-c$$$
-c$$$        mm = gp(1)
-c$$$        kk = gp(2)
-c$$$        aa = kk/mm
-c$$$
-c$$$        !Transform to cylindrical radius (may be mapped)
-c$$$        rr = sign(1d0,x1)*sqrt(x**2+y**2)
-c$$$        th = atan2(y,x) + aa*z
-c$$$        if (rr < 0d0) th = th + pi
-c$$$        zz = z
       case default
         call pstop('find_polar_coords'
      .       ,"Coordinates "//coords//" not implemented")
@@ -4722,7 +4719,7 @@ c Call variables
 c Local variables
 
       integer :: ierror
-      real(8) :: x1,y1,z1,s1,tt,it_max=0d0
+      real(8) :: x1,y1,z1,tt,it_max=0d0
       save :: it_max
       logical :: exl1
 
@@ -4734,11 +4731,9 @@ c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
 
 c Call additional integrators
 
-      s1 = abs(y(5))
-
       tt = evalFld(x1,y1,z1,ierror)
 
-      ydot(7) = tkernel_3d(s1,ieps*dt,exl1)*ydot(5)  !To normalize
+      ydot(7) = tkernel_3d(y(5),ieps*dt,exl1)*ydot(5)  !To normalize
 
       ydot(6) = tt*ydot(7)
 
@@ -4813,7 +4808,7 @@ c Local variables
 
       logical :: exl1
       integer :: ierror
-      real(8) :: x1,y1,z1,s1,tt,it_max=0d0
+      real(8) :: x1,y1,z1,tt,it_max=0d0
       save :: it_max
       logical :: exloop
 
@@ -4825,11 +4820,9 @@ c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
 
 c Call additional integrators
 
-      s1 = abs(y(5))
-
       tt = evalFld(x1,y1,z1,ierror)
 
-      ydot(7) = skernel_3d(s1,ieps*dt,exl1)*ydot(5)  !To normalize
+      ydot(7) = skernel_3d(y(5),ieps*dt,exl1)*ydot(5)  !To normalize
 
       ydot(6) = tt*ydot(7)
 
@@ -4901,7 +4894,7 @@ c Call variables
 c Local variables
 
       integer :: ierror
-      real(8) :: x1,y1,z1,s1,flds(size(sp_coef,4)),B2,tk
+      real(8) :: x1,y1,z1,flds(size(sp_coef,4)),B2,tk
       logical :: exl1,exl2
 
 c Begin program
@@ -4919,17 +4912,15 @@ c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
 
 c Call additional integrators
 
-      s1 = abs(y(5))
-
       call evalFlds(x1,y1,z1,sp_coef,flds)
 
       !Tn
-      tk = tkernel_3d(s1,ieps*dt,exl1)*ydot(5)
+      tk = tkernel_3d(y(5),ieps*dt,exl1)*ydot(5)
 
       ydot(6) = flds(1)*tk
 
       !Src @ dt
-      ydot(7) = flds(2)*skernel_3d(s1,ieps*dt,exl2)*ydot(5)/B2
+      ydot(7) = flds(2)*skernel_3d(y(5),ieps*dt,exl2)*ydot(5)/B2
 
 cc      !Taux
 cc      ydot(8) = flds(3)*tk
@@ -4979,18 +4970,16 @@ c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
 
       if (.not.bwgt) B2=1d0
 
-      s1 = abs(y(5))
-
 c Call additional integrators
 
       call evalFlds(x1,y1,z1,sp_coef,flds)
 
       !Tn
-      tk = tkernel_3d(s1,ieps*dt,exl1)*ydot(5)
+      tk = tkernel_3d(y(5),ieps*dt,exl1)*ydot(5)
       ydot(6) = flds(1)*tk
 
       !Src @ dt
-      sk = skernel_3d(s1,ieps*dt,exl2)*ydot(5)/B2
+      sk = skernel_3d(y(5),ieps*dt,exl2)*ydot(5)/B2
       ydot(7) = flds(2)*sk
 
       !Normalization 
@@ -5046,12 +5035,10 @@ c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
 
 c Call additional integrators
 
-      s1 = abs(y(5))
-
       call evalFlds(x1,y1,z1,sp_coef,flds)
 
       !Src @ dt
-      ydot(6) = flds(1)*skernel_3d(s1,ieps*dt,exl1)*ydot(5)
+      ydot(6) = flds(1)*skernel_3d(y(5),ieps*dt,exl1)*ydot(5)
 
       !Src @ dt
       ydot(7) = ydot(6)/B2
@@ -5084,7 +5071,7 @@ c Call variables
 c Local variables
 
       integer :: ierror
-      real(8) :: x1,y1,z1,s1,flds(size(sp_coef,4)),B2,iB2
+      real(8) :: x1,y1,z1,flds(size(sp_coef,4)),B2,iB2
       logical :: exl1,exl2,exl3,exl4
 
 c Begin program
@@ -5106,21 +5093,19 @@ c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
 
 c Call additional integrators
 
-      s1 = abs(y(5))
-
       call evalFlds(x1,y1,z1,sp_coef,flds)
 
       !Tn
-      ydot(6) = flds(1)*tkernel_3d(s1,ieps*dt,exl1)
+      ydot(6) = flds(1)*tkernel_3d(y(5),ieps*dt,exl1)
 
       !Tnm
-      ydot(7) = flds(2)*tkernel_3d(s1,ieps*(dt+dtold),exl2)
+      ydot(7) = flds(2)*tkernel_3d(y(5),ieps*(dt+dtold),exl2)
 
       !Src @ dt
-      ydot(8) = flds(3)*skernel_3d(s1,ieps*dt,exl3)*iB2
+      ydot(8) = flds(3)*skernel_3d(y(5),ieps*dt,exl3)*iB2
 
       !Src @ dt+dtold
-      ydot(9) = flds(3)*skernel_3d(s1,ieps*(dt+dtold),exl4)*iB2
+      ydot(9) = flds(3)*skernel_3d(y(5),ieps*(dt+dtold),exl4)*iB2
 
       !Transform back to arc-length integral
       ydot(6:neq) = ydot(6:neq)*ydot(5)
@@ -5153,7 +5138,7 @@ c Call variables
 c Local variables
 
       integer :: ierror
-      real(8) :: x1,y1,z1,s1,flds(size(sp_coef,4)),B2,iB2
+      real(8) :: x1,y1,z1,flds(size(sp_coef,4)),B2,iB2
       logical :: exl1,exl2,exl3,exl4
 
 c Begin program
@@ -5175,15 +5160,13 @@ c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
 
 c Call additional integrators
 
-      s1 = abs(y(5))
-
       call evalFlds(x1,y1,z1,sp_coef,flds)
 
       !Src @ dt
-      ydot(6) = flds(1)*skernel_3d(s1,ieps*dt,exl1)*ydot(5)
+      ydot(6) = flds(1)*skernel_3d(y(5),ieps*dt,exl1)*ydot(5)
 
       !Src * dt+dtold
-      ydot(7) = flds(1)*skernel_3d(s1,ieps*(dt+dtold),exl2)*ydot(5)
+      ydot(7) = flds(1)*skernel_3d(y(5),ieps*(dt+dtold),exl2)*ydot(5)
 
       !Src @ dt
       ydot(8) = ydot(6)*iB2
@@ -5219,7 +5202,7 @@ c Call variables
 c Local variables
 
       integer :: ierror
-      real(8) :: x1,y1,z1,s1,flds(size(sp_coef,4)),B2,sk,sk2,iB2
+      real(8) :: x1,y1,z1,flds(size(sp_coef,4)),B2,sk,sk2,iB2
       logical :: exl1,exl2,exl3,exl4
 
 c Begin program
@@ -5241,22 +5224,20 @@ c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
 
 c Call additional integrators
 
-      s1 = abs(y(5))
-
       call evalFlds(x1,y1,z1,sp_coef,flds)
 
       !Tn
-      ydot(6) = flds(1)*tkernel_3d(s1,ieps*dt,exl1)*ydot(5)
+      ydot(6) = flds(1)*tkernel_3d(y(5),ieps*dt,exl1)*ydot(5)
 
       !Tnm
-      ydot(7) = flds(2)*tkernel_3d(s1,ieps*(dt+dtold),exl2)*ydot(5)
+      ydot(7) = flds(2)*tkernel_3d(y(5),ieps*(dt+dtold),exl2)*ydot(5)
 
       !Src @ dt
-      sk = skernel_3d(s1,ieps*dt,exl3)*ydot(5)
+      sk = skernel_3d(y(5),ieps*dt,exl3)*ydot(5)
       ydot(8) = flds(4)*sk*iB2
 
       !Src @ dt+dtold
-      sk2 = skernel_3d(s1,ieps*(dt+dtold),exl4)*ydot(5)
+      sk2 = skernel_3d(y(5),ieps*(dt+dtold),exl4)*ydot(5)
       ydot(9) = flds(4)*sk2*iB2
 
       !DT @ dt

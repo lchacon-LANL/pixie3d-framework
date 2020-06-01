@@ -11,6 +11,8 @@ c ######################################################################
 
 #if defined(adios)
         use ADIOS_io
+#elif defined(ADIOS2)
+        use ADIOS2_mod
 #else
         character*(1024) :: recordfile='record.bin'
 #endif
@@ -43,8 +45,12 @@ c     Global variables
 
 c     Local variables
 
+      integer :: ierr
+      
 #if defined(adios)
-      call ADIOS_finalize(my_rank, adios_err)
+      ierr = destroy_ADIOS_IO()
+#elif defined(ADIOS2)
+      ierr = destroy_ADIOS2_IO()
 #endif
 
 c     Begin program
@@ -65,20 +71,17 @@ c     Global variables
 
       integer :: ufile
       character(*),optional :: file
-cc      integer,optional,intent(out) :: lneq
 
 c     Local variables
 
-      integer :: nx,ny,nz,ierr,neq,ndepvl,ndepsl,nauxvl,nauxsl
-     .          ,ilg,ihg,jlg,jhg,klg,khg
-      character(len=1024) :: rfile
-
 c     Begin program
 
-#if !defined(adios)
-      ufile = openPOSIXRestartFileForRead(file=file)
-#else
+#if defined(adios)
       ufile = openADIOSRestartFileForRead(file=file)
+#elif defined(ADIOS2)
+      ufile = openADIOS2RestartFileForRead(file="record.bp")
+#else
+      ufile = openPOSIXRestartFileForRead(file=file)
 #endif
 
       end function openRestartFileForRead
@@ -102,12 +105,19 @@ c     Local variables
 c     Begin program
 
 #if defined(adios)
-      call closeADIOSRecordFileForRead(adios_err)
-
+      adios_err = closeADIOSRecordFileForRead()
       if (adios_err /= 0) then
         call pstop('closeRestartFileForRead'
      $            ,'Error closing ADIOS restart file')
       endif
+      adios_err = destroy_ADIOS_IO()
+#elif defined(ADIOS2)
+      adios2_err = closeADIOS2RecordFileForRead()
+      if (adios2_err /= 0) then
+        call pstop('closeRestartFileForRead'
+     $            ,'Error closing ADIOS restart file')
+      endif
+      adios2_err = destroy_ADIOS2_IO()
 #else
       close(ufile)
 #endif
@@ -143,7 +153,7 @@ c     Begin program
       if (PRESENT(file)) then
         rfile = file
       else
-        rfile = recordfile
+         rfile = recordfile
       endif
 
       ufile = find_unit(urecord)
@@ -333,10 +343,11 @@ c       Local variables
 
 #if defined(adios)
         call setADIOSAppendIOMode()      !Set ADIOS recordfile to append
+#elif defined(ADIOS2)
+        call setADIOS2AppendIOMode()     !Set ADIOS2 recordfile to append
 #else
         posix_append_recordfile = .true. !Set POSIX recordfile to append
 #endif
-
       end subroutine setAppendIOMode
 
 c     readPOSIXRecordFile
@@ -428,6 +439,8 @@ c     Begin program
 
 #if defined(adios)
       ierr = readADIOSRecordFile(unit,itime,time,dt,gammat,varray)
+#elif defined(ADIOS2)
+      ierr = readADIOS2RecordFile(unit,itime,time,dt,gammat,varray)
 #else
       ierr = readPOSIXRecordFile(unit,itime,time,dt,gammat,varray)
 #endif
@@ -517,6 +530,9 @@ c     Begin program
 #if defined(adios)
       call writeADIOSRecordFile(file,itime,time,dt,gammat,varray
      .                         ,init=init)
+#elif defined(ADIOS2)
+      call writeADIOS2RecordFile(trim(recordfile),itime,time,dt,gammat
+     .                         ,varray,init=init)
 #else
       call writePOSIXRecordFile(file,itime,time,dt,gammat,varray
      .                         ,init=init)
@@ -532,7 +548,8 @@ c     #################################################################
      .                          ,ilg,ihg,jlg,jhg,klg,khg)
 
 c     -----------------------------------------------------------------
-c     Opens input binary files.
+c     Opens multiple input binary files for serial postprocessing of
+c     parallel run.
 c     -----------------------------------------------------------------
 
       implicit none
@@ -735,9 +752,40 @@ cc     .               ,maxval(khg_)-minval(klg_)+1
 
       end subroutine openRecordFiles
 
-c     closeRecordFiles
+c     openGraphicsFiles
 c     #################################################################
-      subroutine closeRecordFiles
+      subroutine openGraphicsFiles
+
+c     -----------------------------------------------------------------
+c     Open record files
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+c     Local variables
+
+c     Begin program
+
+#if defined(adios)
+      urecord = openADIOSRestartFileForRead()
+#elif defined(ADIOS2)
+      urecord = openADIOS2RestartFileForRead()
+#else
+      if (np > 1) then
+        urecord = openPOSIXRestartFileForRead()
+      else
+        call openRecordFiles(urecord,recordfile
+     .                      ,ilog,ihig,jlog,jhig,klog,khig)
+      endif
+#endif
+
+      end subroutine openGraphicsFiles
+
+c     closeGraphicsFiles
+c     #################################################################
+      subroutine closeGraphicsFiles
 
 c     -----------------------------------------------------------------
 c     Close record files
@@ -752,15 +800,30 @@ c     Local variables
 c     Begin program
 
 #if defined(adios)
-      call closeADIOSRecordFileForRead(adios_err)
-      call adios_finalize(my_rank,adios_err)
+      adios_err = closeADIOSRecordFileForRead()
+      if (adios_err /= 0) then
+        call pstop('closeRestartFileForRead'
+     $            ,'Error closing ADIOS restart file')
+      endif
+      adios_err = destroy_ADIOS_IO()
+#elif defined(ADIOS2)
+      adios2_err = closeADIOS2RecordFileForRead()
+      if (adios2_err /= 0) then
+        call pstop('closeRestartFileForRead'
+     $            ,'Error closing ADIOS restart file')
+      endif
+      adios2_err = destroy_ADIOS2_IO()
 #else
-      call closeFiles(murecord)
+      if (associated(murecord)) then
+        call closeFiles(murecord)
+      else
+        close(urecord)
+      endif
 #endif
 
 c     End programs
 
-      end subroutine closeRecordFiles
+      end subroutine closeGraphicsFiles
 
 c     writeDerivedType
 c     #################################################################

@@ -95,7 +95,7 @@ cc      if (pc_id) iguess = 0
 
 cc      if (np > 1) mg_gm_coarse = .false.       !Do not perform GMRES coarse solve in parallel
 
-      if (sm_type /= 'jb') sm_omega = 1d0
+cc      if (sm_type /= 'jb') sm_omega = 1d0
 
       if (maxitnwt<0) maxitnwt = max(floor(1.5*log(rtol)/log(tolgm)),10)
 

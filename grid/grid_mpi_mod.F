@@ -1258,7 +1258,6 @@ c     Call local error handler
 
       end subroutine pstop
 
-#if defined(petsc)
 c     psum
 c     ###################################################################
       function psum(vec1,mpi_comm)
@@ -1284,22 +1283,21 @@ c     Local variables
 
 c     Begin program
 
+#if defined(petsc)
       if (PRESENT(mpi_comm)) then
         mpic = mpi_comm
       else
         mpic = MPI_COMM_WORLD
       endif
 
+      lsum = sum(vec1)
+      call MPI_Allreduce(lsum,psum,1,MPI_DOUBLE_PRECISION
+     .                  ,MPI_SUM,mpic,mpierr)
+#else
       psum = sum(vec1)
-
-      if (.not.asm) then
-        lsum = psum
-        call MPI_Allreduce(lsum,psum,1,MPI_DOUBLE_PRECISION
-     .                    ,MPI_SUM,mpic,mpierr)
-      endif
+#endif
 
       end function psum
-#endif
 
 c     dot
 c     ###################################################################
@@ -1321,8 +1319,6 @@ c     Call variables
 
 c     Local variables
 
-      integer    :: imin,imax,jmin,jmax,kmin,kmax
-     .             ,i,j,k,iii,ieq
       real(8)    :: ldot
 
 c     Begin program
@@ -1330,16 +1326,14 @@ c     Begin program
       dot = dot_product(vec1,vec2)
 
 #if defined(petsc)
-      if (.not.asm) then
-        ldot = dot
-        call MPI_Allreduce(ldot,dot,1,MPI_DOUBLE_PRECISION
-     .                    ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-      endif
+      ldot = dot
+      call MPI_Allreduce(ldot,dot,1,MPI_DOUBLE_PRECISION
+     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
 #endif
 
       end function dot1
 
-c     dot2
+c     dot2 (Needed for FPA)
 c     ###################################################################
       function dot2(vec1,vec2)
 
@@ -1366,11 +1360,9 @@ c     Begin program
       dot2 = dot_product(vec1,vec2)
 
 #if defined(petsc)
-      if (.not.asm) then
-        ldot = dot2
-        call MPI_Allreduce(ldot,dot2,1,MPI_DOUBLE_PRECISION
-     .                    ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-      endif
+      ldot = dot2
+      call MPI_Allreduce(ldot,dot2,1,MPI_DOUBLE_PRECISION
+     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
 #endif
 
       end function dot2
@@ -1409,11 +1401,9 @@ c     Begin program
         mpicomm = MPI_COMM_WORLD
       endif
 
-      if (.not.asm) then
-        ldot = dot3
-        call MPI_Allreduce(ldot,dot3,1,MPI_DOUBLE_PRECISION
-     .                    ,MPI_SUM,mpicomm,mpierr)
-      endif
+      ldot = dot3
+      call MPI_Allreduce(ldot,dot3,1,MPI_DOUBLE_PRECISION
+     .                  ,MPI_SUM,mpicomm,mpierr)
 #endif
 
       end function dot3
@@ -1580,9 +1570,10 @@ c     Local variables
 
 c     Begin program
 
-        inProc =igl>=gl_def%ilo(igx).and.igl<=gl_def%ihi(igx)
-     .     .and.jgl>=gl_def%jlo(igy).and.jgl<=gl_def%jhi(igy)
-     .     .and.kgl>=gl_def%klo(igz).and.kgl<=gl_def%khi(igz)
+        inProc =
+     .       (igl<0.or.(igl>=gl_def%ilo(igx).and.igl<=gl_def%ihi(igx)))
+     .  .and.(jgl<0.or.(jgl>=gl_def%jlo(igy).and.jgl<=gl_def%jhi(igy)))
+     .  .and.(kgl<0.or.(kgl>=gl_def%klo(igz).and.kgl<=gl_def%khi(igz)))
 
 c     End program
 
@@ -1597,7 +1588,8 @@ c     ##############################################################
       implicit none
 
 c     --------------------------------------------------------------
-c     Performs parallel reduction to find global field.
+c     Performs parallel reduction to find global field INCLUDING
+c     ghost cells.
 c     --------------------------------------------------------------
 
 c     Call variables
@@ -1757,7 +1749,8 @@ c     ##############################################################
       implicit none
 
 c     --------------------------------------------------------------
-c     Performs parallel reduction to find global field.
+c     Performs parallel reduction to find global field EXCLUDING
+c     ghost cells.
 c     --------------------------------------------------------------
 
 c     Call variables
@@ -1855,7 +1848,8 @@ c     ##############################################################
       implicit none
 
 c     --------------------------------------------------------------
-c     Performs parallel reduction to find global field.
+c     Performs parallel reduction to find global field INCLUDIN
+c     ghost cells.
 c     --------------------------------------------------------------
 
 c     Call variables
@@ -1982,7 +1976,8 @@ c     ##############################################################
       implicit none
 
 c     --------------------------------------------------------------
-c     Performs parallel reduction to find global field with no BCs.
+c     Performs parallel reduction to find global field EXCLUDING
+c     ghost cells.
 c     --------------------------------------------------------------
 
 c     Call variables
@@ -2338,7 +2333,7 @@ c     Begin program
 #if defined(petsc)
      .                  ,mpi_comm=g_def%mpi_comm
 #endif
-     .                  )
+     .                  ,no_bc=.true.)
         if (my_rank == 0) then
           call contour(dbg(:,:,1),nxg+2,nyg+2
      .                ,xmin,xmax,ymin,ymax,flg,unit)

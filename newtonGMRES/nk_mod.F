@@ -1026,7 +1026,7 @@ c     Evaluate rhs and norms
       
       allocate (nk_conf%xk(ntot),nk_conf%rkstar(ntot))
 
-      nk_conf%xk = 0d0
+      nk_conf%xk = x !0d0
       call evaluateNewtonResidual(ntot,nk_conf%xk,nk_conf%rkstar)
 c$$$      nk_conf%xk = x  !Take initial guess into account
 c$$$
@@ -1380,12 +1380,14 @@ c     Calculate magnitude of nonlinear residual
 
       rold = sqrt(dot2(rhs,rhs))
 
-      if (rold < roundoff) then
-        ierr = EXACT
-        return
-      endif
+c$$$      if (rold < roundoff) then
+c$$$        ierr = EXACT
+c$$$        return
+c$$$      endif
+c$$$
+c$$$      eps1=max(eps*rold,roundoff)
 
-      eps1=max(eps*rold,roundoff)
+      eps1 = eps*rold
 
 c     Compute initial residual vector
 
@@ -1718,13 +1720,15 @@ c     Calculate magnitude of nonlinear residual
 
       rold = sqrt(dot2(rhs,rhs))
 
-      if (rold < roundoff) then
-        ierr = EXACT
-        return
-      endif
+c$$$      if (rold < roundoff) then
+c$$$        ierr = EXACT
+c$$$        return
+c$$$      endif
+c$$$
+c$$$      eps1=max(eps*rold,roundoff)
 
-      eps1=max(eps*rold,roundoff)
- 
+      eps1 = eps*rold
+
 c     Compute initial residual vector
 
       call matvec(ntot,sol,vv(:,1))
@@ -2042,7 +2046,7 @@ c     This subroutine computes
 c
 c       y = A*z,
 c
-c     where A is given as F(x)=Ax-b. Hence, we compute
+c     where A is linear and given as F(x)=Ax-b. Hence, we compute
 c
 c       y = (F(x+z) - F(x))
 c     -------------------------------------------------------------

@@ -82,12 +82,7 @@ c     Begin program
 
         if (   maxval(x1) > maxval(x)
      .     .or.minval(x1) < minval(x)) then  !Extrapolation needed
-          if (derv > 1) then
-            messg = 'Cannot compute this order derivative'
-            call sstop(0,'IntDriver1d',messg)
-          else
-            call cubic_int
-          endif
+          call cubic_int
         else
           call slatec
         endif
@@ -532,7 +527,7 @@ c     quad_int_2
 c     #################################################################
       function quad_int_2(x0,x1,x2,x3,y0,y1,y2,y3,x,order) result(y)
 c     -----------------------------------------------------------------
-c     Interpolation (extrapolation) routine, up to cubic order.
+c     Vector interpolation (extrapolation) routine, up to cubic order.
 c     -----------------------------------------------------------------
 
       implicit none
@@ -579,7 +574,7 @@ c     #################################################################
       function quad_int_3(x0,x1,x2,x3,x4,y0,y1,y2,y3,y4,x,order)
      .         result(y)
 c     -----------------------------------------------------------------
-c     Interpolation (extrapolation) routine, up to quadratic order.
+c     Vector interpolation (extrapolation) routine, up to quartic order.
 c     -----------------------------------------------------------------
 
       implicit none
@@ -628,5 +623,226 @@ c     End program
 
       end function quad_int_3
 
+c     cubic_interp
+c     #################################################################
+      function cubic_interp(x0,y0,x1,y1,x2,y2,x3,y3,x,dorder) result(y)
+c     -----------------------------------------------------------------
+c     Vector interpolation (extrapolation) routine, up to cubic order.
+c     Computes derivatives
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: dorder
+      real(8) :: x0,x1,x2,x3,x
+     .          ,y0(:),y1(:),y2(:),y3(:),y(size(y0))
+
+c     Local variables
+
+      character(80) :: messg
+
+c     Begin program
+
+      select case (dorder)
+      case (0)
+        y = y0*(x-x1)*(x-x2)*(x-x3)/((x0-x1)*(x0-x2)*(x0-x3))
+     .     +y1*(x-x0)*(x-x2)*(x-x3)/((x1-x0)*(x1-x2)*(x1-x3))
+     .     +y2*(x-x0)*(x-x1)*(x-x3)/((x2-x0)*(x2-x1)*(x2-x3))
+     .     +y3*(x-x0)*(x-x1)*(x-x2)/((x3-x0)*(x3-x1)*(x3-x2))
+      case (1)
+        y = y0/((x0-x1)*(x0-x2)*(x0-x3))*((x-x2)*(x-x3)
+     .                                   +(x-x1)*(x-x3)
+     .                                   +(x-x1)*(x-x2))
+     .     +y1/((x1-x0)*(x1-x2)*(x1-x3))*((x-x2)*(x-x3)
+     .                                   +(x-x0)*(x-x3)
+     .                                   +(x-x0)*(x-x2))
+     .     +y2/((x2-x0)*(x2-x1)*(x2-x3))*((x-x1)*(x-x3)
+     .                                   +(x-x0)*(x-x3)
+     .                                   +(x-x0)*(x-x1))
+     .     +y3/((x3-x0)*(x3-x1)*(x3-x2))*((x-x1)*(x-x2)
+     .                                   +(x-x0)*(x-x2)
+     .                                   +(x-x0)*(x-x1))
+      case (2)
+        y = y0/((x0-x1)*(x0-x2)*(x0-x3))*((x-x1)
+     .                                   +(x-x2)
+     .                                   +(x-x3))*2.
+     .     +y1/((x1-x0)*(x1-x2)*(x1-x3))*((x-x0)
+     .                                   +(x-x2)
+     .                                   +(x-x3))*2.
+     .     +y2/((x2-x0)*(x2-x1)*(x2-x3))*((x-x0)
+     .                                   +(x-x1)
+     .                                   +(x-x3))*2.
+     .     +y3/((x3-x0)*(x3-x1)*(x3-x2))*((x-x0)
+     .                                   +(x-x1)
+     .                                   +(x-x2))*2.
+      case (3)
+        y = 6*y0/((x0-x1)*(x0-x2)*(x0-x3))
+     .     +6*y1/((x1-x0)*(x1-x2)*(x1-x3))
+     .     +6*y2/((x2-x0)*(x2-x1)*(x2-x3))
+     .     +6*y3/((x3-x0)*(x3-x1)*(x3-x2))
+      case default
+        messg = 'Order of derivative not implemented'
+        call sstop(0,'cubic_interp',messg)
+      end select
+
+c     End program
+
+      end function cubic_interp
+
+c     quartic_interp
+c     #################################################################
+      function quartic_interp(x0,y0,x1,y1,x2,y2,x3,y3,x4,y4,x,dorder)
+     .         result(y)
+c     -----------------------------------------------------------------
+c     Vector interpolation (extrapolation) routine, up to cubic order.
+c     Computes derivatives
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: dorder
+      real(8) :: x0,x1,x2,x3,x4,x
+     .          ,y0(:),y1(:),y2(:),y3(:),y4(:),y(size(y0))
+
+c     Local variables
+
+      character(80) :: messg
+
+c     Begin program
+
+      select case (dorder)
+      case (0)
+        y =
+     .  y0*(x-x1)*(x-x2)*(x-x3)*(x-x4)/((x0-x1)*(x0-x2)*(x0-x3)*(x0-x4))
+     . +y1*(x-x0)*(x-x2)*(x-x3)*(x-x4)/((x1-x0)*(x1-x2)*(x1-x3)*(x1-x4))
+     . +y2*(x-x0)*(x-x1)*(x-x3)*(x-x4)/((x2-x0)*(x2-x1)*(x2-x3)*(x2-x4))
+     . +y3*(x-x0)*(x-x1)*(x-x2)*(x-x4)/((x3-x0)*(x3-x1)*(x3-x2)*(x3-x4))
+     . +y4*(x-x0)*(x-x1)*(x-x2)*(x-x3)/((x4-x0)*(x4-x1)*(x4-x2)*(x4-x3))
+      case (1)
+        y =
+     .  y0/((x0-x1)*(x0-x2)*(x0-x3)*(x0-x4))*((x-x2)*(x-x3)*(x-x4)
+     .                                       +(x-x1)*(x-x3)*(x-x4)
+     .                                       +(x-x1)*(x-x2)*(x-x4)
+     .                                       +(x-x1)*(x-x2)*(x-x3))
+     . +y1/((x1-x0)*(x1-x2)*(x1-x3)*(x1-x4))*((x-x2)*(x-x3)*(x-x4)
+     .                                       +(x-x0)*(x-x3)*(x-x4)
+     .                                       +(x-x0)*(x-x2)*(x-x4)
+     .                                       +(x-x0)*(x-x2)*(x-x3))
+     . +y2/((x2-x0)*(x2-x1)*(x2-x3)*(x2-x4))*((x-x1)*(x-x3)*(x-x4)
+     .                                       +(x-x0)*(x-x3)*(x-x4)
+     .                                       +(x-x0)*(x-x1)*(x-x4)
+     .                                       +(x-x0)*(x-x1)*(x-x3))
+     . +y3/((x3-x0)*(x3-x1)*(x3-x2)*(x3-x4))*((x-x1)*(x-x2)*(x-x4)
+     .                                       +(x-x0)*(x-x2)*(x-x4)
+     .                                       +(x-x0)*(x-x1)*(x-x4)
+     .                                       +(x-x0)*(x-x1)*(x-x2))
+     . +y4/((x4-x0)*(x4-x1)*(x4-x2)*(x4-x3))*((x-x1)*(x-x2)*(x-x3)
+     .                                       +(x-x0)*(x-x2)*(x-x3)
+     .                                       +(x-x0)*(x-x1)*(x-x3)
+     .                                       +(x-x0)*(x-x1)*(x-x2))
+      case (2)
+        y =
+     .  y0/((x0-x1)*(x0-x2)*(x0-x3)*(x0-x4))*((x-x3)*(x-x4)
+     .                                       +(x-x2)*(x-x4)
+     .                                       +(x-x2)*(x-x3)
+     .                                       +(x-x3)*(x-x4)
+     .                                       +(x-x1)*(x-x4)
+     .                                       +(x-x1)*(x-x3)
+     .                                       +(x-x2)*(x-x4)
+     .                                       +(x-x1)*(x-x4)
+     .                                       +(x-x1)*(x-x2)
+     .                                       +(x-x2)*(x-x3)
+     .                                       +(x-x1)*(x-x3)
+     .                                       +(x-x1)*(x-x2))
+     . +y1/((x1-x0)*(x1-x2)*(x1-x3)*(x1-x4))*((x-x3)*(x-x4)
+     .                                       +(x-x2)*(x-x4)
+     .                                       +(x-x2)*(x-x3)
+     .                                       +(x-x3)*(x-x4)
+     .                                       +(x-x0)*(x-x4)
+     .                                       +(x-x0)*(x-x3)
+     .                                       +(x-x2)*(x-x4)
+     .                                       +(x-x0)*(x-x4)
+     .                                       +(x-x0)*(x-x2)
+     .                                       +(x-x2)*(x-x3)
+     .                                       +(x-x0)*(x-x3)
+     .                                       +(x-x0)*(x-x2))
+     . +y2/((x2-x0)*(x2-x1)*(x2-x3)*(x2-x4))*((x-x3)*(x-x4)
+     .                                       +(x-x1)*(x-x4)
+     .                                       +(x-x1)*(x-x3)
+     .                                       +(x-x3)*(x-x4)
+     .                                       +(x-x0)*(x-x4)
+     .                                       +(x-x0)*(x-x3)
+     .                                       +(x-x1)*(x-x4)
+     .                                       +(x-x0)*(x-x4)
+     .                                       +(x-x0)*(x-x1)
+     .                                       +(x-x1)*(x-x3)
+     .                                       +(x-x0)*(x-x3)
+     .                                       +(x-x0)*(x-x1))
+     . +y3/((x3-x0)*(x3-x1)*(x3-x2)*(x3-x4))*((x-x2)*(x-x4)
+     .                                       +(x-x1)*(x-x4)
+     .                                       +(x-x1)*(x-x2)
+     .                                       +(x-x2)*(x-x4)
+     .                                       +(x-x0)*(x-x4)
+     .                                       +(x-x0)*(x-x2)
+     .                                       +(x-x1)*(x-x4)
+     .                                       +(x-x0)*(x-x4)
+     .                                       +(x-x0)*(x-x1)
+     .                                       +(x-x1)*(x-x2)
+     .                                       +(x-x0)*(x-x2)
+     .                                       +(x-x0)*(x-x1))
+     . +y4/((x4-x0)*(x4-x1)*(x4-x2)*(x4-x3))*((x-x2)*(x-x3)
+     .                                       +(x-x1)*(x-x3)
+     .                                       +(x-x1)*(x-x2)
+     .                                       +(x-x2)*(x-x3)
+     .                                       +(x-x0)*(x-x3)
+     .                                       +(x-x0)*(x-x2)
+     .                                       +(x-x1)*(x-x3)
+     .                                       +(x-x0)*(x-x3)
+     .                                       +(x-x0)*(x-x1)
+     .                                       +(x-x1)*(x-x2)
+     .                                       +(x-x0)*(x-x2)
+     .                                       +(x-x0)*(x-x1))
+      case (3)
+        y =
+     .  y0/((x0-x1)*(x0-x2)*(x0-x3)*(x0-x4))*((x-x1)
+     .                                       +(x-x2)
+     .                                       +(x-x3)
+     .                                       +(x-x4))*6.
+     . +y1/((x1-x0)*(x1-x2)*(x1-x3)*(x1-x4))*((x-x0)
+     .                                       +(x-x2)
+     .                                       +(x-x3)
+     .                                       +(x-x4))*6.
+     . +y2/((x2-x0)*(x2-x1)*(x2-x3)*(x2-x4))*((x-x0)
+     .                                       +(x-x1)
+     .                                       +(x-x3)
+     .                                       +(x-x4))*6.
+     . +y3/((x3-x0)*(x3-x1)*(x3-x2)*(x3-x4))*((x-x0)
+     .                                       +(x-x1)
+     .                                       +(x-x2)
+     .                                       +(x-x4))*6.
+     . +y4/((x4-x0)*(x4-x1)*(x4-x2)*(x4-x3))*((x-x0)
+     .                                       +(x-x1)
+     .                                       +(x-x2)
+     .                                       +(x-x3))*6.
+      case (4)
+        y = 24*(
+     .  y0/((x0-x1)*(x0-x2)*(x0-x3)*(x0-x4))
+     . +y1/((x1-x0)*(x1-x2)*(x1-x3)*(x1-x4))
+     . +y2/((x2-x0)*(x2-x1)*(x2-x3)*(x2-x4))
+     . +y3/((x3-x0)*(x3-x1)*(x3-x2)*(x3-x4))
+     . +y4/((x4-x0)*(x4-x1)*(x4-x2)*(x4-x3)))
+      case default
+        messg = 'Order of derivative not implemented'
+        call sstop(0,'quartic_interp',messg)
+      end select
+
+c     End program
+
+      end function quartic_interp
+      
       end module oned_int
 
