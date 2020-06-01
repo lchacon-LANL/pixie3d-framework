@@ -4693,6 +4693,8 @@ c ######################################################################
      .          ,particle_sort    =.true.  !Whether to sort particles
 
       character*(100) :: ext_pic_file = "" !External particle def file
+
+      character*(3) :: pic_mover_type = "avg" !Particle mover type
       
       contains
 
@@ -4723,7 +4725,7 @@ c     Namelists
      .     ,quiet_start,nsubstep,eps_pic
      .     ,n_b,i_b,r_b,vinject,C_bkgrnd,opnbc_is_vacuum
      .     ,phase_space_plot,mass_matrix_solve,particle_sort
-     .     ,ext_pic_file
+     .     ,ext_pic_file,pic_mover_type
 
 c     Begin program
 
