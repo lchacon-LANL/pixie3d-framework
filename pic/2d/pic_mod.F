@@ -2862,6 +2862,8 @@ c$$$     $                   )
      $                   ,pm=pm  !Linear momenta diagnostic (output)
      $                   ,cm_exch=cm_exch  !Canonical momenta exchange diagnostic (output)
      $                   )
+      case default
+        call pstop("pic_mover_2d","PIC mover scheme does not exist")
       end select
 
 c     Update counter metrics
