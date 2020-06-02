@@ -1,9 +1,10 @@
 #include "pic_defs.h"
 
 #if !defined(plotting)
-c pic_mover
+
+c pic_mover_sub
 c #####################################################################    
-      module pic_mover
+      module pic_mover_sub
 
       use pic_map
 
@@ -11,44 +12,30 @@ c #####################################################################
 
       use pic_diag
 
-      !Particle orbit iteration counters
-      integer(8) :: pst_counter=0    !Total number of particle substeps
-     .             ,pit_counter=0    !Total number of picard iterations
-     .             ,psh_counter=0    !Total number of particle pushes
-
-      integer(8) :: pit_max=0           !Maximum picard iterations per substep
-     .             ,pst_max=0           !Maximum number of particle substeps per timestep
-     .             ,ntot_pcles=0        !Total number of particles
-
-      real(8) :: pit_avg=0           !Average picard iterations per substep
-     .          ,pst_avg=0           !Average number of particle substeps per timestep
-
-      !Diagnostics
-      real(8) :: push_timer=0d0
       integer,private :: clock_rate,clock_start,clock_stop
 
       contains
 
-c     pic_mover_2d
+c     pic_mover_2d_sub
 c     ##################################################################
-      subroutine pic_mover_2d(dt,A,phi,DtA,B0,tfv,tfx,cm,pm,cm_exch)
+      subroutine pic_mover_2d_sub(dt,A,phi,DtA,B0,pit_sum,psh_sum
+     .  ,pst_sum,pitmax,pstmax,ntot_pcles,timer,tfv,tfx,cm,pm,cm_exch)
         
       implicit none
         
 c     Call variables
 
       real(8),intent(inout) :: A(0:,0:,:),phi(0:,0:),DtA(0:,0:,:)
-      real(8),intent(inout) :: B0(3),dt
+      real(8),intent(inout) :: B0(3),dt,timer
       real(8),intent(in),optional :: tfv,tfx
       real(8),intent(out),optional :: cm(3),pm(3),cm_exch(3)
+
+      integer(8) :: pit_sum,psh_sum,pst_sum,pitmax,pstmax,ntot_pcles
 
 c     Local variables
 
       integer :: ipc,isp,i0(_Npg),j0(_Npg),i(_Npg),j(_Npg)
-      integer :: im,it,k,psh_sum,il,jl
-     .          ,pits,pit_sum
-     .          ,psts,pst_sum
-      integer(8) :: pitmax,pstmax
+      integer :: im,it,k,il,jl,pits,psts
       integer :: numpcles,numspcs,nxg,nyg,nzg
       real(_prec) :: d_x (_Npg,3)
       real(_prec) :: v_np(_Npg,3)
@@ -70,6 +57,8 @@ c     Local variables
       real(_prec) :: dtv,dtx,idtx
       real(8) :: ihx,ihy,ihz
 
+      integer(8) :: liacc(4),giacc(4)
+      
       type(particle) :: pcle_nu
 
 c     Begin program
@@ -117,7 +106,7 @@ c     Move particles
       do isp=1, numspcs
          numpcles = size(spcs(isp)%pcles)
 
-         ntot_pcles = ntot_pcles + (numpcles - nip)
+         ntot_pcles = ntot_pcles + (numpcles - nip)*_Npg
 
          m_sp = spcs(isp)%m
          q_sp = spcs(isp)%q
@@ -163,12 +152,12 @@ c     Move particles
              w_pcle = spcs(isp)%pcles(ipc)%w_np
 
              !Update pcle counters
-             pst_sum = pst_sum + 1      !Particle substep counter
+             pst_sum = pst_sum + _Npg     !Particle substep counter
 
-             pitmax  = max(pits,pitmax) !Maximum number of Picard iterations per substep
+             pitmax  = max(pits,pitmax)   !Maximum number of Picard iterations per substep
 
-             pit_sum = pit_sum + pits   !Total number of picard iterations
-             psh_sum = psh_sum + psts   !Total number of particle pushes (including ALL picard iterations)
+             pit_sum = pit_sum + pits     !Total number of picard iterations
+             psh_sum = psh_sum + psts     !Total number of particle pushes (including ALL picard iterations)
 
              !Gather moments
 #if defined(PIC_CM_DIAG)
@@ -369,7 +358,7 @@ c      call stop_collection()
 
 c     Append to particle pusher timer/counters
 
-      push_timer= push_timer + real(clock_stop - clock_start)
+      timer= timer + real(clock_stop - clock_start)
      .                        /real(clock_rate)
 
 c     Synchronize moments
@@ -397,6 +386,17 @@ c     Output info
       cml = gacc(1:3)
       pml = gacc(4:6)
       cmex= gacc(7:9)
+
+      liacc(1) = pit_sum
+      liacc(2) = psh_sum
+      liacc(3) = pst_sum
+      liacc(4) = ntot_pcles
+      call MPI_AllReduce(liacc,giacc,size(liacc),MPI_INTEGER8
+     $                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+      pit_sum = giacc(1)
+      psh_sum = giacc(2)
+      pst_sum = giacc(3)
+      ntot_pcles = giacc(4)
 #endif
 
       if (PRESENT(cm)) cm = cml
@@ -405,23 +405,9 @@ c     Output info
 
       cm_ex = cmex
 
-c     Substep counter
-
-      pit_counter = pit_counter + pit_sum  !Total number of picard iterations
-      psh_counter = psh_counter + psh_sum  !Total number of particle pushes
-      pst_counter = pst_counter + pst_sum  !Total number of particle substeps
-
-      pit_max = pitmax                     !Maximum number of picard iterations per substep
-      pst_max = pstmax                     !Maximum number of particle substeps per timestep
-
-      pit_avg = 1d0*pit_sum/pst_sum        !Average number of picard iterations per substep
-      pst_avg = 1d0*pst_sum/ntot_pcles     !Average number of substeps per particle
-
-      ntot_pcles = ntot_pcles*_Npg         !Account for pcle grouping for external averages
-
 c     End program
 
-      end subroutine pic_mover_2d
+      end subroutine pic_mover_2d_sub
 
 c     ACC_CN_incell_offset
 c     ##################################################################
@@ -572,6 +558,8 @@ c$$$     $           +sum(abs(vh-vh_k)))/(2*_Npg)
 #endif
       end do             
 
+      it = it*_Npg
+      
 c     Update particle quantities
 
       vnp_loc = v0_loc + 2d0*(vh - v0_loc) !2d0*vh - v0
@@ -1189,11 +1177,937 @@ c     End program
 
       end subroutine ACC_CN_incell_offset
 
-      end module pic_mover
+      end module pic_mover_sub
+      
+c pic_mover_vavg
+c #####################################################################    
+      module pic_mover_vavg
 
-c pic_explicit_mover
+      use pic_map
+
+      use pic_moments
+
+      use pic_diag
+
+      integer,private :: clock_rate,clock_start,clock_stop
+
+      contains
+
+c     pic_mover_2d_vavg
+c     ##################################################################
+      subroutine pic_mover_2d_vavg(dt,A,phi,DtA,B0,pit_sum,psh_sum
+     .  ,pst_sum,pitmax,pstmax,ntot_pcles,timer,tfx,cm,pm,cm_exch)
+        
+      implicit none
+        
+c     Call variables
+
+      real(8),intent(inout) :: A(0:,0:,:),phi(0:,0:),DtA(0:,0:,:)
+      real(8),intent(inout) :: B0(3),dt,timer
+      real(8),intent(in),optional :: tfx
+      real(8),intent(out),optional :: cm(3),pm(3),cm_exch(3)
+
+      integer(8) :: pit_sum,psh_sum,pst_sum,pitmax,pstmax,ntot_pcles
+
+c     Local variables
+
+      integer :: ipc,isp
+      integer :: im,it,k,pits,psts,pit
+      integer :: numpcles,numspcs,nxg,nyg,nzg
+
+      real(_prec) :: dx(_Npg,3),d_x(_Npg,3)
+      real(_prec) :: dt_sub(_Npg),dtp(_Npg)
+      real(_prec) :: Ep(_Npg,3),Bp(_Npg,3)
+     .              ,Ep_avg(_Npg,3),Bp_avg(_Npg,3)
+      real(_prec) :: m_sp,q_sp,cml(3),pml(3),cmex(3),lacc(9),gacc(9)
+      real(_prec) :: dtx,idtx
+      real(8) :: ihx,ihy,ihz,q_m
+
+      integer(8) :: liacc(4),giacc(4)
+      
+      type(particle) :: pcle_nu
+    
+c     Begin program
+
+c     Particle pusher timer - C. Mikida, 05/16
+
+      call system_clock(count_rate=clock_rate) 
+      call system_clock(count=clock_start)
+
+      if(present(tfx)) then
+         dtx = dt*tfx
+      else
+         dtx = dt
+      end if
+
+      idtx = 1d0/dtx
+      
+      cml = 0d0 ; pml = 0d0 ; cmex = 0d0
+
+      call get_global_grid_size(nxg,nyg,nzg)
+      call get_inverse_h(ihx,ihy,ihz)
+
+c     Move particles 
+      
+      psh_sum = 0
+      pst_sum = 0
+      pit_sum = 0
+      pitmax  = 3 !Number of Picard iterations
+      pstmax  = 0
+
+      numspcs = size(spcs)
+
+      ntot_pcles = 0
+
+      moms_g = 0d0
+      do isp=1, numspcs
+         numpcles = size(spcs(isp)%pcles)
+
+         ntot_pcles = ntot_pcles + (numpcles - nip)*_Npg
+
+         m_sp = spcs(isp)%m
+         q_sp = spcs(isp)%q
+         q_m  = spcs(isp)%q_m
+
+!     note that there is some issue with valgrind and libgomp.
+!$omp parallel DEFAULT(SHARED) private(ipc,it,dtp,dt_sub
+!$omp.         ,d_x,dx,psts,pits,pcle_nu,Ep,Bp,Ep_avg,Bp_avg,pit)
+!$         call set_omp_thread_id()
+!$omp DO SCHEDULE (DYNAMIC,4)
+!$omp.reduction(+:pml
+#if defined(PIC_CM_DIAG)        
+!$omp.           ,cmex,cml
+#endif
+!$omp.           ,pst_sum,psh_sum,pit_sum)
+!$omp.reduction(max:pstmax)
+         do ipc=nip+1,numpcles
+
+           pcle_nu%v_np  = spcs(isp)%pcles(ipc)%v_np
+             
+           !Picard iteration loop
+           do pit = 1, pitmax
+             
+             pcle_nu%ijk_n = spcs(isp)%pcles(ipc)%ijk_n
+             pcle_nu%x_n   = spcs(isp)%pcles(ipc)%x_n
+             pcle_nu%v_n   = spcs(isp)%pcles(ipc)%v_n
+             pcle_nu%w_n   = spcs(isp)%pcles(ipc)%w_n
+
+             Ep_avg = 0d0
+             Bp_avg = 0d0
+             it = 0
+
+#if defined(PIC_CM_DIAG)
+             if(pit==pitmax) d_x = 0d0
+#endif
+             dtp = dtx
+
+             !Pcle substepping
+             do while(maxval(dtp)>0)
+               it = it+1
+               
+               !Find pcle position update w/ given velocity
+               call update_pcle_position(pcle_nu,dt,dtp,dt_sub
+     $                                  ,DtA,B0,A,phi,dx,Ep,Bp)
+               
+#if defined(PIC_CM_DIAG)
+               !accumulate particle displacement (for diagnose canonical mom conservation)
+               if(pit==pitmax) d_x = d_x + dx
+#endif
+               !Update pcle counters
+               pst_sum = pst_sum + _Npg   !Particle substep counter
+               psh_sum = psh_sum + _Npg   !Total number of particle pushes (including ALL picard iterations)
+
+               !Accumulate fields
+               Ep_avg(:,1) = Ep_avg(:,1) + Ep(:,1)*dt_sub(:)
+               Ep_avg(:,2) = Ep_avg(:,2) + Ep(:,2)*dt_sub(:)
+               Ep_avg(:,3) = Ep_avg(:,3) + Ep(:,3)*dt_sub(:)
+               Bp_avg(:,1) = Bp_avg(:,1) + Bp(:,1)*dt_sub(:)
+               Bp_avg(:,2) = Bp_avg(:,2) + Bp(:,2)*dt_sub(:)
+               Bp_avg(:,3) = Bp_avg(:,3) + Bp(:,3)*dt_sub(:)
+
+               !Gather ORBIT AVERAGED moments (only in last picard iteration)
+               if(pit==pitmax) call gather_orbit_avg_moments(pcle_nu,dx)
+
+               !Prepare for next substep (except new-time velocity)
+               pcle_nu%ijk_n = pcle_nu%ijk_np
+               pcle_nu%x_n   = pcle_nu%x_np
+               pcle_nu%w_n   = pcle_nu%w_np
+
+               dtp = dtp-dt_sub
+
+             end do             !sub-stepping
+
+             !Find new-time pcle velocity w/ averaged fields
+             Ep_avg = Ep_avg*idtx
+             Bp_avg = Bp_avg*idtx
+          
+             call update_pcle_vel(q_m,pcle_nu%v_n,pcle_nu%v_np
+     .                           ,dt,Ep_avg,Bp_avg)
+
+             pcle_nu%v_np = pcle_nu%v_n + 2d0*(pcle_nu%v_np-pcle_nu%v_n)
+
+             !Count total number of picard iterations
+             pit_sum = pit_sum + _Npg
+
+             !Maximum number of substeps per timestep
+             pstmax  = max(it,pstmax)
+             
+             !Compute NEW-TIME moments (only in last picard iteration)
+             if(pit==pitmax)
+     .            call gather_new_time_moments(pcle_nu,d_x,pml,cml,cmex)
+
+           end do
+
+           !Update final pcle quantities
+           spcs(isp)%pcles(ipc)%v_np   = pcle_nu%v_np
+           spcs(isp)%pcles(ipc)%ijk_np = pcle_nu%ijk_np 
+           spcs(isp)%pcles(ipc)%x_np   = pcle_nu%x_np   
+           spcs(isp)%pcles(ipc)%w_np   = pcle_nu%w_np
+
+         end do                 !particles
+!$omp end do 
+!$omp end parallel 
+
+         !Finalize ORBIT-AVERAGED moments
+         moms_g(:,:,1,isp,Ipx:Ipz) = moms_g(:,:,1,isp,Ipx:Ipz)*idtx
+
+      end do                    !species
+
+c     Particle pusher timing end - C. Mikida, 05/16
+      
+      call system_clock(count=clock_stop)
+
+c     Append to particle pusher timer/counters
+
+      timer= timer + real(clock_stop - clock_start)
+     .                        /real(clock_rate)
+
+c     Synchronize moments
+
+      call wrap_moments_nodes(moms_g(:,:,1,:,:))
+
+c     Scatter moments to local mesh
+
+      do im=0,size(moms,5)-1
+       call find_local(gpicdef,1,moms_g(:,:,:,:,im),moms(:,:,:,:,im))
+      enddo
+
+c     Apply BCs to moments
+
+      call applyBC_moms(gpicdef,moms)
+
+c     Output info
+
+#if defined(petsc)
+      lacc(1:3) = cml
+      lacc(4:6) = pml
+      lacc(7:9) = cmex
+      call MPI_AllReduce(lacc,gacc,size(lacc),MPI_DOUBLE_PRECISION
+     $                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+      cml = gacc(1:3)
+      pml = gacc(4:6)
+      cmex= gacc(7:9)
+
+      liacc(1) = pit_sum
+      liacc(2) = psh_sum
+      liacc(3) = pst_sum
+      liacc(4) = ntot_pcles
+      call MPI_AllReduce(liacc,giacc,size(liacc),MPI_INTEGER8
+     $                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+      pit_sum = giacc(1)
+      psh_sum = giacc(2)
+      pst_sum = giacc(3)
+      ntot_pcles = giacc(4)
+#endif
+
+      if (PRESENT(cm)) cm = cml
+      if (PRESENT(pm)) pm = pml
+      if (PRESENT(cm_exch)) cm_exch = cmex
+
+      cm_ex = cmex
+
+c     End program
+
+      contains
+      
+c     update_pcle_vel
+c     ######################################################################
+      subroutine update_pcle_vel(qm,v0,vh,dt_sub,Ep,Bp) 
+
+      implicit none
+      
+c     Call variables
+
+        real(_prec) :: v0(_Npg,3)
+        real(_prec) :: vh(_Npg,3),dt_sub,Ep(_Npg,3),Bp(_Npg,3),qm
+
+c     Logical variables
+
+        real(_prec) :: vhes(_Npg,3),vhcurv(_Npg,3),vhcurv_inv(_Npg,3)
+        real(_prec) :: qmdth(_Npg),iDenom(_Npg),dtb(_Npg,3),vdotB(_Npg)
+        integer :: i
+
+c     Begin program
+
+        !Velocity update
+        qmdth = qm*dt_sub*0.5d0
+        vhes(:,1) = v0(:,1) + qmdth*Ep(:,1)
+        vhes(:,2) = v0(:,2) + qmdth*Ep(:,2)
+        vhes(:,3) = v0(:,3) + qmdth*Ep(:,3)
+
+        !VECTOR SIMD
+        do i=1,_Npg
+           iDenom(i) = (1d0
+     $                 + qmdth(i)*qmdth(i)*dot_product(Bp(i,:),Bp(i,:)))
+           iDenom(i) = 1d0/iDenom(i)
+        end do
+
+        vdotB = (vhes(:,1)*Bp(:,1)+vhes(:,2)*Bp(:,2)+vhes(:,3)*Bp(:,3))
+
+        vdotB = qmdth*vdotB
+
+        vh(:,1) = (vhes(:,1)+qmdth*(vhes(:,2)*Bp(:,3)-vhes(:,3)*Bp(:,2)
+     .                            + vdotB*Bp(:,1)))*iDenom
+        vh(:,2) = (vhes(:,2)+qmdth*(vhes(:,3)*Bp(:,1)-vhes(:,1)*Bp(:,3) 
+     .                            + vdotB*Bp(:,2)))*iDenom
+        vh(:,3) = (vhes(:,3)+qmdth*(vhes(:,1)*Bp(:,2)-vhes(:,2)*Bp(:,1) 
+     .                            + vdotB*Bp(:,3)))*iDenom
+
+      end subroutine update_pcle_vel
+
+c     gather_orbit_avg_moments
+c     ######################################################################
+      subroutine gather_orbit_avg_moments(pcle_nu,dx)
+
+      implicit none
+
+c     Call variables
+
+      type(particle) :: pcle_nu
+      real(_prec) :: dx(_Npg,3)
+
+c     Local variables
+
+      integer :: i(_Npg),j(_Npg),k,il,jl
+      
+      real(_prec) :: x_nh(_Npg,3)
+      real(_prec) :: xp(_Npg),yp(_Npg),xfp(_Npg),yfp(_Npg)
+      real(_prec) :: My2(_Npg,1,3),Mx2(_Npg,3,1),My1(_Npg,1,2)
+      real(_prec) :: Mx1(_Npg,2,1),Mxy2(_Npg,3,3),w_pcle(_Npg)
+      real(_prec) :: dum1(_Npg,3),dum2(_Npg,3),dum23(2,3),dum32(3,2)
+
+c     Begin program
+
+      w_pcle = pcle_nu%w_np
+
+      call xform_pcle_idx(pcle_nu%ijk_n,nxg,i,j)
+
+      x_nh = pcle_nu%x_n + dx*0.5d0
+      xp = x_nh(:,1)*ihx
+      yp = x_nh(:,2)*ihy 
+             
+      call shape1_offset(xp,Mx1(:,1:2,1))
+      call shape1_offset(yp,My1(:,1,1:2))               
+
+      xp = pcle_nu%x_n(:,1)*ihx
+      yp = pcle_nu%x_n(:,2)*ihy
+
+      xfp = (pcle_nu%x_n(:,1)+dx(:,1))*ihx
+      yfp = (pcle_nu%x_n(:,2)+dx(:,2))*ihy
+
+      call shape2_offset(xp ,dum1)
+      call shape2_offset(xfp,dum2)
+      Mx2(:,1:3,1) = (dum2-dum1)*0.5d0 !careful
+
+      call shape2_offset(yp ,dum1)
+      call shape2_offset(yfp,dum2)
+      My2(:,1,1:3) = (dum2-dum1)*0.5d0
+
+      !VECTOR SIMD
+      do k=1,_Npg
+#ifdef __GNU
+        Mxy2(k,1:3,1:3)= opt_vecvec_3(Mx2(k,:,:),My2(k,:,:))
+#else
+        Mxy2(k,1:3,1:3)= matmul      (Mx2(k,:,:),My2(k,:,:))
+#endif
+      end do
+
+      call shape2_offset(xp ,dum1)
+      call shape2_offset(xfp,dum2)
+      Mx2(:,1:3,1) = (dum1+dum2)*0.5d0 !careful
+
+      call shape2_offset(yp ,dum1)
+      call shape2_offset(yfp,dum2)
+      My2(:,1,1:3) = (dum1+dum2)*0.5d0
+
+      !Do NOT vectorize: memory race issues
+      do k=1, _Npg
+#ifdef __GNU
+        Mxy2(k,1:3,1:3)= Mxy2(k,1:3,1:3)
+     $                 +opt_vecvec_3(Mx2(k,:,:),My2(k,:,:))
+#else
+        Mxy2(k,1:3,1:3)= Mxy2(k,1:3,1:3)
+     $                 +matmul(Mx2(k,:,:),My2(k,:,:))
+#endif
+
+#ifdef __GNU
+        dum23 = opt_vecvec_23(Mx1(k,:,:),My2(k,:,:))
+        dum32 = opt_vecvec_32(Mx2(k,:,:),My1(k,:,:))
+#else                
+        dum23 = matmul(Mx1(k,:,:),My2(k,:,:))
+        dum32 = matmul(Mx2(k,:,:),My1(k,:,:))
+#endif
+        !accumulate vx (linear in x, 2nd in y)
+        do jl=1,3
+          do il=1,2
+!$omp atomic update
+            moms_g(i(k)-2+il,j(k)-2+jl,1,isp,Ipx) = 
+     .              moms_g(i(k)-2+il,j(k)-2+jl,1,isp,Ipx)
+     .                   + dx(k,1)*dum23(il,jl)*w_pcle(k)
+          enddo
+        enddo
+
+        !accumulate vy (linear in y, 2nd in x)
+        do jl=1,2
+          do il=1,3
+!$omp atomic update
+            moms_g(i(k)-2+il,j(k)-2+jl,1,isp,Ipy) = 
+     .              moms_g(i(k)-2+il,j(k)-2+jl,1,isp,Ipy)
+     .                   + dx(k,2)*dum32(il,jl)*w_pcle(k)
+          enddo
+        enddo
+
+        !accumulate vz (2nd in x,y)
+        do jl=1,3
+          do il=1,3
+!$omp atomic update
+            moms_g(i(k)-2+il,j(k)-2+jl,1,isp,Ipz) = 
+     .              moms_g(i(k)-2+il,j(k)-2+jl,1,isp,Ipz)
+     .                   + dx(k,3)*Mxy2(k,il,jl)*w_pcle(k)
+          enddo
+        enddo
+             
+      end do
+
+      end subroutine gather_orbit_avg_moments
+
+c     gather_new_time_moments
+c     ######################################################################
+      subroutine gather_new_time_moments(pcle_nu,d_x,pml,cml,cmex)
+
+      implicit none
+
+c     Call variables
+
+      type(particle) :: pcle_nu
+      real(_prec) :: d_x(_Npg,3),pml(3),cml(3),cmex(3)
+
+c     Local variables
+
+      integer :: i(_Npg),j(_Npg),k,il,jl
+      
+      real(_prec) :: v0(_Npg,3),xp(_Npg),yp(_Npg),v2(_Npg)
+      real(_prec) :: My2(_Npg,1,3),Mx2(_Npg,3,1),My1(_Npg,1,2)
+      real(_prec) :: Mx1(_Npg,2,1),Mxy2(_Npg,3,3),w_pcle(_Npg)
+      real(_prec) :: M_w_prod(_Npg,3,3)
+
+c     Begin program
+
+      xp = pcle_nu%x_np(:,1)*ihx
+      yp = pcle_nu%x_np(:,2)*ihy
+
+      call shape1_offset(xp,Mx1(:,1:2,1))
+      call shape1_offset(yp,My1(:,1,1:2))               
+      call shape2_offset(xp,Mx2(:,1:3,1))
+      call shape2_offset(yp,My2(:,1,1:3))
+
+      !Use local registers for performance (C. Mikida)
+      w_pcle = pcle_nu%w_np
+
+      !VECTOR SIMD
+      do k=1,_Npg
+#ifdef __GNU
+        Mxy2(k,1:3,1:3)= opt_vecvec_3(Mx2(k,:,:),My2(k,:,:))
+#else
+        Mxy2(k,1:3,1:3)= matmul(Mx2(k,:,:),My2(k,:,:))
+#endif
+        M_w_prod(k,:,:) = Mxy2(k,:,:)*w_pcle(k)
+      enddo
+
+      !Do NOT put SIMD statement, reduction!!!!
+      v0 = pcle_nu%v_np
+      call xform_pcle_idx(pcle_nu%ijk_np,nxg,i,j)
+
+      !Do NOT vectorize: memory race issues
+      do k=1,_Npg
+        do jl=1,3
+          do il=1,3
+            !accumulate n (quadratic in x,y)
+!$omp atomic update
+            moms_g(i(k)-2+il,j(k)-2+jl,1,isp,Ins ) = 
+     .           moms_g(i(k)-2+il,j(k)-2+jl,1,isp,Ins )
+     .                + M_w_prod(k,il,jl)
+
+            !accumulate v^2 (2nd in x,y, cell-centered)
+            v2(k) = v0(k,1)*v0(k,1)
+!$omp atomic update
+            moms_g(i(k)-2+il,j(k)-2+jl,1,isp,IS11) = 
+     .           moms_g(i(k)-2+il,j(k)-2+jl,1,isp,IS11)
+     .                + v2(k)*M_w_prod(k,il,jl)
+
+            v2(k) = v0(k,2)*v0(k,2)
+!$omp atomic update
+            moms_g(i(k)-2+il,j(k)-2+jl,1,isp,IS22) = 
+     .           moms_g(i(k)-2+il,j(k)-2+jl,1,isp,IS22)
+     .                + v2(k)*M_w_prod(k,il,jl)
+
+            v2(k) = v0(k,3)*v0(k,3)
+!$omp atomic update
+            moms_g(i(k)-2+il,j(k)-2+jl,1,isp,IS33) = 
+     .           moms_g(i(k)-2+il,j(k)-2+jl,1,isp,IS33)
+     .                + v2(k)*M_w_prod(k,il,jl)
+          enddo
+        enddo
+      end do 
+
+      !Diagnostics
+      !Do NOT vectorize: memory race issues
+      do k=1,_Npg
+        !Gather momenta
+        pml = pml + m_sp*v0(k,:)*w_pcle(k)
+
+#if defined(PIC_CM_DIAG)
+        !Gather canonical momenta
+        cml = cml + m_sp*v0(k,:)
+     $             + cmp(spcs(isp)%q,i(k),j(k),xp(k),yp(k),A  (:,:,:))
+     .      + 0.5*dt*cmp(spcs(isp)%q,i(k),j(k),xp(k),yp(k),DtA(:,:,:))
+
+        !Canonical momenta exchange
+        cmex(2) = cmex(2)+q_sp*B0(3)*d_x(k,1)
+     .                   -q_sp*B0(1)*d_x(k,3)
+        cmex(3) = cmex(3)+q_sp*B0(1)*d_x(k,2)
+     .                   -q_sp*B0(2)*d_x(k,1)
+#endif
+      end do 
+
+      end subroutine gather_new_time_moments
+      
+      end subroutine pic_mover_2d_vavg
+
+c     update_pcle_position
+c     ##################################################################
+      subroutine update_pcle_position(pcle_nu,dt,dtp,dt_sub
+     $                               ,DtA,B0,A,phi,dx,Ep,Bp)
+
+      implicit none
+      
+c     Call variables
+
+      type(particle), intent(inout) :: pcle_nu
+cc      type(particle), intent(inout) :: pcle
+
+      real(8),intent(in) :: dt
+      real(8),intent(in) :: A(0:,0:,:),phi(0:,0:),DtA(0:,0:,:),B0(3)
+
+      real(_prec),intent(inout) :: dtp(_Npg)
+      real(_prec),intent(out)   :: dt_sub(_Npg),dx(_Npg,3)
+
+      real(_prec),intent(out) :: Ep(_Npg,3),Bp(_Npg,3)
+      
+c     Local variables
+
+      integer :: i,j,k,nxg,nyg,nzg
+      integer :: i0(_Npg),j0(_Npg),inp_loc(_Npg),jnp_loc(_Npg)
+
+      real(8) :: ihx,ihy,ihz,hx,hy,hz
+
+      real(_prec), parameter :: eps  = 1d-12 !Buffer for dt computation in pcle Xing
+     .                         ,eps2 = 1d-10 !1d-8  !Buffer for pcle Xing
+
+      real(_prec) :: DtA_1 (_Npg,2,3),DtA_2 (_Npg,3,2),DtA_3 (_Npg,3,3)
+      real(_prec) :: A_1   (_Npg,2,3),A_2   (_Npg,3,2),A_3   (_Npg,3,3)
+      real(_prec) :: E_1   (_Npg,2,3),E_2   (_Npg,3,2),E_3   (_Npg,3,3)
+
+      real(_prec) :: phi_loc(_Npg,3,3),xnp_loc(_Npg,3),vnp_loc(_Npg,3)
+      real(_prec) :: x0_loc(_Npg,3),v0_loc(_Npg,3),wp_loc(_Npg)
+
+c     Begin program
+
+      call get_global_grid_size(nxg,nyg,nzg)
+      call get_inverse_h(ihx,ihy,ihz)
+      call get_h(hx,hy,hz)
+
+c     Initialize local registers
+
+      call xform_pcle_idx(pcle_nu%ijk_n,nxg,i0,j0)
+
+      x0_loc = pcle_nu%x_n
+      wp_loc = pcle_nu%w_n
+      v0_loc = 0.5d0*(pcle_nu%v_n+pcle_nu%v_np)
+
+c     Also define some insets of arrays for later use (C. Mikida)
+
+      !VECTOR SIMD
+      do i=1,_Npg
+         DtA_1(i,:,:) = DtA(i0(i)-1:i0(i)  , j0(i)-1:j0(i)+1, 1)
+         DtA_2(i,:,:) = DtA(i0(i)-1:i0(i)+1, j0(i)-1:j0(i)  , 2)
+         DtA_3(i,:,:) = DtA(i0(i)-1:i0(i)+1, j0(i)-1:j0(i)+1, 3)
+
+         A_1(i,:,:)   = A(i0(i)-1:i0(i)  , j0(i)-1:j0(i)+1, 1)
+         A_2(i,:,:)   = A(i0(i)-1:i0(i)+1, j0(i)-1:j0(i)  , 2)
+         A_3(i,:,:)   = A(i0(i)-1:i0(i)+1, j0(i)-1:j0(i)+1, 3)
+
+         phi_loc(i,:,:) = phi(i0(i)-1:i0(i)+1,j0(i)-1:j0(i)+1)
+
+         E_1(i,:,:) =-DtA_1(i,:,:)
+     .               -(phi_loc(i,2:3,:)-phi_loc(i,1:2,:))*ihx
+         E_2(i,:,:) =-DtA_2(i,:,:)
+     .               -(phi_loc(i,:,2:3)-phi_loc(i,:,1:2))*ihy
+         E_3(i,:,:) =-DtA_3(i,:,:)
+      end do
+
+c     Find dx
+      
+      dt_sub = dtp
+
+      call find_dx(v0_loc,dt_sub,dx)  !This may change dt_sub
+
+c     Scatter fields
+
+      if (no_map) then
+        call scatter_fields_nomap(x0_loc,dt_sub,dx,A_1,A_2,A_3
+     $                           ,dtA_1,dtA_2,dtA_3,Ep,Bp)
+      else
+        call scatter_fields_curv (x0_loc,dt_sub,dx,A_1,A_2,A_3
+     $                           ,dtA_1,dtA_2,dtA_3,Ep,Bp)
+      endif
+
+c     Update particle quantities
+
+      xnp_loc = x0_loc + dx
+
+      inp_loc = i0
+      jnp_loc = j0
+
+c     Cell crossing and particle b.c.
+
+      call cell_crossing(dx,xnp_loc,vnp_loc,inp_loc,jnp_loc,wp_loc)
+
+c     Update particle registers (except new-time velocity)
+
+      pcle_nu%ijk_np = inp_loc + nxg*(jnp_loc - 1)
+      pcle_nu%x_np = xnp_loc
+      pcle_nu%w_np = wp_loc
+      
+c     End program
+
+      contains
+
+c     find_dx
+c     ######################################################################
+      subroutine find_dx(vh,dts,dx)
+
+      implicit none
+
+c     Call variables
+
+      real(_prec) :: dts(_Npg),dx(_Npg,3),vh(_Npg,3)
+
+c     Local variables
+
+      real(_prec) :: vhcurv(_Npg,3),vhcurv_inv(_Npg,3)
+      real(_prec) :: dxl(_Npg,2),dxr(_Npg,2)
+
+c     Begin program
+
+c     Find dx
+
+      if (no_map) then
+        vhcurv = vh
+      else
+        vhcurv = find_vcurv(i0,j0,x0_loc,vh)
+      endif
+
+      vhcurv_inv = 1d0/(vhcurv + 1d-44)
+
+      dxl(:,1) =   -x0_loc(:,1)
+      dxr(:,1) = hx-x0_loc(:,1)
+            
+      dxl(:,2) =   -x0_loc(:,2)
+      dxr(:,2) = hy-x0_loc(:,2)
+
+      dts = min(dts
+     .            ,max((dxl(:,1)-eps2)*vhcurv_inv(:,1)
+     .                ,(dxr(:,1)+eps2)*vhcurv_inv(:,1))
+     .            ,max((dxl(:,2)-eps2)*vhcurv_inv(:,2)
+     .                ,(dxr(:,2)+eps2)*vhcurv_inv(:,2)))
+
+      dx(:,1) = vhcurv(:,1)*dts
+      dx(:,2) = vhcurv(:,2)*dts
+      dx(:,3) = vhcurv(:,3)*dts
+
+      end subroutine find_dx
+
+c     scatter_fields_nomap
+c     ######################################################################
+      subroutine scatter_fields_nomap(x0,dtau,dx,A_1,A_2,A_3
+     $                               ,dtA_1,dtA_2,dtA_3,Ep,Bp)
+
+      implicit none
+
+c     Call variables
+
+      real(_prec) :: x0(_Npg,3)
+      real(_prec) :: dx(_Npg,3),Ep(_Npg,3),Bp(_Npg,3)
+      real(_prec) :: dtau(_Npg)
+      real(_prec) :: DtA_1 (_Npg,2,3),DtA_2 (_Npg,3,2),DtA_3 (_Npg,3,3)
+      real(_prec) :: A_1   (_Npg,2,3),A_2   (_Npg,3,2),A_3   (_Npg,3,3)
+
+c     Local variables
+
+      integer     :: i,j
+      real(_prec) :: Exp,Eyp,Ezp,Bxp,Byp,Bzp
+     .              ,xhp(_Npg,3),xnp(_Npg,3),x0p(_Npg,3)
+     .              ,x_nh(_Npg,3),cov(3,3),cnv(3,3),xlog(_Npg,3)
+     .              ,dum1(_Npg),dum2(_Npg,2),dum3(_Npg,3),dt_nuh(_Npg)
+      real(_prec) :: Sx2_n(_Npg,3), Sy2_n(_Npg,3)
+      real(_prec) :: Sx1(_Npg,2),Sx2(_Npg,3),DSx(_Npg,3)
+      real(_prec) :: Sy1(_Npg,2),Sy2(_Npg,3),DSy(_Npg,3)
+      real(_prec) :: Sxd(_Npg,3),Syd(_Npg,3)
+      real(_prec) :: Sx2_o(_Npg,3),Sy2_o(_Npg,3)
+
+      real(_prec) :: Ax_nuh(_Npg,2,3),Ay_nuh(_Npg,3,2),Az_nuh(_Npg,3,3)
+
+c     Begin program
+
+      x0p(:,1) = x0(:,1)*ihx
+      x0p(:,2) = x0(:,2)*ihy
+      x0p(:,3) = x0(:,3)*ihz
+
+      x_nh = x0 + dx*0.5d0
+      xhp(:,1) = x_nh(:,1)*ihx
+      xhp(:,2) = x_nh(:,2)*ihy      
+      xhp(:,3) = x_nh(:,3)*ihz
+
+      xnp  = x0 + dx
+      xnp(:,1) = xnp(:,1)*ihx
+      xnp(:,2) = xnp(:,2)*ihy
+      xnp(:,3) = xnp(:,3)*ihz
+
+      call shape2_offset(x0p(:,1),Sx2_o)
+      call shape2_offset(x0p(:,2),Sy2_o)
+      call shape2_offset(xnp(:,1),Sx2_n)
+      call shape2_offset(xnp(:,2),Sy2_n)
+      call shape1_offset(xhp(:,1),Sx1)
+      call shape1_offset(xhp(:,2),Sy1)
+
+      Sx2 = (Sx2_n+Sx2_o)*0.5d0
+      Sy2 = (Sy2_n+Sy2_o)*0.5d0
+
+      call Dx_shape2_offset(xhp(:,1),DSx)
+      call Dy_shape2_offset(xhp(:,2),DSy)
+
+      Sxd = (Sx2_n-Sx2_o)*0.5d0
+      Syd = (Sy2_n-Sy2_o)*0.5d0
+
+c     Find E
+
+      call opt_matvec_23_pcle(E_1,Sy2,dum2)
+      call dot_product_2_pcle(dum2,Sx1,Ep(:,1))
+     
+      call opt_matvec_2_pcle(Sx2,E_2,dum2)
+      call dot_product_2_pcle(dum2,Sy1,Ep(:,2))
+
+      call opt_matvec_tr_pcle(Sx2,E_3,dum3)
+      call dot_product_3_pcle(dum3,Sy2,dum1)
+      call opt_matvec_tr_pcle(Sxd,E_3,dum3)
+      Ep(:,3) = dum1
+      call dot_product_3_pcle(dum3,Syd,dum1)
+      Ep(:,3) = Ep(:,3) + dum1
+
+c     Find B
+
+      !Prepare vector potential at nu+1/2
+      dt_nuh = 0.5d0*(-2d0*dtp+dt+dtau)
+
+      !VECTOR SIMD
+      do i=1,_Npg
+         Az_nuh(i,:,:) = A_3(i,:,:) + DtA_3(i,:,:)*dt_nuh(i)
+      enddo
+
+      call opt_matvec_tr_pcle(Sx2,Az_nuh,dum3)
+      call dot_product_3_pcle(dum3,DSy,dum1)
+      Bp(:,1) = dum1 + B0(1)
+
+      call opt_matvec_tr_pcle(DSx,Az_nuh,dum3)
+      call dot_product_3_pcle(dum3,Sy2,dum1)
+      Bp(:,2) =-dum1 + B0(2)
+
+      !VECTOR SIMD
+      do i=1,_Npg
+         Ay_nuh(i,:,:) = A_2(i,:,:) + DtA_2(i,:,:)*dt_nuh(i)
+      enddo
+
+      call opt_matvec_2_pcle (DSx,Ay_nuh,dum2)
+      call dot_product_2_pcle(dum2,Sy1,dum1)
+      Bp(:,3) = dum1
+
+      !VECTOR SIMD
+      do i=1,_Npg
+         Ax_nuh(i,:,:) = A_1(i,:,:) + DtA_1(i,:,:)*dt_nuh(i)
+      enddo
+
+      call opt_matvec_22_pcle(Sx1,Ax_nuh,dum3)
+      call dot_product_3_pcle(dum3,DSy,dum1)
+      Bp(:,3) = Bp(:,3) - dum1 + B0(3)
+
+c     End program
+
+      end subroutine scatter_fields_nomap
+
+c     scatter_fields_curv
+c     ######################################################################
+      subroutine scatter_fields_curv(x0,dtau,dx,A_1,A_2,A_3
+     $                              ,dtA_1,dtA_2,dtA_3,Ep,Bp)
+
+      implicit none
+
+c     Call variables
+
+      real(_prec) :: x0(_Npg,3)
+      real(_prec) :: dx(_Npg,3),Ep(_Npg,3),Bp(_Npg,3)
+      real(_prec) :: dtau(_Npg)
+      real(_prec) :: DtA_1 (_Npg,2,3),DtA_2 (_Npg,3,2),DtA_3 (_Npg,3,3)
+      real(_prec) :: A_1   (_Npg,2,3),A_2   (_Npg,3,2),A_3   (_Npg,3,3)
+
+c     Local variables
+
+      integer     :: i
+      real(_prec) :: xhp(_Npg,3),xnp(_Npg,3)
+     .              ,x_nh(_Npg,3),cov(_Npg,3,3),cnv(_Npg,3,3)
+     .              ,xlog(_Npg,3),x0p(_Npg,3)
+     .              ,dum1(_Npg),dum2(_Npg,2),dum3(_Npg,3),dt_nuh(_Npg)
+      real(_prec) :: Sx2_n(_Npg,3), Sy2_n(_Npg,3)
+      real(_prec) :: Sx1(_Npg,2),Sx2(_Npg,3),DSx(_Npg,3)
+      real(_prec) :: Sy1(_Npg,2),Sy2(_Npg,3),DSy(_Npg,3)
+      real(_prec) :: Sxd(_Npg,3),Syd(_Npg,3)
+      real(_prec) :: Sx2_o(_Npg,3),Sy2_o(_Npg,3)
+
+      real(_prec) :: Ax_nuh(_Npg,2,3),Ay_nuh(_Npg,3,2),Az_nuh(_Npg,3,3)
+
+c     Begin program
+
+      x0p(:,1) = x0(:,1)*ihx
+      x0p(:,2) = x0(:,2)*ihy
+      x0p(:,3) = x0(:,3)*ihz
+
+      x_nh = x0 + dx*0.5d0
+      xhp(:,1) = x_nh(:,1)*ihx
+      xhp(:,2) = x_nh(:,2)*ihy      
+      xhp(:,3) = x_nh(:,3)*ihz
+
+      xnp  = x0 + dx
+      xnp(:,1) = xnp(:,1)*ihx
+      xnp(:,2) = xnp(:,2)*ihy
+      xnp(:,3) = xnp(:,3)*ihz
+
+      call shape2_offset(x0p(:,1),Sx2_o)
+      call shape2_offset(x0p(:,2),Sy2_o)
+      call shape1_offset(xhp(:,1),Sx1)
+      call shape1_offset(xhp(:,2),Sy1)
+      call shape2_offset(xnp(:,1),Sx2_n)
+      call shape2_offset(xnp(:,2),Sy2_n)
+      Sx2 = (Sx2_n+Sx2_o)*0.5d0
+      Sy2 = (Sy2_n+Sy2_o)*0.5d0
+      call Dx_shape2_offset(xhp(:,1),DSx)
+      call Dy_shape2_offset(xhp(:,2),DSy)
+
+c     Find E
+
+      Sxd = (Sx2_n-Sx2_o)*0.5d0
+      Syd = (Sy2_n-Sy2_o)*0.5d0
+
+      call opt_matvec_23_pcle(E_1,Sy2,dum2)
+      call dot_product_2_pcle(dum2,Sx1,Ep(:,1))
+     
+      call opt_matvec_2_pcle(Sx2,E_2,dum2)
+      call dot_product_2_pcle(dum2,Sy1,Ep(:,2))
+
+      call opt_matvec_tr_pcle(Sx2,E_3,dum3)
+      call dot_product_3_pcle(dum3,Sy2,dum1)
+      call opt_matvec_tr_pcle(Sxd,E_3,dum3)
+      Ep(:,3) = dum1
+      call dot_product_3_pcle(dum3,Syd,dum1)
+      Ep(:,3) = Ep(:,3) + dum1
+
+c     Find B
+
+      !Prepare vector potential at nu+1/2
+      dt_nuh = 0.5d0*(-2d0*dtp+dt+dtau)
+
+      !VECTOR SIMD
+      do i=1,_Npg
+         Az_nuh(i,:,:) = A_3(i,:,:) + DtA_3(i,:,:)*dt_nuh(i)
+      enddo
+
+      call opt_matvec_tr_pcle(Sx2,Az_nuh,dum3)
+      call dot_product_3_pcle(dum3,DSy,dum1)
+      Bp(:,1) = dum1
+
+      call opt_matvec_tr_pcle(DSx,Az_nuh,dum3)
+      call dot_product_3_pcle(dum3,Sy2,dum1)
+      Bp(:,2) =-dum1
+
+      !VECTOR SIMD
+      do i=1,_Npg
+         Ay_nuh(i,:,:) = A_2(i,:,:) + DtA_2(i,:,:)*dt_nuh(i)
+      enddo
+
+      call opt_matvec_2_pcle (DSx,Ay_nuh,dum2)
+      call dot_product_2_pcle(dum2,Sy1,dum1)
+      Bp(:,3) = dum1
+
+      !VECTOR SIMD
+      do i=1,_Npg
+         Ax_nuh(i,:,:) = A_1(i,:,:) + DtA_1(i,:,:)*dt_nuh(i)
+      enddo
+
+      call opt_matvec_22_pcle(Sx1,Ax_nuh,dum3)
+      call dot_product_3_pcle(dum3,DSy,dum1)
+      Bp(:,3) = Bp(:,3) - dum1
+
+c     Transform to Cartesian
+
+      xlog(:,1) = x_nh(:,1)*ihx
+      xlog(:,2) = x_nh(:,2)*ihy
+      xlog(:,3) = 1d0
+      call transf_vector_Bspl(i0,j0,xlog,cov,cnv)
+      !VECTOR SIMD
+      do i=1, _Npg
+#ifdef __GNU
+        Ep(i,:) = opt_matvec_tr(Ep(i,:),cov(i,:,:))
+        Bp(i,:) = opt_matvec_tr(Bp(i,:),cnv(i,:,:))
+#else        
+        Ep(i,:) = matmul(Ep(i,:),cov(i,:,:))
+        Bp(i,:) = matmul(Bp(i,:),cnv(i,:,:))
+#endif
+      end do
+
+      Bp(:,1) = Bp(:,1) + B0(1)
+      Bp(:,2) = Bp(:,2) + B0(2)
+      Bp(:,3) = Bp(:,3) + B0(3)
+
+c     End program
+
+      end subroutine scatter_fields_curv
+
+      end subroutine update_pcle_position
+
+      end module pic_mover_vavg
+
+c pic_mover_exp
 c ######################################################################    
-      module pic_explicit_mover
+      module pic_mover_exp
 
         use pic_io
 
@@ -1860,8 +2774,111 @@ c     End program
 
       end subroutine update_xp
 
-      end module pic_explicit_mover
+      end module pic_mover_exp
 
+c pic_mover
+c #####################################################################    
+      module pic_mover
+
+      use pic_mover_exp
+
+      use pic_mover_sub
+      
+      use pic_mover_vavg
+
+      !Particle orbit iteration counters
+      integer(8) :: pst_counter=0    !Total number of particle substeps
+     .             ,pit_counter=0    !Total number of picard iterations
+     .             ,psh_counter=0    !Total number of particle pushes
+
+      integer(8) :: pit_max=0        !Maximum picard iterations per substep
+     .             ,pst_max=0        !Maximum number of particle substeps per timestep
+     .             ,ntot_pcles=0     !Total number of particles
+
+      real(8) :: pit_avg=0           !Average picard iterations per substep
+     .          ,pst_avg=0           !Average number of particle substeps per timestep
+
+      !Diagnostics
+      real(8) :: push_timer=0d0
+
+      contains
+
+c     pic_mover_2d
+c     ##################################################################
+      subroutine pic_mover_2d(dt,A,phi,DtA,B0,tfv,tfx,cm,pm,cm_exch)
+        
+      implicit none
+        
+c     Call variables
+
+      real(8),intent(inout) :: A(0:,0:,:),phi(0:,0:),DtA(0:,0:,:)
+      real(8),intent(inout) :: B0(3),dt
+      real(8),intent(in),optional :: tfv,tfx
+      real(8),intent(out),optional :: cm(3),pm(3),cm_exch(3)
+
+c     Local variables
+
+      integer(8) :: pit_sum,pst_sum,psh_sum
+      
+c     Begin program
+      
+      select case(pic_mover_type)
+c$$$      case("exp")
+c$$$        call pic_mover_2d_exp(dt
+c$$$     $                   ,A
+c$$$     $                   ,Phi 
+c$$$     $                   ,DtA 
+c$$$     $                   ,B0
+c$$$     $                   ,tfv=tfv
+c$$$     $                   ,tfx=tfx
+c$$$     $                   ,cm=cm  !Canonical momenta diagnostic (output)
+c$$$     $                   ,pm=pm  !Linear momenta diagnostic (output)
+c$$$     $                   ,cm_exch=cm_exch  !Canonical momenta exchange diagnostic (output)
+c$$$     $                   )
+      case("sub")
+        call pic_mover_2d_sub(dt
+     $                   ,A
+     $                   ,Phi 
+     $                   ,DtA 
+     $                   ,B0
+     $                   ,pit_sum,psh_sum,pst_sum,pit_max
+     $                   ,pst_max,ntot_pcles,push_timer
+     $                   ,tfv=tfv
+     $                   ,tfx=tfx
+     $                   ,cm=cm  !Canonical momenta diagnostic (output)
+     $                   ,pm=pm  !Linear momenta diagnostic (output)
+     $                   ,cm_exch=cm_exch  !Canonical momenta exchange diagnostic (output)
+     $                   )
+      case("avg")
+        call pic_mover_2d_vavg(dt
+     $                   ,A
+     $                   ,Phi 
+     $                   ,DtA
+     $                   ,B0
+     $                   ,pit_sum,psh_sum,pst_sum,pit_max
+     $                   ,pst_max,ntot_pcles,push_timer
+     $                   ,tfx=tfx
+     $                   ,cm=cm  !Canonical momenta diagnostic (output)
+     $                   ,pm=pm  !Linear momenta diagnostic (output)
+     $                   ,cm_exch=cm_exch  !Canonical momenta exchange diagnostic (output)
+     $                   )
+      end select
+
+c     Update counter metrics
+
+      pit_counter = pit_counter + pit_sum  !Total number of picard iterations
+      psh_counter = psh_counter + psh_sum  !Total number of particle pushes
+      pst_counter = pst_counter + pst_sum  !Total number of particle substeps
+
+      pit_avg = 1d0*pit_sum/pst_sum        !Average number of picard iterations per substep
+      pst_avg = 1d0*pst_sum/ntot_pcles     !Average number of substeps per particle
+
+c     End program
+
+      end subroutine pic_mover_2d
+
+      end module pic_mover
+      
 c pic
 c ######################################################################    
       module pic 
@@ -1871,8 +2888,6 @@ c ######################################################################
       use pic_mass_matrix
 
       use pic_setup
-
-      use pic_explicit_mover
 
       use pic_sort
 
