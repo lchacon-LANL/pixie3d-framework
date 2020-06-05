@@ -34,7 +34,8 @@
 
 #ifdef _SPRNG
 #include "sprng_f.h"
-        SPRNG_POINTER stream
+      SPRNG_POINTER stream
+      logical :: is_sprng_init=.false.
 #endif
 
       contains
@@ -1448,6 +1449,9 @@ c     -------------------------------------------------------------------------
         integer :: gtype
         real(8) :: rn
 
+        if (is_sprng_init) return
+        is_sprng_init = .true.
+        
         gtype = 1       !lcg
         if (PRESENT(seed)) then
           sd = 985456376 + 37*seed
