@@ -1571,15 +1571,15 @@ c     Perform iteration
         !Update solution
         xi = (/x1,x2,x3/)
         call linesearch(xi,dxi(:,1),error(iter),damp(iter),ierror)
+        if (ierror /= ORB_OK) then
+          if (prnt) write (*,*) "evalXi: Error in Newton linesearch"
+          exit
+        endif
         x1 = xi(1) ; x2 = xi(2) ; x3 = xi(3)
-c$$$        x1 = x1 + dxi(1,1,iter)
-c$$$        x2 = x2 + dxi(2,1,iter)
-c$$$        x3 = x3 + dxi(3,1,iter)
-
-        if (ierror /= ORB_OK) exit
-
-        if (prnt) write (*,*) 'evalXi -- xi=',x1,x2,x3
-
+c$$$        x1 = x1 + dxi(1,1)
+c$$$        x2 = x2 + dxi(2,1)
+c$$$        x3 = x3 + dxi(3,1)
+        
         !Singular point BC
         call chk_pos(x1,x2,x3,ierr=ierror,no_per_bc=.true.)
 
