@@ -253,6 +253,8 @@ endif
 
 ifeq ($(findstring mavis,$(HOST)),mavis)
 
+  override M_ARCH = default
+  
   FC = gfortran
 
   CPPFLAGS += $(PREPROC)sed_nosymlinks
