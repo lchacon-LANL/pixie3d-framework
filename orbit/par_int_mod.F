@@ -525,7 +525,8 @@ cc        integer :: n_lag_ints=0        !Number of lagrangian integrals
      .                    ,CHI_LIMIT =1d-4     !Lower bound for chi*dt (delta-function limit)
 
         real(8),private :: lsode_out(LSODE_ACC_DIM),dx0,dy0,dz0
-!$OMP THREADPRIVATE(dx0,dy0,dz0)
+     .                    ,x00,y00,z00
+!$OMP THREADPRIVATE(dx0,dy0,dz0,x00,y00,z00)
 
         logical,private :: x_per,y_per,z_per,solenoidal
 !$OMP THREADPRIVATE(x_per,y_per,z_per)
@@ -3929,7 +3930,13 @@ c     Begin program
            iorder = 4
         endif
 
-c       Determine initial orbit updates
+c     Save orbit origin
+
+        x00 = x0
+        y00 = y0
+        z00 = z0
+        
+c     Determine initial orbit updates
 
         dx0 = x-x0 !Determines initial direction of orbit
         dy0 = y-y0 !Determines initial direction of orbit
@@ -3943,7 +3950,7 @@ c$$$        if (g_def%nzgl(1) == 1) dz0 = 0d0
         if (ignorable_dir(2)) dy0 = 0d0
         if (ignorable_dir(3)) dz0 = 0d0
 
-c       Select periodic direction based on largest displacement from surface
+c     Select periodic direction based on largest displacement from surface
 
 ccnew        x_per = (abs(dx0) > abs(dy0)) .and. (abs(dx0) > abs(dz0))
 ccnew        y_per = (abs(dy0) > abs(dx0)) .and. (abs(dy0) > abs(dz0))
@@ -3951,8 +3958,11 @@ ccnew        z_per = (abs(dz0) > abs(dy0)) .and. (abs(dz0) > abs(dx0))
         x_per = (abs(dx0) >= abs(dy0)) .and. (abs(dx0) >= abs(dz0))
         y_per = (abs(dy0) >= abs(dx0)) .and. (abs(dy0) >= abs(dz0))
         z_per = (abs(dz0) >= abs(dy0)) .and. (abs(dz0) >= abs(dx0))
+c$$$        x_per = (abs(dx0) >= abs(dy0)) .or. (abs(dx0) >= abs(dz0))
+c$$$        y_per = (abs(dy0) >  abs(dx0)) .or. (abs(dy0) >= abs(dz0))
+c$$$        z_per = (abs(dz0) >  abs(dy0)) .or. (abs(dz0) >  abs(dx0))
 
-c       Set logic to compute lengths using surface of sections with high-order interpolation
+c     Set logic to compute lengths using surface of sections with high-order interpolation
 
 cc        call ss_init(4,x_per,x0,y_per,y0,z_per,z0)
         call ss_init(iorder,x_per,x0,y_per,y0,z_per,z0)
@@ -3987,6 +3997,20 @@ c     Begin program
      .      .or.(z_per.and.(z-zo)*dz0 > 0d0)) then
 
           call sschk_ho(xs,ys,zs,ts)  !--> Returns ts <> 0 if intersects
+
+          !Check if all coords are close (to avoid false positives)
+          if ( ts > 0d0 ) then
+            xoo = xs ; yoo = ys ; zoo = zs
+            call chk_pos(xoo,yoo,zoo)
+            if (    (abs(x00-xoo) > 0.1*abs(x00))
+     .         .or. (abs(y00-yoo) > 0.1*abs(y00))
+     .         .or. (abs(z00-zoo) > 0.1*abs(z00))) then
+              ts = 0d0
+c$$$              write (*,*) "False positive",x_per,y_per,z_per
+c$$$              write (*,*) x00,xoo,y00,yoo,z00,zoo
+            endif
+          endif
+          
         endif
 
       end subroutine per_orbit_chk
