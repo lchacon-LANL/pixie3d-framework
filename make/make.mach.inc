@@ -285,9 +285,9 @@ ifeq ($(findstring mavis,$(HOST)),mavis)
 
       #Determined via modules
       HDF5 = t
-      HDF5_LIBS =-L/apps/hdf5-1.10.2/lib -lhdf5hl_fortran -lhdf5_fortran -lhdf5_hl -lhdf5 -lz -lm -ldl
-      HDF5_MOD  = /apps/hdf5-1.10.2/include 
-      HDF5_INC  = /apps/hdf5-1.10.2/include
+      HDF5_LIBS =-L$(HDF5_DIR)/lib -lhdf5hl_fortran -lhdf5_fortran -lhdf5_hl -lhdf5 -lz -lm -ldl
+      HDF5_MOD  = $(HDF5_DIR)include 
+      HDF5_INC  = $(HDF5_DIR)/include
 
       #Determined via modules
       ADIOS = t
@@ -301,9 +301,9 @@ ifeq ($(findstring mavis,$(HOST)),mavis)
 
         #Determined via modules
         HDF5 = t
-        HDF5_LIBS =-L$(SHDF5_LIB) -lhdf5_fortran -lhdf5 -lz -lm
-        HDF5_MOD  = $(SHDF5_LIB)
-        HDF5_INC  = $(SHDF5_INC)
+        HDF5_LIBS =-L$(HDF5_DIR)-serial/lib -lhdf5_fortran -lhdf5 -lz -lm
+        HDF5_MOD  = $(HDF5_DIR)-serial/include
+        HDF5_INC  = $(HDF5_DIR)-serial/include
 
         ADIOS = f
       endif
