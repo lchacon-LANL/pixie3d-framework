@@ -525,7 +525,8 @@ cc        integer :: n_lag_ints=0        !Number of lagrangian integrals
      .                    ,CHI_LIMIT =1d-4     !Lower bound for chi*dt (delta-function limit)
 
         real(8),private :: lsode_out(LSODE_ACC_DIM),dx0,dy0,dz0
-!$OMP THREADPRIVATE(dx0,dy0,dz0)
+     .                    ,x00,y00,z00
+!$OMP THREADPRIVATE(dx0,dy0,dz0,x00,y00,z00)
 
         logical,private :: x_per,y_per,z_per,solenoidal
 !$OMP THREADPRIVATE(x_per,y_per,z_per)
@@ -563,8 +564,7 @@ c     Call variables
 c     Local variables
 
       integer :: ig,jg,kg
-      real(8) :: x1,x2,x3,x,y,z,gp(ngparams),mm,kk,aa,bb,R0,R2,dR2
-     .          ,Jac,rhs,da,db,Z2,dZ2,iaa,ibb,da_a,db_b,rold,Rs
+      real(8) :: x1,x2,x3,x,y,z,xlog(3)
 
       integer :: m,n
       real(8) :: ai(10),bi(10)
@@ -578,172 +578,12 @@ c     Begin program
      .                            ,igrid,igrid,igrid
      .                            ,ig,jg,kg,x,y,z)
 
-      select case (coords)
-c$$$      case('hel')
-c$$$
-c$$$        rr = sign(1d0,x1)*sqrt(x**2+y**2)
-c$$$        th = atan2(y,x)
-c$$$        if (rr < 0d0) th = th + pi
-c$$$        mm = g_def%params(1) !Poloidal mode number
-c$$$        th = th/mm
-c$$$        zz = z
-c$$$
-      case('cyl','hel')
+      xlog = xi_x_sp(g_def,x,y,z,(x1<0d0))
 
-        rr = sign(1d0,x1)*sqrt(x**2+y**2)
-        th = atan2(y,x)
-        if (rr < 0d0) th = th + pi
-        zz = z
-
-      case('tor')
-
-        R0 = g_def%params(1) !Major radius
-        aa = g_def%params(2) !Horizontal radius
-        bb = g_def%params(3) !Vertical   radius
-
-        R2 = ((sqrt(x*x+y*y)-R0)/aa)**2          !In-plane radius
-        
-        rr = sign(1d0,x1)*sqrt(R2+z*z/(bb*bb))   !Poloidal radius
-        zz =-atan2(y,x)                          !Toroidal angle
-        th = atan2(z/bb,sqrt(R2))                !Poloidal angle
-        
-        if (rr < 0d0) th = th + pi
-
-      case('sha')
-! Shaped toroidal coordinates system
-! x = (R0 + r*sum_i(ai*cos(i*theta))*cos(-phi)
-! y = (R0 + r*sum_i(ai*cos(i*theta))*sin(-phi)
-! z = r*sum_i(bi*sin(i*theta)
-
-        R0    = g_def%params(1) !Major radius
-        ai(1) = g_def%params(2) !Horizontal radius
-        bi(1) = g_def%params(3) !Vertical   radius
-
-        do m=2,10
-          ai(m) = g_def%params(7+m)  ! Higher order cosine coefficients are stored in gp(9) to gp(17)
-          bi(m) = g_def%params(16+m) ! Higher order sine coefficients are stored in gp(18) to gp(26)
-        enddo
-
-        !Poloidal angle
-        th = x2           !Don't expect packing in poloidal angle, so we can trust logical coord
-        
-        !Toroidal angle
-        zz =-atan2(y,x)   !Or x3, for same reason
-
-        !Poloidal radius
-        aa = 0d0 ; bb = 0d0
-        do m=1,10
-          aa = aa + ai(m)*cos(m*th)
-          bb = bb + bi(m)*sin(m*th)
-        enddo
-        aa = aa/cos(th)
-        bb = bb/sin(th)
-        
-        R2 = ((sqrt(x*x+y*y)-R0)/aa)**2          !In-plane radius
-        
-        rr = sign(1d0,x1)*sqrt(R2+z*z/(bb*bb))
-        
-        if (rr < 0d0) th = th + pi
-
-      case('sh2')
-! Shaped toroidal coordinates system
-! x = (R0 + r*a1*cos(theta)+r^2*sum_i(ai*cos(i*theta))*cos(-phi)
-! y = (R0 + r*a1*cos(theta)+r^2*sum_i(ai*cos(i*theta))*sin(-phi)
-!! x = (R0 + r*sum_i(r^(i-1)*ai*cos(i*theta))*cos(-phi)
-!! y = (R0 + r*sum_i(r^(i-1)*ai*cos(i*theta))*sin(-phi)
-! z = r*sum_i(bi*sin(i*theta) <<< INCORRECT???
-
-        R0    = g_def%params(1) !Major radius
-        ai(1) = g_def%params(2) !Horizontal radius
-        bi(1) = g_def%params(3) !Vertical   radius
-
-        do m=2,10
-          ai(m) = g_def%params(7+m)  ! Higher order cosine coefficients are stored in gp(9) to gp(17)
-          bi(m) = g_def%params(16+m) ! Higher order sine coefficients are stored in gp(18) to gp(26)
-        enddo
-
-        !Poloidal angle
-        th = x2           !Don't expect packing in poloidal angle, so we can trust logical coord
-        
-        !Toroidal angle
-        zz =-atan2(y,x)   !Or x3, for same reason
-
-        !Poloidal radius (requires iteration!)
-        Rs = (sqrt(x*x+y*y)-R0)  !Save for efficiency
-
-        aa = ai(1)
-        bb = bi(1)
-        R2 = Rs/aa ; R2 = R2*R2  !In-plane radius
-        Z2 = z/bb  ; Z2 = Z2*Z2
-        rr = sqrt(R2+Z2)
-
-c$$$        do n=1,30   !Picard iteration
-c$$$          rold = rr
-c$$$          aa = ai(1)*cos(th)
-c$$$          bb = bi(1)*sin(th)
-c$$$          do m=2,10
-c$$$            aa = aa + rr*ai(m)*cos(m*th)
-c$$$            bb = bb + rr*bi(m)*sin(m*th)  !THIS IS NOT WHAT IS STATED IN COMMENTS ABOVE
-c$$$          enddo
-c$$$          iaa = cos(th)/aa
-c$$$          ibb = sin(th)/bb
-c$$$
-c$$$          !Compute Jacobian
-c$$$          R2 = Rs*iaa ; R2 = R2*R2 !In-plane radius
-c$$$          Z2 = z*z*ibb*ibb
-c$$$          rr = sqrt(R2+Z2)
-c$$$          write (*,*) "iter",n,"conv",abs(rr-rold)
-c$$$          if (abs(rr-rold) < 1d-5) exit
-c$$$        enddo
-c$$$        write (*,*)
-
-        do n=1,30  !Newton iteration
-          aa = ai(1)*cos(th)
-          bb = bi(1)*sin(th)
-          da = 0d0
-          db = 0d0
-          do m=2,10
-            aa = aa + rr*ai(m)*cos(m*th)
-            bb = bb + rr*bi(m)*sin(m*th)  !THIS IS NOT WHAT IS STATED IN COMMENTS ABOVE
-            da = da +    ai(m)*cos(m*th)
-            db = db +    bi(m)*sin(m*th)
-          enddo
-          iaa = 1d0/aa
-          ibb = 1d0/bb
-          da_a = da*iaa
-          db_b = db*ibb
-          iaa = cos(th)*iaa
-          ibb = sin(th)*ibb
-
-          !Compute Jacobian
-          R2 = Rs*iaa ; R2 = R2*R2 !In-plane radius
-          Z2 = z*ibb  ; Z2 = Z2*Z2 !Z coord
-          dR2 = -2*R2*da_a
-          dZ2 = -2*Z2*db_b
-          Jac = (2*rr - dR2 - dZ2) !(1d0-0.5/sqrt(R2+Z2)*(dR2+dZ2))
-
-          !Compute residual
-          rhs = rr*rr - R2 - Z2  !rr-sqrt(R2+Z2)
-
-          !Update solution
-          rr = rr - rhs/Jac
-cc          write (*,*) n,"rr",rr,"res",rhs,"Jac",Jac,da/aa,db/bb
-          if (abs(rhs) < 1d-5) exit
-        enddo
-cc        write (*,*)
-
-        if (n > 30) call pstop("find_polar_coords"
-     .                        ,"Coordinate iteration did not converge")
-        
-        rr = sign(1d0,x1)*rr
-
-        if (rr < 0d0) th = th + pi
-
-      case default
-        call pstop('find_polar_coords'
-     .       ,"Coordinates "//coords//" not implemented")
-      end select
-      
+      rr = xlog(1)
+      th = xlog(2)
+      zz = xlog(3)
+ 
 c     End program
 
       end subroutine find_polar_coords
@@ -4108,7 +3948,13 @@ c     Begin program
            iorder = 4
         endif
 
-c       Determine initial orbit updates
+c     Save orbit origin
+
+        x00 = x0
+        y00 = y0
+        z00 = z0
+        
+c     Determine initial orbit updates
 
         dx0 = x-x0 !Determines initial direction of orbit
         dy0 = y-y0 !Determines initial direction of orbit
@@ -4122,7 +3968,7 @@ c$$$        if (g_def%nzgl(1) == 1) dz0 = 0d0
         if (ignorable_dir(2)) dy0 = 0d0
         if (ignorable_dir(3)) dz0 = 0d0
 
-c       Select periodic direction based on largest displacement from surface
+c     Select periodic direction based on largest displacement from surface
 
 ccnew        x_per = (abs(dx0) > abs(dy0)) .and. (abs(dx0) > abs(dz0))
 ccnew        y_per = (abs(dy0) > abs(dx0)) .and. (abs(dy0) > abs(dz0))
@@ -4130,8 +3976,11 @@ ccnew        z_per = (abs(dz0) > abs(dy0)) .and. (abs(dz0) > abs(dx0))
         x_per = (abs(dx0) >= abs(dy0)) .and. (abs(dx0) >= abs(dz0))
         y_per = (abs(dy0) >= abs(dx0)) .and. (abs(dy0) >= abs(dz0))
         z_per = (abs(dz0) >= abs(dy0)) .and. (abs(dz0) >= abs(dx0))
+c$$$        x_per = (abs(dx0) >= abs(dy0)) .or. (abs(dx0) >= abs(dz0))
+c$$$        y_per = (abs(dy0) >  abs(dx0)) .or. (abs(dy0) >= abs(dz0))
+c$$$        z_per = (abs(dz0) >  abs(dy0)) .or. (abs(dz0) >  abs(dx0))
 
-c       Set logic to compute lengths using surface of sections with high-order interpolation
+c     Set logic to compute lengths using surface of sections with high-order interpolation
 
 cc        call ss_init(4,x_per,x0,y_per,y0,z_per,z0)
         call ss_init(iorder,x_per,x0,y_per,y0,z_per,z0)
@@ -4166,6 +4015,20 @@ c     Begin program
      .      .or.(z_per.and.(z-zo)*dz0 > 0d0)) then
 
           call sschk_ho(xs,ys,zs,ts)  !--> Returns ts <> 0 if intersects
+
+          !Check if all coords are close (to avoid false positives)
+          if ( ts > 0d0 ) then
+            xoo = xs ; yoo = ys ; zoo = zs
+            call chk_pos(xoo,yoo,zoo)
+            if (    (abs(x00-xoo) > 0.1*abs(x00))
+     .         .or. (abs(y00-yoo) > 0.1*abs(y00))
+     .         .or. (abs(z00-zoo) > 0.1*abs(z00))) then
+              ts = 0d0
+c$$$              write (*,*) "False positive",x_per,y_per,z_per
+c$$$              write (*,*) x00,xoo,y00,yoo,z00,zoo
+            endif
+          endif
+          
         endif
 
       end subroutine per_orbit_chk

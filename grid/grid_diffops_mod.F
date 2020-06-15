@@ -3208,7 +3208,7 @@ c     -----------------------------------------------------------------
 c     Calculates the tensor components T^lm of nabla(vec v), with
 c     v contravariant, given by:
 c
-c       T^lm = g^(lk)*(J*partial_k(v^m/J) + v_n Gamma(m)_kn),
+c       T^lm = g^(lk)*(J*partial_k(v^m/J) + v_n Gamma(m)_kn), l=ic
 c
 c      and fills tensor(l,m) at the following positions:
 c       + half_elem=0 --> i,j,k
@@ -9640,7 +9640,7 @@ c     Begin program
       ijac = 1d0/g_def%gmetric%grid(igx)%jac(i,j,k)
 
       select case(meth)
-      case(1) !Upwinding
+      case(UPWD)
         hex = int(sign(1d0,-v0(i,j,k,1)))
         hey = int(sign(1d0,-v0(i,j,k,2)))
         hez = int(sign(1d0,-v0(i,j,k,3)))
@@ -9650,7 +9650,7 @@ c     Begin program
         else
           nabla_v=fnabla_v_upwd    (g_def,i,j,k,igx,v1,hex,hey,hez)
         endif
-      case(2) !Central differences
+      case(ZIP)
         if (v1cov) then
           nabla_v=fnabla_v_cov(g_def,i,j,k,igx,v1,0)
         else
