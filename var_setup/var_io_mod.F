@@ -153,7 +153,7 @@ c     Begin program
       if (PRESENT(file)) then
         rfile = file
       else
-         rfile = recordfile
+        rfile = recordfile
       endif
 
       ufile = find_unit(urecord)
@@ -208,8 +208,8 @@ c$$$      nz = khg-klg+1
       read (ufile) ny,jlg,jhg
       read (ufile) nz,klg,khg
 
-cc      if (associated(gv%gparams)) then
-      if (associated(gv)) then
+      if (associated(gv%gparams)) then
+cc      if (associated(gv)) then
 #if defined(petsc) 
          if (nx /= nxl .or. ny /= nyl .or. nz /= nzl) then
 #else

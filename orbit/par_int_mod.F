@@ -1471,7 +1471,7 @@ c     Spline fields
         call splineFlds(vg,fldcoef=sp_coef)
 
         deallocate(vg)
-
+  
 c     LSODE orbit integration
 
 c-----------------------------------------------
@@ -4020,12 +4020,13 @@ c     Begin program
           if ( ts > 0d0 ) then
             xoo = xs ; yoo = ys ; zoo = zs
             call chk_pos(xoo,yoo,zoo)
-            if (    (abs(x00-xoo) > 0.1*abs(x00))
-     .         .or. (abs(y00-yoo) > 0.1*abs(y00))
-     .         .or. (abs(z00-zoo) > 0.1*abs(z00))) then
+            if (    (abs(x00-xoo) > max(0.1*abs(x00),1d-3))
+     .         .or. (abs(y00-yoo) > max(0.1*abs(y00),1d-3))
+     .         .or. (abs(z00-zoo) > max(0.1*abs(z00),1d-3))) then
               ts = 0d0
-c$$$              write (*,*) "False positive",x_per,y_per,z_per
-c$$$              write (*,*) x00,xoo,y00,yoo,z00,zoo
+              write (*,*) "LSODE False positive",x_per,y_per,z_per
+              write (*,*) "LSODE coords=",x00,xoo,y00,yoo,z00,zoo
+c$$$              pause
             endif
           endif
           

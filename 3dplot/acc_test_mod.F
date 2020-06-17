@@ -138,7 +138,7 @@ c Spline reference solution
       ny = jhig-jlog+1
       nz = khig-klog+1
 
-      order = 2  !Order of interpolation of ref solution
+      order = 3  !Order of interpolation of ref solution
 
       nxs = nx+2
       nys = ny+2
