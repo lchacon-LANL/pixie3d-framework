@@ -372,6 +372,7 @@ c     Local variables
       integer :: ig,jg,kg
       real(8) :: x1,x2,x3,gp(ngparams),mm,kk,aa,bb,R0,R2,dR2,rr,th,zz
      .          ,Jac,rhs,da,db,Z2,dZ2,iaa,ibb,da_a,db_b,rold,Rs,gc_cf
+     .          ,phi
 
       integer :: m,n
       real(8) :: ai(10),bi(10)
@@ -384,16 +385,17 @@ c     Begin program
 c     Find radius and angle
 
       select case (coords)
-c$$$      case('hel')
-c$$$
-c$$$        rr = sign(1d0,x1)*sqrt(x**2+y**2)
-c$$$        th = atan2(y,x)
-c$$$        if (rr < 0d0) th = th + pi
-c$$$        mm = g_def%params(1) !Poloidal mode number
-c$$$        th = th/mm
-c$$$        zz = z
-c$$$
-      case('cyl','hel')
+      case('hel')
+
+        rr = gc_cf*sqrt(x**2+y**2)
+        phi = atan2(y,x)  !Physical angle
+        if (rr < 0d0) phi = phi + pi
+        mm = g_def%params(1) !Poloidal mode number
+        kk = g_def%params(2) !Toroidal wavenumber
+        th = (mm*phi + kk*z) !Logical angle
+        zz = z
+
+      case('cyl')
 
         rr = gc_cf*sqrt(x**2+y**2)
         th = atan2(y,x)

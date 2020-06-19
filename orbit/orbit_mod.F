@@ -24,8 +24,8 @@ c ######################################################################
         real(8),private,allocatable,dimension(:,:) :: fpos,qdif
 
         !Integrator public variables
-        logical :: sln
-!$OMP THREADPRIVATE(sln)
+cc        logical :: sln
+cc!$OMP THREADPRIVATE(sln)
 
         integer :: iiout
 !$OMP THREADPRIVATE(iiout)
@@ -1135,7 +1135,7 @@ c     Local Variables
 
       character(5) :: solver
 
-      logical  :: external_f
+      logical  :: external_f,sln
 
       save dt
 !$OMP THREADPRIVATE(dt)
@@ -1192,8 +1192,6 @@ c     Time integration
 
       else                                  !LSODE (non-solenoidal)
 
-        sln = orbit_conf%spline_conf%input_is_A !Whether input is A
-
         if (lsode_3eq) then
           call lsode_step_3eq(atol,rtol,x,y,z,ierror)
         else
@@ -1208,7 +1206,7 @@ c     Output
 
       if (iiout > 0) then
         write (*,'(a,e10.3,a,e10.3,a,e10.3,a,e10.3,a,3es12.3,a,l3)')
-     .         solver//'; Time=',time
+     .         trim(solver)//'; Time=',time
      .        ,' ;  dt=',dt
      .        ,' ;  Arc length=',ss
      .        ,' ;  ds=',ds
@@ -1241,6 +1239,8 @@ c     Local variables
       real(8) :: xc,yc,zc
       real(8) :: xh,yh,zh,jach
 
+cc      logical :: sln
+
 c     Interfaces
 
       INTERFACE
@@ -1251,6 +1251,12 @@ c     Interfaces
       END INTERFACE
 
 c     Begin program
+
+cc      sln = orbit_conf%spline_conf%input_is_A !Whether input is A
+      
+      !Whether it is first call (ISTATE=1) or subsequent call (ISTATE=2)
+cc      if ((time == 0d0).or. (sln .and. (.not.cartesian))) ISTATE = 1
+      if (time == 0d0) ISTATE = 1
 
       if (cartesian .and. (.not.sing_point)) ISTATE=1 !Restart LSODE for cartesian step
 
@@ -1286,7 +1292,7 @@ c     Initial conditions
 
 c     LSODE configuration and call
 
-      T    = 0d0   !Independent variable
+      T    = 0d0    !Independent variable
 
       ITOL = 1      !Whether atol is array or not (2 => true)
 
@@ -1297,15 +1303,16 @@ c     LSODE configuration and call
 
       ITASK = 2     !Mode of operation: take one step and return
 
-      !Whether it is first call (ISTATE=1) or subsequent call (ISTATE=2)
-      if ((time == 0d0).or. (sln .and. (.not.cartesian))) ISTATE = 1
+      IOPT = 0                  !Whether optional inputs are needed (default:NO)
 
       if (ode_conf%lsode_dt_lim) then
 cc        write (*,*) 'LSODE -- limiting time step'
         IOPT = 1                !Whether optional inputs are needed
-        RWORK(6) = dtime        !Maximum time step allowed (optional input)
-      else
-        IOPT = 0                !Whether optional inputs are needed
+        if (cartesian) then
+          RWORK(6) = 1d-3       !Maximum time step allowed (optional input)
+        else
+          RWORK(6) = dtime      !Maximum time step allowed (optional input)
+        endif
       endif
 
       MF = 10       !Specifies non-stiff problem: implicit Adams-Moulton method
@@ -1408,6 +1415,8 @@ c     Local variables
       real(8) :: xc,yc,zc
       real(8) :: xh,yh,zh,jach
 
+cc      logical :: sln
+
 c     Interfaces
 
       INTERFACE
@@ -1418,6 +1427,12 @@ c     Interfaces
       END INTERFACE
 
 c     Begin program
+
+cc      sln = orbit_conf%spline_conf%input_is_A !Whether input is A
+
+      !Whether it is first call (ISTATE=1) or subsequent call (ISTATE=2)
+cc      if ((time == 0d0).or. (sln .and. (.not.cartesian))) ISTATE = 1
+      if (time == 0d0) ISTATE = 1
 
       if (cartesian .and. (.not.sing_point)) ISTATE=1 !Restart LSODE for cartesian step
 
@@ -1449,7 +1464,7 @@ c     Initial conditions
 
 c     LSODE configuration and call
 
-      T = time   !Independent variable
+      T = time      !Independent variable
 
       ITOL = 1      !Whether atol is array or not (2 => true)
 
@@ -1466,15 +1481,16 @@ cc        ITASK = 1   !Mode of operation: integrate to end and return at TOUT=sm
         ITASK = 4   !Mode of operation: integrate to end and return at TOUT=smax w/o overshooting
       endif
 
-      !Whether it is first call (ISTATE=1) or subsequent call (ISTATE=2)
-      if ((time == 0d0).or. (sln .and. (.not.cartesian))) ISTATE = 1
-
-      IOPT = 0                  !Whether optional inputs are needed
+      IOPT = 0                  !Whether optional inputs are needed (default:NO)
 
       if (ode_conf%lsode_dt_lim) then
 cc        write (*,*) 'LSODE -- limiting time step'
         IOPT = 1                !Whether optional inputs are needed
-        RWORK(6) = dtime        !Maximum time step allowed (optional input)
+        if (cartesian) then
+          RWORK(6) = 1d-3       !Maximum time step allowed (optional input)
+        else
+          RWORK(6) = dtime      !Maximum time step allowed (optional input)
+        endif
       endif
 
       if (ITASK==4) then
@@ -1937,7 +1953,7 @@ c     Local variables
 
 cc      integer :: ierror
       real(8) :: x1,y1,z1,vx,vy,vz,xc0,yc0,zc0,bnorm,jac
-      logical :: bwgt
+      logical :: bwgt,solen
 
 c     Begin program
 
@@ -1948,6 +1964,9 @@ c     Begin program
 
       bwgt = ode_conf%ds_is_Bds
 
+      solen = orbit_conf%ode_conf%solen
+     .    .or.orbit_conf%spline_conf%input_is_A
+        
       !Find logical coordinates
       if (sing_point) then
         x1 = xold ; y1 = yold ; z1 = zold
@@ -1960,7 +1979,7 @@ c     Begin program
       endif
 
       !Get vector field (Cartesian if sing_point is .true.)
-      call getB(x1,y1,z1,vx,vy,vz,sln,sing_point,LSODE_IERR)
+      call getB(x1,y1,z1,vx,vy,vz,solen,sing_point,LSODE_IERR)
       if (LSODE_IERR /= ORB_OK) return
 
       ydot(1) = vx
@@ -2024,7 +2043,7 @@ c     Call variables
 c     Local variables
 
       real(8) :: x1,y1,z1,vx,vy,vz,xc0,yc0,zc0,bnorm
-      logical :: bwgt
+      logical :: bwgt,solen
 
 c     Begin program
 
@@ -2034,6 +2053,9 @@ c     Begin program
       endif
 
       bwgt = ode_conf%ds_is_Bds
+
+      solen = orbit_conf%ode_conf%solen
+     .    .or.orbit_conf%spline_conf%input_is_A
 
       !Find logical coordinates
       if (sing_point) then
@@ -2047,7 +2069,7 @@ c     Begin program
       endif
 
       !Get vector field (Cartesian if sing_point is .true.)
-      call getB(x1,y1,z1,vx,vy,vz,sln,sing_point,LSODE_IERR)
+      call getB(x1,y1,z1,vx,vy,vz,solen,sing_point,LSODE_IERR)
       if (LSODE_IERR /= ORB_OK) return
 
       ydot(1) = vx

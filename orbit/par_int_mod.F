@@ -4020,12 +4020,12 @@ c     Begin program
           if ( ts > 0d0 ) then
             xoo = xs ; yoo = ys ; zoo = zs
             call chk_pos(xoo,yoo,zoo)
-            if (    (abs(x00-xoo) > max(0.1*abs(x00),1d-3))
-     .         .or. (abs(y00-yoo) > max(0.1*abs(y00),1d-3))
-     .         .or. (abs(z00-zoo) > max(0.1*abs(z00),1d-3))) then
+            if (    (abs(x00-xoo) > max(0.2*abs(x00),1d-3))
+     .         .or. (abs(y00-yoo) > max(0.2*abs(y00),1d-3))
+     .         .or. (abs(z00-zoo) > max(0.2*abs(z00),1d-3))) then
               ts = 0d0
-              write (*,*) "LSODE False positive",x_per,y_per,z_per
-              write (*,*) "LSODE coords=",x00,xoo,y00,yoo,z00,zoo
+              write (*,*) "Per-orbit false positive",x_per,y_per,z_per
+              write (*,*) "@ coords=",x00,xoo,y00,yoo,z00,zoo
 c$$$              pause
             endif
           endif
