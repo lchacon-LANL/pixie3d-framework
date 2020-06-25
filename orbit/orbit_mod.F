@@ -76,6 +76,8 @@ cc!$OMP THREADPRIVATE(ode_conf,orbit_conf)
 
         real(8),private :: xmin,xmax,ymin,ymax,zmin,zmax
 
+        logical :: numerical_sp
+        
 	!Global variables >>> THREADPRIVATE
         integer, dimension(:), allocatable :: nunitx,nunity,
      .                                        nunitz,nunitrz
@@ -393,7 +395,7 @@ c     ######################################################################
      .                       ,niter,atol,rtol,order,solen,picard
      .                       ,spline_order,gauge,B_input_is_A,r_min
      .                       ,lsode_neq,lsode_dt_lim,lsode_to_smax
-     .                       ,lsode_s_indep,ds_is_Bds)
+     .                       ,lsode_s_indep,ds_is_Bds,numerical_sp_map)
 
 c     ----------------------------------------------------------------------
 c     Sets up parameters for orbit integrator.
@@ -407,6 +409,7 @@ c     Call variables
         integer,optional :: niter,order,spline_order,gauge,lsode_neq
         logical,optional :: solen,picard,B_input_is_A,lsode_dt_lim
      .                     ,lsode_to_smax,lsode_s_indep,ds_is_Bds
+     .                     ,numerical_sp_map
 
 c     Local variables
 
@@ -488,6 +491,12 @@ c     Begin program
           rmin = 1d-3
         endif
 
+        if (PRESENT(numerical_sp_map)) then
+          numerical_sp = numerical_sp_map
+        else
+          numerical_sp = .false.
+        endif
+
         ode_conf => orbit_conf%ode_conf
 
 c     Consistency checks
@@ -513,7 +522,7 @@ c     ######################################################################
      .                      ,niter,atol,rtol,order,solen,picard
      .                      ,spline_order,gauge,B_input_is_A,r_min
      .                      ,lsode_neq,lsode_dt_lim,lsode_to_smax
-     .                      ,lsode_s_indep,ds_is_Bds)
+     .                      ,lsode_s_indep,ds_is_Bds,numerical_sp_map)
 
 c     ----------------------------------------------------------------------
 c     Sets up orbit integrator.
@@ -535,6 +544,7 @@ c     Call variables
         integer,optional :: niter,order,spline_order,gauge,lsode_neq
         logical,optional :: solen,picard,B_input_is_A,lsode_dt_lim
      .                     ,lsode_to_smax,lsode_s_indep,ds_is_Bds
+     .                     ,numerical_sp_map
 
 c     Local variables
 
@@ -571,6 +581,7 @@ c     Set orbit parameters
      .       ,gauge         =gauge        
      .       ,B_input_is_A  =B_input_is_A 
      .       ,r_min         =r_min        
+     .       ,numerical_sp_map = numerical_sp_map        
      .       ,lsode_neq     =lsode_neq    
      .       ,lsode_dt_lim  =lsode_dt_lim 
      .       ,lsode_to_smax =lsode_to_smax
@@ -1365,7 +1376,7 @@ c     Postprocessing to find logical coordinates
 
       if (cartesian) then
         xl(1) = xold ; xl(2) = yold ; xl(3) = zold
-        call find_sp_coords(xl,YY,iiout,iterr,.false.)
+        call find_sp_coords(xl,YY,iiout,iterr,numerical_sp)
         x = xl(1) ; y = xl(2) ; z = xl(3)
         
         if (iterr /= 0) then
@@ -1557,7 +1568,7 @@ c     Postprocessing to find logical coordinates
 
       if (cartesian) then
         xl(1) = xold ; xl(2) = yold ; xl(3) = zold
-        call find_sp_coords(xl,YY,iiout,iterr,.false.)
+        call find_sp_coords(xl,YY,iiout,iterr,numerical_sp)
         x = xl(1) ; y = xl(2) ; z = xl(3)
         
         if (iterr /= 0) then
@@ -1890,7 +1901,7 @@ c     ###################################################################
 
         !Find logical coordinates
         xlog(1) = x0 ; xlog(2) = y0 ; xlog(3) = z0
-        call find_sp_coords(xlog,car,iiout,ierr,.false.)
+        call find_sp_coords(xlog,car,iiout,ierr,numerical_sp)
 
         if (ierr /= ORB_OK) ierr = ORB_SP_ERR !Error around SP
 
@@ -1975,7 +1986,7 @@ c     Begin program
       !Find logical coordinates
       if (sing_point) then
         xl(1) = xold ; xl(2) = yold ; xl(3) = zold
-        call find_sp_coords(xl,YY,iiout,LSODE_IERR,.false.)
+        call find_sp_coords(xl,YY,iiout,LSODE_IERR,numerical_sp)
 
         if (LSODE_IERR /= ORB_OK) return
       else
@@ -2065,7 +2076,7 @@ c     Begin program
       !Find logical coordinates
       if (sing_point) then
         xl(1) = xold ; xl(2) = yold ; xl(3) = zold
-        call find_sp_coords(xl,y,iiout,LSODE_IERR,.false.)
+        call find_sp_coords(xl,y,iiout,LSODE_IERR,numerical_sp)
 c$$$        write (*,*) "Coords from xi_x_sp=",xl
 c$$$
 c$$$        xl(1) = xold ; xl(2) = yold ; xl(3) = zold
