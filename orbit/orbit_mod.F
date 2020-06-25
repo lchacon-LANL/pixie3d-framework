@@ -6,12 +6,14 @@ c ######################################################################
 
         use grid_splines
 
-        use grid, ONLY: np,my_rank,pstop,messg,UNDEF_DP
+        use grid, ONLY: np,my_rank,pstop,messg,UNDEF_DP,xi_x_sp
 
         use file_io
      
         use lyapn
    
+        type(grid_mg_def),pointer :: g_def_orbit
+
         !Diagnostics
         integer,private :: nunitd(4)
         logical,private :: flux = .false.
@@ -521,7 +523,7 @@ c     ----------------------------------------------------------------------
 
 c     Call variables
 
-        type(grid_mg_def) :: g_def
+        type(grid_mg_def),pointer :: g_def
 
         integer :: bcnd(6)
         real(8) :: bx(:,:,:),by(:,:,:),bz(:,:,:)
@@ -540,6 +542,8 @@ c     Local variables
 
 c     Begin program
 
+        g_def_orbit => g_def
+        
 c     Set internal domain limits
 
         xmin = g_def%gxmin
@@ -1237,7 +1241,7 @@ c     Call variables
 c     Local variables
 
       real(8) :: xc,yc,zc
-      real(8) :: xh,yh,zh,jach
+      real(8) :: xh,yh,zh,jach,xl(3)
 
 cc      logical :: sln
 
@@ -1360,9 +1364,10 @@ cc        write (*,*) 'LSODE -- limiting time step'
 c     Postprocessing to find logical coordinates
 
       if (cartesian) then
-        x = xold ; y = yold ; z = zold
-        call evalXi(iiout,YY(1),YY(2),YY(3),x,y,z,iterr)
-
+        xl(1) = xold ; xl(2) = yold ; xl(3) = zold
+        call find_sp_coords(xl,YY,iiout,iterr,.false.)
+        x = xl(1) ; y = xl(2) ; z = xl(3)
+        
         if (iterr /= 0) then
           iterr = 6  !Error around SP
           return
@@ -1412,7 +1417,7 @@ c     Call variables
 
 c     Local variables
 
-      real(8) :: xc,yc,zc
+      real(8) :: xc,yc,zc,xl(3)
       real(8) :: xh,yh,zh,jach
 
 cc      logical :: sln
@@ -1551,9 +1556,10 @@ c$$$      endif
 c     Postprocessing to find logical coordinates
 
       if (cartesian) then
-        x = xold ; y = yold ; z = zold
-        call evalXi(iiout,YY(1),YY(2),YY(3),x,y,z,iterr)
-
+        xl(1) = xold ; xl(2) = yold ; xl(3) = zold
+        call find_sp_coords(xl,YY,iiout,iterr,.false.)
+        x = xl(1) ; y = xl(2) ; z = xl(3)
+        
         if (iterr /= 0) then
           iterr = 6 !Error around SP
           return
@@ -1860,7 +1866,7 @@ c     ###################################################################
       integer :: flag,ierr
       real(8) :: dt,x0,y0,z0,x1,y1,z1,res(3)
 
-      real(8) :: xh,yh,zh,vx,vy,vz,xc0,yc0,zc0,x11,y11,z11
+      real(8) :: xh,yh,zh,v(3),car(3),xlog(3)
 
       ierr = ORB_OK
 
@@ -1870,28 +1876,27 @@ c     ###################################################################
       zh = 0.5*(z1+z0)
 
       !Find vector field at midpoint
-      call getB(xh,yh,zh,vx,vy,vz,.true.,cartesian,ierr,flag=flag)
+      call getB(xh,yh,zh,v(1),v(2),v(3),.true.,cartesian,ierr,flag=flag)
       if (ierr /= ORB_OK) return
 
       !Evaluate residual
       if (cartesian) then
 
         !Find Cartesian coordinates
-        call evalX(x0,y0,z0,xc0,yc0,zc0)
+        call evalX(x0,y0,z0,car(1),car(2),car(3))
 
         !Update Cartesian coordinates
-        xc0 = xc0 +dt*vx
-        yc0 = yc0 +dt*vy
-        zc0 = zc0 +dt*vz
+        car = car + dt*v
 
         !Find logical coordinates
-        x11 = x0 ; y11 = y0 ; z11 = z0
-        call evalXi(iiout,xc0,yc0,zc0,x11,y11,z11,ierr)
+        xlog(1) = x0 ; xlog(2) = y0 ; xlog(3) = z0
+        call find_sp_coords(xlog,car,iiout,ierr,.false.)
+
         if (ierr /= ORB_OK) ierr = ORB_SP_ERR !Error around SP
 
-        res(1) = x1 - x11
-        res(2) = y1 - y11
-        res(3) = z1 - z11
+        res(1) = x1 - xlog(1)
+        res(2) = y1 - xlog(2)
+        res(3) = z1 - xlog(3)
 
       else
         res(1) = x1 - x0 -dt*vx
@@ -1952,7 +1957,7 @@ c     Call variables
 c     Local variables
 
 cc      integer :: ierror
-      real(8) :: x1,y1,z1,vx,vy,vz,xc0,yc0,zc0,bnorm,jac
+      real(8) :: xl(3),vx,vy,vz,xc0,yc0,zc0,bnorm,jac
       logical :: bwgt,solen
 
 c     Begin program
@@ -1969,17 +1974,17 @@ c     Begin program
         
       !Find logical coordinates
       if (sing_point) then
-        x1 = xold ; y1 = yold ; z1 = zold
-        call evalXi(iiout,y(1),y(2),y(3),x1,y1,z1,LSODE_IERR)
+        xl(1) = xold ; xl(2) = yold ; xl(3) = zold
+        call find_sp_coords(xl,YY,iiout,LSODE_IERR,.false.)
+
         if (LSODE_IERR /= ORB_OK) return
       else
-        x1 = y(1)
-        y1 = y(2)
-        z1 = y(3)
+        xl = y
       endif
 
       !Get vector field (Cartesian if sing_point is .true.)
-      call getB(x1,y1,z1,vx,vy,vz,solen,sing_point,LSODE_IERR)
+      call getB(xl(1),xl(2),xl(3),vx,vy,vz,solen,sing_point
+     .         ,LSODE_IERR)
       if (LSODE_IERR /= ORB_OK) return
 
       ydot(1) = vx
@@ -1988,10 +1993,10 @@ c     Begin program
 
       !Time and arc-length ODEs
       if (.not.sing_point) then
-        jac = evalJ(x1,y1,z1,LSODE_IERR)
+        jac = evalJ(xl(1),xl(2),xl(3),LSODE_IERR)
         if (LSODE_IERR /= ORB_OK) return
 
-        call evalBcar(x1,y1,z1,vx,vy,vz,LSODE_IERR)
+        call evalBcar(xl(1),xl(2),xl(3),vx,vy,vz,LSODE_IERR)
         if (LSODE_IERR /= ORB_OK) return
         bnorm = vx**2+vy**2+vz**2
         if (.not.bwgt) bnorm = sqrt(bnorm)
@@ -2003,9 +2008,9 @@ c     Begin program
 
       ydot = ydot/(bnorm*jac)
 
-      if (PRESENT(xx1)) xx1 = x1
-      if (PRESENT(yy1)) yy1 = y1
-      if (PRESENT(zz1)) zz1 = z1
+      if (PRESENT(xx1)) xx1 = xl(1)
+      if (PRESENT(yy1)) yy1 = xl(2)
+      if (PRESENT(zz1)) zz1 = xl(3)
       if (PRESENT(B2)) then
         if (bwgt) then
           B2 = bnorm
@@ -2042,7 +2047,7 @@ c     Call variables
 
 c     Local variables
 
-      real(8) :: x1,y1,z1,vx,vy,vz,xc0,yc0,zc0,bnorm
+      real(8) :: xl(3),vx,vy,vz,xc0,yc0,zc0,bnorm
       logical :: bwgt,solen
 
 c     Begin program
@@ -2059,17 +2064,22 @@ c     Begin program
 
       !Find logical coordinates
       if (sing_point) then
-        x1 = xold ; y1 = yold ; z1 = zold
-        call evalXi(iiout,y(1),y(2),y(3),x1,y1,z1,LSODE_IERR)
+        xl(1) = xold ; xl(2) = yold ; xl(3) = zold
+        call find_sp_coords(xl,y,iiout,LSODE_IERR,.false.)
+c$$$        write (*,*) "Coords from xi_x_sp=",xl
+c$$$
+c$$$        xl(1) = xold ; xl(2) = yold ; xl(3) = zold
+c$$$        call evalXi(iiout,y(1),y(2),y(3),xl(1),xl(2),xl(3),LSODE_IERR)
+c$$$        write (*,*) "Coords from evalXi=",xl
+c$$$        write (*,*)
+        
         if (LSODE_IERR /= ORB_OK) return
       else
-        x1 = y(1)
-        y1 = y(2)
-        z1 = y(3)
+        xl = y
       endif
 
       !Get vector field (Cartesian if sing_point is .true.)
-      call getB(x1,y1,z1,vx,vy,vz,solen,sing_point,LSODE_IERR)
+      call getB(xl(1),xl(2),xl(3),vx,vy,vz,solen,sing_point,LSODE_IERR)
       if (LSODE_IERR /= ORB_OK) return
 
       ydot(1) = vx
@@ -2078,10 +2088,10 @@ c     Begin program
 
       !Time and arc-length ODEs
       if (.not.sing_point) then
-        ydot(4) = evalJ(x1,y1,z1,LSODE_IERR)
+        ydot(4) = evalJ(xl(1),xl(2),xl(3),LSODE_IERR)
         if (LSODE_IERR /= ORB_OK) return
 
-        call evalBcar(x1,y1,z1,vx,vy,vz,LSODE_IERR)
+        call evalBcar(xl(1),xl(2),xl(3),vx,vy,vz,LSODE_IERR)
         if (LSODE_IERR /= ORB_OK) return
 
         bnorm = vx**2+vy**2+vz**2
@@ -2097,9 +2107,9 @@ c     Begin program
         ydot(5) = bnorm
       endif
 
-      if (PRESENT(xx1)) xx1 = x1
-      if (PRESENT(yy1)) yy1 = y1
-      if (PRESENT(zz1)) zz1 = z1
+      if (PRESENT(xx1)) xx1 = xl(1)
+      if (PRESENT(yy1)) yy1 = xl(2)
+      if (PRESENT(zz1)) zz1 = xl(3)
       if (PRESENT(B2)) then
         if (bwgt) then
           B2 = bnorm
@@ -3322,6 +3332,65 @@ c     ##################################################################
       lsode_err = (LSODE_IERR /= ORB_OK)
 
       end function chk_lsode_err
+
+c     find_sp_coords
+c     ##################################################################
+      subroutine find_sp_coords(xl,xc,iiout,ierr,numerical)
+
+c     ------------------------------------------------------------------
+c     Determines logical coordinates for SP systems from old logical
+c     coords (in xl) and new cartesian coords.
+c     ------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      real(8) :: xc(3),xl(3)
+      integer :: iiout,ierr
+      logical :: numerical
+      
+c     Local variables
+
+      real(8) :: yd,zd,xlo(3),xo(3)
+
+c     Begin program
+      
+      if (numerical) then
+        call evalXi(iiout,xc(1),xc(2),xc(3),xl(1),xl(2),xl(3),ierr)
+        return
+      endif
+
+      xo  = xl
+      xlo = xl
+
+      !Find half periodic domains
+      yd = 0.5*(ymax-ymin)
+      zd = 0.5*(zmax-zmin)
+
+      !Shift old logical coordinates to within periodic domain
+      call chk_pos(xlo(1),xlo(2),xlo(3))
+
+      !Find new logical coords within periodic domain
+      xl = xi_x_sp(g_def_orbit,xc(1),xc(2),xc(3),.false.)
+
+      !Find coordinate updates
+cc      write (*,*) "Old solution from xi_x_sp=",xo
+cc      write (*,*) "New solution from xi_x_sp=",xl
+      xl(1) = xl(1) - xlo(1)
+      xl(2) = xl(2) - xlo(2)
+      if (xl(2) > yd) xl(2) = xl(2) - 2*yd
+      if (xl(2) <-yd) xl(2) = xl(2) + 2*yd
+        
+      xl(3) = xl(3) - xlo(3)
+      if (xl(3) > zd) xl(3) = xl(3) - 2*zd
+      if (xl(3) <-zd) xl(3) = xl(3) + 2*zd
+cc      write (*,*) "Deltas from xi_x_sp=",xl
+
+      !Update old logical coordinates
+      xl = xl + xo
+
+      end subroutine find_sp_coords
 
       end module orbit
 

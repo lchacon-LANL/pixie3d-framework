@@ -394,6 +394,7 @@ c     Find radius and angle
         kk = g_def%params(2) !Toroidal wavenumber
         th = (mm*phi + kk*z) !Logical angle
         zz = z
+        th = mod(th+2*pi,2*pi)   !Ensure angle is in [0,2pi]
 
       case('cyl')
 
@@ -401,6 +402,7 @@ c     Find radius and angle
         th = atan2(y,x)
         if (rr < 0d0) th = th + pi
         zz = z
+        th = mod(th+2*pi,2*pi)   !Ensure angle is in [0,2pi]
 
       case('tor')
 
@@ -408,13 +410,20 @@ c     Find radius and angle
         aa = g_def%params(2) !Horizontal radius
         bb = g_def%params(3) !Vertical   radius
 
-        R2 = ((sqrt(x*x+y*y)-R0)/aa)**2          !In-plane radius
+        R2 = ((sqrt(x*x+y*y)-R0)/aa) ; R2 = R2*R2          !In-plane radius
         
-        rr = gc_cf*sqrt(R2+z*z/(bb*bb))   !Poloidal radius
+        rr = gc_cf*sqrt(R2+z*z/(bb*bb))          !Poloidal radius
         zz =-atan2(y,x)                          !Toroidal angle
-        th = atan2(z/bb,sqrt(R2))                !Poloidal angle
+
+        th = cos(zz)
+        th = atan2(aa*z*th,bb*(x-R0*th)) !Poloidal angle
+cc        th = atan2(z/bb,sqrt(R2))                !Poloidal angle
+cc        th = asin(z/bb/rr)                       !Poloidal angle
         
         if (rr < 0d0) th = th + pi
+
+        th = mod(th+2*pi,2*pi)   !Ensure angle is in [0,2pi]
+        zz = mod(zz+2*pi,2*pi)   !Ensure angle is in [0,2pi]
 
       case('sha')
 ! Shaped toroidal coordinates system
