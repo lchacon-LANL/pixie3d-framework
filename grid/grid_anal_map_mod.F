@@ -1511,6 +1511,7 @@ c$$$          x3 = 0.5*(x3+x3p)
 
         if (coords /= 'lpk') then
           xlog = (/x1,x2,x3/)
+
           vec = vec*scale_coord(gl_def,comp,xlog(comp),deriv=1)
      .            /(scale_coord(gl_def,1,xlog(1),deriv=1)
      .             *scale_coord(gl_def,2,xlog(2),deriv=1)
