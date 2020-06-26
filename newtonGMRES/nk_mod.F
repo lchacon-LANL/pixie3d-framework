@@ -601,7 +601,7 @@ cc      flimit= atol + rtol*f0
 
         !Determine inexact Newton constant
         call find_etak(fk,fkm,flimit,eta0,etak,etakm,etak_meth)
-
+        
         !Jacobian-free solve
         if (nk_conf%deferred_correction) then
           is_matvec = .true.
@@ -1421,10 +1421,10 @@ c     Restarted FGMRES loop
           endif
         endif
 
-c$$$        if (ro <= eps1) then
+        if (ro <= eps1) then
 c$$$          if (ro <= 1d3*roundoff) ierr = EXACT
-c$$$          exit
-c$$$        endif
+          exit
+        endif
 
         t = 1d0/ro
         vv(:,1) = vv(:,1)*t
@@ -1757,10 +1757,10 @@ c     Restarted GMRES loop
           endif
         endif
 
-c$$$        if (ro <= eps1) then
+        if (ro <= eps1) then
 c$$$          if (ro <= 1d3*roundoff) ierr = EXACT
-c$$$          exit
-c$$$        endif
+          exit
+        endif
 
         t = 1d0/ro
         vv(:,1) = vv(:,1)*t
