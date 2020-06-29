@@ -26,4 +26,8 @@ orbit/makefile
 OMP/makefile
 pic/2d/makefile
 var_setup/makefile
+pic/3d/makefile
+pic/hyb3d/makefile
+var_setup/adios_config.xml
+
 
