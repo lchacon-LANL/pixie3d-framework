@@ -7,7 +7,8 @@
 
         use spline_field
 
-        use grid, ONLY: np,my_rank,pstop,messg
+        use grid, ONLY: np,my_rank,pstop,messg,MPI_DOUBLE_PRECISION
+     .                 ,MPI_INT,MPI_COMM_WORLD,mpierr
 
         use file_io
 
@@ -746,14 +747,30 @@ c$$$        enddo
 
         if (cnc_ext_bdry_file /= '') then
           cnc_ext_bdry = .true.
-          ifile = find_unit(1234)
-          open(unit=ifile,file=trim(cnc_ext_bdry_file),status='old')
-          read(ifile,*) npt
+
+          if (my_rank == 0) then
+            ifile = find_unit(1234)
+            open(unit=ifile,file=trim(cnc_ext_bdry_file),status='old')
+            read(ifile,*) npt
+          endif
+          
+#if defined(use_mpi)
+          call MPI_Bcast(npt,1, MPI_INT,0,MPI_COMM_WORLD,mpierr)
+#endif
+
           allocate(cnc_bdry(npt,2))
-          do ipt=1,npt
-            read(ifile,*) cnc_bdry(ipt,:)
-          enddo
-          close(ifile)
+
+          if (my_rank == 0) then
+            do ipt=1,npt
+              read(ifile,*) cnc_bdry(ipt,:)
+            enddo
+            close(ifile)
+          endif
+
+#if defined(use_mpi)
+          call MPI_Bcast(cnc_bdry,2*npt, MPI_DOUBLE_PRECISION,0
+     .                  ,MPI_COMM_WORLD,mpierr)
+#endif
         endif
 
       end subroutine connect_io_init
