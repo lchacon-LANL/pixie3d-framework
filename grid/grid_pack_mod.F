@@ -401,11 +401,11 @@ c$$$      end subroutine prep_tanh
 
 c     scale_coord
 c     #################################################################
-      function scale_coord(gdef,dim,x1,deriv) result(xlog)
+      function scale_coord(gdef,dim,xlog,deriv) result(xcurv)
 
 c     -----------------------------------------------------------------
 c     Scales coordinate along dimension dim and evaluates coordinate at
-c     logical coordinate x1. Packing configuration (location and slope
+c     logical coordinate xlog. Packing configuration (location and slope
 c     of packing) is taken from g_def.
 c     -----------------------------------------------------------------
 
@@ -416,7 +416,7 @@ c     Call variables
         type(grid_mg_def),pointer :: gdef
 
         integer :: dim
-        real(8) :: xlog,x1
+        real(8) :: xcurv,xlog
 
         integer,optional :: deriv
         
@@ -439,11 +439,11 @@ c     Begin program
         if (.not.gdef%g_pack(dim)%pack) then
           select case(der)
           case(0)
-            xlog = x1
+            xcurv = xlog
           case(1)
-            xlog = 1d0
+            xcurv = 1d0
           case(2)
-            xlog = 0d0
+            xcurv = 0d0
           end select
           return
         endif
@@ -487,7 +487,7 @@ c     Packing
             stop
           endif
 
-          xlog =x1-(lmax-lmin)/TT*bb*sin(TT*(x1-gp(1))/(lmax-lmin))
+          xcurv =xlog-(lmax-lmin)/TT*bb*sin(TT*(xlog-gp(1))/(lmax-lmin))
         elseif (pack_both_bdrys) then !sym cosine jacobian
           bb = abs(1.-gp(2))
           if (bb >= 1d0) then
@@ -496,19 +496,19 @@ c     Packing
             stop
           endif
 
-          xlog = x1-(lmax-lmin)/TT*bb*sin(TT*(x1-lmin)/(lmax-lmin))
+          xcurv = xlog-(lmax-lmin)/TT*bb*sin(TT*(xlog-lmin)/(lmax-lmin))
         else
           if (gp(2)>1d0.or.(lmin==gp(1)).or.(lmax==gp(1))) then
-            xlog = cubic_scl   (dim,x1,eta(dim),lmin,lmax,gp(1),gp(2)
+            xcurv = cubic_scl   (dim,xlog,eta(dim),lmin,lmax,gp(1),gp(2)
      .                         ,deriv=deriv)
           else
-            xlog = gaussian_scl(dim,x1,eta(dim),lmin,lmax,gp(1),gp(2)
+            xcurv = gaussian_scl(dim,xlog,eta(dim),lmin,lmax,gp(1),gp(2)
      .                         ,deriv=deriv)
           endif
         endif
 
       contains
-
+              
 c     cubic_scl
 c     #################################################################
       function cubic_scl(dim,xi,eta,xmin,xmax,x0,lambda,deriv) result(x)
@@ -853,6 +853,57 @@ c     End program
       end function gaussian_scl
 
       end function scale_coord
+
+c     scale_coord_inv
+c     #################################################################
+      function scale_coord_inv(gdef,dim,xcurv) result(xlog)
+
+c     -----------------------------------------------------------------
+c     Evaluates INVERSE scaled map: given curvilinear coordinate xcurv,
+c     find logical coordinate xlog. Packing configuration (location and
+c     slope of packing) is taken from g_def.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        type(grid_mg_def),pointer :: gdef
+
+        integer :: dim
+        real(8) :: xlog,xcurv
+        
+c     Local variables
+
+        integer :: it
+        real(8) :: dxlog,res
+
+c     Begin program
+
+        xlog = xcurv
+        
+        if (.not.gdef%g_pack(dim)%pack) return
+
+c     Compute inverse map by Newton's method
+
+        do it = 1,100
+          !Residual
+          res = scale_coord(gdef,dim,xlog) - xcurv
+          !Newton update
+          dxlog = -res/scale_coord(gdef,dim,xlog,deriv=1)
+          !Check convergence
+          if (abs(dxlog) < 1d-13) exit
+          !Solution update
+          xlog = xlog + dxlog
+        enddo
+
+        if (it > 100) then
+          write (*,*) "Newton in scale_coord_inv did not converge"
+          write (*,*) "Aborting..."
+          stop
+        endif
+        
+      end function scale_coord_inv
 
 c     findGlobalGrid
 c     #################################################################

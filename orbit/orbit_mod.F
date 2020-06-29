@@ -6,12 +6,14 @@ c ######################################################################
 
         use grid_splines
 
-        use grid, ONLY: np,my_rank,pstop,messg,UNDEF_DP
+        use grid, ONLY: np,my_rank,pstop,messg,UNDEF_DP,xi_x_sp
 
         use file_io
      
         use lyapn
    
+        type(grid_mg_def),pointer :: g_def_orbit
+
         !Diagnostics
         integer,private :: nunitd(4)
         logical,private :: flux = .false.
@@ -24,8 +26,8 @@ c ######################################################################
         real(8),private,allocatable,dimension(:,:) :: fpos,qdif
 
         !Integrator public variables
-        logical :: sln
-!$OMP THREADPRIVATE(sln)
+cc        logical :: sln
+cc!$OMP THREADPRIVATE(sln)
 
         integer :: iiout
 !$OMP THREADPRIVATE(iiout)
@@ -74,6 +76,8 @@ cc!$OMP THREADPRIVATE(ode_conf,orbit_conf)
 
         real(8),private :: xmin,xmax,ymin,ymax,zmin,zmax
 
+        logical :: numerical_sp
+        
 	!Global variables >>> THREADPRIVATE
         integer, dimension(:), allocatable :: nunitx,nunity,
      .                                        nunitz,nunitrz
@@ -391,7 +395,7 @@ c     ######################################################################
      .                       ,niter,atol,rtol,order,solen,picard
      .                       ,spline_order,gauge,B_input_is_A,r_min
      .                       ,lsode_neq,lsode_dt_lim,lsode_to_smax
-     .                       ,lsode_s_indep,ds_is_Bds)
+     .                       ,lsode_s_indep,ds_is_Bds,numerical_sp_map)
 
 c     ----------------------------------------------------------------------
 c     Sets up parameters for orbit integrator.
@@ -405,6 +409,7 @@ c     Call variables
         integer,optional :: niter,order,spline_order,gauge,lsode_neq
         logical,optional :: solen,picard,B_input_is_A,lsode_dt_lim
      .                     ,lsode_to_smax,lsode_s_indep,ds_is_Bds
+     .                     ,numerical_sp_map
 
 c     Local variables
 
@@ -486,6 +491,12 @@ c     Begin program
           rmin = 1d-3
         endif
 
+        if (PRESENT(numerical_sp_map)) then
+          numerical_sp = numerical_sp_map
+        else
+          numerical_sp = .false.
+        endif
+
         ode_conf => orbit_conf%ode_conf
 
 c     Consistency checks
@@ -511,7 +522,7 @@ c     ######################################################################
      .                      ,niter,atol,rtol,order,solen,picard
      .                      ,spline_order,gauge,B_input_is_A,r_min
      .                      ,lsode_neq,lsode_dt_lim,lsode_to_smax
-     .                      ,lsode_s_indep,ds_is_Bds)
+     .                      ,lsode_s_indep,ds_is_Bds,numerical_sp_map)
 
 c     ----------------------------------------------------------------------
 c     Sets up orbit integrator.
@@ -521,7 +532,7 @@ c     ----------------------------------------------------------------------
 
 c     Call variables
 
-        type(grid_mg_def) :: g_def
+        type(grid_mg_def),pointer :: g_def
 
         integer :: bcnd(6)
         real(8) :: bx(:,:,:),by(:,:,:),bz(:,:,:)
@@ -533,6 +544,7 @@ c     Call variables
         integer,optional :: niter,order,spline_order,gauge,lsode_neq
         logical,optional :: solen,picard,B_input_is_A,lsode_dt_lim
      .                     ,lsode_to_smax,lsode_s_indep,ds_is_Bds
+     .                     ,numerical_sp_map
 
 c     Local variables
 
@@ -540,6 +552,8 @@ c     Local variables
 
 c     Begin program
 
+        g_def_orbit => g_def
+        
 c     Set internal domain limits
 
         xmin = g_def%gxmin
@@ -567,6 +581,7 @@ c     Set orbit parameters
      .       ,gauge         =gauge        
      .       ,B_input_is_A  =B_input_is_A 
      .       ,r_min         =r_min        
+     .       ,numerical_sp_map = numerical_sp_map        
      .       ,lsode_neq     =lsode_neq    
      .       ,lsode_dt_lim  =lsode_dt_lim 
      .       ,lsode_to_smax =lsode_to_smax
@@ -1135,7 +1150,7 @@ c     Local Variables
 
       character(5) :: solver
 
-      logical  :: external_f
+      logical  :: external_f,sln
 
       save dt
 !$OMP THREADPRIVATE(dt)
@@ -1192,8 +1207,6 @@ c     Time integration
 
       else                                  !LSODE (non-solenoidal)
 
-        sln = orbit_conf%spline_conf%input_is_A !Whether input is A
-
         if (lsode_3eq) then
           call lsode_step_3eq(atol,rtol,x,y,z,ierror)
         else
@@ -1208,7 +1221,7 @@ c     Output
 
       if (iiout > 0) then
         write (*,'(a,e10.3,a,e10.3,a,e10.3,a,e10.3,a,3es12.3,a,l3)')
-     .         solver//'; Time=',time
+     .         trim(solver)//'; Time=',time
      .        ,' ;  dt=',dt
      .        ,' ;  Arc length=',ss
      .        ,' ;  ds=',ds
@@ -1239,7 +1252,9 @@ c     Call variables
 c     Local variables
 
       real(8) :: xc,yc,zc
-      real(8) :: xh,yh,zh,jach
+      real(8) :: xh,yh,zh,jach,xl(3)
+
+cc      logical :: sln
 
 c     Interfaces
 
@@ -1251,6 +1266,12 @@ c     Interfaces
       END INTERFACE
 
 c     Begin program
+
+cc      sln = orbit_conf%spline_conf%input_is_A !Whether input is A
+      
+      !Whether it is first call (ISTATE=1) or subsequent call (ISTATE=2)
+cc      if ((time == 0d0).or. (sln .and. (.not.cartesian))) ISTATE = 1
+      if (time == 0d0) ISTATE = 1
 
       if (cartesian .and. (.not.sing_point)) ISTATE=1 !Restart LSODE for cartesian step
 
@@ -1286,7 +1307,7 @@ c     Initial conditions
 
 c     LSODE configuration and call
 
-      T    = 0d0   !Independent variable
+      T    = 0d0    !Independent variable
 
       ITOL = 1      !Whether atol is array or not (2 => true)
 
@@ -1297,15 +1318,16 @@ c     LSODE configuration and call
 
       ITASK = 2     !Mode of operation: take one step and return
 
-      !Whether it is first call (ISTATE=1) or subsequent call (ISTATE=2)
-      if ((time == 0d0).or. (sln .and. (.not.cartesian))) ISTATE = 1
+      IOPT = 0                  !Whether optional inputs are needed (default:NO)
 
       if (ode_conf%lsode_dt_lim) then
 cc        write (*,*) 'LSODE -- limiting time step'
         IOPT = 1                !Whether optional inputs are needed
-        RWORK(6) = dtime        !Maximum time step allowed (optional input)
-      else
-        IOPT = 0                !Whether optional inputs are needed
+        if (cartesian) then
+          RWORK(6) = 1d-3       !Maximum time step allowed (optional input)
+        else
+          RWORK(6) = dtime      !Maximum time step allowed (optional input)
+        endif
       endif
 
       MF = 10       !Specifies non-stiff problem: implicit Adams-Moulton method
@@ -1353,9 +1375,10 @@ cc        write (*,*) 'LSODE -- limiting time step'
 c     Postprocessing to find logical coordinates
 
       if (cartesian) then
-        x = xold ; y = yold ; z = zold
-        call evalXi(iiout,YY(1),YY(2),YY(3),x,y,z,iterr)
-
+        xl(1) = xold ; xl(2) = yold ; xl(3) = zold
+        call find_sp_coords(xl,YY,iiout,iterr,numerical_sp)
+        x = xl(1) ; y = xl(2) ; z = xl(3)
+        
         if (iterr /= 0) then
           iterr = 6  !Error around SP
           return
@@ -1405,8 +1428,10 @@ c     Call variables
 
 c     Local variables
 
-      real(8) :: xc,yc,zc
+      real(8) :: xc,yc,zc,xl(3)
       real(8) :: xh,yh,zh,jach
+
+cc      logical :: sln
 
 c     Interfaces
 
@@ -1418,6 +1443,12 @@ c     Interfaces
       END INTERFACE
 
 c     Begin program
+
+cc      sln = orbit_conf%spline_conf%input_is_A !Whether input is A
+
+      !Whether it is first call (ISTATE=1) or subsequent call (ISTATE=2)
+cc      if ((time == 0d0).or. (sln .and. (.not.cartesian))) ISTATE = 1
+      if (time == 0d0) ISTATE = 1
 
       if (cartesian .and. (.not.sing_point)) ISTATE=1 !Restart LSODE for cartesian step
 
@@ -1449,7 +1480,7 @@ c     Initial conditions
 
 c     LSODE configuration and call
 
-      T = time   !Independent variable
+      T = time      !Independent variable
 
       ITOL = 1      !Whether atol is array or not (2 => true)
 
@@ -1466,15 +1497,16 @@ cc        ITASK = 1   !Mode of operation: integrate to end and return at TOUT=sm
         ITASK = 4   !Mode of operation: integrate to end and return at TOUT=smax w/o overshooting
       endif
 
-      !Whether it is first call (ISTATE=1) or subsequent call (ISTATE=2)
-      if ((time == 0d0).or. (sln .and. (.not.cartesian))) ISTATE = 1
-
-      IOPT = 0                  !Whether optional inputs are needed
+      IOPT = 0                  !Whether optional inputs are needed (default:NO)
 
       if (ode_conf%lsode_dt_lim) then
 cc        write (*,*) 'LSODE -- limiting time step'
         IOPT = 1                !Whether optional inputs are needed
-        RWORK(6) = dtime        !Maximum time step allowed (optional input)
+        if (cartesian) then
+          RWORK(6) = 1d-3       !Maximum time step allowed (optional input)
+        else
+          RWORK(6) = dtime      !Maximum time step allowed (optional input)
+        endif
       endif
 
       if (ITASK==4) then
@@ -1535,9 +1567,10 @@ c$$$      endif
 c     Postprocessing to find logical coordinates
 
       if (cartesian) then
-        x = xold ; y = yold ; z = zold
-        call evalXi(iiout,YY(1),YY(2),YY(3),x,y,z,iterr)
-
+        xl(1) = xold ; xl(2) = yold ; xl(3) = zold
+        call find_sp_coords(xl,YY,iiout,iterr,numerical_sp)
+        x = xl(1) ; y = xl(2) ; z = xl(3)
+        
         if (iterr /= 0) then
           iterr = 6 !Error around SP
           return
@@ -1844,7 +1877,7 @@ c     ###################################################################
       integer :: flag,ierr
       real(8) :: dt,x0,y0,z0,x1,y1,z1,res(3)
 
-      real(8) :: xh,yh,zh,vx,vy,vz,xc0,yc0,zc0,x11,y11,z11
+      real(8) :: xh,yh,zh,v(3),car(3),xlog(3)
 
       ierr = ORB_OK
 
@@ -1854,28 +1887,27 @@ c     ###################################################################
       zh = 0.5*(z1+z0)
 
       !Find vector field at midpoint
-      call getB(xh,yh,zh,vx,vy,vz,.true.,cartesian,ierr,flag=flag)
+      call getB(xh,yh,zh,v(1),v(2),v(3),.true.,cartesian,ierr,flag=flag)
       if (ierr /= ORB_OK) return
 
       !Evaluate residual
       if (cartesian) then
 
         !Find Cartesian coordinates
-        call evalX(x0,y0,z0,xc0,yc0,zc0)
+        call evalX(x0,y0,z0,car(1),car(2),car(3))
 
         !Update Cartesian coordinates
-        xc0 = xc0 +dt*vx
-        yc0 = yc0 +dt*vy
-        zc0 = zc0 +dt*vz
+        car = car + dt*v
 
         !Find logical coordinates
-        x11 = x0 ; y11 = y0 ; z11 = z0
-        call evalXi(iiout,xc0,yc0,zc0,x11,y11,z11,ierr)
+        xlog(1) = x0 ; xlog(2) = y0 ; xlog(3) = z0
+        call find_sp_coords(xlog,car,iiout,ierr,numerical_sp)
+
         if (ierr /= ORB_OK) ierr = ORB_SP_ERR !Error around SP
 
-        res(1) = x1 - x11
-        res(2) = y1 - y11
-        res(3) = z1 - z11
+        res(1) = x1 - xlog(1)
+        res(2) = y1 - xlog(2)
+        res(3) = z1 - xlog(3)
 
       else
         res(1) = x1 - x0 -dt*vx
@@ -1936,8 +1968,8 @@ c     Call variables
 c     Local variables
 
 cc      integer :: ierror
-      real(8) :: x1,y1,z1,vx,vy,vz,xc0,yc0,zc0,bnorm,jac
-      logical :: bwgt
+      real(8) :: xl(3),vx,vy,vz,xc0,yc0,zc0,bnorm,jac
+      logical :: bwgt,solen
 
 c     Begin program
 
@@ -1948,19 +1980,22 @@ c     Begin program
 
       bwgt = ode_conf%ds_is_Bds
 
+      solen = orbit_conf%ode_conf%solen
+     .    .or.orbit_conf%spline_conf%input_is_A
+        
       !Find logical coordinates
       if (sing_point) then
-        x1 = xold ; y1 = yold ; z1 = zold
-        call evalXi(iiout,y(1),y(2),y(3),x1,y1,z1,LSODE_IERR)
+        xl(1) = xold ; xl(2) = yold ; xl(3) = zold
+        call find_sp_coords(xl,YY,iiout,LSODE_IERR,numerical_sp)
+
         if (LSODE_IERR /= ORB_OK) return
       else
-        x1 = y(1)
-        y1 = y(2)
-        z1 = y(3)
+        xl = y
       endif
 
       !Get vector field (Cartesian if sing_point is .true.)
-      call getB(x1,y1,z1,vx,vy,vz,sln,sing_point,LSODE_IERR)
+      call getB(xl(1),xl(2),xl(3),vx,vy,vz,solen,sing_point
+     .         ,LSODE_IERR)
       if (LSODE_IERR /= ORB_OK) return
 
       ydot(1) = vx
@@ -1969,10 +2004,10 @@ c     Begin program
 
       !Time and arc-length ODEs
       if (.not.sing_point) then
-        jac = evalJ(x1,y1,z1,LSODE_IERR)
+        jac = evalJ(xl(1),xl(2),xl(3),LSODE_IERR)
         if (LSODE_IERR /= ORB_OK) return
 
-        call evalBcar(x1,y1,z1,vx,vy,vz,LSODE_IERR)
+        call evalBcar(xl(1),xl(2),xl(3),vx,vy,vz,LSODE_IERR)
         if (LSODE_IERR /= ORB_OK) return
         bnorm = vx**2+vy**2+vz**2
         if (.not.bwgt) bnorm = sqrt(bnorm)
@@ -1984,9 +2019,9 @@ c     Begin program
 
       ydot = ydot/(bnorm*jac)
 
-      if (PRESENT(xx1)) xx1 = x1
-      if (PRESENT(yy1)) yy1 = y1
-      if (PRESENT(zz1)) zz1 = z1
+      if (PRESENT(xx1)) xx1 = xl(1)
+      if (PRESENT(yy1)) yy1 = xl(2)
+      if (PRESENT(zz1)) zz1 = xl(3)
       if (PRESENT(B2)) then
         if (bwgt) then
           B2 = bnorm
@@ -2023,8 +2058,8 @@ c     Call variables
 
 c     Local variables
 
-      real(8) :: x1,y1,z1,vx,vy,vz,xc0,yc0,zc0,bnorm
-      logical :: bwgt
+      real(8) :: xl(3),vx,vy,vz,xc0,yc0,zc0,bnorm
+      logical :: bwgt,solen
 
 c     Begin program
 
@@ -2035,19 +2070,27 @@ c     Begin program
 
       bwgt = ode_conf%ds_is_Bds
 
+      solen = orbit_conf%ode_conf%solen
+     .    .or.orbit_conf%spline_conf%input_is_A
+
       !Find logical coordinates
       if (sing_point) then
-        x1 = xold ; y1 = yold ; z1 = zold
-        call evalXi(iiout,y(1),y(2),y(3),x1,y1,z1,LSODE_IERR)
+        xl(1) = xold ; xl(2) = yold ; xl(3) = zold
+        call find_sp_coords(xl,y,iiout,LSODE_IERR,numerical_sp)
+c$$$        write (*,*) "Coords from xi_x_sp=",xl
+c$$$
+c$$$        xl(1) = xold ; xl(2) = yold ; xl(3) = zold
+c$$$        call evalXi(iiout,y(1),y(2),y(3),xl(1),xl(2),xl(3),LSODE_IERR)
+c$$$        write (*,*) "Coords from evalXi=",xl
+c$$$        write (*,*)
+        
         if (LSODE_IERR /= ORB_OK) return
       else
-        x1 = y(1)
-        y1 = y(2)
-        z1 = y(3)
+        xl = y
       endif
 
       !Get vector field (Cartesian if sing_point is .true.)
-      call getB(x1,y1,z1,vx,vy,vz,sln,sing_point,LSODE_IERR)
+      call getB(xl(1),xl(2),xl(3),vx,vy,vz,solen,sing_point,LSODE_IERR)
       if (LSODE_IERR /= ORB_OK) return
 
       ydot(1) = vx
@@ -2056,10 +2099,10 @@ c     Begin program
 
       !Time and arc-length ODEs
       if (.not.sing_point) then
-        ydot(4) = evalJ(x1,y1,z1,LSODE_IERR)
+        ydot(4) = evalJ(xl(1),xl(2),xl(3),LSODE_IERR)
         if (LSODE_IERR /= ORB_OK) return
 
-        call evalBcar(x1,y1,z1,vx,vy,vz,LSODE_IERR)
+        call evalBcar(xl(1),xl(2),xl(3),vx,vy,vz,LSODE_IERR)
         if (LSODE_IERR /= ORB_OK) return
 
         bnorm = vx**2+vy**2+vz**2
@@ -2075,9 +2118,9 @@ c     Begin program
         ydot(5) = bnorm
       endif
 
-      if (PRESENT(xx1)) xx1 = x1
-      if (PRESENT(yy1)) yy1 = y1
-      if (PRESENT(zz1)) zz1 = z1
+      if (PRESENT(xx1)) xx1 = xl(1)
+      if (PRESENT(yy1)) yy1 = xl(2)
+      if (PRESENT(zz1)) zz1 = xl(3)
       if (PRESENT(B2)) then
         if (bwgt) then
           B2 = bnorm
@@ -3300,6 +3343,65 @@ c     ##################################################################
       lsode_err = (LSODE_IERR /= ORB_OK)
 
       end function chk_lsode_err
+
+c     find_sp_coords
+c     ##################################################################
+      subroutine find_sp_coords(xl,xc,iiout,ierr,numerical)
+
+c     ------------------------------------------------------------------
+c     Determines logical coordinates for SP systems from old logical
+c     coords (in xl) and new cartesian coords.
+c     ------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      real(8) :: xc(3),xl(3)
+      integer :: iiout,ierr
+      logical :: numerical
+      
+c     Local variables
+
+      real(8) :: yd,zd,xlo(3),xo(3)
+
+c     Begin program
+      
+      if (numerical) then
+        call evalXi(iiout,xc(1),xc(2),xc(3),xl(1),xl(2),xl(3),ierr)
+        return
+      endif
+
+      xo  = xl
+      xlo = xl
+
+      !Find half periodic domains
+      yd = 0.5*(ymax-ymin)
+      zd = 0.5*(zmax-zmin)
+
+      !Shift old logical coordinates to within periodic domain
+      call chk_pos(xlo(1),xlo(2),xlo(3))
+
+      !Find new logical coords within periodic domain
+      xl = xi_x_sp(g_def_orbit,xc(1),xc(2),xc(3),.false.)
+
+      !Find coordinate updates
+cc      write (*,*) "Old solution from xi_x_sp=",xo
+cc      write (*,*) "New solution from xi_x_sp=",xl
+      xl(1) = xl(1) - xlo(1)
+      xl(2) = xl(2) - xlo(2)
+      if (xl(2) > yd) xl(2) = xl(2) - 2*yd
+      if (xl(2) <-yd) xl(2) = xl(2) + 2*yd
+        
+      xl(3) = xl(3) - xlo(3)
+      if (xl(3) > zd) xl(3) = xl(3) - 2*zd
+      if (xl(3) <-zd) xl(3) = xl(3) + 2*zd
+cc      write (*,*) "Deltas from xi_x_sp=",xl
+
+      !Update old logical coordinates
+      xl = xl + xo
+
+      end subroutine find_sp_coords
 
       end module orbit
 

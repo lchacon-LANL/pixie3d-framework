@@ -138,7 +138,7 @@ c Spline reference solution
       ny = jhig-jlog+1
       nz = khig-klog+1
 
-      order = 2  !Order of interpolation of ref solution
+      order = 3  !Order of interpolation of ref solution
 
       nxs = nx+2
       nys = ny+2
@@ -418,8 +418,9 @@ cc      endif
 
       if (abs(tref-tsol)>1d-10) then
         if (my_rank == 0) write (*,*) 'T_ref-T_sol=',tref-tsol
-        call pstop('acc_test_time'
-     .            ,'Reference and solution are not at same time')
+        write (*,*) 'Error in acc_test_time'
+     .  write (*,*) 'Reference and solution are not at same time'
+        return
       endif
 
 c     Calculate solution differences

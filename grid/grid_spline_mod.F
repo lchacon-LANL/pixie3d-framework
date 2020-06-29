@@ -1536,14 +1536,15 @@ c     Perform iteration
 
         damp(iter) = 1d0
         
-        if (prnt) write (*,*) '>>>>Iteration=',iter
-
+        if (prnt) then
+          write (*,*)
+          write (*,*) '>>>>Iteration=',iter
+        endif
+        
         !Form residual and check convergence
         res(:,1) = formResidual(x1,x2,x3,ierror)
-
-        if (ierror /= ORB_OK) exit
-
-        if (prnt) write (*,*) 'evalXi -- res=',res
+        
+        if (prnt) write (*,*) 'evalXi -- residual=',res
 
         error(iter) = sqrt(sum(res*res))
 
@@ -1570,15 +1571,15 @@ c     Perform iteration
         !Update solution
         xi = (/x1,x2,x3/)
         call linesearch(xi,dxi(:,1),error(iter),damp(iter),ierror)
+        if (ierror /= ORB_OK) then
+          if (prnt) write (*,*) "evalXi: Error in Newton linesearch"
+          exit
+        endif
         x1 = xi(1) ; x2 = xi(2) ; x3 = xi(3)
-c$$$        x1 = x1 + dxi(1,1,iter)
-c$$$        x2 = x2 + dxi(2,1,iter)
-c$$$        x3 = x3 + dxi(3,1,iter)
-
-        if (ierror /= ORB_OK) exit
-
-        if (prnt) write (*,*) 'evalXi -- xi=',x1,x2,x3
-
+c$$$        x1 = x1 + dxi(1,1)
+c$$$        x2 = x2 + dxi(2,1)
+c$$$        x3 = x3 + dxi(3,1)
+        
         !Singular point BC
         call chk_pos(x1,x2,x3,ierr=ierror,no_per_bc=.true.)
 
@@ -1624,7 +1625,11 @@ c     ###################################################################
 
       call chk_pos(x11,x22,x33,ierr=ierr)
 
-      if (ierr /= ORB_OK) return
+      if (ierror /= ORB_OK) then
+        if (prnt)
+     .         write (*,*) "evalXi: Error in computation of residual"
+        return
+      endif
 
       res(1) = x - db3val(x11,x22,x33,0,0,0,tx,ty,tz,nx,ny,nz
      .                   ,kx,ky,kz,lxcoef(:,:,:,1)
@@ -1643,17 +1648,17 @@ c     ###################################################################
       if (y_is_log) res(2) = res(2) - (x2-x22)
       if (z_is_log) res(3) = res(3) - (x3-x33)
 
-cc      if (prnt) then
-cc        write (*,*)
-cc        write (*,*) 'evalXi -- sbcnd',sbcnd
-cc        write (*,*) 'evalXi -- limits',xsmin,xsmax
-cc     .                                ,ysmin,ysmax
-cc     .                                ,zsmin,zsmax,tol
-cc        write (*,*) 'evalXi -- input log coords',x1 ,x2 ,x3
-cc        write (*,*) 'evalXi -- shifted log coords',x11,x22,x33
-cc        write (*,*) 'evalXi -- Shifts=',x1-x11,x2-x22,x3-x33
-cc        write (*,*) 'evalXi -- res before mod=',res
-cc      endif
+      if (prnt) then
+        write (*,*)
+        write (*,*) 'evalXi -- sbcnd',sbcnd
+        write (*,*) 'evalXi -- slimits',xsmin,xsmax
+     .                                 ,ysmin,ysmax
+     .                                 ,zsmin,zsmax
+        write (*,*) 'evalXi -- input log coords',x1 ,x2 ,x3
+        write (*,*) 'evalXi -- shifted log coords',x11,x22,x33
+        write (*,*) 'evalXi -- Shifts=',x1-x11,x2-x22,x3-x33
+        write (*,*) 'evalXi -- res before mod=',res
+      endif
 
 cc      if (sbcnd(1) == PER) res(1) = mod(res(1),xsmax-xsmin-0.1*tol)
 cc      if (sbcnd(3) == PER) res(2) = mod(res(2),ysmax-ysmin-0.1*tol)
@@ -1743,6 +1748,9 @@ c     Start quadratic linesearch backtracking
         !Find residual norm |F(xk+dxk)| --> fkp
         dummy = x + damp*ddx
         b = formResidual(dummy(1),dummy(2),dummy(3),ierror)
+
+        if (ierror /= ORB_OK) exit
+
         fkp = sqrt(sum(b*b))
 
         !Check residual minimation condition
@@ -1757,6 +1765,9 @@ c     Start quadratic linesearch backtracking
           !Evaluate residual norm |F(xk+lambda*dxk)| --> fm
           dummy = x + dampm*ddx
           b = formResidual(dummy(1),dummy(2),dummy(3),ierror)
+
+          if (ierror /= ORB_OK) exit
+
           fm = sqrt(sum(b*b))
 
           !Check convergence
@@ -1794,6 +1805,8 @@ cc          write (*,*) 'Damping parameters',dampm,damp
         endif
       enddo
 
+      if (ierror /= ORB_OK) return
+      
       x = dummy
 
       if (damp < 1d-8) ierror = ORB_SP_ERR
