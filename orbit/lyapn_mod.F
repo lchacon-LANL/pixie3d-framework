@@ -5,6 +5,8 @@
 
         use xdraw_io
 
+        use spline_field
+
         use grid, ONLY: np,my_rank,pstop,messg
 
         use file_io
@@ -16,8 +18,8 @@
 !private variables
        logical :: lyap=.false.,connect=.false.,ridge=.false.
 !$OMP THREADPRIVATE(lyap,connect,ridge)
-       logical :: auto_corr=.false., ac_rtrn
-!$OMP THREADPRIVATE(auto_corr,ac_rtrn)
+       logical :: auto_corr=.false., ac_rtrn,cnc_ext_bdry=.false.
+!$OMP THREADPRIVATE(auto_corr,ac_rtrn,cnc_ext_bdry)
        integer :: intersect_x, intersect_y, intersect_z
 !$OMP THREADPRIVATE(intersect_x,intersect_y,intersect_z)
        integer :: intersect_tor
@@ -36,9 +38,9 @@
 !$OMP THREADPRIVATE(delta_y,delta_z)
        integer :: ilup = 0
 
-!#! Marco, attention
-       character(200) :: init_cond_file
-
+       character(200) :: cnc_ext_bdry_file = ''
+       real(8),dimension(:,:),allocatable :: cnc_bdry
+!$OMP THREADPRIVATE(cnc_bdry)
        integer, dimension(:), allocatable :: cnctx
        integer, dimension(:), allocatable :: ridgex
 
@@ -690,12 +692,14 @@
 
 !     Local variables
 
-        integer :: cpos,nfiles,ifile,ith,iproc,ierr,ic
+        integer :: cpos,nfiles,ifile,ith,iproc,ierr,ic,ipt,npt
 
         character(50),dimension(:),allocatable :: cnct_file
 
 !     Begin program
 
+!     Open connection-length binary files
+        
         thr_tot = 1
 
 #ifdef _OPENMP
@@ -722,10 +726,9 @@ c$$$        enddo
           ifile = ith+thr_tot*my_rank
           cnct_file(ifile) =
      .           'connect_proc'//trim(int2char(ifile))//'.bin'
-cc          write (*,*) my_rank,ifile,cnct_file(ifile) 
         enddo
 
-!!# Marco: *.bin files opening
+        !!# Marco: *.bin files opening
         allocate(cnctx(0:thr_tot-1))
         do ic = 0, thr_tot - 1
          cnctx(ic) = 91027+ic
@@ -733,12 +736,25 @@ cc          write (*,*) my_rank,ifile,cnct_file(ifile)
 
         do ic = 0, thr_tot - 1
          ifile = ic + thr_tot*my_rank 
-cc         write (*,*) ic,cnct_file(ifile) 
          open(unit=cnctx(ic),file=trim(cnct_file(ifile))
      .        ,form='unformatted')
 	enddo
 
         deallocate(cnct_file)
+
+!     Open external boundary specification file (if given)
+
+        if (cnc_ext_bdry_file /= '') then
+          cnc_ext_bdry = .true.
+          ifile = find_unit(1234)
+          open(unit=ifile,file=trim(cnc_ext_bdry_file),status='old')
+          read(ifile,*) npt
+          allocate(cnc_bdry(npt,2))
+          do ipt=1,npt
+            read(ifile,*) cnc_bdry(ipt,:)
+          enddo
+          close(ifile)
+        endif
 
       end subroutine connect_io_init
 
@@ -756,7 +772,7 @@ cc         write (*,*) ic,cnct_file(ifile)
 
 !     Local variables
 
-        integer :: ith
+        integer :: ith,istat
 
 !     Begin program
 
@@ -764,14 +780,68 @@ cc         write (*,*) ic,cnct_file(ifile)
           close(cnctx(ith))
         enddo
 
-        deallocate(cnctx)
+        deallocate(cnctx,cnc_bdry,stat=istat)
 
       end subroutine connect_io_end
 
+!     cnc_inside_bdry
+!     #################################################################
+      function cnc_inside_bdry(x1,x2,x3) result(inside)
+
+!     -----------------------------------------------------------------
+!     Closes XDRAW surface of section output files
+!     -----------------------------------------------------------------
+
+        implicit none
+
+!     Call variables
+
+        real(8) :: x1,x2,x3
+        logical :: inside
+        
+!     Local variables
+
+        integer :: npt,ipt,ierr
+        real(8) :: xmin(2),xmax(2),xc(3),dist,distmin,distmax,rr,zz
+
+!     Begin program
+        
+        if (.not.cnc_ext_bdry) then
+          inside = (x1 < cnctth)
+        else
+          !Find Cartesian components and R-Z coordinates
+          call evalX(x1,x2,x3,xc(1),xc(2),xc(3),ierr=ierr)
+          rr = sqrt(xc(1)*xc(1)+xc(2)*xc(2))
+          zz = xc(3)
+
+          !Compute closest and furthest points along bdry
+          npt = size(cnc_bdry,1)
+          distmin = 1d10
+          distmax = 0d0
+          do ipt=1,npt
+            dist = (rr-cnc_bdry(ipt,1))*(rr-cnc_bdry(ipt,1))
+     .            +(zz-cnc_bdry(ipt,2))*(zz-cnc_bdry(ipt,2))
+            if (dist < distmin) then
+              xmin = cnc_bdry(ipt,:)
+              distmin = dist
+            endif
+            if (dist > distmax) then
+              xmax = cnc_bdry(ipt,:)
+              distmax = dist
+            endif
+          enddo
+          !Determine location by sign of inner product
+          inside =((xmax(1)-rr)*(xmin(1)-rr)
+     .            +(xmax(2)-zz)*(xmin(2)-zz)) < 0d0
+        endif
+        
+!     Begin program
+
+      end function cnc_inside_bdry
+      
 c     auto_corr_io_init
 c     ###############################################################
-      subroutine auto_corr_io_init(deltass, ss_min, x00,y00,z00
-     .                             ,ss_check)
+      subroutine auto_corr_io_init(deltass,ss_min,x00,y00,z00,ss_check)
 
 !     -----------------------------------------------------------------
 !     Initialize some files needed for auto_correlation computation
@@ -1297,7 +1367,7 @@ c     ###############################################################
 !        enddo
 
         do ii=0,number_ci_for_thread*(1+n_intersection) - 1
-         read(180,iostat=dumm), dati
+         read(180,iostat=dumm) dati
 !         write(*,*) 'dati  ', ii,dati     
          if (dumm .eq. 0) then
           punti(0:1,ii) = dati
@@ -1344,20 +1414,20 @@ c     ###############################################################
 
         do aa = 0,size(real_points_end(0,:)) -1
                
-         write(190), real_points_end(0,aa),
+         write(190)  real_points_end(0,aa),
      .               real_points_end(1,aa), zsurf
 
-         write(190), real_points_end(0,aa) + ddeltar,
+         write(190)  real_points_end(0,aa) + ddeltar,
      .               real_points_end(1,aa), zsurf
 
-         write(190), real_points_end(0,aa) - ddeltar,
+         write(190)  real_points_end(0,aa) - ddeltar,
      .               real_points_end(1,aa), zsurf
 
-         write(190), real_points_end(0,aa),
+         write(190)  real_points_end(0,aa),
      .               real_points_end(1,aa) + ddeltath, 
      .               zsurf
 
-         write(190), real_points_end(0,aa),
+         write(190)  real_points_end(0,aa),
      .               real_points_end(1,aa) - ddeltath,
      .               zsurf
 

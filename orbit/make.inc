@@ -21,7 +21,7 @@ SUBDIRS = $(COMMONDIR)/math\
 
 #Define dependencies
 
-spline_mod.o: lyapn_mod.o
-orbit_mod.o: spline_mod.o
+lyapn_mod.o: spline_mod.o
+orbit_mod.o: lyapn_mod.o
 poincare_io_mod.o: orbit_mod.o
 par_int_mod.o: poincare_io_mod.o

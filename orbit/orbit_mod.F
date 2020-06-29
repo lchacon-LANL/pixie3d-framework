@@ -676,7 +676,7 @@ c     Local variables
         real(8) :: temp_s,xh,yh,zh,sh
         logical :: chk_ss,integral,non_fatal_err
 !#!     Marco, to deal with connection length in the backward case
-        logical :: cnc_back
+        logical :: cnc_outside,cnc_cross
 
         integer,save :: thrtot,thrnum
 !$OMP THREADPRIVATE(thrtot,thrnum)
@@ -796,14 +796,8 @@ c     Daniele,23/03/2009: dump the initial point of the orbit
 !#! Marco, initialize intersections counters
         mx = 0 ; my = 0 ; mz = 0
 
-!#! Marco, initialize cnc_back
-        if (connect) then
-         if (x0 .gt. cnctth) then
-          cnc_back = .true.
-         else 
-          cnc_back = .false.
-         endif
-        endif
+!#! Marco, initialize cnc_outside
+        if (connect) cnc_outside = .not.cnc_inside_bdry(x0,y0,z0)
 
         itime = 0 
 
@@ -858,15 +852,12 @@ c     Daniele,23/03/2009: dump the initial point of the orbit
 
           !#! Marco, january 15th 2019
           if (connect) then
-cc            write (*,*) cnc_back,x,cnctth,thrnum
-            if (.not. cnc_back .and. x .gt. cnctth) then
-cc              write (*,*) "gt",x0,y0,z0,ss,thrnum
+            cnc_cross =
+     .          ((.not.cnc_outside).and.(.not.cnc_inside_bdry(x,y,z)))
+     .           .or. (cnc_outside .and.      cnc_inside_bdry(x,y,z))
+            if (cnc_cross) then
               call connect_write(x0,y0,z0,ss,thrnum)
               !#! Marco, no need to continue after threshold is reached
-              exit
-            else if (cnc_back .and. x .lt. cnctth) then
-cc              write (*,*) "lt",x0,y0,z0,ss,thrnum
-              call connect_write(x0,y0,z0,ss,thrnum)
               exit
             endif
           endif

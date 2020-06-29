@@ -4,9 +4,10 @@ c #####################################################################
 
         use xdraw_io
 
-!#! Marco
-        use lyapn
+        use OMP
 
+        use math
+        
         use grid, ONLY:pstop,my_rank,grid_params
 
         use bc_def, bcond2 => bcond
