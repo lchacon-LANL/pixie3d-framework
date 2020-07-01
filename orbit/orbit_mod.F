@@ -2613,7 +2613,7 @@ cc            ierr = rm_files(dummy)
             drawin = 'draw'//dummy(1:cpos+4)//'.in'
             call createDrawInGfile(1,1,ssrz
      .                         ,'RZ surface of section'
-     .                         ,'r',(/1/),(/'z'/),(/0/),(/0,0/)
+     .                         ,'R',(/1/),(/'Z'/),(/0/),(/0,0/)
      .                         ,drawin,.false.,.false.)
           endif
 

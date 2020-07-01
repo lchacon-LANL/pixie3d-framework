@@ -7,9 +7,11 @@
 
         use spline_field
 
-        use grid, ONLY: np,my_rank,pstop,messg,MPI_DOUBLE_PRECISION
+        use grid, ONLY: np,my_rank,pstop,messg
+#if defined(use_mpi)
+     .                 ,MPI_DOUBLE_PRECISION
      .                 ,MPI_INT,MPI_COMM_WORLD,mpierr
-
+#endif
         use file_io
 
         use OMP
@@ -29,11 +31,11 @@
 !$OMP THREADPRIVATE(max_inter_y,max_inter_x,max_inter_z)
        real(8) :: atc_tol,ss_min,deltass
 !$OMP THREADPRIVATE(atc_tol,ss_min,deltass)
-       real(8) :: cnctth
-!$OMP THREADPRIVATE(cnctth)
+       real(8) :: cnc_xbdry
+!$OMP THREADPRIVATE(cnc_xbdry)
        real(8) :: slyp, slyp_old
 !$OMP THREADPRIVATE(slyp,slyp_old)
-       real(8) :: big_n=100000000.d0
+       real(8) :: big_n=0d0
 !$OMP THREADPRIVATE(big_n)
        integer :: delta_y,delta_z
 !$OMP THREADPRIVATE(delta_y,delta_z)
@@ -696,7 +698,8 @@
         integer :: cpos,nfiles,ifile,ith,iproc,ierr,ic,ipt,npt
 
         character(50),dimension(:),allocatable :: cnct_file
-
+        character(50) :: drawin,dummy
+        
 !     Begin program
 
 !     Open connection-length binary files
@@ -726,7 +729,7 @@ c$$$        enddo
         do ith=0,thr_tot-1
           ifile = ith+thr_tot*my_rank
           cnct_file(ifile) =
-     .           'connect_proc'//trim(int2char(ifile))//'.bin'
+     .           'cnc'//trim(file)//'_proc'//trim(int2char(ifile))
         enddo
 
         !!# Marco: *.bin files opening
@@ -741,6 +744,13 @@ c$$$        enddo
      .        ,form='unformatted')
 	enddo
 
+        !Create draw*.in file
+        dummy = "cnc"//trim(file)
+        drawin = 'draw'//dummy(1:cpos+3)//'.in'
+        call createDrawInGfile(1,1,cnct_file,'Connection length'
+     .                       ,'R',(/1/),(/'Z'/),(/0/),(/0,0/)
+     .                       ,drawin,.false.,.false.)
+        
         deallocate(cnct_file)
 
 !     Open external boundary specification file (if given)
@@ -763,9 +773,11 @@ c$$$        enddo
           if (my_rank == 0) then
             do ipt=1,npt
               read(ifile,*) cnc_bdry(ipt,:)
+cc              write (*,*) cnc_bdry(ipt,:)
             enddo
             close(ifile)
           endif
+cc          stop
 
 #if defined(use_mpi)
           call MPI_Bcast(cnc_bdry,2*npt, MPI_DOUBLE_PRECISION,0
@@ -824,7 +836,7 @@ c$$$        enddo
 !     Begin program
         
         if (.not.cnc_ext_bdry) then
-          inside = (x1 < cnctth)
+          inside = (x1 < cnc_xbdry)
         else
           !Find Cartesian components and R-Z coordinates
           call evalX(x1,x2,x3,xc(1),xc(2),xc(3),ierr=ierr)
@@ -835,7 +847,7 @@ c$$$        enddo
           npt = size(cnc_bdry,1)
           distmin = 1d10
           distmax = 0d0
-          do ipt=1,npt
+          do ipt=1,npt,npt/10  !Pick 10 points along orbit
             dist = (rr-cnc_bdry(ipt,1))*(rr-cnc_bdry(ipt,1))
      .            +(zz-cnc_bdry(ipt,2))*(zz-cnc_bdry(ipt,2))
             if (dist < distmin) then
@@ -847,9 +859,11 @@ c$$$        enddo
               distmax = dist
             endif
           enddo
+          
           !Determine location by sign of inner product
           inside =((xmax(1)-rr)*(xmin(1)-rr)
      .            +(xmax(2)-zz)*(xmin(2)-zz)) < 0d0
+cc          write (*,*) "Inside =",inside
         endif
         
 !     Begin program
