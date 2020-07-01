@@ -744,12 +744,12 @@ c$$$        enddo
      .        ,form='unformatted')
 	enddo
 
-        !Create draw*.in file
-        dummy = "cnc"//trim(file)
-        drawin = 'draw'//dummy(1:cpos+3)//'.in'
-        call createDrawInGfile(1,1,cnct_file,'Connection length'
-     .                       ,'R',(/1/),(/'Z'/),(/0/),(/0,0/)
-     .                       ,drawin,.false.,.false.)
+c$$$        !Create draw*.in file
+c$$$        dummy = "cnc"//trim(file)
+c$$$        drawin = 'draw'//dummy(1:cpos+3)//'.in'
+c$$$        call createDrawInGfile(1,1,cnct_file,'Connection length'
+c$$$     .                       ,'R',(/1/),(/'Z'/),(/0/),(/0,0/)
+c$$$     .                       ,drawin,.false.,.false.)
         
         deallocate(cnct_file)
 
