@@ -740,8 +740,9 @@ c$$$        enddo
 
         do ic = 0, thr_tot - 1
          ifile = ic + thr_tot*my_rank 
-         open(unit=cnctx(ic),file=trim(cnct_file(ifile))
-     .        ,form='unformatted')
+c$$$         open(unit=cnctx(ic),file=trim(cnct_file(ifile))
+c$$$     .        ,form='unformatted')
+         open(unit=cnctx(ic),file=trim(cnct_file(ifile)))
 	enddo
 
 c$$$        !Create draw*.in file
@@ -1103,7 +1104,8 @@ c     ###############################################################
         write(*,*)
         write(*,'(a,i4,i4,4e15.7)') 'my_rank, thr_num ',my_rank, thr_num
      .           ,x_0,y_0,z_0,ss_0
-        write(cnctx(thr_num)) x_0,y_0,z_0,ss_0
+cc        write(cnctx(thr_num)) x_0,y_0,z_0,ss_0
+        write(cnctx(thr_num),*) x_0,y_0,z_0,ss_0
 
       end subroutine connect_write
 
