@@ -16,7 +16,7 @@
 
         use OMP
 
-        logical :: lssx,lssy,lssz,rzss,ss_io=.false.
+        logical :: lssx,lssy,lssz,rzss=.false.,ss_io=.false.
 
 !private variables
        logical :: lyap=.false.,connect=.false.,ridge=.false.
@@ -35,7 +35,7 @@
 !$OMP THREADPRIVATE(cnc_xbdry)
        real(8) :: slyp, slyp_old
 !$OMP THREADPRIVATE(slyp,slyp_old)
-       real(8) :: big_n=0d0
+       real(8) :: big_n=1d5
 !$OMP THREADPRIVATE(big_n)
        integer :: delta_y,delta_z
 !$OMP THREADPRIVATE(delta_y,delta_z)
@@ -46,6 +46,8 @@
 !$OMP THREADPRIVATE(cnc_bdry)
        integer, dimension(:), allocatable :: cnctx
        integer, dimension(:), allocatable :: ridgex
+       integer :: cnc_bdry_alg = 3  !1 -> O(N) min-max, 2 -> O(log(N)) min-max, 3 -> O(N) angle
+       integer :: cnc_bdry_ndiv= 50 !Number of bdry divisions for alg #3
 
 !connect private variables
 
@@ -58,6 +60,8 @@
 
 !#! local variables
 
+        logical,private :: cnc_ascii = .true.
+        
       contains
 
 !#! IO routines
@@ -678,10 +682,9 @@
        deallocate(deltan, coupl, arc, lyap)
       end subroutine lypnv3
 
-
 !     connect_io_init
 !     #################################################################
-      subroutine connect_io_init(file)
+      subroutine connect_io_init(file,rz_ss)
 
 !     -----------------------------------------------------------------
 !     Sets up connect IO
@@ -693,14 +696,27 @@
 
         character(*) :: file
 
+        logical, optional :: rz_ss
+
 !     Local variables
 
-        integer :: cpos,nfiles,ifile,ith,iproc,ierr,ic,ipt,npt
+        integer :: cpos,nfiles,ifile,ith,iproc,ierr,ic,ipt,npt,pad
 
         character(50),dimension(:),allocatable :: cnct_file
         character(50) :: drawin,dummy
-        
+
 !     Begin program
+
+        if (PRESENT(rz_ss)) then
+          rzss = rz_ss
+        else
+          rzss = .false.
+        endif
+
+        if (my_rank == 0) ierr = rm_files('cnc-*')
+#if defined(use_mpi)
+        call MPI_Barrier(MPI_COMM_WORLD,ierr)
+#endif
 
 !     Open connection-length binary files
         
@@ -726,12 +742,20 @@ c$$$          enddo
 c$$$        enddo
         allocate(cnct_file(thr_tot*my_rank:thr_tot*(my_rank+1)-1))
 
-        do ith=0,thr_tot-1
-          ifile = ith+thr_tot*my_rank
-          cnct_file(ifile) =
-     .           'cnc'//trim(file)//'_proc'//trim(int2char(ifile))
-        enddo
-
+        if (cnc_ascii) then
+          do ith=0,thr_tot-1
+            ifile = ith+thr_tot*my_rank
+            cnct_file(ifile) =
+     .          'cnc-'//file(1:cpos)//'.txt_proc'//trim(int2char(ifile))
+          enddo
+        else
+          do ith=0,thr_tot-1
+            ifile = ith+thr_tot*my_rank
+            cnct_file(ifile) =
+     .           'cnc-'//trim(file)//'_proc'//trim(int2char(ifile))
+          enddo
+        endif
+        
         !!# Marco: *.bin files opening
         allocate(cnctx(0:thr_tot-1))
         do ic = 0, thr_tot - 1
@@ -739,19 +763,23 @@ c$$$        enddo
         enddo
 
         do ic = 0, thr_tot - 1
-         ifile = ic + thr_tot*my_rank 
-c$$$         open(unit=cnctx(ic),file=trim(cnct_file(ifile))
-c$$$     .        ,form='unformatted')
-         open(unit=cnctx(ic),file=trim(cnct_file(ifile)))
+          ifile = ic + thr_tot*my_rank
+          if (cnc_ascii) then
+            open(unit=cnctx(ic),file=trim(cnct_file(ifile)))
+          else
+            open(unit=cnctx(ic),file=trim(cnct_file(ifile))
+     .          ,form='unformatted')
+          endif
 	enddo
 
-c$$$        !Create draw*.in file
-c$$$        dummy = "cnc"//trim(file)
-c$$$        drawin = 'draw'//dummy(1:cpos+3)//'.in'
-c$$$        call createDrawInGfile(1,1,cnct_file,'Connection length'
-c$$$     .                       ,'R',(/1/),(/'Z'/),(/0/),(/0,0/)
-c$$$     .                       ,drawin,.false.,.false.)
-        
+        if (.not.cnc_ascii) then
+          !Create draw*.in file
+          drawin = 'drawcnc-'//file(1:cpos)//'.in'
+          call createDrawInGfile(1,1,cnct_file,'Connection length'
+     .                         ,'R',(/1/),(/'Z'/),(/0/),(/0,0/)
+     .                         ,drawin,.false.,.false.)
+        endif
+
         deallocate(cnct_file)
 
 !     Open external boundary specification file (if given)
@@ -769,16 +797,27 @@ c$$$     .                       ,drawin,.false.,.false.)
           call MPI_Bcast(npt,1, MPI_INT,0,MPI_COMM_WORLD,mpierr)
 #endif
 
-          allocate(cnc_bdry(npt,2))
+          !Determine padding to wrap boundary for bisection search
+          if (cnc_bdry_alg == 2) then
+            pad = npt !Bisection algorithm
+          else
+            pad = 0
+          endif
+
+          allocate(cnc_bdry(npt+pad,2))
 
           if (my_rank == 0) then
-            do ipt=1,npt
+            do ipt=pad/2+1,npt+pad/2
               read(ifile,*) cnc_bdry(ipt,:)
-cc              write (*,*) cnc_bdry(ipt,:)
             enddo
             close(ifile)
+            if (pad > 0) then
+              cnc_bdry(1:pad/2,:)=cnc_bdry(npt:npt+pad/2-1,:)
+              cnc_bdry(npt+pad/2+1:npt+pad,:)=cnc_bdry(pad/2+2:pad+1,:)
+            endif
           endif
-cc          stop
+          
+          npt = npt + pad
 
 #if defined(use_mpi)
           call MPI_Bcast(cnc_bdry,2*npt, MPI_DOUBLE_PRECISION,0
@@ -819,7 +858,15 @@ cc          stop
       function cnc_inside_bdry(x1,x2,x3) result(inside)
 
 !     -----------------------------------------------------------------
-!     Closes XDRAW surface of section output files
+!     Determines whether a point is inside a concave curve (either given
+!     by logical coordinate, or provided by external coordinate list) or
+!     outside.  If external boundary is provided, algorithm is based on
+!     inner product between vectors to closest point at boundary and one
+!     furthest away. If inner product is negative, point is
+!     inside. Otherwise, outside. We provide two search algorithms, one
+!     O(N) and another O(log(N)). They are determined by the variable
+!     "cnc_bdry_alg" (1 -> O(N) min-max, 2-> O(log(N)) min-max,
+!     otherwise O(N) angle.
 !     -----------------------------------------------------------------
 
         implicit none
@@ -831,8 +878,9 @@ cc          stop
         
 !     Local variables
 
-        integer :: npt,ipt,ierr
-        real(8) :: xmin(2),xmax(2),xc(3),dist,distmin,distmax,rr,zz
+        integer :: npt,ipt,ierr,imin,imax
+        real(8) :: xmin(2),xmax(2),xc(3),dist,distmin,distmax,rz(2)
+     .            ,dum,xd(2),dth,theta,a(2),b(2)
 
 !     Begin program
         
@@ -841,35 +889,179 @@ cc          stop
         else
           !Find Cartesian components and R-Z coordinates
           call evalX(x1,x2,x3,xc(1),xc(2),xc(3),ierr=ierr)
-          rr = sqrt(xc(1)*xc(1)+xc(2)*xc(2))
-          zz = xc(3)
+          rz(1) = sqrt(xc(1)*xc(1)+xc(2)*xc(2))
+          rz(2) = xc(3)
 
           !Compute closest and furthest points along bdry
           npt = size(cnc_bdry,1)
-          distmin = 1d10
-          distmax = 0d0
-          do ipt=1,npt,npt/10  !Pick 10 points along orbit
-            dist = (rr-cnc_bdry(ipt,1))*(rr-cnc_bdry(ipt,1))
-     .            +(zz-cnc_bdry(ipt,2))*(zz-cnc_bdry(ipt,2))
-            if (dist < distmin) then
-              xmin = cnc_bdry(ipt,:)
-              distmin = dist
-            endif
-            if (dist > distmax) then
-              xmax = cnc_bdry(ipt,:)
-              distmax = dist
-            endif
-          enddo
-          
-          !Determine location by sign of inner product
-          inside =((xmax(1)-rr)*(xmin(1)-rr)
-     .            +(xmax(2)-zz)*(xmin(2)-zz)) < 0d0
-cc          write (*,*) "Inside =",inside
+
+          select case(cnc_bdry_alg)
+          case(1)
+            !Order N algorithm based on min-max vectors
+            !Does NOT work for general curve shapes
+            distmin = 1d10
+            distmax = 0d0
+            do ipt=1,npt
+              dist = (rz(1)-cnc_bdry(ipt,1))*(rz(1)-cnc_bdry(ipt,1))
+     .              +(rz(2)-cnc_bdry(ipt,2))*(rz(2)-cnc_bdry(ipt,2))
+              if (dist < distmin) then
+                xmin = cnc_bdry(ipt,:)
+                distmin = dist
+                imin = ipt
+              endif
+              if (dist > distmax) then
+                xmax = cnc_bdry(ipt,:)
+                distmax = dist
+                imax = ipt
+              endif
+            enddo
+            inside =((xmax(1)-rz(1))*(xmin(1)-rz(1))
+     .              +(xmax(2)-rz(2))*(xmin(2)-rz(2))) <= 0d0
+          case(2)
+            !Order log(N) min-max algorithm based on bisection with random IC
+            !Does NOT work for general curve shapes
+c$$$            write (*,*)
+c$$$            write(*,*)"Outside bisection routines",npt
+c$$$            write(*,*)"Outside bisection routines, xmin",xmin,distmin,imin
+            call bisection_min(rz,npt,cnc_bdry,xd,dum,.true.)
+            call bisection_min(rz,npt,cnc_bdry,xmin,distmin,.true.)
+            if (dum < distmin) xmin = xd
+c$$$            write(*,*)"Outside bisection routines, xmax",xmax,distmax,imax
+            call bisection_max(rz,npt,cnc_bdry,xd,dum,.true.)
+            call bisection_max(rz,npt,cnc_bdry,xmax,distmax,.true.)
+            if (dum > distmax) xmax = xd
+c$$$            stop
+            inside =((xmax(1)-rz(1))*(xmin(1)-rz(1))
+     .              +(xmax(2)-rz(2))*(xmin(2)-rz(2))) <= 0d0
+          case default
+            !Order N algorithm based on angular integration
+            !(approximates shape by a coarser polygon for efficiency)
+            !Works for arbitrary curve shape
+            theta = 0d0
+            b = rz-cnc_bdry(1,:)
+            do ipt=2,npt-1,npt/cnc_bdry_ndiv
+              a = b
+              b = rz-cnc_bdry(ipt,:)
+              dth = atan2((a(1)*b(2)-a(2)*b(1)),dot_product(a,b))
+              theta = theta + dth
+            enddo
+            !Last point
+            a = b
+            b = rz-cnc_bdry(npt,:)
+            dth = atan2((a(1)*b(2)-a(2)*b(1)),dot_product(a,b))
+            theta = theta + dth
+
+cc            write (*,*) "Theta=",theta/(2*pi)
+            inside = (abs(theta) > 0.98*2*pi)
+          end select
+
         endif
-        
-!     Begin program
 
       end function cnc_inside_bdry
+
+c     bisection_min
+c     ##################################################################
+      recursive subroutine bisection_min(rz,npt,curve,xmin,dist,init)
+
+      implicit none
+      
+      real(8) :: rz(2),curve(npt,2),xmin(2),distp,dist0,distm,dist,coeff
+      integer :: npt,npt2
+      logical :: init
+
+      if (init) then
+        call unif_rng(coeff)
+        coeff = 0.25 + 0.5*coeff !Random # between (1/4,3/4), taking padding into account
+      else
+        coeff = 0.5d0
+      endif
+      
+      npt2 = (npt+1)*coeff
+      
+cc      write (*,*) "bmin",npt,npt2,coeff
+      
+      distp = sum((curve(npt2+1,:)-rz(:))*((curve(npt2+1,:)-rz(:))))
+      dist0 = sum((curve(npt2  ,:)-rz(:))*((curve(npt2  ,:)-rz(:))))
+      distm = sum((curve(npt2-1,:)-rz(:))*((curve(npt2-1,:)-rz(:))))
+
+cc      write (*,*) "bmin dist",distp,dist0,distm
+      if ((distp > dist0.and.distm > dist0) .or. npt <= 3) then
+        if (distp > dist0.and.distm > dist0) then
+          xmin = curve(npt2,:)
+          dist = dist0
+        elseif (distp < dist0.and.distm>dist0) then
+          xmin = curve(npt,:)
+          dist = distp
+        else
+          xmin = curve(1,:)
+          dist = distm
+        endif
+cc        write (*,*) "min",xmin,dist
+        return
+      elseif (distp > dist0.and.dist0 > distm) then
+        npt2 = max(npt2,3)
+        call bisection_min(rz,npt2      ,curve(1:npt2  ,:),xmin,dist
+     .                    ,.false.)
+      else
+        npt2 = min(npt2,npt-2)
+cc        write (*,*) "bmin, limits=",npt-npt2+1,npt
+        call bisection_min(rz,npt-npt2+1,curve(npt2:npt,:),xmin,dist
+     .                    ,.false.)
+      endif 
+
+      end subroutine bisection_min
+
+c     bisection_max
+c     ##################################################################
+      recursive subroutine bisection_max(rz,npt,curve,xmax,dist,init)
+
+      implicit none
+      
+      real(8) :: rz(2),curve(npt,2),xmax(2),distp,dist0,distm,dist,coeff
+      integer :: npt,npt2
+      logical :: init
+
+      if (init) then
+        call unif_rng(coeff)
+        coeff = 0.25 + 0.5*coeff !Random # between (1/4,3/4), taking padding into account
+      else
+        coeff = 0.5d0
+      endif
+      
+      npt2 = (npt+1)*coeff
+      
+cc      write (*,*) "bmax",npt,npt2,coeff
+      
+      distp = sum((curve(npt2+1,:)-rz(:))*((curve(npt2+1,:)-rz(:))))
+      dist0 = sum((curve(npt2  ,:)-rz(:))*((curve(npt2  ,:)-rz(:))))
+      distm = sum((curve(npt2-1,:)-rz(:))*((curve(npt2-1,:)-rz(:))))
+
+cc      write (*,*) "bmax dist",distp,dist0,distm
+      if ((distp < dist0.and.distm < dist0) .or. npt <= 3) then
+        if (distp < dist0.and.dist0 > distm) then
+          xmax = curve(npt2,:)
+          dist = dist0
+        elseif (distp > dist0.and.dist0 > distm) then
+          xmax = curve(npt,:)
+          dist = distp
+        else
+          xmax = curve(1,:)
+          dist = distm
+        endif
+cc        write (*,*) "max",xmax,dist
+        return
+      elseif (distp < dist0.and.dist0 < distm) then
+        npt2 = max(npt2,3)
+        call bisection_max(rz,npt2      ,curve(1:npt2  ,:),xmax,dist
+     .                    ,.false.)
+      else
+        npt2 = min(npt2,npt-2)
+cc        write (*,*) "bmax, limits=",npt-npt2+1,npt
+        call bisection_max(rz,npt-npt2+1,curve(npt2:npt,:),xmax,dist
+     .                    ,.false.)
+      endif 
+
+      end subroutine bisection_max
       
 c     auto_corr_io_init
 c     ###############################################################
@@ -1096,16 +1288,38 @@ c     ###############################################################
         implicit none
 
 !     Call variables
+
         real(8) :: x_0, y_0, z_0, ss_0
         integer :: thr_num
 
 !     Local variables
 
+        real(8) :: xcar,ycar,zcar,rr
+
+!     Begin program
+                  
         write(*,*)
-        write(*,'(a,i4,i4,4e15.7)') 'my_rank, thr_num ',my_rank, thr_num
-     .           ,x_0,y_0,z_0,ss_0
-cc        write(cnctx(thr_num)) x_0,y_0,z_0,ss_0
-        write(cnctx(thr_num),*) x_0,y_0,z_0,ss_0
+        write(*,'(a,i4,i4,a,3e15.7,a,e15.7,a,l3)')'my_rank, thr_num '
+     .        ,my_rank,thr_num,'; pos=',x_0,y_0,z_0
+     .        ,'; length=',ss_0,"; R-Z?",rzss
+
+        if (rzss) then
+          call evalX(x_0,y_0,z_0,xcar,ycar,zcar) !Eval Cartesian coords; also resets logical coords
+          rr = sqrt(xcar*xcar+ycar*ycar)
+          if (cnc_ascii) then
+            write(cnctx(thr_num),*) rr,zcar,ss_0
+          else
+            write(cnctx(thr_num)) rr,zcar,ss_0
+          endif
+          if (ss_0<0.1)
+     .         write (*,*) "Debug small cnc_length=",rr,zcar,ss_0
+        else
+          if (cnc_ascii) then
+            write(cnctx(thr_num),*) x_0,y_0,z_0,ss_0
+          else
+            write(cnctx(thr_num)) x_0,y_0,z_0,ss_0
+          endif
+        endif
 
       end subroutine connect_write
 

@@ -676,7 +676,7 @@ c     Local variables
         real(8) :: temp_s,xh,yh,zh,sh
         logical :: chk_ss,integral,non_fatal_err
 !#!     Marco, to deal with connection length in the backward case
-        logical :: cnc_outside,cnc_cross
+        logical :: cnc_inside,cnc_cross
 
         integer,save :: thrtot,thrnum
 !$OMP THREADPRIVATE(thrtot,thrnum)
@@ -797,7 +797,7 @@ c     Daniele,23/03/2009: dump the initial point of the orbit
         mx = 0 ; my = 0 ; mz = 0
 
 !#! Marco, initialize cnc_outside
-        if (connect) cnc_outside = .not.cnc_inside_bdry(x0,y0,z0)
+        if (connect) cnc_inside = cnc_inside_bdry(x0,y0,z0)
 
         itime = 0 
 
@@ -823,13 +823,13 @@ c     Daniele,23/03/2009: dump the initial point of the orbit
           if (lyap) call lyap_write(x,ss)
 
           if (auto_corr) then
-           call auto_corr_write(x,y,z,atc_tol,deltass
+            call auto_corr_write(x,y,z,atc_tol,deltass
      .                         ,ss_check,ac_rtrn)
-           if (ac_rtrn) then
-            call auto_corr_io_end(lssx,lssy,lssz,rzss
+            if (ac_rtrn) then
+              call auto_corr_io_end(lssx,lssy,lssz,rzss
      .                           ,x0,y0,z0,ss)
-             return
-           endif
+              return
+            endif
           endif
           
           xhist(3:HIST_LIM) = xhist(2:HIST_LIM-1)
@@ -850,20 +850,21 @@ c     Daniele,23/03/2009: dump the initial point of the orbit
           !Find new LOGICAL positions, new time, new arc length
           call orbit_step(x,y,z,iterror,forward=fwd,lsode_f=lsode_f)
 
+          exit_loop = (orbit_error(iterror).or.get_orbit_exit())
+          non_fatal_err = (iterror<=0)
+
           !#! Marco, january 15th 2019
-          if (connect) then
-            cnc_cross =
-     .          ((.not.cnc_outside).and.(.not.cnc_inside_bdry(x,y,z)))
-     .           .or. (cnc_outside .and.      cnc_inside_bdry(x,y,z))
+          if (connect.and.non_fatal_err) then
+c$$$            cnc_cross =
+c$$$     .          ( cnc_inside.and.(.not.cnc_inside_bdry(x,y,z)))
+c$$$     .     .or. ((.not.cnc_inside).and.cnc_inside_bdry(x,y,z))
+            cnc_cross = (cnc_inside.and.(.not.cnc_inside_bdry(x,y,z)))
             if (cnc_cross) then
               call connect_write(x0,y0,z0,ss,thrnum)
               !#! Marco, no need to continue after threshold is reached
               exit
             endif
           endif
-
-          exit_loop = (orbit_error(iterror).or.get_orbit_exit())
-          non_fatal_err = (iterror<=0)
 
           xhist(1) = x
           yhist(1) = y
@@ -875,9 +876,9 @@ c     Daniele,23/03/2009: dump the initial point of the orbit
           if (smax /= 0d0) then
             exit_loop = exit_loop.or.(abs(ss) >= smax)
             !#!Marco, qui per smax in connect
-            if (exit_loop .and. connect) then
-              call connect_write(x0,y0,z0,big_n,thrnum)
-            endif
+c$$$            if (exit_loop .and. connect) then
+c$$$              call connect_write(x0,y0,z0,big_n,thrnum)
+c$$$            endif
 
             if (abs(ss) > smax) then !4th order interpolation of orbit end points
               ss = sign(1d0,ss)*smax
@@ -886,9 +887,9 @@ c     Daniele,23/03/2009: dump the initial point of the orbit
           elseif (tmax /= 0d0) then
             exit_loop = exit_loop.or.(abs(time) >= tmax)
             !#!Marco, qui per smax in connect
-            if (exit_loop .and. connect) then
-              call connect_write(x0,y0,z0,big_n,thrnum)
-            endif
+c$$$            if (exit_loop .and. connect) then
+c$$$              call connect_write(x0,y0,z0,big_n,thrnum)
+c$$$            endif
 
             if (abs(time) > tmax) then !4th order interpolation of orbit end points
               time = sign(1d0,time)*tmax
@@ -2570,10 +2571,10 @@ c     Define surface of section files (one per OMP thread and MPI job)
         do ith=0,thrtot-1
           do iproc=0,np-1
             ifile = ith+thrtot*iproc
-            ssx(ifile) = 'ssx'//trim(file)//'_proc'//int2char(ifile)
-            ssy(ifile) = 'ssy'//trim(file)//'_proc'//int2char(ifile)
-            ssz(ifile) = 'ssz'//trim(file)//'_proc'//int2char(ifile)
-            ssrz(ifile)= 'ssrz'//trim(file)//'_proc'//int2char(ifile)
+            ssx(ifile) = 'ssx_'//trim(file)//'_proc'//int2char(ifile)
+            ssy(ifile) = 'ssy_'//trim(file)//'_proc'//int2char(ifile)
+            ssz(ifile) = 'ssz_'//trim(file)//'_proc'//int2char(ifile)
+            ssrz(ifile)= 'ssrz_'//trim(file)//'_proc'//int2char(ifile)
           enddo
         enddo
 
@@ -2581,34 +2582,34 @@ c     Create draw.in files (inside MPI region, outside OMP threading)
 
         if (my_rank == 0) then
           if (lssx) then
-            dummy = 'ssx'//trim(file)
+            dummy = 'ssx_'//trim(file)
 cc            ierr = rm_files(dummy)
-            drawin = 'draw'//dummy(1:cpos+3)//'.in'
+            drawin = 'draw'//dummy(1:cpos+4)//'.in'
             call createDrawInGfile(1,1,ssx
      .                         ,'X surface of section'
      .                         ,'y',(/1/),(/'z'/),(/0/),(/0,0/)
      .                         ,drawin,.false.,.false.)
           endif
           if (lssy) then
-            dummy = 'ssy'//trim(file)
+            dummy = 'ssy_'//trim(file)
 cc            ierr = rm_files(dummy)
-            drawin = 'draw'//dummy(1:cpos+3)//'.in'
+            drawin = 'draw'//dummy(1:cpos+4)//'.in'
             call createDrawInGfile(1,1,ssy
      .                         ,'Y surface of section'
      .                         ,'x',(/1/),(/'z'/),(/0/),(/0,0/)
      .                         ,trim(drawin),.false.,.false.)
           endif
           if (lssz) then
-            dummy = 'ssz'//trim(file)
+            dummy = 'ssz_'//trim(file)
 cc            ierr = rm_files(dummy)
-            drawin = 'draw'//dummy(1:cpos+3)//'.in'
+            drawin = 'draw'//dummy(1:cpos+4)//'.in'
             call createDrawInGfile(1,1,ssz
      .                         ,'Z surface of section'
      .                         ,'x',(/1/),(/'y'/),(/0/),(/0,0/)
      .                         ,drawin,.false.,.false.)
           endif
           if (rzss) then
-            dummy = 'ssrz'//trim(file)
+            dummy = 'ssrz_'//trim(file)
 cc            ierr = rm_files(dummy)
             drawin = 'draw'//dummy(1:cpos+4)//'.in'
             call createDrawInGfile(1,1,ssrz
