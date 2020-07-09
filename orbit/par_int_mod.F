@@ -1003,7 +1003,11 @@ c     Assemble global temperature field
 #endif
 c     Spline temperature field
 
-        call splineFlds(vg,fldcoef=sp_coef)
+        if (is_spline_local()) then
+          sp_coef = vg
+        else
+          call splineFlds(vg,fldcoef=sp_coef)
+        endif
 
         deallocate(vg)
 
@@ -1158,7 +1162,11 @@ cc        endif
 #endif
 c     Spline temperature field
 
-        call splineFlds(vg,fldcoef=sp_coef)
+        if (is_spline_local()) then
+          sp_coef = vg
+        else
+          call splineFlds(vg,fldcoef=sp_coef)
+        endif
 
         deallocate(vg)
 
@@ -1313,7 +1321,11 @@ c     Assemble global temperature field
 #endif
 c     Spline fields
 
-        call splineFlds(vg,fldcoef=sp_coef)
+        if (is_spline_local()) then
+          sp_coef = vg
+        else
+          call splineFlds(vg,fldcoef=sp_coef)
+        endif
 
         deallocate(vg)
 
@@ -1468,7 +1480,11 @@ c     Assemble global temperature field
 
 c     Spline fields
 
-        call splineFlds(vg,fldcoef=sp_coef)
+        if (is_spline_local()) then
+          sp_coef = vg
+        else
+          call splineFlds(vg,fldcoef=sp_coef)
+        endif
 
         deallocate(vg)
   
@@ -5342,7 +5358,7 @@ c Call LSODE orbit evaluation function (extracting logical coords x1,y1,z1)
 c Call additional integrators
 
       call evalFlds(x1,y1,z1,sp_coef,flds)
-
+      
       !Tn
       ydot(4) = flds(1)*tkernel_per(t,ieps*dt)
 

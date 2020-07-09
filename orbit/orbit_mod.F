@@ -386,6 +386,7 @@ c     ----------------------------------------------------------------------
       !Splines
       orbit_conf%spline_conf%order = 2    !Spline interpolation order
       orbit_conf%spline_conf%a_gauge = 2  !Gauge for vector potential
+      orbit_conf%spline_conf%input_is_A = .false.  !Whether B input is A
 
       end subroutine orbit_conf_def
 
@@ -1910,9 +1911,9 @@ c     ###################################################################
         res(3) = z1 - xlog(3)
 
       else
-        res(1) = x1 - x0 -dt*vx
-        res(2) = y1 - y0 -dt*vy
-        res(3) = z1 - z0 -dt*vz
+        res(1) = x1 - x0 -dt*v(1)
+        res(2) = y1 - y0 -dt*v(2)
+        res(3) = z1 - z0 -dt*v(3)
       endif
 
       end function formResidual
