@@ -1377,7 +1377,7 @@ c     Postprocessing to find logical coordinates
 
       if (cartesian) then
         xl(1) = xold ; xl(2) = yold ; xl(3) = zold
-        call find_sp_coords(xl,YY,iiout,iterr,numerical_sp)
+        call find_sp_coords(xl,YY(1:3),iiout,iterr,numerical_sp)
         x = xl(1) ; y = xl(2) ; z = xl(3)
         
         if (iterr /= 0) then
@@ -1569,7 +1569,7 @@ c     Postprocessing to find logical coordinates
 
       if (cartesian) then
         xl(1) = xold ; xl(2) = yold ; xl(3) = zold
-        call find_sp_coords(xl,YY,iiout,iterr,numerical_sp)
+        call find_sp_coords(xl,YY(1:3),iiout,iterr,numerical_sp)
         x = xl(1) ; y = xl(2) ; z = xl(3)
         
         if (iterr /= 0) then
@@ -1987,11 +1987,11 @@ c     Begin program
       !Find logical coordinates
       if (sing_point) then
         xl(1) = xold ; xl(2) = yold ; xl(3) = zold
-        call find_sp_coords(xl,YY,iiout,LSODE_IERR,numerical_sp)
+        call find_sp_coords(xl,y(1:3),iiout,LSODE_IERR,numerical_sp)
 
         if (LSODE_IERR /= ORB_OK) return
       else
-        xl = y
+        xl = y(1:3)
       endif
 
       !Get vector field (Cartesian if sing_point is .true.)
@@ -2077,7 +2077,7 @@ c     Begin program
       !Find logical coordinates
       if (sing_point) then
         xl(1) = xold ; xl(2) = yold ; xl(3) = zold
-        call find_sp_coords(xl,y,iiout,LSODE_IERR,numerical_sp)
+        call find_sp_coords(xl,y(1:3),iiout,LSODE_IERR,numerical_sp)
 c$$$        write (*,*) "Coords from xi_x_sp=",xl
 c$$$
 c$$$        xl(1) = xold ; xl(2) = yold ; xl(3) = zold
@@ -2087,7 +2087,7 @@ c$$$        write (*,*)
         
         if (LSODE_IERR /= ORB_OK) return
       else
-        xl = y
+        xl = y(1:3)
       endif
 
       !Get vector field (Cartesian if sing_point is .true.)
