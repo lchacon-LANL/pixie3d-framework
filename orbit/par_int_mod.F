@@ -200,8 +200,8 @@ c     Begin program
         dum = 1d0/sqrt(ct0)       !ct0=chi_par/chi_perp*t0
         eta = 0.5d0*z*dum
         skernel = ukernel(eta,0)*dum
-cc        skernel = (exp(-eta**2)*isqrpi-eta*erfc(eta))*dum
-
+cc        skernel = (exp(-eta*eta)*isqrpi-eta*erfc(eta))*dum
+        
         ex_loop = (z*z > 4*S_cutoff2*ct0)
 cc      elseif (alpha == 1d0) then
 cc        skernel = 1d0/(pi*ct0*(1+(abs(ss)/ct0)**2))
@@ -265,6 +265,7 @@ c     Begin program
 
         !Compute iteration limit
         k0 = ceiling((2d0/t_tol/eta)**(1d0/alpha))
+cc        write (*,*) eta,k0,kmax
         k0 = min(k0,kmax) !To avoid aliasing errors
 
         !Accumulate periodic Green's function
@@ -533,7 +534,7 @@ cc        integer :: n_lag_ints=0        !Number of lagrangian integrals
 
         real(8),pointer,dimension(:,:,:) :: ll,b0
 
-        real(8),pointer,dimension(:,:,:,:) :: sp_coef
+        real(8),pointer,dimension(:,:,:,:) :: sp_coef,dummy
 
         private :: lag_2d,lag_3d,lag_2d_init,lag_3d_init
 
@@ -1125,7 +1126,7 @@ c     Output
         if (my_rank == 0) then
           if (iout == 1) then
             write (*,FMT="(a)",ADVANCE="NO") 'Lagrangian 3D: '
-          elseif (iout <= 0) then
+          elseif (iout == 0) then
             write (*,*) '--> Lagrangian step in 3D...'
           endif
         endif
@@ -1142,18 +1143,9 @@ c     Assemble global temperature field
 
         neq = size(vec_in,4)
 
-cc        if (neq /= 3) then
-cc          call pstop('lagrangian_3d'
-cc     .              ,'Wrong number of input fields')
-cc        endif
-cc
-cc        if (size(vec_out,4) /= 5) then
-cc          call pstop('lag_3d'
-cc     .              ,'Wrong number of output fields')
-cc        endif
-
         allocate(vg(0:nxg+1,0:nyg+1,0:nzg+1,neq)
      .          ,sp_coef (nxg+2,nyg+2,nzg+2,neq))
+cc        allocate(dummy   (nxg+2,nyg+2,nzg+2,neq))
 
 #if defined(petcs)
         call find_global(vec_in,vg,mpi_comm=g_def%mpi_comm)
@@ -1165,6 +1157,7 @@ c     Spline temperature field
         if (is_spline_local()) then
           sp_coef = vg
         else
+cc          dummy = vg
           call splineFlds(vg,fldcoef=sp_coef)
         endif
 
@@ -1230,6 +1223,7 @@ c-----------------------------------------------
 c     Free up orbit integral work space
 
         deallocate(sp_coef)
+cc        deallocate(dummy)
 
       end subroutine lag_3d_new
 
@@ -1452,7 +1446,7 @@ c     Output
         if (my_rank == 0) then
           if (iout == 1) then
             write (*,FMT="(a)",ADVANCE="NO") 'Lagrangian 2D: '
-          elseif (iout <= 0) then
+          elseif (iout == 0) then
             write (*,*) '--> LSODE lagrangian step in 2D...'
           endif
         endif
@@ -2850,13 +2844,11 @@ c     Local variables
 
 c     Begin program
 
-        nints = 4  !Number of additional LSODE integrals
-
         if (l2d) then
-          call lag_2d(g_def,igrid,in_flds,out_flds,nints
+          call lag_2d_new(g_def,igrid,in_flds,out_flds
      .               ,chi,iout,lsode_f=lsode_2d_cn_3eq_dT)
         else
-          call lag_3d(g_def,igrid,in_flds,out_flds,nints
+          call lag_3d_new(g_def,igrid,in_flds,out_flds
      .               ,chi,iout,lsode_f=lsode_3d_cn_dT)
         endif
 
@@ -2958,7 +2950,6 @@ c     Begin program
 
       end subroutine lag_xport_P_prop
 
-
 c     lag_P_prop
 c     ###############################################################
       subroutine lag_P_prop(g_def,igrid,in,out,chi,iout)
@@ -3011,7 +3002,7 @@ c     Begin program
 c     Lagrangian step
 
       allocate(flds     (0:nx+1,0:ny+1,0:nz+1,1)
-     .        ,integrals(0:nx+1,0:ny+1,0:nz+1,1)
+     .        ,integrals(0:nx+1,0:ny+1,0:nz+1,2)
      .        ,chi_local(0:nx+1,0:ny+1,0:nz+1))
 
 c     Find rhs
@@ -3025,14 +3016,22 @@ c     Find rhs
 
       call lag_xport_P_prop(g_def,igrid,flds,integrals,chi_local,iout)
 
-      out = integrals(:,:,:,1)
-
+      if (bdf2) then
+        sgamma = dt/(dt+dtold)
+        gamma = 1d0/(1d0-sgamma)
+        sgamma = gamma*sgamma
+        
+        out = (gamma*integrals(:,:,:,1)
+     .       -sgamma*integrals(:,:,:,2))/b0
+      else
+        out = integrals(:,:,:,1)/b0
+      endif
+      
 c     Free workspace
 
       deallocate(flds,integrals,chi_local)
 
       end subroutine lag_P_prop
-
 
 c End of modification added by O. Koshkarov, Apr 1, 2019      
 
@@ -3392,7 +3391,7 @@ c     Call variables
 c     Local variables
 
       integer :: nx,ny,nz
-      real(8) :: gamma,sgamma,dT_error,b0_diag
+      real(8) :: gamma,sgamma,dT_error,b0_diag,idt
 
       real(8),dimension(:,:,:,:),pointer :: flds,integrals
 
@@ -3418,7 +3417,9 @@ c     Lagrangian step
 
 c     Find rhs
 
-      delta_T = cnp*tnp + cn*tn + cnm*tnm
+      idt = 1d0/dt
+      
+      delta_T = (cnp*tnp + cn*tn + cnm*tnm)*idt
 
       flds(:,:,:,1) = tn
       flds(:,:,:,2) = tnm
@@ -3436,27 +3437,29 @@ c     Find rhs
         sgamma = dt/(dt+dtold)
         gamma = sgamma*sgamma
 
+        write (*,*) cn*(1-sgamma),cnm*(1-sgamma)/gamma
         where (chi_local /= 0d0) 
-          src =(       (integrals(:,:,:,1)-tn )  !G(Tn,dt/eps)
-     .         - gamma*(integrals(:,:,:,2)-tnm)  !G(Tnm,2dt/eps)
-     .         +(       integrals(:,:,:,3)       !P(dT/dt,dt/eps)/gamma/beta
-     .          -sgamma*integrals(:,:,:,4))*dt/b0!P(dT/dt,2dt/eps)/beta
-     .         +        integrals(:,:,:,5)       !P(dT,dt/eps) 
-     .          -sgamma*integrals(:,:,:,6)       !P(dT,2dt/eps)
-     .         -(       integrals(:,:,:,7)       !P(dT/B^2,dt/eps)
-     .          -sgamma*integrals(:,:,:,8))/b0 ) !P(dT/B^2,2dt/eps)
+          src =((       integrals(:,:,:,1)       !G(Tn,dt/eps)
+     .           -gamma*integrals(:,:,:,2))*idt  !G(Tnm,2dt/eps)
+     .         +(       integrals(:,:,:,3)       !P(S,dt/eps)/gamma/beta
+     .          -sgamma*integrals(:,:,:,4))/b0   !P(S,2dt/eps)/beta
+     .         +        integrals(:,:,:,5)       !P(dT/dt,dt/eps) 
+     .          -sgamma*integrals(:,:,:,6)       !P(dT/dt,2dt/eps)
+     .         -(       integrals(:,:,:,7)       !P(dT/dt/B^2,dt/eps)
+     .          -sgamma*integrals(:,:,:,8))/b0 ) !P(dT/dt/B^2,2dt/eps)
      .          /(1d0-sgamma)
+     .          -(cn*tn+cnm*tnm)*idt
         end where
       else  !Theta scheme
         where (chi_local /= 0d0) 
-          src = integrals(:,:,:,1)-tn + dt*integrals(:,:,:,3)/b0
-     .        + integrals(:,:,:,5)       - integrals(:,:,:,7)/b0
+          src = (integrals(:,:,:,1)-tn)*idt + integrals(:,:,:,3)/b0
+     .        +  integrals(:,:,:,5)         - integrals(:,:,:,7)/b0
         end where
       endif
 
 c     Divide by dt to provide RHS to temporal term
 
-      where (chi_local /= 0d0) src = src/dt
+cc      where (chi_local /= 0d0) src = src*idt
 
 ccc     Update beta for next time step
 cc
@@ -5106,6 +5109,16 @@ c Call additional integrators
 
       call evalFlds(x1,y1,z1,sp_coef,flds)
 
+c diag ****
+c$$$      write (*,*) "Global spline=",flds
+c$$$
+c$$$      call set_local_spline(.true.)
+c$$$      call evalFlds(x1,y1,z1,dummy,flds)
+c$$$      call set_local_spline(.false.)
+c$$$      write (*,*) "Local  spline=",flds
+c$$$      write (*,*)
+c diag ****
+
       !Tn
       ydot(6) = flds(1)*tkernel_3d(y(5),ieps*dt,exl1)*ydot(5)
 
@@ -5624,7 +5637,7 @@ c Local variables
 
 c Begin program
 
-      if (neq /= 4) then
+      if (neq /= 5) then
         call pstop('lsode_2d_P_prop','Wrong number of equations')
       endif
 
@@ -5646,6 +5659,10 @@ c Call additional integrators
       !Src @ dt
       sk = skernel_per(t,ieps*dt)
       ydot(4) = flds(1)*sk*iB2
+
+      !Src @ dt+dtold
+      sk = skernel_per(t,ieps*(dt+dtold))
+      ydot(5) = flds(1)*sk*iB2
 
 c End program
 
@@ -5675,11 +5692,11 @@ c Local variables
 
       integer :: ierror
       real(8) :: x1,y1,z1,s1,flds(size(sp_coef,4)),B2,iB2
-      logical :: exl1
+      logical :: exl1,exl2
 
 c Begin program
 
-      if (neq /= 6) then
+      if (neq /= 7) then
         call pstop('lsode_3d_P_prop','Wrong number of equations')
       endif
 
@@ -5703,12 +5720,15 @@ c Call additional integrators
       !Src @ dt
       ydot(6) = flds(1)*skernel_3d(s1,ieps*dt,exl1)*iB2
 
+      !Src @ (dt+dtold)
+      ydot(7) = flds(1)*skernel_3d(s1,ieps*(dt+dtold),exl2)*iB2
+
       !Transform back to arc-length integral
       ydot(6:neq) = ydot(6:neq)*ydot(5)
 
 c Are we done?
 
-      call set_orbit_exit(exl1)
+      call set_orbit_exit(exl1.and.exl2)
 
 c End program
 

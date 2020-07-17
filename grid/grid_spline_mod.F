@@ -130,7 +130,7 @@ c     Begin program
         if (bc == PER) then   !Compute face positions for periodic
           if (nn == 3) then
             xmin = x(1)
-            xmax = x(2)
+            xmax = x(nn-1)
           else
             xmin = 5d-1*(x(1)   +x(2))
             xmax = 5d-1*(x(nn-1)+x(nn))
@@ -139,7 +139,7 @@ c     Begin program
         else                  !Include ghost cells for interpolation
           xmin = x(1)
           xmax = x(nn)
-          dh = (xmax-xmin)/nn
+          dh = (xmax-xmin)/(nn-1)
         endif
 
 c     End program
@@ -2117,7 +2117,7 @@ c     Call variables
 c     Local variables
 
       integer :: i0,j0,k0,iqty,nqty,nx,ny,nz
-      real(8) :: xhp(3)
+      real(8) :: xhp(3),coeffx,coeffy,coeffz
 
       real(8) :: Sx2(3,1,1),Sy2(1,3,1),Sz2(1,1,3)
       real(8) :: dum333(3,3,3)
@@ -2129,26 +2129,50 @@ c     Begin program
       nz = size(fld,3)-2
 
       nqty = size(fld,4)
-c$$$      if (nqty /= size(fldp)) then
-c$$$        write (*,*) nqty,size(fldp)
-c$$$        call pstop("evalFlds_local","Problem with array sizes")
-c$$$      endif
       
-c     Determine mesh position (i0,j0,k0) and normalized position wrt left face
+c     Determine mesh position (i0,j0,k0) and normalized position wrt cell face
 
-      i0 = floor((x1-xsmin)*ihx)
-      j0 = floor((x2-ysmin)*ihy)
-      k0 = floor((x3-zsmin)*ihz)
+      !Correct for boundary shift in periodic directions
+      if (sbcnd(1) == PER.and.nx > 1) then
+        coeffx = (x1-xsmin)*ihx + 1d0
+      else
+        coeffx = (x1-xsmin)*ihx + 0.5d0
+      endif
+      if (sbcnd(3) == PER.and.ny > 1) then
+        coeffy = (x2-ysmin)*ihy + 1d0
+      else
+        coeffy = (x2-ysmin)*ihy + 0.5d0
+      endif
+      if (sbcnd(5) == PER.and.nz > 1) then
+        coeffz = (x3-zsmin)*ihz + 1d0
+      else
+        coeffz = (x3-zsmin)*ihz + 0.5d0
+      endif
+      
+      i0 = min(floor(coeffx),nx)
+      j0 = min(floor(coeffy),ny)
+      k0 = min(floor(coeffz),nz)
+      
+      xhp(1) = coeffx - i0 
+      xhp(2) = coeffy - j0 
+      xhp(3) = coeffz - k0 
 
-      i0 = min(max(i0,1),nx)
-      j0 = min(max(j0,1),ny)
-      k0 = min(max(k0,1),nz)
-
-      xhp(1) = (x1-xsmin)*ihx - i0
-      xhp(2) = (x2-ysmin)*ihy - j0
-      xhp(3) = (x3-zsmin)*ihz - k0
+c$$$      if (i0 == nx+1) then
+c$$$        i0 = nx ; xhp(1) = 1d0
+c$$$      endif
+c$$$      if (j0 == ny+1) then
+c$$$        j0 = ny ; xhp(2) = 1d0
+c$$$      endif
+c$$$      if (k0 == nz+1) then
+c$$$        k0 = nz ; xhp(3) = 1d0
+c$$$      endif
 
 c     Interpolate
+
+c$$$      write (*,*) "Initial pos=",x1,x2,x3
+c$$$      write (*,*) "Normalized pos=",xhp
+c$$$      write (*,*) xsmin,ysmin,zsmin,xsmax,ysmax,zsmax,ihx,ihy,ihz
+c$$$      write (*,*) i0,j0,k0,nx,ny,nz
 
       call shape2_offset(xhp(1),Sx2(1:3,1,1))
       call shape2_offset(xhp(2),Sy2(1,1:3,1))
@@ -2156,11 +2180,8 @@ c     Interpolate
 
       dum333 = opt_vecvecvec_3(Sx2,Sy2,Sz2)
 
-c$$$      write (*,*) xhp
-c$$$      write (*,*) x1,x2,x3,i0,j0,k0,nx,ny,nz
-
       do iqty = 1,nqty
-        fldp(iqty) = opt_matmat_333_xyz_pcle(dum333
+        fldp(iqty) = opt_matmat_333_xyz(dum333
      .               ,fld(i0-1:i0+1,j0-1:j0+1,k0-1:k0+1,iqty))
       enddo
 
@@ -2168,7 +2189,7 @@ c     End program
 
       end subroutine evalFlds_local
 
-c     2nd order shape function
+c     shape2_offset
 c     ##################################################################
       subroutine shape2_offset(x,ss)
 
@@ -2192,7 +2213,7 @@ c     End program
 
 c     Matrix-matrix contraction to scalar (3x3x3*3x3x3->1) (Adam)
 c     ################################################################
-      function opt_matmat_333_xyz_pcle(A,B) result(C)
+      function opt_matmat_333_xyz(A,B) result(C)
       implicit none
 
 c     Call variables                                                                                                                                                                                     
@@ -2213,7 +2234,7 @@ c     Local variables
          end do
       end do
 
-      end function opt_matmat_333_xyz_pcle
+      end function opt_matmat_333_xyz
 
 c     Outer product of 3 vectors (3x3x3) (Adam)
 c     ##################################################################
