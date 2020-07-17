@@ -2157,16 +2157,6 @@ c     Determine mesh position (i0,j0,k0) and normalized position wrt cell face
       xhp(2) = coeffy - j0 
       xhp(3) = coeffz - k0 
 
-c$$$      if (i0 == nx+1) then
-c$$$        i0 = nx ; xhp(1) = 1d0
-c$$$      endif
-c$$$      if (j0 == ny+1) then
-c$$$        j0 = ny ; xhp(2) = 1d0
-c$$$      endif
-c$$$      if (k0 == nz+1) then
-c$$$        k0 = nz ; xhp(3) = 1d0
-c$$$      endif
-
 c     Interpolate
 
 c$$$      write (*,*) "Initial pos=",x1,x2,x3
