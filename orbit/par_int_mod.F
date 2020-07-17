@@ -3437,18 +3437,16 @@ c     Find rhs
         sgamma = dt/(dt+dtold)
         gamma = sgamma*sgamma
 
-        write (*,*) cn*(1-sgamma),cnm*(1-sgamma)/gamma
         where (chi_local /= 0d0) 
-          src =((       integrals(:,:,:,1)       !G(Tn,dt/eps)
-     .           -gamma*integrals(:,:,:,2))*idt  !G(Tnm,2dt/eps)
-     .         +(       integrals(:,:,:,3)       !P(S,dt/eps)/gamma/beta
-     .          -sgamma*integrals(:,:,:,4))/b0   !P(S,2dt/eps)/beta
-     .         +        integrals(:,:,:,5)       !P(dT/dt,dt/eps) 
-     .          -sgamma*integrals(:,:,:,6)       !P(dT/dt,2dt/eps)
-     .         -(       integrals(:,:,:,7)       !P(dT/dt/B^2,dt/eps)
-     .          -sgamma*integrals(:,:,:,8))/b0 ) !P(dT/dt/B^2,2dt/eps)
+          src =((      (integrals(:,:,:,1)-tn )        !G(Tn,dt/eps)
+     .          -gamma*(integrals(:,:,:,2)-tnm))*idt   !G(Tnm,2dt/eps)
+     .         +(       integrals(:,:,:,3)             !P(S,dt/eps)/gamma/beta
+     .          -sgamma*integrals(:,:,:,4))/b0         !P(S,2dt/eps)/beta
+     .         +        integrals(:,:,:,5)             !P(dT/dt,dt/eps) 
+     .          -sgamma*integrals(:,:,:,6)             !P(dT/dt,2dt/eps)
+     .         -(       integrals(:,:,:,7)             !P(dT/dt/B^2,dt/eps)
+     .          -sgamma*integrals(:,:,:,8))/b0 )       !P(dT/dt/B^2,2dt/eps)
      .          /(1d0-sgamma)
-     .          -(cn*tn+cnm*tnm)*idt
         end where
       else  !Theta scheme
         where (chi_local /= 0d0) 
@@ -3456,10 +3454,6 @@ c     Find rhs
      .        +  integrals(:,:,:,5)         - integrals(:,:,:,7)/b0
         end where
       endif
-
-c     Divide by dt to provide RHS to temporal term
-
-cc      where (chi_local /= 0d0) src = src*idt
 
 ccc     Update beta for next time step
 cc
