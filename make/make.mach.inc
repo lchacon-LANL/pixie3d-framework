@@ -48,10 +48,12 @@ ifeq ($(HOST),adiosVM)
 #    ADIOS_VER  = 1.10.0
 
     ADIOS2 = t
-    ADIOS_HOME = /opt/adios2
-    ADIOS_LIBS = $(shell $(ADIOS_HOME)/bin/adios2-config -f)
-    ADIOS_MOD  = $(ADIOS_HOME)/include/adios2/fortran
-    ADIOS_VER  = 2.5.0
+    ADIOS2_METHOD = MPI
+    ADIOS2_HOME = /opt/adios2
+    ADIOS2_HOME = $(HOME)/lib/adios-2.5.0/gcc-6.5.0_openmpi-3.1.5
+    ADIOS2_LIBS = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-libs)
+    ADIOS2_MOD  = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-flags)
+    ADIOS2_VER  = 2.5.0
 
   else
     HDF5 = f
@@ -253,6 +255,8 @@ endif
 
 ifeq ($(findstring mavis,$(HOST)),mavis)
 
+  override M_ARCH = default
+  
   FC = gfortran
 
   CPPFLAGS += $(PREPROC)sed_nosymlinks
@@ -281,9 +285,9 @@ ifeq ($(findstring mavis,$(HOST)),mavis)
 
       #Determined via modules
       HDF5 = t
-      HDF5_LIBS =-L/apps/hdf5-1.10.2/lib -lhdf5hl_fortran -lhdf5_fortran -lhdf5_hl -lhdf5 -lz -lm -ldl
-      HDF5_MOD  = /apps/hdf5-1.10.2/include 
-      HDF5_INC  = /apps/hdf5-1.10.2/include
+      HDF5_LIBS =-L$(HDF5_DIR)/lib -lhdf5hl_fortran -lhdf5_fortran -lhdf5_hl -lhdf5 -lz -lm -ldl
+      HDF5_MOD  = $(HDF5_DIR)include 
+      HDF5_INC  = $(HDF5_DIR)/include
 
       #Determined via modules
       ADIOS = t
@@ -297,9 +301,9 @@ ifeq ($(findstring mavis,$(HOST)),mavis)
 
         #Determined via modules
         HDF5 = t
-        HDF5_LIBS =-L$(SHDF5_LIB) -lhdf5_fortran -lhdf5 -lz -lm
-        HDF5_MOD  = $(SHDF5_LIB)
-        HDF5_INC  = $(SHDF5_INC)
+        HDF5_LIBS =-L$(HDF5_DIR)-serial/lib -lhdf5_fortran -lhdf5 -lz -lm
+        HDF5_MOD  = $(HDF5_DIR)-serial/include
+        HDF5_INC  = $(HDF5_DIR)-serial/include
 
         ADIOS = f
       endif
@@ -419,6 +423,11 @@ ifeq ($(findstring quevedo,$(HOST)),quevedo)
     ADIOS2_MOD  = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-flags)
     ADIOS2_VER  = 2.5.0
 
+    SPRNG = t
+    SPRNG_PAR_HOME=$(HOME)/lib/sprng5/gcc-6.5.0_openmpi-3.1.5
+    SPRNG_LIBS = $(SPRNG_PAR_HOME)/lib -lsprng -lstdc++ -lm
+    SPRNG_INC  = $(SPRNG_PAR_HOME)/include
+      
 #    LIBS += -L/opt/local/lib -latlas
   else
     LIBS += -L/opt/local/lib/lapack -llapack -lblas
@@ -1390,14 +1399,19 @@ ifeq ($(findstring sn,$(HOST)),sn)
       HDF5_INC  = $(HDF5_MOD)
 
       ADIOS = f
-
       ADIOS_BUFFER_MB = 1000
       ADIOS_METHOD = MPI_LUSTRE
-
       ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.10.0/lib-grizzly-intel-17.0.1_openmpi-1.10.5
       ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -llustreapi
       ADIOS_VER  = 1.10.0
 
+      ADIOS2 = t
+      ADIOS2_METHOD = MPI
+      ADIOS2_HOME = /usr/projects/DPIC/Software/adios-2.5/lib/intel-17.0.4_openmpi-2.1.2
+      ADIOS2_LIBS = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-libs)
+      ADIOS2_MOD  = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-flags)
+      ADIOS2_VER  = 2.5.0
+      
       SPRNG = t
 
       SPRNG_PAR_HOME = /usr/projects/DPIC/Software/sprng5
@@ -1543,3 +1557,5 @@ ifeq ($(HOST),kigal)
     
     # What is CPPFLAGS? is it FFLAGS?
 endif
+
+export FC HOST MACHINE LIBS
