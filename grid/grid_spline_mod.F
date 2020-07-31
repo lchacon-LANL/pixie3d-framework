@@ -26,6 +26,7 @@ c #####################################################################
         integer,private :: nx,ny,nz,ag,sbcnd(6)
 
         real(8),private :: xsmin,xsmax,ysmin,ysmax,zsmin,zsmax
+     .                    ,ihx,ihy,ihz,hx,hy,hz
         integer,private :: kx,ky,kz,dim,dime,flg
         real(8),private,dimension(:),allocatable :: tx,ty,tz,work
      .                                             ,xs,ys,zs,worke
@@ -41,16 +42,69 @@ c #####################################################################
      .                                               ,bcarcoef => null()
 
         logical, private :: x_is_log,y_is_log,z_is_log
+     .                     ,local_spline=.true.
 
         INTERFACE setupSplines
           module procedure setupSplines_gst,setupSplines_nogst
         END INTERFACE
 
       contains
+        
+c     set_local_spline
+c     ##################################################################
+      subroutine set_local_spline(spline)
+
+c     ------------------------------------------------------------------
+c     Set splining domain limits (including ghost cells, except for
+c     periodic BCs), according to dimension vector x and boundary
+c     condition bc.
+c     ------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        logical :: spline
+
+c     Local Variables
+
+c     Begin program
+
+        local_spline = spline
+        
+c     End program
+
+      end subroutine set_local_spline
+
+c     is_spline_local
+c     ##################################################################
+      function is_spline_local() result(spline)
+
+c     ------------------------------------------------------------------
+c     Set splining domain limits (including ghost cells, except for
+c     periodic BCs), according to dimension vector x and boundary
+c     condition bc.
+c     ------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        logical :: spline
+
+c     Local Variables
+
+c     Begin program
+
+        spline = local_spline
+        
+c     End program
+
+      end function is_spline_local
 
 c     set_sp_domain_limits
 c     ##################################################################
-      subroutine set_sp_domain_limits(x,bc,xmin,xmax)
+      subroutine set_sp_domain_limits(x,bc,xmin,xmax,dh)
 
 c     ------------------------------------------------------------------
 c     Set splining domain limits (including ghost cells, except for
@@ -63,7 +117,7 @@ c     ------------------------------------------------------------------
 c     Call variables
 
         integer :: bc
-        real(8) :: x(:),xmin,xmax
+        real(8) :: x(:),xmin,xmax,dh
 
 c     Local Variables
 
@@ -73,17 +127,19 @@ c     Begin program
 
         nn = size(x)
 
-        if (bc == PER) then     !Compute face positions for periodic
+        if (bc == PER) then   !Compute face positions for periodic
           if (nn == 3) then
             xmin = x(1)
-            xmax = x(2)
+            xmax = x(nn-1)
           else
             xmin = 5d-1*(x(1)   +x(2))
             xmax = 5d-1*(x(nn-1)+x(nn))
           endif
-        else                 !Include ghost cells for interpolation
+          dh = (xmax-xmin)/(nn-2)
+        else                  !Include ghost cells for interpolation
           xmin = x(1)
           xmax = x(nn)
+          dh = (xmax-xmin)/(nn-1)
         endif
 
 c     End program
@@ -279,10 +335,12 @@ c     Initialize spline domain arrays
 
 c     Define domain limits
 
-        call set_sp_domain_limits(xs,sbcnd(1),xsmin,xsmax)
-        call set_sp_domain_limits(ys,sbcnd(3),ysmin,ysmax)
-        call set_sp_domain_limits(zs,sbcnd(5),zsmin,zsmax)
+        call set_sp_domain_limits(xs,sbcnd(1),xsmin,xsmax,hx)
+        call set_sp_domain_limits(ys,sbcnd(3),ysmin,ysmax,hy)
+        call set_sp_domain_limits(zs,sbcnd(5),zsmin,zsmax,hz)
 
+        ihx = 1d0/hx ; ihy = 1d0/hy ; ihz = 1d0/hz
+        
 c     Prepare 3d spline interpolation
 
         flg = 0 !Let spline routine find interpolation knots
@@ -348,10 +406,12 @@ c     Initialize spline domain arrays
 
 c     Define spline domain limits
 
-        call set_sp_domain_limits(xs,sbcnd(1),xsmin,xsmax)
-        call set_sp_domain_limits(ys,sbcnd(3),ysmin,ysmax)
-        call set_sp_domain_limits(zs,sbcnd(5),zsmin,zsmax)
+        call set_sp_domain_limits(xs,sbcnd(1),xsmin,xsmax,hx)
+        call set_sp_domain_limits(ys,sbcnd(3),ysmin,ysmax,hy)
+        call set_sp_domain_limits(zs,sbcnd(5),zsmin,zsmax,hz)
 
+        ihx = 1d0/hx ; ihy = 1d0/hy ; ihz = 1d0/hz
+        
 c     Prepare 3d spline interpolation
 
         flg = 0  !Let spline routine find interpolation knots
@@ -574,36 +634,36 @@ c       Quadrant-based code
       end select
 
 c diag ****
-cc      write (*,*) 'DIAG -- getA_on_mesh',nx,ny,nz
-cc      open(unit=110,file='vecpot.bin',form='unformatted'
-cc     .      ,status='replace')
-cc      call contour(a(1:nxl+1,2,1:nzl+1,1)
-cc     .            ,nx-1,nz-1,0d0,xmax,0d0,zmax,0,110)
-cc      call contour(a(1:nxl+1,2,1:nzl+1,2)
-cc     .            ,nx-1,nz-1,0d0,xmax,0d0,zmax,1,110)
-cc      call contour(a(1:nxl+1,2,1:nzl+1,3)
-cc     .            ,nx-1,nz-1,0d0,xmax,0d0,zmax,1,110)
-cc
-cccc      call contour(a(1:nxl+1,1:nyl+1,1,1)
-cccc     .            ,nx-1,ny-1,0d0,xmax,0d0,ymax,0,110)
-cccc      call contour(a(1:nxl+1,1:nyl+1,1,2)
-cccc     .            ,nx-1,ny-1,0d0,xmax,0d0,ymax,1,110)
-cccc      call contour(a(1:nxl+1,1:nyl+1,1,3)
-cccc     .            ,nx-1,ny-1,0d0,xmax,0d0,ymax,1,110)
-cc      close(110)
-cccc      stop
+c$$$      write (*,*) 'DIAG -- getA_on_mesh',nx,ny,nz
+c$$$      open(unit=110,file='vecpot.bin',form='unformatted'
+c$$$     .      ,status='replace')
+c$$$cc      call contour(a(1:nxl+1,2,1:nzl+1,1)
+c$$$cc     .            ,nx-1,nz-1,0d0,xsmax,0d0,zsmax,0,110)
+c$$$cc      call contour(a(1:nxl+1,2,1:nzl+1,2)
+c$$$cc     .            ,nx-1,nz-1,0d0,xsmax,0d0,zsmax,1,110)
+c$$$cc      call contour(a(1:nxl+1,2,1:nzl+1,3)
+c$$$cc     .            ,nx-1,nz-1,0d0,xsmax,0d0,zsmax,1,110)
+c$$$
+c$$$      call contour(a(1:nxl,1:nyl,1,1)
+c$$$     .            ,nxl,nyl,0d0,xsmax,0d0,ysmax,0,110)
+c$$$      call contour(a(1:nxl,1:nyl,1,2)
+c$$$     .            ,nxl,nyl,0d0,xsmax,0d0,ysmax,1,110)
+c$$$      call contour(a(1:nxl,1:nyl,1,3)
+c$$$     .            ,nxl,nyl,0d0,xsmax,0d0,ysmax,1,110)
+c$$$      close(110)
+c$$$      stop
 c diag ****
 
-c     Take care of collapsed dimensions (no motion along those)
-
-      if (nxl == 1) a(:,:,:,2:3) = 0d0
-
-      if (nyl == 1) then
-        a(:,:,:,1) = 0d0
-        a(:,:,:,3) = 0d0
-      endif
-
-      if (nzl == 1) a(:,:,:,1:2) = 0d0
+c$$$c     Take care of collapsed dimensions (no motion along those)
+c$$$
+c$$$      if (nxl == 1) a(:,:,:,2:3) = 0d0
+c$$$
+c$$$      if (nyl == 1) then
+c$$$        a(:,:,:,1) = 0d0
+c$$$        a(:,:,:,3) = 0d0
+c$$$      endif
+c$$$
+c$$$      if (nzl == 1) a(:,:,:,1:2) = 0d0
 
 c     Return A components
 
@@ -1372,9 +1432,9 @@ c     End program
 
       end subroutine getB
 
-c     evalFlds
+c     evalFlds_global
 c     #################################################################
-      subroutine evalFlds(x1,x2,x3,spcoef,vec)
+      subroutine evalFlds_global(x1,x2,x3,spcoef,vec)
 c     -----------------------------------------------------------------
 c     This evaluates cartesian position (x,y,z) at logical position
 c     (x1,x2,x3).
@@ -1401,7 +1461,7 @@ c     Begin program
 !     .                 ,work(1+thr_num*dim:(thr_num+1)*dim))
       enddo
 
-      end subroutine evalFlds
+      end subroutine evalFlds_global
 
 c     evalX
 c     #################################################################
@@ -2036,5 +2096,189 @@ c     Begin program
 c     End programs
 
       end subroutine killSplines
+
+c     evalFlds_local
+c     ##################################################################
+      subroutine evalFlds_local(x1,x2,x3,fld,fldp)
+
+c     ------------------------------------------------------------------
+c     Scatter field fld onto global position x0=(x1,x2,x3) and return
+c     result in fldp. fld is a global array.
+c     ------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      real(8),intent(in) :: x1,x2,x3
+      real(8),intent(in),dimension(0:,0:,0:,:) :: fld
+      real(8),intent(out) :: fldp(*)  !No assumed-shape array for OMP threading
+
+c     Local variables
+
+      integer :: i0,j0,k0,iqty,nqty,nx,ny,nz
+      real(8) :: xhp(3),coeffx,coeffy,coeffz
+
+      real(8) :: Sx2(3,1,1),Sy2(1,3,1),Sz2(1,1,3)
+      real(8) :: dum333(3,3,3)
+ 
+c     Begin program
+
+      nx = size(fld,1)-2
+      ny = size(fld,2)-2
+      nz = size(fld,3)-2
+
+      nqty = size(fld,4)
+      
+c     Determine mesh position (i0,j0,k0) and normalized position wrt cell face
+
+      !Correct for boundary shift in periodic directions
+      if (sbcnd(1) == PER.and.nx > 1) then
+        coeffx = (x1-xsmin)*ihx + 1d0
+      else
+        coeffx = (x1-xsmin)*ihx + 0.5d0
+      endif
+      if (sbcnd(3) == PER.and.ny > 1) then
+        coeffy = (x2-ysmin)*ihy + 1d0
+      else
+        coeffy = (x2-ysmin)*ihy + 0.5d0
+      endif
+      if (sbcnd(5) == PER.and.nz > 1) then
+        coeffz = (x3-zsmin)*ihz + 1d0
+      else
+        coeffz = (x3-zsmin)*ihz + 0.5d0
+      endif
+      
+      i0 = min(floor(coeffx),nx)
+      j0 = min(floor(coeffy),ny)
+      k0 = min(floor(coeffz),nz)
+      
+      xhp(1) = coeffx - i0 
+      xhp(2) = coeffy - j0 
+      xhp(3) = coeffz - k0 
+
+c     Interpolate
+
+c$$$      write (*,*) "Initial pos=",x1,x2,x3
+c$$$      write (*,*) "Normalized pos=",xhp
+c$$$      write (*,*) xsmin,ysmin,zsmin,xsmax,ysmax,zsmax,ihx,ihy,ihz
+c$$$      write (*,*) i0,j0,k0,nx,ny,nz
+
+      call shape2_offset(xhp(1),Sx2(1:3,1,1))
+      call shape2_offset(xhp(2),Sy2(1,1:3,1))
+      call shape2_offset(xhp(3),Sz2(1,1,1:3))
+
+      dum333 = opt_vecvecvec_3(Sx2,Sy2,Sz2)
+
+      do iqty = 1,nqty
+        fldp(iqty) = opt_matmat_333_xyz(dum333
+     .               ,fld(i0-1:i0+1,j0-1:j0+1,k0-1:k0+1,iqty))
+      enddo
+
+c     End program
+
+      end subroutine evalFlds_local
+
+c     shape2_offset
+c     ##################################################################
+      subroutine shape2_offset(x,ss)
+
+      implicit none
+
+c     Call variables
+
+      real(8) :: x,ss(3)
+
+c     Local variables
+
+c     Begin program
+
+      ss(1) = 0.5d0*(1d0-x)*(1d0-x)
+      ss(2) = 0.75d0-(x-0.5d0)*(x-0.5d0)
+      ss(3) = 0.5d0*x*x    
+
+c     End program
+
+      end subroutine shape2_offset
+
+c     Matrix-matrix contraction to scalar (3x3x3*3x3x3->1) (Adam)
+c     ################################################################
+      function opt_matmat_333_xyz(A,B) result(C)
+      implicit none
+
+c     Call variables                                                                                                                                                                                     
+      real(8) :: A(3,3,3), B(3,3,3)
+      real(8) :: C
+      
+c     Local variables
+
+      integer :: i, j, k, ii
+
+      C = 0.0d0
+
+      do k=1, 3
+         do j=1, 3
+            do i=1, 3
+                  C = C + A(i,j,k)*B(i,j,k) 
+            end do
+         end do
+      end do
+
+      end function opt_matmat_333_xyz
+
+c     Outer product of 3 vectors (3x3x3) (Adam)
+c     ##################################################################
+      function opt_vecvecvec_3(A,B,C) result(D)
+
+      implicit none
+c     Call variables
+
+      real(8) :: A(3,1,1), B(1,3,1), C(1,1,3)
+      real(8) :: D(3,3,3)
+
+c     Local variables 
+      integer :: i, j, k
+
+      D = 0.0d0
+
+      do i=1, 3
+         do j=1, 3
+            do k=1, 3
+               D(i,j,k) = A(i,1,1)*B(1,j,1)*C(1,1,k)
+            end do
+         end do
+      end do
+
+      end function opt_vecvecvec_3
+
+c     evalFlds
+c     #################################################################
+      subroutine evalFlds(x1,x2,x3,arrayin,arrayout)
+c     -----------------------------------------------------------------
+c     This evaluates cartesian position (x,y,z) at logical position
+c     (x1,x2,x3).
+c     -----------------------------------------------------------------
+
+      implicit none            ! For safe Fortran
+
+c     Call variables
+
+      real(8),pointer,intent(in) :: arrayin(:,:,:,:)
+      real(8),intent(in) :: x1,x2,x3
+      real(8),intent(out):: arrayout(*)  !No assumed-shape array for openMP threading
+
+c     Local variables
+
+      integer :: i
+
+c     Begin program
+
+      if (local_spline) then
+        call evalFlds_local(x1,x2,x3,arrayin,arrayout)
+      else
+        call evalFlds_global(x1,x2,x3,arrayin,arrayout)
+      endif
+      
+      end subroutine evalFlds
 
       end module grid_splines

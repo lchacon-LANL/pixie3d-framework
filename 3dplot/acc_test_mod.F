@@ -442,8 +442,8 @@ c     Calculate solution differences
 
 c diag ****
 cc        write (*,*) 'DIAG -- acc_test_time'
-cc        debugfile = 'debug_var='//trim(int2char(ivar))//'.bin'
-cc        open(unit=110,file=debugfile,form='unformatted'
+cc        debugfile = 'dt_error_var'//trim(int2char(ivar))//'.bin'
+cc        open(unit=110,file=trim(debugfile),form='unformatted'
 cc     .      ,status='replace')
 cc
 cc        call contour(asol(1:nx,1:ny,1),nx,ny
@@ -459,7 +459,7 @@ c diag ****
      .    write (*,10) ' L1-norm time error, component:',ivar,'=',mag
 
         !L2 norm
-        mag = integral(gv%gparams,igx,asol**2,average=.true.)
+        mag = integral(gv%gparams,igx,asol*asol,average=.true.)
         mag = sqrt(mag)
 
         if (my_rank == 0)

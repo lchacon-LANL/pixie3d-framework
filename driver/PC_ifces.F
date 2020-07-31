@@ -285,21 +285,25 @@ c     Plot corresponding linear residual to PC solution
 
 #if !defined(petsc_c)
         if (fpa) then
-          mag0 = rms(x)
+
+          x = nk_conf%xk + x
+          call evaluateNewtonResidual(ntot,x,rr)
+
+          mag0 = rms(rr)
 
           if (my_rank == 0) then
             write (*,*)
             write (*,*) 'FPA RESIDUAL'
-            write (*,*) 'RMS dsol=',mag0
+            write (*,*) 'RMS res=',mag0
           endif
 
-          call vec_plot_gl(gv%gparams,neqd,x,igrid,'res','Residual')
+          call vec_plot_gl(gv%gparams,neqd,rr,igrid,'res','Residual')
 
           !Compute magnitude of individual residual eqs
-          call scatterVector(yyy,x)
+          call scatterVector(yyy,rr)
           do ieq=1,neqd
             mag = rms(yyy(:,ieq))
-            if (my_rank == 0) write (*,*) 'RMS sol update',ieq,':',mag
+            if (my_rank == 0) write (*,*) 'RMS res update',ieq,':',mag
           enddo
 
         else
@@ -324,6 +328,28 @@ c     Plot corresponding linear residual to PC solution
             mag = rms(yyy(:,ieq))
             if (my_rank == 0) write (*,*) 'RMS residual eqn',ieq,':',mag
           enddo
+
+          x = nk_conf%xk + x
+          call evaluateNewtonResidual(ntot,x,rr)
+
+          mag0 = rms(rr)
+
+          if (my_rank == 0) then
+            write (*,*)
+            write (*,*) 'NONLINEAR RESIDUAL'
+            write (*,*) 'RMS res=',mag0
+          endif
+
+          call vec_plot_gl(gv%gparams,neqd,rr,igrid,'nlres'
+     .                    ,'Nonlinear Residual')
+
+          !Compute magnitude of individual residual eqs
+          call scatterVector(yyy,rr)
+          do ieq=1,neqd
+            mag = rms(yyy(:,ieq))
+            if (my_rank == 0) write (*,*) 'RMS NL res',ieq,':',mag
+          enddo
+
         endif
 #endif
 

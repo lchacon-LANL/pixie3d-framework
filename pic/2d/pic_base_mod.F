@@ -10,7 +10,7 @@ c ######################################################################
       
 #if defined(petsc)
       use grid, ONLY: MPI_COMM_WORLD,MPI_DOUBLE_PRECISION,MPI_SUM
-     .               ,MPI_INTEGER,mpierr,MPI_MAX,MPI_MIN
+     .               ,MPI_INTEGER,MPI_INTEGER8,mpierr,MPI_MAX,MPI_MIN
 #endif
 
       integer, parameter :: nsp_max=5,Npg=_Npg,dim=_Dim,dimt=_Dim+_Dimx
@@ -4693,6 +4693,8 @@ c ######################################################################
      .          ,particle_sort    =.true.  !Whether to sort particles
 
       character*(100) :: ext_pic_file = "" !External particle def file
+
+      character*(3) :: pic_mover_type = "sub" !Particle mover type ("sub","avg")
       
       contains
 
@@ -4723,7 +4725,7 @@ c     Namelists
      .     ,quiet_start,nsubstep,eps_pic
      .     ,n_b,i_b,r_b,vinject,C_bkgrnd,opnbc_is_vacuum
      .     ,phase_space_plot,mass_matrix_solve,particle_sort
-     .     ,ext_pic_file
+     .     ,ext_pic_file,pic_mover_type
 
 c     Begin program
 
@@ -5531,7 +5533,7 @@ c$$$        end where
 !$omp end do 
 !$omp end parallel 
 
-     !Reduce in parallel
+     !!Reduce in parallel
 #if defined(petsc)
       allocate(send_buf(size(pdf))
      $         ,rec_buf (size(pdf)))
@@ -5720,8 +5722,9 @@ c     Gather 1d-1v PDF
           funit = find_unit(110)
           if (init) then
             open(unit=funit,file=trim(suffix)//'.txt',status='unknown')
-            write (funit,*)"#Gnuplot with:"
-            write (funit,*)'#plot for [i=0:*] "'//trim(suffix)//'.txt"'
+            write(funit,*)"#Gnuplot with:"
+            write(funit,'(a)')' #plot for [i=0:*] "'
+     .        //trim(suffix)//'.txt"'
      .        //' index i u 1:2 w l t columnheader(1)'
 cc            write (funit,*) nv+2
 cc            write (funit,*)
