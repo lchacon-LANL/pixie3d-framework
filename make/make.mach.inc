@@ -286,7 +286,7 @@ ifeq ($(findstring mavis,$(HOST)),mavis)
       #Determined via modules
       HDF5 = t
       HDF5_LIBS =-L$(HDF5_DIR)/lib -lhdf5hl_fortran -lhdf5_fortran -lhdf5_hl -lhdf5 -lz -lm -ldl
-      HDF5_MOD  = $(HDF5_DIR)include 
+      HDF5_MOD  = $(HDF5_DIR)/include 
       HDF5_INC  = $(HDF5_DIR)/include
 
       #Determined via modules
