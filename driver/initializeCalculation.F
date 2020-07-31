@@ -163,7 +163,7 @@ c Initialize MK variables
 
       if (relax_init_grid) init_grid_offset = 1
 #endif
-
+     
 c Initialize computation
 
       if (.not.ts_restart) then

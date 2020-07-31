@@ -386,6 +386,7 @@ c     ----------------------------------------------------------------------
       !Splines
       orbit_conf%spline_conf%order = 2    !Spline interpolation order
       orbit_conf%spline_conf%a_gauge = 2  !Gauge for vector potential
+      orbit_conf%spline_conf%input_is_A = .false.  !Whether B input is A
 
       end subroutine orbit_conf_def
 
@@ -1376,7 +1377,7 @@ c     Postprocessing to find logical coordinates
 
       if (cartesian) then
         xl(1) = xold ; xl(2) = yold ; xl(3) = zold
-        call find_sp_coords(xl,YY,iiout,iterr,numerical_sp)
+        call find_sp_coords(xl,YY(1:3),iiout,iterr,numerical_sp)
         x = xl(1) ; y = xl(2) ; z = xl(3)
         
         if (iterr /= 0) then
@@ -1568,7 +1569,7 @@ c     Postprocessing to find logical coordinates
 
       if (cartesian) then
         xl(1) = xold ; xl(2) = yold ; xl(3) = zold
-        call find_sp_coords(xl,YY,iiout,iterr,numerical_sp)
+        call find_sp_coords(xl,YY(1:3),iiout,iterr,numerical_sp)
         x = xl(1) ; y = xl(2) ; z = xl(3)
         
         if (iterr /= 0) then
@@ -1910,9 +1911,9 @@ c     ###################################################################
         res(3) = z1 - xlog(3)
 
       else
-        res(1) = x1 - x0 -dt*vx
-        res(2) = y1 - y0 -dt*vy
-        res(3) = z1 - z0 -dt*vz
+        res(1) = x1 - x0 -dt*v(1)
+        res(2) = y1 - y0 -dt*v(2)
+        res(3) = z1 - z0 -dt*v(3)
       endif
 
       end function formResidual
@@ -1986,11 +1987,11 @@ c     Begin program
       !Find logical coordinates
       if (sing_point) then
         xl(1) = xold ; xl(2) = yold ; xl(3) = zold
-        call find_sp_coords(xl,YY,iiout,LSODE_IERR,numerical_sp)
+        call find_sp_coords(xl,y(1:3),iiout,LSODE_IERR,numerical_sp)
 
         if (LSODE_IERR /= ORB_OK) return
       else
-        xl = y
+        xl = y(1:3)
       endif
 
       !Get vector field (Cartesian if sing_point is .true.)
@@ -2076,7 +2077,7 @@ c     Begin program
       !Find logical coordinates
       if (sing_point) then
         xl(1) = xold ; xl(2) = yold ; xl(3) = zold
-        call find_sp_coords(xl,y,iiout,LSODE_IERR,numerical_sp)
+        call find_sp_coords(xl,y(1:3),iiout,LSODE_IERR,numerical_sp)
 c$$$        write (*,*) "Coords from xi_x_sp=",xl
 c$$$
 c$$$        xl(1) = xold ; xl(2) = yold ; xl(3) = zold
@@ -2086,7 +2087,7 @@ c$$$        write (*,*)
         
         if (LSODE_IERR /= ORB_OK) return
       else
-        xl = y
+        xl = y(1:3)
       endif
 
       !Get vector field (Cartesian if sing_point is .true.)
@@ -3383,7 +3384,7 @@ c     Begin program
       call chk_pos(xlo(1),xlo(2),xlo(3))
 
       !Find new logical coords within periodic domain
-      xl = xi_x_sp(g_def_orbit,xc(1),xc(2),xc(3),.false.)
+      xl = xi_x_sp(g_def_orbit,xc(1),xc(2),xc(3),.false.,.false.)
 
       !Find coordinate updates
 cc      write (*,*) "Old solution from xi_x_sp=",xo

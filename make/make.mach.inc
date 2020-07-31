@@ -1558,4 +1558,68 @@ ifeq ($(HOST),kigal)
     # What is CPPFLAGS? is it FFLAGS?
 endif
 
+###############################
+#  (drava LANL) #
+###############################
+ifeq ($(HOST),drava)
+
+  FC=gfortran
+
+  NETCDF=f
+  NETCDF_LIBS = -lnetcdff -lnetcdf
+  NETCDF_INC  = -I/usr/include/netcdf
+
+#  ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
+
+  WORKDIR = $(HOME)
+
+  ifdef BOPT
+    PETSC_DIR =$(WORKDIR)/soft/petsc-3.0.0-p7
+
+    ifeq ($(BOPT),O)
+      PETSC_ARCH = linux64_openmpi
+    else
+      PETSC_ARCH = linux64_openmpi
+    endif
+
+    HDF5 = f
+
+    HDF5_HOME =/opt/local
+    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+    HDF5_MOD  = $(HDF5_HOME)/include
+    HDF5_INC  = $(HDF5_MOD)
+
+    ADIOS = f
+
+    ADIOS_HOME = $(WORKDIR)/lib/adios-1.3.1
+    ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf -ladiosreadf -L$(WORKDIR)/lib/mxml-2.7/lib -lmxml
+    ADIOS_VER  = 1.31
+
+    SPRNG = t
+
+    SPRNG_HOME = /home/scratch/guangyechen/t1243055/example/sprng/sprng5/parallel
+    SPRNG_LIBS = $(SPRNG_HOME)/lib -lsprng -lstdc++ -lm
+    SPRNG_INC  = $(SPRNG_HOME)/include
+  else
+    LIBS += -llapack -lblas
+
+    HDF5 = f
+
+    HDF5_HOME = $(WORKDIR)/lib/hdf5-1.8.7/gfortran/serial
+    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+    HDF5_MOD  =$(HDF5_HOME)/include
+    HDF5_INC  =$(HDF5_HOME)/include
+
+    ADIOS = f
+
+    SPRNG = t
+
+    SPRNG_HOME = /home/scratch/guangyechen/t1243055/example/sprng/sprng5/serial
+    SPRNG_LIBS = $(SPRNG_HOME)/lib -lsprng -lstdc++ -lm
+    SPRNG_INC = $(SPRNG_HOME)/include
+  endif
+
+endif
+
+
 export FC HOST MACHINE LIBS

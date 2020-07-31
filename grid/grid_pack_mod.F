@@ -487,7 +487,12 @@ c     Packing
             stop
           endif
 
-          xcurv =xlog-(lmax-lmin)/TT*bb*sin(TT*(xlog-gp(1))/(lmax-lmin))
+          if (der == 1) then
+            xcurv = 1d0 - bb*cos(TT*(xlog-gp(1))/(lmax-lmin))
+          else
+            xcurv = xlog
+     .           -(lmax-lmin)/TT*bb*sin(TT*(xlog-gp(1))/(lmax-lmin))
+          endif
         elseif (pack_both_bdrys) then !sym cosine jacobian
           bb = abs(1.-gp(2))
           if (bb >= 1d0) then
@@ -496,7 +501,11 @@ c     Packing
             stop
           endif
 
-          xcurv = xlog-(lmax-lmin)/TT*bb*sin(TT*(xlog-lmin)/(lmax-lmin))
+          if (der == 1) then
+            xcurv=1d0 -bb*cos(TT*(xlog-lmin)/(lmax-lmin))
+          else
+            xcurv=xlog-(lmax-lmin)/TT*bb*sin(TT*(xlog-lmin)/(lmax-lmin))
+          endif
         else
           if (gp(2)>1d0.or.(lmin==gp(1)).or.(lmax==gp(1))) then
             xcurv = cubic_scl   (dim,xlog,eta(dim),lmin,lmax,gp(1),gp(2)
