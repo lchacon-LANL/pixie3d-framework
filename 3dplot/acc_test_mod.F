@@ -419,7 +419,7 @@ cc      endif
       if (abs(tref-tsol)>1d-10) then
         if (my_rank == 0) write (*,*) 'T_ref-T_sol=',tref-tsol
         write (*,*) 'Error in acc_test_time'
-     .  write (*,*) 'Reference and solution are not at same time'
+        write (*,*) 'Reference and solution are not at same time'
         return
       endif
 
