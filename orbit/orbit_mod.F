@@ -3383,7 +3383,7 @@ c     Begin program
       call chk_pos(xlo(1),xlo(2),xlo(3))
 
       !Find new logical coords within periodic domain
-      xl = xi_x_sp(g_def_orbit,xc(1),xc(2),xc(3),.false.)
+      xl = xi_x_sp(g_def_orbit,xc(1),xc(2),xc(3),.false.,.false.)
 
       !Find coordinate updates
 cc      write (*,*) "Old solution from xi_x_sp=",xo

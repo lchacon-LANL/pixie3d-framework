@@ -539,55 +539,6 @@ cc        integer :: n_lag_ints=0        !Number of lagrangian integrals
 
       contains
 
-c     find_polar_coords
-c     ########################################################################
-      subroutine find_polar_coords(g_def,igrid,i,j,k,rr,th,zz,coords)
-
-c     ------------------------------------------------------------------------
-c     In helical, cylindrical, and toroidal geometries, it finds polar coords
-c     (r,theta,z) or (r,theta,phi) from Cartesian components. This routine
-c     is needed because, when packing is used in radius, the logical coordinate
-c     xi no longer corresponds to the real radial coordinate, r(xi).
-c     ------------------------------------------------------------------------
-      
-      implicit none
-
-c     Call variables
-
-      type(grid_mg_def),pointer :: g_def
-
-      integer,INTENT(IN)  :: i,j,k,igrid
-      real(8),INTENT(OUT) :: rr,th,zz
-
-      character(3) :: coords
-
-c     Local variables
-
-      integer :: ig,jg,kg
-      real(8) :: x1,x2,x3,x,y,z,xlog(3)
-
-      integer :: m,n
-      real(8) :: ai(10),bi(10)
-
-c     Begin program
-
-      call getCurvilinearCoordinates(g_def,i,j,k
-     .                              ,igrid,igrid,igrid
-     .                              ,ig,jg,kg,x1,x2,x3)
-      call getCartesianCoordinates(g_def,i,j,k
-     .                            ,igrid,igrid,igrid
-     .                            ,ig,jg,kg,x,y,z)
-
-      xlog = xi_x_sp(g_def,x,y,z,(x1<0d0))
-
-      rr = xlog(1)
-      th = xlog(2)
-      zz = xlog(3)
- 
-c     End program
-
-      end subroutine find_polar_coords
-
 c     set_orbit_tols
 c     ########################################################################
       subroutine set_orbit_tols(atol,rtol)
@@ -2352,7 +2303,7 @@ c     --------------------------------------------------------------
 
         implicit none
 
-        integer :: nfiles,i,j,k,bcnd(6,3),ierr
+        integer :: nfiles,i,j,k,bcnd(6,3),ierr,ig,jg,kg
         real(8) :: x1,x2,x3
 
         real(8),pointer,dimension(:,:,:,:) :: car,car0,bcov,bcar
@@ -2368,12 +2319,12 @@ c     Read POINCARE data (this sets up orbit, splines)
         sporder = spline_order
         call read_poinc_files(poinc_file,xmin,xmax,ymin,ymax,zmin,zmax) 
 
-c     Recreate grid structure
+c     Recreate grid structure according to POINCARE data (but current mesh size)
 
         call deallocateGridStructure(g_def)
         call createGrid(nxd,nyd,nzd,xmin,xmax,ymin,ymax,zmin,zmax,g_def)
 
-c     Interpolate global fields
+c     Interpolate LOCAL map from POINCARE data
 
         allocate(car (0:nx+1,0:ny+1,0:nz+1,3)
      .          ,car0(0:nx+1,0:ny+1,0:nz+1,3)
@@ -2384,18 +2335,17 @@ c     Interpolate global fields
           do k=0,nz+1
             do j=0,ny+1
               do i=0,nx+1
-                call find_polar_coords(g_def,igrid,i,j,k,x1,x2,x3
-     .                                ,coords)
-
-                call chk_pos(x1,x2,x3,warning=.false.,ierr=ierr)
+                call getCurvilinearCoordinates(g_def,i,j,k
+     .                              ,igrid,igrid,igrid
+     .                              ,ig,jg,kg,x1,x2,x3)
+c$$$                call find_polar_coords(g_def,igrid,i,j,k,x1,x2,x3
+c$$$     .                                ,coords)
+c$$$                call chk_pos(x1,x2,x3,warning=.false.,ierr=ierr)
                 if(ierr/=0.and.(.not.bcPER(1)))x1=min(max(x1,xmin),xmax)
                 if(ierr/=0.and.(.not.bcPER(2)))x2=min(max(x2,ymin),ymax)
                 if(ierr/=0.and.(.not.bcPER(3)))x3=min(max(x3,zmin),zmax)
-c$$$                x1 = min(max(x1,xmin),xmax)
-c$$$                x2 = min(max(x2,ymin),ymax)
-c$$$                x3 = min(max(x3,zmin),zmax)
 
-                !Interpolate map
+                !Interpolate POINCARE map into current map
                 call evalX(x1,x2,x3
      .                    ,car(i,j,k,1)
      .                    ,car(i,j,k,2)
@@ -2413,14 +2363,16 @@ c$$$                x3 = min(max(x3,zmin),zmax)
           call defineGridMetric(g_def,xcar=car)
         endif
 
-c     Assign LOCAL B by interpolating POINCARE data
+c     Interpolate LOCAL B from POINCARE data
 
         do k=0,nz+1
           do j=0,ny+1
             do i=0,nx+1
-              call find_polar_coords(g_def,igrid,i,j,k,x1,x2,x3,coords)
-              
-              call chk_pos(x1,x2,x3,warning=.false.,ierr=ierr)
+              call getCurvilinearCoordinates(g_def,i,j,k
+     .                              ,igrid,igrid,igrid
+     .                              ,ig,jg,kg,x1,x2,x3)
+c$$$              call find_polar_coords(g_def,igrid,i,j,k,x1,x2,x3,coords)
+c$$$              call chk_pos(x1,x2,x3,warning=.false.,ierr=ierr)
               if (ierr/=0.and.(.not.bcPER(1))) x1=min(max(x1,xmin),xmax)
               if (ierr/=0.and.(.not.bcPER(2))) x2=min(max(x2,ymin),ymax)
               if (ierr/=0.and.(.not.bcPER(3))) x3=min(max(x3,zmin),zmax)
