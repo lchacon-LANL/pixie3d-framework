@@ -211,11 +211,12 @@ c$$$      nz = khg-klg+1
       if (associated(gv%gparams)) then
 cc      if (associated(gv)) then
 #if defined(petsc) 
-         if (nx /= nxl .or. ny /= nyl .or. nz /= nzl) then
+         if ((nx /= nxl .or. ny /= nyl .or. nz /= nzl).and.(np>1)) then
+           write (*,*) nx,nxl,ny,nyl,nz,nzl
 #else
          if (nx /= nxd .or .ny /= nyd .or. nz /= nzd) then
-#endif
            write (*,*) nx,nxd,ny,nyd,nz,nzd
+#endif
            call pstop('openPOSIXRestartFileForRead'
      $            ,'Grid meshes do not agree; cannot restart')
 
