@@ -13393,6 +13393,726 @@ cc      integer  :: a(5,6)
 
       end subroutine par_flux_4th
 
+
+c     tnsr_diff_mesh
+c     ###############################################################
+      function tnsr_diff_mesh(g_def,igrid,arr,bcs,dif_tnsr,par_order
+     .                       ,limitd,vol,arr0,limit_mthd) result(lap)
+
+c     ---------------------------------------------------------------
+c     Calculates grad(A) in general non-orthogonal coordinates. Is
+c     boundary-ready (can extrapolate). The vector A is
+c     covariant, and returns the contravariant component "comp".
+c     ---------------------------------------------------------------
+
+      implicit none           !For safe fortran
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
+
+      integer :: igrid,par_order,bcs(6)
+
+      real(8) :: arr(0:,0:,0:)
+     .          ,lap(0:size(arr,1)-1,0:size(arr,2)-1,0:size(arr,3)-1)
+      real(8) :: dif_tnsr(0:,0:,0:,:)
+
+      logical :: limitd
+      
+      real(8),optional :: arr0(0:size(arr,1)-1
+     .                        ,0:size(arr,2)-1
+     .                        ,0:size(arr,3)-1)
+
+      logical,optional :: vol
+      integer,optional :: limit_mthd
+
+c     Local variables
+
+      integer :: nx,ny,nz,i,j,k,bcnd(6,3),advcmthd,ivar
+
+      real(8) :: darr(0:size(arr,1)-1
+     .               ,0:size(arr,2)-1
+     .               ,0:size(arr,3)-1,3)
+
+c     Begin program
+
+      nx = g_def%nxv(igrid)
+      ny = g_def%nyv(igrid)
+      nz = g_def%nzv(igrid)
+
+      if (PRESENT(limit_mthd)) then
+        advcmthd = limit_mthd
+      else
+        advcmthd = SMART
+      endif
+
+      if (limitd.and.advcmthd > ZIP) then
+c$$$        if (par_order /= 2) then
+c$$$          call pstop("tnsr_diff_mesh","Du Toit's only for 2nd order")
+c$$$        endif
+
+        darr(1:nx,:,:,1) = arr(2:nx+1,:,:)-arr(0:nx-1,:,:)
+        darr(:,1:ny,:,2) = arr(:,2:ny+1,:)-arr(:,0:ny-1,:)
+        darr(:,:,1:nz,3) = arr(:,:,2:nz+1)-arr(:,:,0:nz-1)
+
+        bcnd(:,1) = abs(bcs)
+        !Change parity (darr is gradient)
+        where     (bcnd(1:2,1) == NEU)
+          bcnd(1:2,1) = DIR
+        elsewhere (bcnd(1:2,1) == DIR)
+          bcnd(1:2,1) = NEU
+        end where
+      
+        bcnd(:,2) = abs(bcs)
+        !Change parity (darr is gradient)
+        where     (bcnd(3:4,2) == DIR)
+          bcnd(3:4,2) = NEU
+        elsewhere (bcnd(3:4,2) == NEU)
+          bcnd(3:4,2) = DIR
+        end where
+
+        bcnd(:,3) = abs(bcs)
+        !Change parity (darr is gradient)
+        where     (bcnd(5:6,3) == DIR)
+          bcnd(5:6,3) = NEU
+        elsewhere (bcnd(5:6,3) == NEU)
+          bcnd(5:6,3) = DIR
+        end where
+
+        do ivar=1,3
+          call setMGBC(g_def,0,1,nx,ny,nz,igrid,darr(:,:,:,ivar)
+     $                ,bcnd(:,ivar),icomp=(/1/),iorder=1)
+        enddo
+      else
+        darr = 0d0
+      endif
+
+      lap = 0d0
+      
+      do k=1,nz
+        do j=1,ny
+          do i=1,nx
+            lap(i,j,k)=tnsr_diff_ijk(g_def,i,j,k,igrid,arr,darr,bcs
+     .                              ,dif_tnsr,par_order,vol=vol
+     .                              ,limited=limitd
+     .                              ,limit_meth=limit_mthd,tmp0=arr0)
+          enddo
+        enddo
+      enddo
+
+c     End program
+
+      end function tnsr_diff_mesh
+
+c     tnsr_diff_ijk
+c     ################################################################
+      function tnsr_diff_ijk(g_def,i,j,k,igr,tmp,dtmp,bcnd,diff_tnsr
+     .                     ,disc_order,vol,tmp0,limited,limit_meth)
+     .         result(par2)
+c     ----------------------------------------------------------------
+c     Calculates div.(tnsr.grad) in 3D with 2nd and 4th order accuracy.
+c     Tensor diff_tnsr *must* be symmetric. Convention for symmetric
+c     tensor components:
+c
+c                 ( 1  2  3 )
+c                 ( 2  4  5 )
+c                 ( 3  5  6 )
+c     ----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
+
+      integer  :: i,j,k,igr,disc_order,bcnd(6)
+      real(8)  :: tmp(0:,0:,0:),dtmp(0:,0:,0:,:),par2
+      real(8)  :: diff_tnsr(0:,0:,0:,:)
+
+      logical :: limited
+      logical,optional :: vol
+      real(8),optional :: tmp0(0:size(tmp,1)-1
+     .                        ,0:size(tmp,2)-1
+     .                        ,0:size(tmp,3)-1)
+      integer,optional :: limit_meth
+      
+c     Local variables
+
+      real(8)  :: bx2,by2,bxby,dtx,dty,a1,a2,sgn,bb,flx0,flxp
+      integer  :: ii,jj,kk,ig,jg,kg,nx,ny,nz
+      logical  :: symm,vol_wgt
+
+      real(8),dimension(:,:,:),pointer :: jac
+
+c     Begin program
+
+      nx = g_def%nxv(igr)
+      ny = g_def%nyv(igr)
+      nz = g_def%nzv(igr)
+
+c     Find fluxes
+
+      select case(disc_order)
+      case(2) !second order
+cc        par2=laplacian(i,j,k,nx,ny,nz,igx,igy,igz,diff_tnsr,tmp
+        par2 = lap_tnsr(g_def,i,j,k,nx,ny,nz,igr,igr,igr,diff_tnsr
+     .                 ,tmp,dtmp,"symm_edge",arr0=tmp0,vol=vol
+     .                 ,limited=limited,limit_mthd=limit_meth)
+      case(-4) !fourth order, 5-pt stencil in co-directed dervs.
+        par2 = lap_tnsr_4th(g_def,i,j,k,igr,tmp,dtmp,bcnd,diff_tnsr
+     .            ,F0=tmp0,limited=limited,limit_mthd=limit_meth
+     .            ,stencil=5,vol_wgt=vol)
+      case(4) !fourth order, 7-pt stencil in co-directed dervs.
+        par2 = lap_tnsr_4th(g_def,i,j,k,igr,tmp,dtmp,bcnd,diff_tnsr
+     .            ,F0=tmp0,limited=limited,limit_mthd=limit_meth
+     .            ,stencil=7,vol_wgt=vol)
+      case default
+        write (*,*) 'Order not implemented'
+        stop
+      end select
+
+      end function tnsr_diff_ijk
+
+c     lap_tnsr_4th
+c     ################################################################
+      function lap_tnsr_4th(g_def,i,j,k,igr,F,dF,bcnd,tnsrd
+     .                     ,F0,limited,limit_mthd,stencil,vol_wgt)
+     .         result(lap)
+c     ----------------------------------------------------------------
+c     Calculates div.(tnsrd.grad) in 3D with 4th order accuracy
+c     Can deal with 1D, 2D, and 3D.
+c     Checks if there are enough points for the stencil in all directions
+c     CANNOT handle different dx, dy, dz, (except for reduced dimensions)
+c     Need information about MG to do that, hence for now dx=dy=dz=h
+c     Convention for symmetric tensor components:
+c
+c                 ( 1  2  3 )
+c                 ( 2  4  5 )
+c                 ( 3  5  6 )
+c
+c     Coded by Natalia Krashenninikova, 8/2008
+c     Modified by L. Chacon, 9/2008, 11/2019
+c     ----------------------------------------------------------------
+      implicit none
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
+
+      integer  :: i,j,k,igr,bcnd(6)
+      real(8),target  :: F(0:,0:,0:)
+      real(8)  :: dF(0:,0:,0:,:),lap
+      real(8)  :: tnsrd(0:,0:,0:,:)
+
+      integer,optional :: limit_mthd,stencil
+      logical,optional :: limited,vol_wgt
+      real(8),optional,target :: F0(0:size(F,1)-1
+     .                             ,0:size(F,2)-1
+     .                             ,0:size(F,3)-1)
+
+c     Local variables
+
+      real(8)  :: dx,dy,dz,avg
+      integer  :: tgx,tgy,tgz,xi,xf,yi,yf,zi,zf,ig,jg,kg,ii,jj,kk
+     .           ,stncl,nx,ny,nz,ip,im,jp,jm,kp,km,advcmthd
+      logical  :: limitd,vol
+
+      real(8)  :: Fluxx(i-1:i,j-1:j,k-1:k)
+     .           ,Fluxy(i-1:i,j-1:j,k-1:k)
+     .           ,Fluxz(i-1:i,j-1:j,k-1:k)
+      real(8)  :: Fluxx_cross(i-1:i,j-1:j,k-1:k)
+     .           ,Fluxy_cross(i-1:i,j-1:j,k-1:k)
+     .           ,Fluxz_cross(i-1:i,j-1:j,k-1:k)
+      real(8) :: flxip,flxim,flxjp,flxjm,flxkp,flxkm
+
+      real(8),dimension(:,:,:),pointer :: F_0
+
+c     Begin program
+
+      nx = size(F,1)-2
+      ny = size(F,2)-2
+      nz = size(F,3)-2
+      
+      if (PRESENT(limited)) then
+        limitd = limited
+      else
+        limitd = .false.
+      endif
+
+      if (PRESENT(stencil)) then
+        stncl = stencil
+      else
+        stncl = 7
+      endif
+
+      vol = .false.
+      if (PRESENT(vol_wgt)) vol = vol_wgt
+
+      Fluxx=0d0
+      Fluxy=0d0
+      Fluxz=0d0
+      Fluxx_cross=0d0
+      Fluxy_cross=0d0
+      Fluxz_cross=0d0
+
+      ip = i+1
+      im = i-1
+      jp = j+1
+      jm = j-1
+      kp = k+1
+      km = k-1
+
+      if (PRESENT(F0)) then
+        F_0 => F0
+      else
+        F_0 => F
+      endif
+
+c     Get (constant) mesh spacings
+
+      call getMGmap(g_def,i,j,k,igr,igr,igr,ig,jg,kg)
+
+      dx=g_def%dxh(ig)
+      dy=g_def%dyh(jg)
+      dz=g_def%dzh(kg)
+
+c     Calculate fluxes
+
+      !X flux
+      if (nx > 1) then
+        do ii=i-1,i
+          tgx=IOR(min(ii-2,0),max(ii+2-nx,0))
+          if (ii == 0) tgx = -2
+          xi=max(ii-2,0)-max(ii+3-(nx+1),0)
+          xf=min(ii+3,nx+1)+max(2-ii,0)
+          Fluxx(ii,j,k)=Get_Flux(dx,tgx,F(xi:xf,j,k)
+     .                             ,tnsrd(xi:xf,j,k,1))
+
+          if (ny > 1) then
+            tgx=IOR(min(ii-2,0),max(ii+2-(nx+1),0))
+            tgy=IOR(min(j-2,0),max(j+2-(ny+1),0))
+            if (ii == 0) tgx = -2
+            xi=max(ii-2,0)-max(ii+2-(nx+1),0)
+            xf=min(ii+2,nx+1)+max(2-ii,0)
+            yi=max(j-2,0)-max(j+2-(ny+1),0)
+            yf=min(j+2,ny+1)+max(2-j,0)
+            Fluxx_cross(ii,j,k)=
+     .           Get_Flux_Cross(dy,tgx,tgy,F_0(xi:xf,yi:yf,k)
+     .                         ,tnsrd(xi:xf,j,k,2))
+          endif
+
+          if (nz > 1) then
+            tgx=IOR(min(ii-2,0),max(ii+2-(nx+1),0))
+            if (ii == 0) tgx = -2
+            tgz=IOR(min(k-2,0),max(k+2-(nz+1),0))
+            xi=max(ii-2,0)-max(ii+2-(nx+1),0)
+            xf=min(ii+2,nx+1)+max(2-ii,0)
+            zi=max(k-2,0)-max(k+2-(nz+1),0)
+            zf=min(k+2,nz+1)+max(2-k,0)
+
+            Fluxx_cross(ii,j,k)=
+     .           +Get_Flux_Cross(dz,tgx,tgz,F_0(xi:xf,j,zi:zf)
+     .                          ,tnsrd(xi:xf,j,k,3))
+         endif
+
+        enddo
+
+        if (isBdry(g_def,i,igr,1).and.(bcnd(1) == NEU)) then
+          Fluxx      (i-1,j,k) = 0d0
+          Fluxx_cross(i-1,j,k) = 0d0
+        endif
+        if (isBdry(g_def,i,igr,2).and.(bcnd(2) == NEU)) then
+          Fluxx      (i  ,j,k) = 0d0
+          Fluxx_cross(i  ,j,k) = 0d0
+        endif
+      endif
+
+      !Y flux
+      if (ny > 1) then
+        do jj=j-1,j
+          tgy=IOR(min(jj-2,0),max(jj+2-ny,0))
+          if (jj == 0) tgy = -2
+          yi=max(jj-2,0)-max(jj+3-(ny+1),0)
+          yf=min(jj+3,ny+1)+max(2-jj,0)
+          Fluxy(i,jj,k)=Get_Flux(dy,tgy,F(i,yi:yf,k)
+     .                             ,tnsrd(i,yi:yf,k,4))
+
+          if (nx > 1) then
+            tgx=IOR(min(i-2,0),max(i+2-(nx+1),0))
+            tgy=IOR(min(jj-2,0),max(jj+2-(ny+1),0))
+            if (jj == 0) tgy = -2
+            xi=max(i-2,0)-max(i+2-(nx+1),0)
+            xf=min(i+2,nx+1)+max(2-i,0)
+            yi=max(jj-2,0)-max(jj+2-(ny+1),0)
+            yf=min(jj+2,ny+1)+max(2-jj,0)
+            Fluxy_cross(i,jj,k)=
+     .           +Get_Flux_Cross(dx,tgy,tgx
+     .                          ,Transpose(F_0(xi:xf,yi:yf,k))
+     .                          ,tnsrd(i,yi:yf,k,2))
+          endif
+
+          if (nz > 1) then
+            tgy=IOR(min(jj-2,0),max(jj+2-(ny+1),0))
+            if (jj == 0) tgy = -2
+            tgz=IOR(min(k-2,0),max(k+2-(nz+1),0))
+            yi=max(jj-2,0)-max(jj+2-(ny+1),0)
+            yf=min(jj+2,ny+1)+max(2-jj,0)
+            zi=max(k-2,0)-max(k+2-(nz+1),0)
+            zf=min(k+2,nz+1)+max(2-k,0)
+            Fluxy_cross(i,jj,k)=
+     .           +Get_Flux_Cross(dz,tgy,tgz,F_0(i,yi:yf,zi:zf)
+     .                          ,tnsrd(i,yi:yf,k,5))
+          endif
+        enddo
+
+        if (isBdry(g_def,j,igr,3).and.(bcnd(3) == NEU)) then
+          Fluxy      (i,j-1,k) = 0d0
+          Fluxy_cross(i,j-1,k) = 0d0
+        endif
+        if (isBdry(g_def,j,igr,4).and.(bcnd(4) == NEU)) then
+          Fluxy      (i,j  ,k) = 0d0
+          Fluxy_cross(i,j  ,k) = 0d0
+        endif
+      endif
+
+      !Z flux
+      if (nz > 1) then
+        do kk=k-1,k
+          tgz=IOR(min(kk-2,0),max(kk+2-nz,0))
+          if (kk == 0) tgz = -2
+          zi=max(kk-2,0)-max(kk+2-(nz+1),0)
+          zf=min(kk+2,nz+1)+max(2-kk,0)
+          Fluxz(i,j,kk)=Get_Flux(dz,tgz,F(i,j,zi:zf)
+     .                             ,tnsrd(i,j,zi:zf,6))
+
+          if (ny > 1) then
+            tgy=IOR(min(j-2,0),max(j+2-(ny+1),0))
+            tgz=IOR(min(kk-2,0),max(kk+2-(nz+1),0))
+            if (kk == 0) tgz = -2
+            yi=max(j-2,0)-max(j+2-(ny+1),0)
+            yf=min(j+2,ny+1)+max(2-j,0)
+            zi=max(kk-2,0)-max(kk+2-(nz+1),0)
+            zf=min(kk+2,nz+1)+max(2-kk,0)
+            Fluxz_cross(i,j,kk)=
+     .           +Get_Flux_Cross(dy,tgz,tgy
+     .                     ,Transpose(F_0(i,yi:yf,zi:zf))
+     .                     ,tnsrd(i,j,zi:zf,5))
+          endif
+
+          if (nx > 1) then
+            tgx=IOR(min(i-2,0),max(i+2-(nx+1),0))
+            tgz=IOR(min(kk-2,0),max(kk+2-(nz+1),0))
+            if (kk == 0) tgz = -2
+            xi=max(i-2,0)-max(i+2-(nx+1),0)
+            xf=min(i+2,nx+1)+max(2-i,0)
+            zi=max(kk-2,0)-max(kk+2-(nz+1),0)
+            zf=min(kk+2,nz+1)+max(2-kk,0)
+            Fluxz_cross(i,j,kk)=
+     .           +Get_Flux_Cross(dx,tgz,tgx
+     .                     ,Transpose(F_0(xi:xf,j,zi:zf))
+     .                     ,tnsrd(i,j,zi:zf,3))
+          endif
+        enddo
+
+        if (isBdry(g_def,k,igr,5).and.(bcnd(5) == NEU)) then
+          Fluxz      (i,j,k-1) = 0d0
+          Fluxz_cross(i,j,k-1) = 0d0
+        endif
+        if (isBdry(g_def,k,igr,6).and.(bcnd(6) == NEU)) then
+          Fluxz      (i,j,k  ) = 0d0
+          Fluxz_cross(i,j,k  ) = 0d0
+        endif
+      endif
+
+      if (limitd) then
+        if (PRESENT(limit_mthd)) then
+          advcmthd = limit_mthd
+        else
+          advcmthd = SMART
+        endif
+
+        !Compute flux velocities
+        flxip = 0d0
+        avg =  0.5*(F_0(i ,j ,k)
+     .             +F_0(ip,j ,k))
+        if (avg > 0d0) flxip=Fluxx_cross(i  ,j,k)/avg
+
+        flxim = 0d0
+        avg =  0.5*(F_0(i ,j ,k)
+     .             +F_0(im,j ,k))
+        if (avg > 0d0) flxim=Fluxx_cross(i-1,j,k)/avg
+
+        flxjp = 0d0
+        avg =  0.5*(F_0(i,j ,k)
+     .             +F_0(i,jp,k))
+        if (avg > 0d0) flxjp=Fluxy_cross(i,j  ,k)/avg
+        
+        flxjm = 0d0
+        avg =  0.5*(F_0(i,j ,k)
+     .             +F_0(i,jm,k))
+        if (avg > 0d0) flxjm=Fluxy_cross(i,j-1,k)/avg
+
+        flxkp = 0d0
+        avg =  0.5*(F_0(i,j,k )
+     .             +F_0(i,j,kp))
+        if (avg > 0d0) flxkp=Fluxz_cross(i,j,k  )/avg
+
+        flxkm = 0d0
+        avg =  0.5*(F_0(i,j,k )
+     .             +F_0(i,j,km))
+        if (avg > 0d0) flxkm=Fluxz_cross(i,j,k-1)/avg
+
+        !Perform fake advection
+        flxip =-scl_nc_advc_flx_x_new(g_def,i ,j,k,nx,ny,nz,igr
+     $                               ,-flxip,F,dF(:,:,:,1),advcmthd)
+        flxim =-scl_nc_advc_flx_x_new(g_def,im,j,k,nx,ny,nz,igr
+     $                               ,-flxim,F,dF(:,:,:,1),advcmthd)
+
+        flxjp =-scl_nc_advc_flx_y_new(g_def,i,j ,k,nx,ny,nz,igr
+     $                               ,-flxjp,F,dF(:,:,:,2),advcmthd)
+        flxjm =-scl_nc_advc_flx_y_new(g_def,i,jm,k,nx,ny,nz,igr
+     $                               ,-flxjm,F,dF(:,:,:,2),advcmthd)
+
+        flxkp =-scl_nc_advc_flx_z_new(g_def,i,j,k ,nx,ny,nz,igr
+     $                               ,-flxkp,F,dF(:,:,:,3),advcmthd)
+        flxkm =-scl_nc_advc_flx_z_new(g_def,i,j,km,nx,ny,nz,igr
+     $                               ,-flxkm,F,dF(:,:,:,3),advcmthd)
+
+        Fluxx_cross(i  ,j,k)=flxip
+        Fluxx_cross(i-1,j,k)=flxim
+                                  
+        Fluxy_cross(i,j  ,k)=flxjp
+        Fluxy_cross(i,j-1,k)=flxjm
+                                  
+        Fluxz_cross(i,j,k  )=flxkp
+        Fluxz_cross(i,j,k-1)=flxkm
+      endif
+
+      Fluxx(i-1:i,j,k) = Fluxx(i-1:i,j,k) + Fluxx_cross(i-1:i,j,k)
+      Fluxy(i,j-1:j,k) = Fluxy(i,j-1:j,k) + Fluxy_cross(i,j-1:j,k)
+      Fluxz(i,j,k-1:k) = Fluxz(i,j,k-1:k) + Fluxz_cross(i,j,k-1:k)
+      
+      lap = ((Fluxx(i,j,k)-Fluxx(i-1,j,k))/g_def%dxh(ig)
+     .      +(Fluxy(i,j,k)-Fluxy(i,j-1,k))/g_def%dyh(jg)
+     .      +(Fluxz(i,j,k)-Fluxz(i,j,k-1))/g_def%dzh(kg))
+     .      /g_def%gmetric%grid(igr)%jac(i,j,k)
+
+      if (vol) lap=lap*g_def%gmetric%grid(igr)%dvol(i,j,k)
+
+      contains
+
+c     ################################################################
+      function Get_Flux_Cross(h,tagx,tagy,F,B2) result(val)
+c     ----------------------------------------------------------------
+c     Calculates the flux for d^2/dx dy part of div.(BB.grad) operator 
+c     with 4th order accuracy at a point.
+c     Can handle boundary points
+c     ----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer  :: tagx,tagy
+      real(8)  :: F(5,5),B2(5),val,h
+
+c     Local variables
+      integer  :: a(-1:1,5),cm(4),cl(5),cr(5)
+      real(8)  :: twelve=12d0,bxby,flx0,flx1,flx
+      logical  :: chk0,chk1,chk2
+
+      val=0
+
+      a(-1,:)=(/-3,-10,18,-6,1/)
+      a(0,:)=(/1,-8,0,8,-1/)
+      a(1,:)=(/-1,6,-18,10,3/)
+
+      cm=(/-1,7,7,-1/)
+      cl=(/2,17,-11,5,-1/)
+      cr=(/-1,5,-11,17,2/)
+
+      if((tagx+2)*(tagx+1)*tagx*(tagx-1)+(tagy+1)*tagy*(tagy-1)==0)then
+         select case(tagx)
+         case (-2)
+            val=sum(cl*B2*matmul(F,a(tagy,:))/twelve/h)/twelve
+         case (-1)
+            val=sum(cm*B2(1:4)*matmul(F(1:4,:),a(tagy,:))
+     .           /twelve/h)/twelve
+         case (0)
+            val=sum(cm*B2(2:5)*matmul(F(2:5,:),a(tagy,:))
+     .           /twelve/h)/twelve
+         case (1)
+            val=sum(cr*B2*matmul(F,a(tagy,:))/twelve/h)/twelve
+         end select
+      else
+         write(*,*)"Error in Get_Flux_Cross, wrong tags"
+         write(*,*)"tagx=",tagx,"tagy=",tagy
+         write(*,*)"Choices are -1, 0, or 1 for left boundary, "
+         write(*,*)"interior or right boundary points"
+         stop
+      endif
+
+c$$$      !Check for monotonicity (Sharma, Hammett, JCP 227 (2007))
+c$$$      if (limitd) then
+c$$$        bxby = 0.5*(B2(4)+B2(3))
+c$$$
+c$$$        flx0 = mc(F(3,3)-F(3,2),F(3,4)-F(3,3),chk0)
+c$$$        flx1 = mc(F(4,3)-F(4,2),F(4,4)-F(4,3),chk1)
+c$$$        flx  = mc(flx0         ,flx1         ,chk2)
+c$$$
+c$$$cc        write (*,*) 'here',bxby,chk0,chk1,chk2
+c$$$      
+c$$$        if (chk0 .or. chk1 .or. chk2) then
+c$$$          val = bxby/h*flx
+c$$$cc          write (*,*) 'here'
+c$$$cc          val = 0d0
+c$$$        endif
+c$$$      endif
+
+      end function Get_Flux_Cross
+
+c     ################################################################
+      function Get_Flux(h,tag,F,B2) result (val)
+c     ----------------------------------------------------------------
+c     Calculates the flux for d^2/dx^2 part of div.(BB.grad) operator 
+c     with 4th order accuracy at a point.
+c     Can handle boundary points
+c     ----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer  :: tag
+      real(8)  :: F(6),B2(6),val,h
+
+c     Local variables
+
+      integer  :: a(0:5,6),cm(4),cl(5),cr(5)
+      real(8)  :: twelve=12d0,sixty=60d0
+      real(8)  :: isv2=1d0/72d0,ishty=1d0/720d0
+
+c     Begin program
+
+      select case(stncl)
+      case(5)
+
+        val=0
+        a=0
+        a(1,2:5)=(/0,1,4,-5/)
+        a(2,2:5)=(/11,-54,33,10/)
+        a(3,2:5)=(/-10,-33,54,-11/)
+        a(4,2:5)=(/5,-4,-1,0/)
+
+        select case(tag)
+        case (-2)
+           a(1,:)=(/-36, -185, 400, -230, 60, -9/)
+           a(2,:)=(/-610, -290, 1770, -1340, 560, -90/)
+           a(3,:)=(/116, 840, -1620, 970, -360, 54/)
+           a(4,:)=(/-22, -430, 710, -360, 120, -18/)
+           a(5,:)=(/12, 65, -120, 60, -20, 3/)
+           val=sum(B2(1:5)*matmul(a(1:5,:),F))/h*ishty
+           return
+        case (-1)
+           val=sum(B2(1:4)*matmul(a(1:4,2:5),F(1:4)))/h*isv2
+           return
+        case (0)
+           val=sum(B2(2:5)*matmul(a(1:4,2:5),F(2:5)))/h*isv2
+           return
+        case (1)
+           val=sum(B2(3:6)*matmul(a(1:4,2:5),F(3:6)))/h*isv2
+           return
+        case (2)
+           a(1,:)=(/-3, 20, -60, 120, -65, -12/)
+           a(2,:)=(/18, -120, 360, -710, 430, 22/)
+           a(3,:)=(/-54, 360, -970, 1620, -840, -116/)
+           a(4,:)=(/90, -560, 1340, -1770, 290, 610/)
+           a(5,:)=(/9, -60, 230, -400, 185, 36/)
+           val=sum(B2(2:6)*matmul(a(1:5,:),F))/h*ishty
+           return
+        case default
+           write(*,*)"Error in Get_Flux, wrong tag=",tag
+           write(*,*)"Choices are -2, -1, 0, 1 or 2 for left boundary, "
+           write(*,*)"interior or right boundary points"
+           return
+        end select
+      case(7)
+        a(0,:)=(/-137,300,-300,200,-75,12/)
+        a(1,:)=(/-12,-65,120,-60,20,-3/)
+        a(2,:)=(/3,-30,-20,60,-15,2/)
+        a(3,:)=(/-2,15,-60,20,30,-3/)
+        a(4,:)=(/3,-20,60,-120,65,12/)
+        a(5,:)=(/-12,75,-200,300,-300,137/)
+
+        cm=(/-1,7,7,-1/)
+        cl=(/2,17,-11,5,-1/)
+        cr=(/-1,5,-11,17,2/)
+
+        select case(tag)
+        case (-2)
+           val=sum(cl*B2(1:5)*matmul(a(0:4,:),F))/h*ishty
+           return
+        case (-1)
+           val=sum(cm*B2(1:4)*matmul(a(0:3,:),F))/h*ishty
+           return
+        case (0)
+           val=sum(cm*B2(2:5)*matmul(a(1:4,:),F))/h*ishty
+           return
+        case (1)
+           val=sum(cm*B2(3:6)*matmul(a(2:5,:),F))/h*ishty
+           return
+        case (2)
+           val=sum(cr*B2(2:6)*matmul(a(1:5,:),F))/h*ishty
+           return
+        case default
+           write(*,*)"Error in Get_Flux, wrong tag=",tag
+           write(*,*)"Choices are -2, -1, 0, 1 or 2 for left boundary, "
+           write(*,*)"interior or right boundary points"
+           return
+        end select
+      case default
+        call pstop('Get_Flux in par_flux_4th','Stencil not available')
+      end select
+
+      end function Get_Flux
+
+c$$$c     minmod
+c$$$c     #################################################################
+c$$$      function minmod(a,b)
+c$$$
+c$$$      real(8) :: a,b,minmod
+c$$$
+c$$$      if (a*b <= 0d0) then
+c$$$        minmod = 0d0
+c$$$        return
+c$$$      endif
+c$$$
+c$$$      if (a > 0d0) then
+c$$$        minmod = min(a,b)
+c$$$      else
+c$$$        minmod = max(a,b)
+c$$$      endif
+c$$$
+c$$$      end function minmod
+c$$$
+c$$$c     mc
+c$$$c     #################################################################
+c$$$      function mc(a,b,chk_limited)
+c$$$
+c$$$      real(8) :: a,b,mc,ho_flx
+c$$$
+c$$$      logical :: chk_limited
+c$$$
+c$$$      ho_flx = 0.5*(a+b)
+c$$$
+c$$$      mc = minmod(2*minmod(a,b),ho_flx)
+c$$$
+c$$$      chk_limited = (mc /= ho_flx)
+c$$$
+c$$$      end function mc
+
+      end function lap_tnsr_4th
+
 c     minmod
 c     #################################################################
       function minmod(a,b)
