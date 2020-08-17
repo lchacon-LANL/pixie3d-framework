@@ -5136,7 +5136,7 @@ c diag ****
       !DT/B^2 @dt
       ydot(12) = flds(3)*sk*iB2
 
-      !Src @ dt+dtold
+      !DT/B^2 @ dt+dtold
       ydot(13) = flds(3)*sk2*iB2
 
 c Are we done?
