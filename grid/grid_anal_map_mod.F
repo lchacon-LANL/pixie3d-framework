@@ -352,7 +352,7 @@ c$$$          enddo
 
 c     xi_x_sp
 c     #################################################################
-      function xi_x_sp(g_def,x,y,z,ghost_cell) result(xlog)
+      function xi_x_sp(g_def,x,y,z,ghost_cell,polar) result(xlog)
 
 c     -----------------------------------------------------------------
 c     Find inverse map xi(x) around SP.
@@ -363,7 +363,7 @@ c     -----------------------------------------------------------------
 c     Input variables
 
       real(8) :: x,y,z,xlog(3)
-      logical :: ghost_cell
+      logical :: ghost_cell,polar
 
       type(grid_mg_def),pointer :: g_def
 
@@ -566,7 +566,7 @@ cc        write (*,*)
 
 c     Find logical coords from (rr,th,zz) by inverting packing map (if appropriate)
 
-      if (coords /= 'lpk') then
+      if ((.not.polar).and.(coords /= 'lpk')) then
         xlog(1) = scale_coord_inv(g_def,1,rr)
         xlog(2) = scale_coord_inv(g_def,2,th)
         xlog(3) = scale_coord_inv(g_def,3,zz)
@@ -575,6 +575,55 @@ c     Find logical coords from (rr,th,zz) by inverting packing map (if appropria
       endif
 
       end function xi_x_sp
+
+c     find_polar_coords
+c     ########################################################################
+      subroutine find_polar_coords(g_def,igrid,i,j,k,rr,th,zz,coords)
+
+c     ------------------------------------------------------------------------
+c     In helical, cylindrical, and toroidal geometries, it finds polar coords
+c     (r,theta,z) or (r,theta,phi) from Cartesian components. This routine
+c     is needed because, when packing is used in radius, the logical coordinate
+c     xi no longer corresponds to the real radial coordinate, r(xi).
+c     ------------------------------------------------------------------------
+      
+      implicit none
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
+
+      integer,INTENT(IN)  :: i,j,k,igrid
+      real(8),INTENT(OUT) :: rr,th,zz
+
+      character(3) :: coords
+
+c     Local variables
+
+      integer :: ig,jg,kg
+      real(8) :: x1,x2,x3,x,y,z,xlog(3)
+
+      integer :: m,n
+      real(8) :: ai(10),bi(10)
+
+c     Begin program
+
+      call getCurvilinearCoordinates(g_def,i,j,k
+     .                              ,igrid,igrid,igrid
+     .                              ,ig,jg,kg,x1,x2,x3)
+      call getCartesianCoordinates(g_def,i,j,k
+     .                            ,igrid,igrid,igrid
+     .                            ,ig,jg,kg,x,y,z)
+
+      xlog = xi_x_sp(g_def,x,y,z,(x1<0d0),.true.)
+
+      rr = xlog(1)
+      th = xlog(2)
+      zz = xlog(3)
+ 
+c     End program
+
+      end subroutine find_polar_coords
 
 c     jacobian
 c     #################################################################
