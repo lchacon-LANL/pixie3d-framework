@@ -5800,7 +5800,11 @@ c     Begin program
         endif
 
         if (associated(coef)) then
-          dd = 2./(1./coef(ip,j,k) + 1./coef(i,j,k))
+          if (coef(ip,j,k)*coef(i,j,k)>0d0) then
+            dd = 2./(1./coef(ip,j,k) + 1./coef(i,j,k))
+          else
+            dd = 0d0
+          endif
         else
           dd = 1d0
         endif
@@ -5869,7 +5873,11 @@ c     Begin program
         endif
 
         if (associated(coef)) then
-          dd = 2./(1./coef(i,jp,k) + 1./coef(i,j ,k))
+          if (coef(i,jp,k)*coef(i,j,k)>0d0) then
+            dd = 2./(1./coef(i,jp,k) + 1./coef(i,j ,k))
+          else
+            dd = 0d0
+          endif
         else
           dd = 1d0
         endif
@@ -5934,7 +5942,11 @@ c     Begin program
         endif
 
         if (associated(coef)) then
-          dd = 2./(1./coef(i,j,kp) + 1./coef(i,j,k ))
+          if (coef(i,j,kp)*coef(i,j,k)>0d0) then
+            dd = 2./(1./coef(i,j,kp) + 1./coef(i,j,k ))
+          else
+            dd = 0d0
+          endif
         else
           dd = 1d0
         endif
@@ -11134,6 +11146,10 @@ c ######################################################################
 
         INTERFACE par_diff
           module procedure par_diff_ijk,par_diff_mesh
+        end INTERFACE
+
+        INTERFACE tnsr_diff
+          module procedure tnsr_diff_ijk,tnsr_diff_mesh
         end INTERFACE
 
       contains

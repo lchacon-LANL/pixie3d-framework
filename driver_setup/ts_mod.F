@@ -78,7 +78,7 @@ c     Find new time step
 
 c     Adjust to final time, if needed
 
-      if (time + dt > tmax) then
+      if (time + dt > tmax .and. tmax > 0d0) then
         dt = tmax - time
         time = tmax
       else
