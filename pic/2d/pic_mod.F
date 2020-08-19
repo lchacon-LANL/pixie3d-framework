@@ -1306,8 +1306,8 @@ c     Move particles
                it = it+1
                
                !Find pcle position update w/ given velocity
-               call update_pcle_position(pcle_nu,dt,dtp,dt_sub
-     $                                  ,DtA,B0,A,phi,dx,Ep,Bp)
+               call update_pcle_pos(pcle_nu,dt,dtp,dt_sub
+     $                             ,DtA,B0,A,phi,dx,Ep,Bp)
                
 #if defined(PIC_CM_DIAG)
                !accumulate particle displacement (for diagnose canonical mom conservation)
@@ -1694,10 +1694,10 @@ c     Begin program
       
       end subroutine pic_mover_2d_vavg
 
-c     update_pcle_position
+c     update_pcle_pos
 c     ##################################################################
-      subroutine update_pcle_position(pcle_nu,dt,dtp,dt_sub
-     $                               ,DtA,B0,A,phi,dx,Ep,Bp)
+      subroutine update_pcle_pos(pcle_nu,dt,dtp,dt_sub
+     $                          ,DtA,B0,A,phi,dx,Ep,Bp)
 
       implicit none
       
@@ -1729,7 +1729,7 @@ c     Local variables
       real(_prec) :: E_1   (_Npg,2,3),E_2   (_Npg,3,2),E_3   (_Npg,3,3)
 
       real(_prec) :: phi_loc(_Npg,3,3),xnp_loc(_Npg,3),vnp_loc(_Npg,3)
-      real(_prec) :: x0_loc(_Npg,3),v0_loc(_Npg,3),wp_loc(_Npg)
+      real(_prec) :: xn_loc(_Npg,3),vh_loc(_Npg,3),wn_loc(_Npg)
 
 c     Begin program
 
@@ -1741,9 +1741,9 @@ c     Initialize local registers
 
       call xform_pcle_idx(pcle_nu%ijk_n,nxg,i0,j0)
 
-      x0_loc = pcle_nu%x_n
-      wp_loc = pcle_nu%w_n
-      v0_loc = 0.5d0*(pcle_nu%v_n+pcle_nu%v_np)
+      xn_loc = pcle_nu%x_n
+      wn_loc = pcle_nu%w_n
+      vh_loc = 0.5d0*(pcle_nu%v_n+pcle_nu%v_np)
 
 c     Also define some insets of arrays for later use (C. Mikida)
 
@@ -1770,34 +1770,32 @@ c     Find dx
       
       dt_sub = dtp
 
-      call find_dx(v0_loc,dt_sub,dx)  !This may change dt_sub
+      call find_dx(vh_loc,dt_sub,dx)  !This may change dt_sub
 
 c     Scatter fields
 
       if (no_map) then
-        call scatter_fields_nomap(x0_loc,dt_sub,dx,A_1,A_2,A_3
+        call scatter_fields_nomap(xn_loc,dt_sub,dx,A_1,A_2,A_3
      $                           ,dtA_1,dtA_2,dtA_3,Ep,Bp)
       else
-        call scatter_fields_curv (x0_loc,dt_sub,dx,A_1,A_2,A_3
+        call scatter_fields_curv (xn_loc,dt_sub,dx,A_1,A_2,A_3
      $                           ,dtA_1,dtA_2,dtA_3,Ep,Bp)
       endif
 
-c     Update particle quantities
+c     Update particle quantities (including cell crossing)
 
-      xnp_loc = x0_loc + dx
+      xnp_loc = xn_loc + dx
 
       inp_loc = i0
       jnp_loc = j0
 
-c     Cell crossing and particle b.c.
-
-      call cell_crossing(dx,xnp_loc,vnp_loc,inp_loc,jnp_loc,wp_loc)
+      call cell_crossing(dx,xnp_loc,vnp_loc,inp_loc,jnp_loc,wn_loc)
 
 c     Update particle registers (except new-time velocity)
 
       pcle_nu%ijk_np = inp_loc + nxg*(jnp_loc - 1)
       pcle_nu%x_np = xnp_loc
-      pcle_nu%w_np = wp_loc
+      pcle_nu%w_np = wn_loc
       
 c     End program
 
@@ -1825,16 +1823,16 @@ c     Find dx
       if (no_map) then
         vhcurv = vh
       else
-        vhcurv = find_vcurv(i0,j0,x0_loc,vh)
+        vhcurv = find_vcurv(i0,j0,xn_loc,vh)
       endif
 
       vhcurv_inv = 1d0/(vhcurv + 1d-44)
 
-      dxl(:,1) =   -x0_loc(:,1)
-      dxr(:,1) = hx-x0_loc(:,1)
+      dxl(:,1) =   -xn_loc(:,1)
+      dxr(:,1) = hx-xn_loc(:,1)
             
-      dxl(:,2) =   -x0_loc(:,2)
-      dxr(:,2) = hy-x0_loc(:,2)
+      dxl(:,2) =   -xn_loc(:,2)
+      dxr(:,2) = hy-xn_loc(:,2)
 
       dts = min(dts
      .            ,max((dxl(:,1)-eps2)*vhcurv_inv(:,1)
@@ -2101,7 +2099,7 @@ c     End program
 
       end subroutine scatter_fields_curv
 
-      end subroutine update_pcle_position
+      end subroutine update_pcle_pos
 
       end module pic_mover_vavg
 
