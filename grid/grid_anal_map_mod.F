@@ -387,15 +387,23 @@ c     Find radius and angle
       select case (coords)
       case('hel')
 
-        rr = gc_cf*sqrt(x**2+y**2)
-        phi = atan2(y,x)  !Physical angle
-        if (rr < 0d0) phi = phi + pi
-        mm = g_def%params(1) !Poloidal mode number
-        kk = g_def%params(2) !Toroidal wavenumber
-        th = (mm*phi + kk*z) !Logical angle
-        zz = z
-        th = mod(th+2*pi,2*pi)   !Ensure angle is in [0,2pi]
-
+        if (polar) then
+          rr = gc_cf*sqrt(x**2+y**2)
+          th = atan2(y,x)
+          if (rr < 0d0) th = th + pi
+          zz = z
+          th = mod(th+2*pi,2*pi) !Ensure angle is in [0,2pi]
+        else
+          rr = gc_cf*sqrt(x**2+y**2)
+          phi = atan2(y,x)      !Physical angle
+          if (rr < 0d0) phi = phi + pi
+          mm = g_def%params(1)  !Poloidal mode number
+          kk = g_def%params(2)  !Toroidal wavenumber
+          th = (mm*phi + kk*z)  !Logical angle
+          zz = z
+          th = mod(th+2*pi,2*pi) !Ensure angle is in [0,2pi]
+        endif
+        
       case('cyl')
 
         rr = gc_cf*sqrt(x**2+y**2)

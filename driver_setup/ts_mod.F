@@ -76,7 +76,14 @@ c     Find new time step
 
       call TS_find_new_dt(itm,ierr,dt)
 
-      time = time + dt
+c     Adjust to final time, if needed
+
+      if (time + dt > tmax) then
+        dt = tmax - time
+        time = tmax
+      else
+        time = time + dt
+      endif
 
 c     End program
 
