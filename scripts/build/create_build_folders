@@ -28,12 +28,12 @@ do
     # loop over compilers
     for compiler in ${compilers[@]}
     do
-        # load ifp environment
-        source $script_folder/load_environment $build_type $compiler
 
         # iterate over serial/parallel
         for parallel in ${parallel_types[@]}
         do
+            # load ifp environment
+            source $script_folder/load_environment $build_type $compiler $parallel
 
             # get cmake option for petsc
             if [[ $parallel == "serial" ]]; then

@@ -5,10 +5,14 @@
 # scripts.
 # NOTE Does nothing on its own, used in other scripts, do not call.
 
+# default compiler version
+DEFAULT_GCC=gcc/8.3.0
+DEFAULT_INTEL=intel/19.0.4
+
 # set the matrix components
-build_types=("debug" "release")
-compilers=("gcc" "intel")
+compilers=("$DEFAULT_GCC" "$DEFAULT_INTEL")
 parallel_types=("serial" "petsc")
+build_types=("debug" "release")
 
 # init argument lists
 arg_build_types=()
@@ -28,7 +32,16 @@ do
             arg_build_types+=("$arg")
             shift
             ;;
-        #compilers
+        # compilers
+        gcc) # default gcc
+            arg_compilers+=$DEFAULT_GCC
+            shift
+            ;;
+        intel) # default intel
+            arg_compilers+=$DEFAULT_INTEL
+            shift
+            ;;
+        # specified compilers
         gcc*|intel*)
             arg_compilers+=("$arg")
             shift
@@ -42,24 +55,28 @@ do
         *)
             echo "Unrecognized argument: $arg"
             shift
+            return 1
             ;;
     esac # $arg
 done # $@
 
 # check if we have build types passed
 if [ ${#arg_build_types[@]} -ne 0 ]; then
+    # replace default ones, sorted
     build_types=($(echo "${arg_build_types[@]}" \
         | tr ' ' '\n' | sort -u | tr '\n' ' '))
 fi
 
 # check if we have compilers passed
 if [ ${#arg_compilers[@]} -ne 0 ]; then
+    # replace default ones, sorted
     compilers=($(echo "${arg_compilers[@]}" \
         | tr ' ' '\n' | sort -u | tr '\n' ' '))
 fi
 
 # check if we have parallel types passed
 if [ ${#arg_parallel_types[@]} -ne 0 ]; then
+    # replace default ones, sorted
     parallel_types=($(echo "${arg_parallel_types[@]}" \
         | tr ' ' '\n' | sort -u | tr '\n' ' '))
 fi

@@ -8,58 +8,14 @@
 #
 # NOTE used by sourcing: source path/to/load_environment <debug|release|profile>
 
+# process arguments, we will take the first ones for each
+source $script_folder/arguments $@
 
-# default compiler version
-DEFAULT_GCC=gcc/8.3.0
-DEFAULT_INTEL=intel/19.0.4
-
-# default settings
-BUILD_TYPE=debug
-COMPILER=$DEFAULT_GCC
-
-# passing arguments
-for arg in "$@"
-do
-    # convert to lower case
-    arg=$(echo "$arg" | tr '[:upper:]' '[:lower:]')
-
-    case $arg in
-        # build types
-        debug)
-            BUILD_TYPE=debug
-            shift
-            ;;
-        release)
-            BUILD_TYPE=release
-            shift
-            ;;
-
-        # compilers
-        gcc) # default gcc
-            COMILER=$DEFAULT_GCC
-            shift
-            ;;
-        gcc*) # other gcc version
-            COMPILER=$arg
-            shift
-            ;;
-
-        intel) # default intel
-            COMPILER=$DEFAULT_INTEL
-            shift
-            ;;
-        intel*) # other intel version
-            COMPILER=$arg
-            shift
-            ;;
-
-        *)
-            echo "Unrecognized argument: $arg"
-            shift
-            ;;
-    esac # $arg
-done # $@
-
+# pick settings, we use the first one, which are the default ones
+# when no arguments are passed
+COMPILER=${compilers[0]}
+PARALLELIZATION=${parallel_types[0]}
+BUILD_TYPE=${build_types[0]}
 
 # remove old modules
 module purge
@@ -98,8 +54,9 @@ COMPILER="${COMPILER//\//_}"
 # export variables
 export MACHINE
 export COMPILER
+export PARALLELIZATION
 export BUILD_TYPE
-export LIB_INSTALL_DIR=/usr/projects/tbiifp/env/$MACHINE/$COMPILER/$BUILD_TYPE
+export LIB_INSTALL_DIR=/usr/projects/tbiifp/env/$MACHINE/$COMPILER/$PARALLELIZATION/$BUILD_TYPE
 
 # create cmake command
 export CMAKE_COMMAND="cmake -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE \

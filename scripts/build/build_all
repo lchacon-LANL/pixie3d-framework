@@ -22,12 +22,12 @@ do
     # loop over compilers
     for compiler in ${compilers[@]}
     do
-        # load ifp environment
-        source $script_folder/load_environment $build_type $compiler
 
         # iterate over serial/parallel
         for parallel in ${parallel_types[@]}
         do
+            # load ifp environment
+            source $script_folder/load_environment $build_type $compiler $parallel
 
             # check if folder exists
             if [[ -d $MACHINE/$COMPILER/$parallel/$build_type ]]; then
@@ -36,11 +36,7 @@ do
                 # write which case we are working on
                 echo -e "\e[1m\e[91mBuilding ifp with: $build_type $compiler $parallel \e[0m"
                 # build
-                make
-                # write plot info
-                echo -e "\e[1m\e[91mBuilding ifp_plot with: $build_type $compiler $parallel \e[0m"
-                # create plot executable
-                make ifp_plot
+                make framework
                 # change back
                 cd $folder
 
