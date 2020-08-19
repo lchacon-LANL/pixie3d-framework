@@ -48,6 +48,8 @@ c #####################################################################
           module procedure setupSplines_gst,setupSplines_nogst
         END INTERFACE
 
+        private :: shape2_offset
+
       contains
         
 c     set_local_spline
@@ -2182,6 +2184,10 @@ c     End program
 c     shape2_offset
 c     ##################################################################
       subroutine shape2_offset(x,ss)
+
+c     ------------------------------------------------------------------
+c     Second-order shape function, offset to left cell-face position
+c     ------------------------------------------------------------------
 
       implicit none
 
