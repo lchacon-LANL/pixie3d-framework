@@ -1,0 +1,54 @@
+#!/bin/bash
+
+# build all executables for this machine
+# the folders must be initialized and must follow the layout of the
+# create_build_folder script.
+
+# return on error
+set -e
+
+# get current folder
+folder=$(pwd)
+# get script folder
+script_folder="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+
+# process arguments
+source $script_folder/arguments $@
+
+# loop over build types
+for build_type in ${build_types[@]}
+do
+
+    # loop over compilers
+    for compiler in ${compilers[@]}
+    do
+        # load ifp environment
+        source $script_folder/load_environment $build_type $compiler
+
+        # iterate over serial/parallel
+        for parallel in ${parallel_types[@]}
+        do
+
+            # check if folder exists
+            if [[ -d $MACHINE/$COMPILER/$parallel/$build_type ]]; then
+                # change into folder
+                cd $MACHINE/$COMPILER/$parallel/$build_type/
+                # write which case we are working on
+                echo -e "\e[1m\e[91mBuilding ifp with: $build_type $compiler $parallel \e[0m"
+                # build
+                make
+                # write plot info
+                echo -e "\e[1m\e[91mBuilding ifp_plot with: $build_type $compiler $parallel \e[0m"
+                # create plot executable
+                make ifp_plot
+                # change back
+                cd $folder
+
+            fi
+
+        done # petsc
+
+    done # compiler
+
+done # build
+

@@ -1,0 +1,111 @@
+#!/bin/bash
+
+# set up environment for iFP
+# load necessary modules and set paths to the precompiled dependencies. Can be passed
+# the build type: debug | release | profile (default: debug)
+# Defines several variables for the environment, build type, machine and library folder,
+# and exports the init_build_folder command, which sets up a new folder for cmake.
+#
+# NOTE used by sourcing: source path/to/load_environment <debug|release|profile>
+
+
+# default compiler version
+DEFAULT_GCC=gcc/8.3.0
+DEFAULT_INTEL=intel/19.0.4
+
+# default settings
+BUILD_TYPE=debug
+COMPILER=$DEFAULT_GCC
+
+# passing arguments
+for arg in "$@"
+do
+    # convert to lower case
+    arg=$(echo "$arg" | tr '[:upper:]' '[:lower:]')
+
+    case $arg in
+        # build types
+        debug)
+            BUILD_TYPE=debug
+            shift
+            ;;
+        release)
+            BUILD_TYPE=release
+            shift
+            ;;
+
+        # compilers
+        gcc) # default gcc
+            COMILER=$DEFAULT_GCC
+            shift
+            ;;
+        gcc*) # other gcc version
+            COMPILER=$arg
+            shift
+            ;;
+
+        intel) # default intel
+            COMPILER=$DEFAULT_INTEL
+            shift
+            ;;
+        intel*) # other intel version
+            COMPILER=$arg
+            shift
+            ;;
+
+        *)
+            echo "Unrecognized argument: $arg"
+            shift
+            ;;
+    esac # $arg
+done # $@
+
+
+# remove old modules
+module purge
+# load modules
+module load git $COMPILER openmpi/2.1.2 cmake python
+
+# get hostname
+hostname=$(hostname)
+
+# set host
+if [[ $hostname == "sn"* ]]; then
+        MACHINE="snow"
+elif [[ $hostname == "gr"* ]]; then
+        MACHINE="grizzly"
+else
+        echo "Unsupported machine $hostname"
+        return 1
+fi
+
+# set Cmake build type
+if [[ $BUILD_TYPE == "debug" ]]; then
+    CMAKE_BUILD_TYPE="Debug"
+elif [[ $BUILD_TYPE == "release" ]]; then
+    CMAKE_BUILD_TYPE="Release"
+elif [[ $BUILD_TYPE == "profile" ]]; then
+    BUILD_TYPE="release"
+    CMAKE_BUILD_TYPE="RelWithDebInfo"
+else
+        echo "Unsupported build type $BUILD_TYPE"
+        return 1
+fi
+
+# make compiler string ok for folder names
+COMPILER="${COMPILER//\//_}"
+
+# export variables
+export MACHINE
+export COMPILER
+export BUILD_TYPE
+export LIB_INSTALL_DIR=/usr/projects/tbiifp/env/$MACHINE/$COMPILER/$BUILD_TYPE
+
+# create cmake command
+export CMAKE_COMMAND="cmake -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE \
+                            -DCMAKE_PREFIX_PATH=$LIB_INSTALL_DIR \
+                            -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=gold"
+
+# define alias for cmake
+alias init_build_folder=$CMAKE_COMMAND
+
