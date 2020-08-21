@@ -1,0 +1,145 @@
+# image based on ubuntu docker image
+image: hlx87/ifp-build
+
+variables:
+  GIT_SUBMODULE_STRATEGY: recursive
+
+stages:
+  - pre-build
+  - build
+  - test
+
+###############################################################################
+# setting definitions
+
+#######################################
+# compilers
+# currently only using GCC, so compiler is set by image
+
+.gcc: &gcc
+        GCC: "gcc"
+        GCXX: "g++"
+        GFC: "gfortran"
+        
+#######################################
+# parallel
+
+.serial: &serial
+        USE_PETSC: "OFF"
+
+.parallel: &parallel
+        USE_PETSC: "ON"
+
+#######################################
+# build types
+
+.debug: &debug
+        BUILD_TYPE: "Debug"
+
+.release: &release
+        BUILD_TYPE: "Release"
+
+
+###############################################################################
+# setup script
+
+# These commands will run before each job.
+before_script:
+  - set -e
+  - uname -a
+  - |
+    if [[ "$(uname)" = "Linux" ]]; then
+      export THREADS=$(nproc --all)
+    elif [[ "$(uname)" = "Darwin" ]]; then
+      export THREADS=$(sysctl -n hw.ncpu)
+    else
+      echo "Unknown platform. Setting THREADS to 1."
+      export THREADS=1
+    fi
+
+###############################################################################
+# pre-build script
+
+.pre_build: &pre_build
+    stage: pre-build
+    script:
+        - mkdir build
+        - cd build
+        - |
+          cmake ../ -DCMAKE_PREFIX_PATH=$LIB_INSTALL_DIR \
+                    -DUSE_PETSc=$USE_PETSC \
+                    -DCMAKE_BUILD_TYPE=$BUILD_TYPE
+    artifacts:
+        paths:
+            - contrib/
+            - build/
+        expire_in: 2 days
+
+###############################################################################
+# build script
+#.build: &build
+
+.build: &build
+    stage: build
+    script:
+        - cd build
+        - make framework
+    artifacts:
+        paths:
+            - build/
+        expire_in: 2 days
+
+###############################################################################
+# pre-build matrix
+
+prebuild_gcc_serial_debug:
+    <<: [*pre_build]
+    variables:
+        <<: [*gcc, *serial, *debug]
+
+prebuild_gcc_parallel_debug:
+    <<: [*pre_build]
+    variables:
+        <<: [*gcc, *parallel, *debug]
+
+prebuild_gcc_serial_release:
+    <<: [*pre_build]
+    variables:
+        <<: [*gcc, *serial, *release]
+
+prebuild_gcc_parallel_release:
+    <<: [*pre_build]
+    variables:
+        <<: [*gcc, *parallel, *release]
+
+###############################################################################
+# build matrix
+
+build_gcc_serial_debug:
+    <<: [*build]
+    variables:
+        <<: [*gcc, *serial, *debug]
+    dependencies:
+        - prebuild_gcc_serial_debug
+
+build_gcc_parallel_debug:
+    <<: [*build]
+    variables:
+        <<: [*gcc, *parallel, *debug]
+    dependencies:
+        - prebuild_gcc_parallel_debug
+
+build_gcc_serial_release:
+    <<: [*build]
+    variables:
+        <<: [*gcc, *serial, *release]
+    dependencies:
+        - prebuild_gcc_serial_release
+
+build_gcc_parallel_release:
+    <<: [*build]
+    variables:
+        <<: [*gcc, *parallel, *release]
+    dependencies:
+        - prebuild_gcc_parallel_release
+
