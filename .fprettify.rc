@@ -1,0 +1,24 @@
+# settings for Fortran formatter
+
+indent = 4
+line-length = 132
+
+whitespace-comma = true
+whitespace-assignment = true
+whitespace-relational = true
+whitespace-logical = true
+whitespace-plusminus = true
+whitespace-multdiv = true
+whitespace-print = true
+whitespace-type = true
+whitespace-intrinsics = true
+
+strict-indent = false
+disable-indent = false
+disable-whitespace = false
+enable-replacements = true
+c-relations = true
+strip-comments = false
+
+recursive = true
+fortran = [.f90, .F90]
