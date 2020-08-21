@@ -780,8 +780,8 @@ c     Begin program
       if (np > 1) then
         ufile = openPOSIXRestartFileForRead(file=file)
       else
-        call openRecordFiles(ufile,file
-     .                      ,ilog,ihig,jlog,jhig,klog,khig)
+        ufile = 1000
+        call openRecordFiles(ufile,file,ilog,ihig,jlog,jhig,klog,khig)
       endif
 #endif
 
@@ -854,12 +854,17 @@ c     Begin program
       counter1 = "0000000000"
       length = len(trim(int2char(itime)))
       counter1 = counter1(1:len(counter1)-length)
-     .            //trim(int2char(itime))
-      if (index(file,'.bin') /= 0) then
-        file = 'record_it='//counter1//'.bin'
-      else
-        file = 'record_it='//counter1//'.bp'
-      endif
+     .         //trim(int2char(itime))
+
+#if defined(adios)
+      file = ADIOS_FILE
+      file = file(1:index(file,'.bp')-1)//'_it='//counter1//'.bp'
+#elif defined(ADIOS2)
+      file = ADIOS2_FILE
+      file = file(1:index(file,'.bp')-1)//'_it='//counter1//'.bp'
+#else
+      file = 'record_it='//counter1//'.bin'
+#endif
 
       end function new_dumpfile
       
@@ -888,7 +893,11 @@ c     Begin program
 
       do it=itime1,itime2
         file = new_dumpfile(it)
+#if defined(adios) || defined(ADIOS2)
         switch = is_file(file)
+#else
+        switch = is_file(trim(file)//"_proc0")
+#endif
         if (switch) exit
       end do
       
