@@ -185,7 +185,6 @@ c     Local variables
         character (len=20), dimension(1)  :: gnamelist  ! list of groups (=1)
         character(len=1024) :: rfile
         logical :: inq_adios_var
-        print *, my_rank, 'openADIOSRecordFileForRead'
 
 c     Begin program
 
@@ -287,7 +286,6 @@ c     Global variables
 
       integer :: ufile
       character(*),optional :: file
-      print *, my_rank, 'openADIOSRestartFileForRead'
 
 c     Local variables
 
@@ -338,7 +336,6 @@ c     Local variables
       integer*8       :: start(1), readcount(1)  ! dimensions are 64bit in adios
       integer*8       :: m ! actually read bytes
       logical, save   :: firstread = .true.
-      print *, my_rank, 'readADIOSRecordFile'
 
 c     Begin program
 
