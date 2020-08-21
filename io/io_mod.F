@@ -467,7 +467,7 @@ c     Allocate arrays and open files
       allocate(munit(nfiles))
 
       if (posix_read) then
-        munit(1) = base_unit+myrank
+        munit(1) = find_unit(base_unit+myrank)
         file = trim(base_fname)//'_proc'//trim(int2char(myrank))
         write (*,*) '  => ',trim(file),', unit=',munit(1)
 
@@ -476,7 +476,7 @@ c     Allocate arrays and open files
       else
         if (single_file) then
           ifile = 1
-          munit(ifile) = base_unit + myrank
+          munit(ifile) = find_unit(base_unit + myrank)
           file = base_fname
           write (*,*) '  => ',trim(file),', unit=',munit(ifile)
 
@@ -484,7 +484,7 @@ c     Allocate arrays and open files
      $        ,form='unformatted',status='old')
         else
           do ifile=1,nfiles
-            munit(ifile) = base_unit+ifile
+            munit(ifile) = find_unit(base_unit+ifile)
             file = trim(base_fname)//'_proc'//trim(int2char(ifile-1))
             write (*,*) '  => ',trim(file),', unit=',munit(ifile)
 

@@ -28,7 +28,7 @@ c##########################################################################
 c Local variables
 
       integer        :: i,j,k,ig,jg,kg
-      integer        :: ierr,gierr
+      integer        :: ierr,gierr,itime_old
       character*(40) :: command
       logical        :: exitloop,petsc_flg
 
@@ -57,10 +57,18 @@ c     Update counters
 
         call TS_update_preCounters(time)
 
-c     Read next record
+c     Read next record 
 
+        itime_old = itime
+        
         call readTimeStep(urecord,itime,time,dt,gammat,u_np,ierr)
 
+c     Check for alternate restart files and read again if present
+        
+        if(switch_dumpfile(itime_old,itime,urecord)) then
+          call readTimeStep(urecord,itime,time,dt,gammat,u_np,ierr)
+        endif
+        
 c     Gather error info
 
 #if defined(petsc)
@@ -137,7 +145,7 @@ c Finalize graphics
 
 c End program
 
-      end
+      end program
 
 c output
 c######################################################################
@@ -319,7 +327,7 @@ c Allocate global variable
 
 c Open graphics files
 
-      call openGraphicsFiles
+      urecord = openGraphicsFiles(recordfile)
 
 c Read geometry (if appropriate)
 
