@@ -79,7 +79,7 @@ c     Begin program
 #if defined(adios)
       ufile = openADIOSRestartFileForRead(file=file)
 #elif defined(ADIOS2)
-      ufile = openADIOS2RestartFileForRead(file="record.bp")
+      ufile = openADIOS2RestartFileForRead(file=file)
 #else
       ufile = openPOSIXRestartFileForRead(file=file)
 #endif
@@ -755,7 +755,7 @@ cc     .               ,maxval(khg_)-minval(klg_)+1
 
 c     openGraphicsFiles
 c     #################################################################
-      subroutine openGraphicsFiles
+      function openGraphicsFiles(file) result(ufile)
 
 c     -----------------------------------------------------------------
 c     Open record files
@@ -765,24 +765,27 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
+      integer :: ufile
+      character(*) :: file
+
 c     Local variables
 
 c     Begin program
 
 #if defined(adios)
-      urecord = openADIOSRestartFileForRead()
+      ufile = openADIOSRestartFileForRead(file=file)
 #elif defined(ADIOS2)
-      urecord = openADIOS2RestartFileForRead()
+      ufile = openADIOS2RestartFileForRead(file=file)
 #else
       if (np > 1) then
-        urecord = openPOSIXRestartFileForRead()
+        ufile = openPOSIXRestartFileForRead(file=file)
       else
-        call openRecordFiles(urecord,recordfile
+        call openRecordFiles(ufile,file
      .                      ,ilog,ihig,jlog,jhig,klog,khig)
       endif
 #endif
 
-      end subroutine openGraphicsFiles
+      end function openGraphicsFiles
 
 c     closeGraphicsFiles
 c     #################################################################
@@ -826,6 +829,82 @@ c     End programs
 
       end subroutine closeGraphicsFiles
 
+c     new_dumpfile
+c     #################################################################
+      function new_dumpfile(itime) result(file)
+
+c     -----------------------------------------------------------------
+c     Switches the dump file to bifurcated one due to restart
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: itime
+      character(1024) :: file
+
+c     Local variables
+
+      integer :: length
+      character(10) :: counter1
+
+c     Begin program
+
+      counter1 = "0000000000"
+      length = len(trim(int2char(itime)))
+      counter1 = counter1(1:len(counter1)-length)
+     .            //trim(int2char(itime))
+      if (index(file,'.bin') /= 0) then
+        file = 'record_it='//counter1//'.bin'
+      else
+        file = 'record_it='//counter1//'.bp'
+      endif
+
+      end function new_dumpfile
+      
+c     switch_dumpfile
+c     #################################################################
+      function switch_dumpfile(itime1,itime2,ufile) result(switch)
+
+c     -----------------------------------------------------------------
+c     Switches the dump file to bifurcated one due to restart
+c     -----------------------------------------------------------------
+
+      
+      implicit none
+
+c     Call variables
+
+      logical :: switch
+      integer :: itime1,itime2,ufile
+
+c     Local variables
+
+      integer :: it
+      character(1024) :: file
+
+c     Begin program
+
+      do it=itime1,itime2
+        file = new_dumpfile(it)
+        switch = is_file(file)
+        if (switch) exit
+      end do
+      
+      if (switch) then
+        if (my_rank == 0) then
+cc          write (*,*) itime1,itime2
+          write (*,*) ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+          write (*,*) "Switching dump file to ",trim(file)
+          write (*,*) ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+        endif
+        call closeGraphicsFiles
+        ufile = openGraphicsFiles(file)
+      endif
+
+      end function switch_dumpfile
+      
 c     writeDerivedType
 c     #################################################################
       subroutine writeDerivedType(varray,unit,frmt)
