@@ -17,7 +17,7 @@ c ######################################################################
      .            ,eig_dt=1d0          ! Time step for eigenvalue dynamical system
      .            ,dt      = 1d0       ! Time step (if zero, dt is calculated in code)
      .            ,tmax    =-1d0       ! Target time, in Alfven times (not active if negative)
-     .            ,trstrt  =-1d0       ! Restart time (not active if negative)
+     .            ,trestart=-1d0       ! Restart time (not active if negative)
 
         integer :: sm_pass=2           ! Number of initial smoother passes for Rannacher TS
      .            ,sm_flag=0           ! Time smoothing flag:
@@ -27,7 +27,7 @@ c ######################################################################
      .            ,numtime=-1          ! Number of time steps (not active if negative)
      .            ,ndstep=0            ! # time steps between plots (if zero,
                                        !        ndstep is calculated in code)
-     .            ,nrstrt=-1           ! Restart cycle number (not active if negative)
+     .            ,nrestart=-1         ! Restart cycle number (not active if negative)
 
         logical :: ts_adapt_dt=.true.  ! Time adaptive algorithm (based on Newton convergence)
      .            ,ts_restart=.false.  ! Restarting flag

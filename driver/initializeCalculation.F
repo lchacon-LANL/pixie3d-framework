@@ -111,7 +111,7 @@ c Read PETSc runtime options
       call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-restart'
      .                         ,ts_restart,petsc_flg,ierr)
 
-      call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-trestart',trstrt
+      call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-trestart',trestart
      .                        ,ts_restart,ierr)
 
       call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-cpu_quota',quota
@@ -430,8 +430,8 @@ c     Read files
           call TS_update_preCounters(time,exclude_itime=.true.)
           call equateDerivedType(u_n ,u_np)
           call equateDerivedType(u_np,vmed)
-          if (   (itime > nrstrt.and.nrstrt > 0)
-     .       .or.(time  > trstrt.and.trstrt > 0d0)) then
+          if (   (itime > nrestart.and.nrestart > 0)
+     .       .or.(time  > trestart.and.trestart > 0d0)) then
             call setEarlyTimeRestartFlag(.true.)
             exit
           endif
