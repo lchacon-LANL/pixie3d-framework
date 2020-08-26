@@ -1215,7 +1215,7 @@ c     Local variables
       integer :: im,it,k,pits,psts,pit
       integer :: numpcles,numspcs,nxg,nyg,nzg
 
-      real(_prec) :: dx(_Npg,3),d_x(_Npg,3)
+      real(_prec) :: dx(_Npg,3),d_x(_Npg,3),vh(_Npg,3),v0(_Npg,3)
       real(_prec) :: dt_sub(_Npg),dtp(_Npg)
       real(_prec) :: Ep(_Npg,3),Bp(_Npg,3)
      .              ,Ep_avg(_Npg,3),Bp_avg(_Npg,3)
@@ -1226,7 +1226,8 @@ c     Local variables
       integer(8) :: liacc(4),giacc(4)
       
       type(particle) :: pcle_nu
-    
+      real(_prec) :: REF_SIGN(_Npg,3)
+      
 c     Begin program
 
 c     Particle pusher timer - C. Mikida, 05/16
@@ -1252,7 +1253,7 @@ c     Move particles
       psh_sum = 0
       pst_sum = 0
       pit_sum = 0
-      pitmax  = 3 !Number of Picard iterations
+      pitmax  = 3 !Number of outer Picard iterations
       pstmax  = 0
 
       numspcs = size(spcs)
@@ -1270,8 +1271,8 @@ c     Move particles
          q_m  = spcs(isp)%q_m
 
 !     note that there is some issue with valgrind and libgomp.
-!$omp parallel DEFAULT(SHARED) private(ipc,it,dtp,dt_sub
-!$omp.         ,d_x,dx,psts,pits,pcle_nu,Ep,Bp,Ep_avg,Bp_avg,pit)
+!$omp parallel DEFAULT(SHARED) private(ipc,it,dtp,dt_sub,REF_SIGN
+!$omp.   ,v0,vh,d_x,dx,psts,pits,pcle_nu,Ep,Bp,Ep_avg,Bp_avg,pit)
 !$         call set_omp_thread_id()
 !$omp DO SCHEDULE (DYNAMIC,4)
 !$omp.reduction(+:pml
@@ -1281,33 +1282,39 @@ c     Move particles
 !$omp.           ,pst_sum,psh_sum,pit_sum)
 !$omp.reduction(max:pstmax)
          do ipc=nip+1,numpcles
-
-           pcle_nu%v_np  = spcs(isp)%pcles(ipc)%v_np
+cc            print *,isp,ipc
+            pcle_nu%v_np  = spcs(isp)%pcles(ipc)%v_np
              
            !Picard iteration loop
            do pit = 1, pitmax
-             
+c$$$              if(ipc==3) then
+c$$$                 print *,pit
+c$$$                 print *, spcs(isp)%pcles(ipc)%v_n,
+c$$$     $                spcs(isp)%pcles(ipc)%v_np
+c$$$              end if
              pcle_nu%ijk_n = spcs(isp)%pcles(ipc)%ijk_n
              pcle_nu%x_n   = spcs(isp)%pcles(ipc)%x_n
              pcle_nu%v_n   = spcs(isp)%pcles(ipc)%v_n
              pcle_nu%w_n   = spcs(isp)%pcles(ipc)%w_n
-
+             
              Ep_avg = 0d0
              Bp_avg = 0d0
+             REF_SIGN = 1 !default, flip sign when hitting a wall
              it = 0
 
 #if defined(PIC_CM_DIAG)
              if(pit==pitmax) d_x = 0d0
 #endif
              dtp = dtx
-
+             v0 = pcle_nu%v_n
+             vh = 0.5d0*(v0+pcle_nu%v_np)
              !Pcle substepping
              do while(maxval(dtp)>0)
                it = it+1
                
                !Find pcle position update w/ given velocity
-               call update_pcle_pos(pcle_nu,dt,dtp,dt_sub
-     $                             ,DtA,B0,A,phi,dx,Ep,Bp)
+               call update_pcle_pos(pcle_nu,vh,dt,dtp,dt_sub
+     $                             ,DtA,B0,A,phi,dx,Ep,Bp,REF_SIGN)
                
 #if defined(PIC_CM_DIAG)
                !accumulate particle displacement (for diagnose canonical mom conservation)
@@ -1325,6 +1332,15 @@ c     Move particles
                Bp_avg(:,2) = Bp_avg(:,2) + Bp(:,2)*dt_sub(:)
                Bp_avg(:,3) = Bp_avg(:,3) + Bp(:,3)*dt_sub(:)
 
+c$$$               !If reflective bc (flip signs for perpendicular E, and tangential B)
+c$$$               Ep_avg(:,1) = Ep_avg(:,1)*REF_SIGN(:,1)
+c$$$               Ep_avg(:,2) = Ep_avg(:,2)*REF_SIGN(:,2)
+c$$$               Ep_avg(:,3) = Ep_avg(:,3)*REF_SIGN(:,3)
+c$$$               Bp_avg(:,1) =-Bp_avg(:,1)*REF_SIGN(:,1)
+c$$$               Bp_avg(:,2) =-Bp_avg(:,2)*REF_SIGN(:,2)
+c$$$               Bp_avg(:,3) =-Bp_avg(:,3)*REF_SIGN(:,3)
+               
+               
                !Gather ORBIT AVERAGED moments (only in last picard iteration)
                if(pit==pitmax) call gather_orbit_avg_moments(pcle_nu,dx)
 
@@ -1340,11 +1356,11 @@ c     Move particles
              !Find new-time pcle velocity w/ averaged fields
              Ep_avg = Ep_avg*idtx
              Bp_avg = Bp_avg*idtx
-          
-             call update_pcle_vel(q_m,pcle_nu%v_n,pcle_nu%v_np
+             
+             call update_pcle_vel(q_m,v0,pcle_nu%v_np
      .                           ,dt,Ep_avg,Bp_avg)
 
-             pcle_nu%v_np = pcle_nu%v_n + 2d0*(pcle_nu%v_np-pcle_nu%v_n)
+             pcle_nu%v_np = v0 + 2d0*(pcle_nu%v_np-v0)
 
              !Count total number of picard iterations
              pit_sum = pit_sum + _Npg
@@ -1359,7 +1375,12 @@ c     Move particles
            end do
 
            !Update final pcle quantities
-           spcs(isp)%pcles(ipc)%v_np   = pcle_nu%v_np
+           spcs(isp)%pcles(ipc)%v_np(:,1)   = pcle_nu%v_np(:,1)
+     $          *REF_SIGN(:,1)
+           spcs(isp)%pcles(ipc)%v_np(:,2)   = pcle_nu%v_np(:,2)
+     $          *REF_SIGN(:,2)
+           spcs(isp)%pcles(ipc)%v_np(:,3)   = pcle_nu%v_np(:,3)
+     $          *REF_SIGN(:,3)
            spcs(isp)%pcles(ipc)%ijk_np = pcle_nu%ijk_np 
            spcs(isp)%pcles(ipc)%x_np   = pcle_nu%x_np   
            spcs(isp)%pcles(ipc)%w_np   = pcle_nu%w_np
@@ -1696,8 +1717,8 @@ c     Begin program
 
 c     update_pcle_pos
 c     ##################################################################
-      subroutine update_pcle_pos(pcle_nu,dt,dtp,dt_sub
-     $                          ,DtA,B0,A,phi,dx,Ep,Bp)
+      subroutine update_pcle_pos(pcle_nu,vh_loc,dt,dtp,dt_sub
+     $                          ,DtA,B0,A,phi,dx,Ep,Bp,ref_tag)
 
       implicit none
       
@@ -1709,27 +1730,29 @@ cc      type(particle), intent(inout) :: pcle
       real(8),intent(in) :: dt
       real(8),intent(in) :: A(0:,0:,:),phi(0:,0:),DtA(0:,0:,:),B0(3)
 
-      real(_prec),intent(inout) :: dtp(_Npg)
+      real(_prec),intent(inout) :: dtp(_Npg),vh_loc(_Npg,3)
       real(_prec),intent(out)   :: dt_sub(_Npg),dx(_Npg,3)
 
       real(_prec),intent(out) :: Ep(_Npg,3),Bp(_Npg,3)
+
+      real(_prec),optional,intent(inout) :: ref_tag(_Npg,3)
       
 c     Local variables
 
-      integer :: i,j,k,nxg,nyg,nzg
+      integer :: i,j,k,nxg,nyg,nzg,dim
       integer :: i0(_Npg),j0(_Npg),inp_loc(_Npg),jnp_loc(_Npg)
 
       real(8) :: ihx,ihy,ihz,hx,hy,hz
 
       real(_prec), parameter :: eps  = 1d-12 !Buffer for dt computation in pcle Xing
-     .                         ,eps2 = 1d-10 !1d-8  !Buffer for pcle Xing
+     .                         ,eps2 = 1d-12 !1d-8  !Buffer for pcle Xing
 
       real(_prec) :: DtA_1 (_Npg,2,3),DtA_2 (_Npg,3,2),DtA_3 (_Npg,3,3)
       real(_prec) :: A_1   (_Npg,2,3),A_2   (_Npg,3,2),A_3   (_Npg,3,3)
       real(_prec) :: E_1   (_Npg,2,3),E_2   (_Npg,3,2),E_3   (_Npg,3,3)
 
       real(_prec) :: phi_loc(_Npg,3,3),xnp_loc(_Npg,3),vnp_loc(_Npg,3)
-      real(_prec) :: xn_loc(_Npg,3),vh_loc(_Npg,3),wn_loc(_Npg)
+      real(_prec) :: xn_loc(_Npg,3),wn_loc(_Npg)
 
 c     Begin program
 
@@ -1743,12 +1766,13 @@ c     Initialize local registers
 
       xn_loc = pcle_nu%x_n
       wn_loc = pcle_nu%w_n
-      vh_loc = 0.5d0*(pcle_nu%v_n+pcle_nu%v_np)
+
 
 c     Also define some insets of arrays for later use (C. Mikida)
 
       !VECTOR SIMD
       do i=1,_Npg
+cc         print *,i,i0(i),j0(i)
          DtA_1(i,:,:) = DtA(i0(i)-1:i0(i)  , j0(i)-1:j0(i)+1, 1)
          DtA_2(i,:,:) = DtA(i0(i)-1:i0(i)+1, j0(i)-1:j0(i)  , 2)
          DtA_3(i,:,:) = DtA(i0(i)-1:i0(i)+1, j0(i)-1:j0(i)+1, 3)
@@ -1789,8 +1813,19 @@ c     Update particle quantities (including cell crossing)
       inp_loc = i0
       jnp_loc = j0
 
-      call cell_crossing(dx,xnp_loc,vnp_loc,inp_loc,jnp_loc,wn_loc)
+      do dim=1,_Dimx
+         do i=1,_Npg
+            if(ref_tag(i,dim)<0) then
+               Ep(i,dim) = -Ep(i,dim) !perpendicular
+               Bp(i,:)   = -Bp(i,:)               
+               Bp(i,dim) = -Bp(i,dim) !tangential
+            end if
+        end do
+      end do
+      call cell_crossing_vavg(dx,xnp_loc,vh_loc,inp_loc,jnp_loc,wn_loc
+     $     ,ref_tag)
 
+      
 c     Update particle registers (except new-time velocity)
 
       pcle_nu%ijk_np = inp_loc + nxg*(jnp_loc - 1)
