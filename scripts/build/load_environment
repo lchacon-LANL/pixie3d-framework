@@ -8,6 +8,8 @@
 #
 # NOTE used by sourcing: source path/to/load_environment <debug|release|profile>
 
+# get script folder
+script_folder="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 # process arguments, we will take the first ones for each
 source $script_folder/arguments $@
 
@@ -48,6 +50,16 @@ else
         return 1
 fi
 
+# set petsc option
+if [[ $PARALLELIZATION == "petsc" ]]; then
+    CMAKE_USE_PETSc=ON
+elif [[ $PARALLELIZATION == "serial" ]]; then
+    CMAKE_USE_PETSc=OFF
+else
+        echo "Unsupported parallelization type $PARALLELIZATION"
+        return 1
+fi
+
 # make compiler string ok for folder names
 COMPILER="${COMPILER//\//_}"
 
@@ -61,6 +73,7 @@ export LIB_INSTALL_DIR=/usr/projects/tbiifp/env/$MACHINE/$COMPILER/$PARALLELIZAT
 # create cmake command
 export CMAKE_COMMAND="cmake -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE \
                             -DCMAKE_PREFIX_PATH=$LIB_INSTALL_DIR \
+                            -DUSE_PETSc=$CMAKE_USE_PETSc \
                             -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=gold"
 
 # define alias for cmake

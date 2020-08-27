@@ -57,7 +57,7 @@ do
             # clean folder
             rm -r *
             # init cmake
-            $CMAKE_COMMAND ../../../../../../ -DUSE_PETSc=$CMAKE_PETSC -DUSE_RADIATION=$CMAKE_RADIATION
+            $CMAKE_COMMAND ../../../../../ -DUSE_PETSc=$CMAKE_PETSC 
 
             # change back
             cd $folder
