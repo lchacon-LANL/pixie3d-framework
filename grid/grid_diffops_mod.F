@@ -5817,7 +5817,7 @@ c       Postprocessing
 
         if (flag /= 0) then
           if (isSP2(g_def,i+1,igx)) then
-            ijac = 1d0/SP_flsv
+            ijac = 0d0 !1d0/SP_flsv
           else
             ijac = 1d0/jac
           endif

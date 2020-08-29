@@ -5702,7 +5702,7 @@ c     End program
 
 c     plotPDF_xv
 c     ##################################################################
-      subroutine plotPDF_xv(nv,label,init,v_min,v_max) 
+      subroutine plotPDF_xv(nv,label,init,xdraw,v_min,v_max) 
 
 c     ------------------------------------------------------------------
 c     Accumulates particles on mesh, returning result in mesh array garr.
@@ -5716,13 +5716,13 @@ c     Call variables
 
       integer :: nv
       character(*) :: label
-      logical :: init
+      logical :: init,xdraw
 
       real(8),optional :: v_min,v_max
       
 c     Local variables
 
-      integer :: isp,ierr,nxg,nyg,nzg,funit,xflag
+      integer :: isp,ierr,nxg,nyg,nzg,funit,xflag,i
       real(8) :: xmin,ymin,zmin,xmax,ymax,zmax,vmin,vmax
 
       real(8),allocatable,dimension(:,:) :: garr
@@ -5781,19 +5781,33 @@ c$$$          call contour(garr(1:nxg,1:nv),nxg,nv
 c$$$     .         ,xmin,xmax,vmin,vmax,xflag,funit)
 
           funit = find_unit(110)
-          open(unit=funit,file=trim(suffix)//'.bin'
-     .        ,form='unformatted',status='unknown')
-          xflag = 0
+          if (.not.xdraw) then
+            open(unit=funit,file=trim(suffix)//'.txt'
+     .           ,status='unknown')
+            write (funit,'(a)') "# Format:"
+            write (funit,'(a)') "# nx,nv"
+            write (funit,'(a)') "# xmin,xmax,vmin,vmax"
+            write (funit,'(a)') "# PDF ordered by space in rows"
+            write (funit,*) nxg,nv
+            write (funit,*) xmin,xmax,vmin,vmax
+            do i=1,nxg
+              write (funit,*) garr(i,1:nv)
+            enddo
+          else
+            open(unit=funit,file=trim(suffix)//'.bin'
+     .          ,form='unformatted',status='unknown')
+            xflag = 0
 
-          call createDrawInCfile(1
+            call createDrawInCfile(1
      .          ,trim(suffix)//'.bin'
      .          ,'XV PDF'
      .          ,'t','x','y'
      .          ,(/trim(suffix)/)
      .          ,'-c -X0 -L57'
      .          ,'draw'//trim(suffix)//'.in')
-          call contour(garr(1:nxg,1:nv),nxg,nv
-     .                ,xmin,xmax,vmin,vmax,xflag,funit)
+            call contour(garr(1:nxg,1:nv),nxg,nv
+     .                  ,xmin,xmax,vmin,vmax,xflag,funit)
+          endif
           close(funit)
         endif
 

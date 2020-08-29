@@ -1,0 +1,174 @@
+#!/bin/bash
+
+# WARNING: Script will build dependencies for all users!
+
+# build dependencies for a machine, the archives must be downloaded and be 
+# in the current folder. This will install the dependencies in the project
+# folder, so be careful, everyone depends on it. Only run this script if
+# you know what you are doing.
+# NOTE It is currently not possible to build the dependencies for several
+# machines at the same time, if the build folders are identical.
+
+# versions of the packages
+petsc_version=petsc-3.0.0-p7
+adios_version=adios-1.10.0
+sprng5_version=sprng5
+xdraw_version=xdraw
+
+# log file
+log_file=dependencies.log
+
+# return on error
+set -e
+
+# empty log file
+echo '' > dependencies.log
+
+# get script folder
+script_folder="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+# get current folder
+folder=$(pwd)
+
+# process arguments
+source $script_folder/arguments $@
+
+
+# loop over build types
+for build_type in ${build_types[@]}
+do
+
+    for compiler in ${compilers[@]}
+    do
+        # load ifp environment
+        source $script_folder/load_environment $build_type $compiler
+
+        echo "#################################"
+        echo "Building dependencies for $build_type with $compiler on $MACHINE" | tee -a $log_file
+        echo "Install dir $LIB_INSTALL_DIR"
+        echo "#################################"
+
+        ################################################################################
+        # build PETSc
+
+        echo "Building PETSc" | tee -a $log_file
+
+        tar -xzf $petsc_version.tgz
+        # change into folder
+        cd $petsc_version
+        # set variables
+        export PETSC_ARCH=linux-gnu-c-$BUILD_TYPE
+        export PETSC_DIR=$(pwd)
+        # the petsc version is too old to support python3
+        module load python/2.7-anaconda-5.0.1 &>> $log_file
+
+        debug=0
+        # check build type
+        if [[ $BUILD_TYPE == 'debug' ]]; then
+            # for debug build type
+            debug=1
+        fi
+
+        # configure petsc
+        ./configure --prefix=$LIB_INSTALL_DIR \
+                    --with-cc=mpicc \
+                    --with-fc=mpifort \
+                    --with-shared \
+                    --with-fortran \
+                    --download-f-blas-lapack=no \
+                    --with-debugging=$debug >> $log_file
+        # build 
+        make >> $log_file
+        # install libraries in the right place
+        make install >> $log_file
+
+        # set variables 
+        unset PETSC_ARCH
+        export PETSC_DIR=$LIB_INSTALL_DIR
+
+        # change folder back
+        cd $folder
+        # clean up
+        rm -rf $petsc_version
+
+        ################################################################################
+        # build ADIOS
+
+        echo "Building ADIOS" | tee -a $log_file
+
+        # unpack
+        tar -xzf $adios_version.tar.gz
+        # change to folder
+        cd $adios_version
+        # create build folder
+        mkdir build
+        # change to build folder
+        cd build
+        # configure
+        ../configure --prefix=$LIB_INSTALL_DIR \
+                     --enable-dependency-tracking \
+                     --without-netcdf \
+                     --without-nc4par \
+                     --without-phdf5 >> log_file
+        # build
+        make &>> $log_file
+        # copy libraries in the right place
+        make install &>> $log_file
+
+        # change folder back
+        cd $folder
+        # clean up
+        rm -rf $adios_version
+
+        ################################################################################
+        # build SPRNG5
+
+        echo "Building SPRNG5" | tee -a $log_file
+
+        # unpack
+        tar -xzf $sprng5_version.tar.gz
+        # go into folder
+        cd $sprng5_version
+        # configure
+        ./configure --prefix=$LIB_INSTALL_DIR >> $log_file
+        # build
+        make &>> $log_file
+        # install libraries
+        make install >> $log_file
+        # bug in install target, does not copy header files
+        cp include/*.h $LIB_INSTALL_DIR/include
+
+        # change folder back
+        cd $folder
+        # clean up
+        rm -rf $sprng5_version
+
+        ################################################################################
+        # build xdraw
+
+        # unpack
+        tar -xzf $xdraw_version.tgz
+        # change into folder
+        cd $xdraw_version
+        # build
+        make &>> $log_file
+        # install
+        cp -Lr bin $LIB_INSTALL_DIR/
+
+        # change folder back
+        cd $folder
+        # clean up
+        rm -rf $xdraw_version
+
+        ################################################################################
+        # finalize
+
+        # set group correctly
+        chgrp -R tbiifp $LIB_INSTALL_DIR/*
+        # set file access
+        chmod -R g+rw $LIB_INSTALL_DIR/*
+
+        echo ""
+
+    done # compilers
+done # build types
+

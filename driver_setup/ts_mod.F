@@ -297,7 +297,10 @@ c     #######################################################################
 
           bdf1 = (itm == 1)
 
-          if (ts_restart) cnfactor = 0.45d0
+          if (ts_restart) then
+            cnfactor = 0.45d0
+            dtold = 0d0
+          endif
         endif
 
       else  !Theta scheme

@@ -568,7 +568,7 @@
         call adios2_declare_io(aio, adios2obj, 'record.read', ierr)
 
         call adios2_logging('ADIOS2 read open')
-        call adios2_open(rengine, aio,trim(recordfile), adios2_mode_read, adios2_world_comm, ierr)
+        call adios2_open(rengine, aio,trim(rfile), adios2_mode_read, adios2_world_comm, ierr)
         call adios2_check_err(ierr, 'Problem in ADIOS2 read open')
         
         call adios2_get(rengine, 'time', tmp, ierr)
