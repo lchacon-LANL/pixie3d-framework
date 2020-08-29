@@ -142,7 +142,6 @@ endif
 	@$(MAKE) -e -C contrib/ptridiag clean
 
 contrib_setup: ;
-	-@rm -r contrib
 	-@tar xzf common_contrib.tgz
 
 contrib_pack: ;

@@ -1,0 +1,66 @@
+#!/bin/bash
+
+# script to process arguments passed to scripts.
+# this allows to specify the build types and compilers used in the other
+# scripts.
+# NOTE Does nothing on its own, used in other scripts, do not call.
+
+# set the matrix components
+build_types=("debug" "release")
+compilers=("gcc" "intel")
+parallel_types=("serial" "petsc")
+
+# init argument lists
+arg_build_types=()
+arg_compilers=()
+arg_parallel_types=()
+arg_options=()
+
+# passing arguments
+for arg in "$@"
+do
+    # convert to lower case
+    arg=$(echo "$arg" | tr '[:upper:]' '[:lower:]')
+
+    case $arg in
+        # build types
+        debug|release|profile)
+            arg_build_types+=("$arg")
+            shift
+            ;;
+        #compilers
+        gcc*|intel*)
+            arg_compilers+=("$arg")
+            shift
+            ;;
+        # parallel
+        serial|petsc)
+            arg_parallel_types+=("$arg")
+            shift
+            ;;
+
+        *)
+            echo "Unrecognized argument: $arg"
+            shift
+            ;;
+    esac # $arg
+done # $@
+
+# check if we have build types passed
+if [ ${#arg_build_types[@]} -ne 0 ]; then
+    build_types=($(echo "${arg_build_types[@]}" \
+        | tr ' ' '\n' | sort -u | tr '\n' ' '))
+fi
+
+# check if we have compilers passed
+if [ ${#arg_compilers[@]} -ne 0 ]; then
+    compilers=($(echo "${arg_compilers[@]}" \
+        | tr ' ' '\n' | sort -u | tr '\n' ' '))
+fi
+
+# check if we have parallel types passed
+if [ ${#arg_parallel_types[@]} -ne 0 ]; then
+    parallel_types=($(echo "${arg_parallel_types[@]}" \
+        | tr ' ' '\n' | sort -u | tr '\n' ' '))
+fi
+

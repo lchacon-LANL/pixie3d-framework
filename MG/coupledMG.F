@@ -698,6 +698,10 @@ c$$$        END INTERFACE
           module procedure fillVec1,fillVec2,fillVec3
         END INTERFACE
 
+        INTERFACE op_on_MGArray
+          module procedure op_on_MGArray1,op_on_MGArray2,op_on_MGArray3
+        END INTERFACE
+        
         !PRIVATE variables
         real(8),private :: eps=0d0
 
@@ -1310,9 +1314,9 @@ c     End program
 
       end subroutine restrictMGArray
 
-c     op_on_MGArray
+c     op_on_MGArray1
 c     #################################################################
-      subroutine op_on_MGArray(operator,in_mgarray,out_mgarray)
+      subroutine op_on_MGArray1(operator,in_mgarray,out_mgarray)
 c     -----------------------------------------------------------------
 c     Applies operation on in_mgarray, and returns out_mgarray
 c     -----------------------------------------------------------------
@@ -1374,8 +1378,159 @@ c     Take care of COARSER meshes
 
 c     End program
 
-      end subroutine op_on_MGArray
+      end subroutine op_on_MGArray1
 
+c     op_on_MGArray2
+c     #################################################################
+      subroutine op_on_MGArray2(operator,in_mgarr1,in_mgarr2,out_mgarr)
+c     -----------------------------------------------------------------
+c     Applies operation on in_mgarray, and returns out_mgarray
+c     -----------------------------------------------------------------
+
+      implicit none    !For safe fortran
+
+c     Call variables
+
+      type(mg_array),target :: in_mgarr1,in_mgarr2,out_mgarr
+
+      INTERFACE
+        function operator(g_def,igr,array1,array2,neqout) result(array3)
+          use grid
+          type(grid_mg_def),pointer :: g_def
+          integer :: igr,neqout
+          real(8) :: array1(0:,0:,0:,:)
+     .              ,array2(0:,0:,0:,:)
+     .              ,array3(0:size(array1,1)-1
+     .                     ,0:size(array1,2)-1
+     .                     ,0:size(array1,3)-1,neqout)
+        end function operator
+      END INTERFACE
+
+c     Local variables
+
+      integer :: igr,nout
+
+      type(mg_array),pointer :: in_mg_temp1,in_mg_temp2,out_mg_temp
+
+c     Begin program
+
+      nout = size(out_mgarr%grid(1)%array,4)
+
+c     Compute operator in first grid level array
+
+      do igr=1,in_mgarr1%g_def%ngrid
+        out_mgarr%grid(igr)%array =
+     .       operator(in_mgarr1%g_def,igr
+     .               ,in_mgarr1%grid(igr)%array
+     .               ,in_mgarr2%grid(igr)%array,nout)
+      enddo
+
+c     Take care of COARSER meshes
+
+      in_mg_temp1 =>  in_mgarr1%mg_crse_array
+      in_mg_temp2 =>  in_mgarr2%mg_crse_array
+      out_mg_temp => out_mgarr %mg_crse_array
+
+      do while (    associated(in_mg_temp1)
+     .         .and.associated(in_mg_temp2))
+
+        do igr=1,in_mg_temp1%g_def%ngrid
+          out_mg_temp%grid(igr)%array =
+     .       operator(in_mg_temp1%g_def,igr
+     .               ,in_mg_temp1%grid(igr)%array
+     .               ,in_mg_temp2%grid(igr)%array,nout)
+        enddo
+
+        in_mg_temp1 =>  in_mg_temp1%mg_crse_array
+        in_mg_temp2 =>  in_mg_temp2%mg_crse_array
+        out_mg_temp => out_mg_temp %mg_crse_array
+      enddo
+
+      nullify(in_mg_temp1,in_mg_temp2,out_mg_temp)
+
+c     End program
+
+      end subroutine op_on_MGArray2
+
+c     op_on_MGArray3
+c     #################################################################
+      subroutine op_on_MGArray3(operator,in_mg1,in_mg2,in_mg3,out_mg)
+c     -----------------------------------------------------------------
+c     Applies operation on in_mgarray, and returns out_mgarray
+c     -----------------------------------------------------------------
+
+      implicit none    !For safe fortran
+
+c     Call variables
+
+      type(mg_array),target :: in_mg1,in_mg2,in_mg3,out_mg
+
+      INTERFACE
+        function operator(g_def,igr,arr1,arr2,arr3,neqout) result(arr4)
+          use grid
+          type(grid_mg_def),pointer :: g_def
+          integer :: igr,neqout
+          real(8) :: arr1(0:,0:,0:,:)
+     .              ,arr2(0:,0:,0:,:)
+     .              ,arr3(0:,0:,0:,:)
+     .              ,arr4(0:size(arr1,1)-1
+     .                   ,0:size(arr1,2)-1
+     .                   ,0:size(arr1,3)-1,neqout)
+        end function operator
+      END INTERFACE
+
+c     Local variables
+
+      integer :: igr,nout
+
+      type(mg_array),pointer :: in_mg_tmp1,in_mg_tmp2,in_mg_tmp3
+     .                         ,out_mg_tmp
+
+c     Begin program
+
+      nout = size(out_mg%grid(1)%array,4)
+
+c     Compute operator in first grid level array
+
+      do igr=1,in_mg1%g_def%ngrid
+        out_mg%grid(igr)%array =
+     .       operator(in_mg1%g_def,igr
+     .               ,in_mg1%grid(igr)%array
+     .               ,in_mg2%grid(igr)%array
+     .               ,in_mg3%grid(igr)%array,nout)
+      enddo
+
+c     Take care of COARSER meshes
+
+      in_mg_tmp1 =>  in_mg1%mg_crse_array
+      in_mg_tmp2 =>  in_mg2%mg_crse_array
+      in_mg_tmp3 =>  in_mg3%mg_crse_array
+      out_mg_tmp => out_mg %mg_crse_array
+
+      do while (    associated(in_mg_tmp1)
+     .         .and.associated(in_mg_tmp2)
+     .         .and.associated(in_mg_tmp3))
+
+        do igr=1,in_mg_tmp1%g_def%ngrid
+          out_mg_tmp%grid(igr)%array =
+     .       operator(in_mg_tmp1%g_def,igr
+     .               ,in_mg_tmp1%grid(igr)%array
+     .               ,in_mg_tmp2%grid(igr)%array
+     .               ,in_mg_tmp3%grid(igr)%array,nout)
+        enddo
+
+        in_mg_tmp1 =>  in_mg_tmp1%mg_crse_array
+        in_mg_tmp2 =>  in_mg_tmp2%mg_crse_array
+        in_mg_tmp3 =>  in_mg_tmp3%mg_crse_array
+        out_mg_tmp => out_mg_tmp %mg_crse_array
+      enddo
+
+      nullify(in_mg_tmp1,in_mg_tmp2,in_mg_tmp3,out_mg_tmp)
+
+c     End program
+
+      end subroutine op_on_MGArray3
+      
 c     J_div_MGArray
 c     #################################################################
       subroutine J_div_MGArray(mgarray)

@@ -48,6 +48,8 @@ c #####################################################################
           module procedure setupSplines_gst,setupSplines_nogst
         END INTERFACE
 
+        private :: shape2_offset
+
       contains
         
 c     set_local_spline
@@ -2132,7 +2134,7 @@ c     Begin program
       
 c     Determine mesh position (i0,j0,k0) and normalized position wrt cell face
 
-      !Correct for boundary shift in periodic directions
+      !Correct for boundary shift
       if (sbcnd(1) == PER.and.nx > 1) then
         coeffx = (x1-xsmin)*ihx + 1d0
       else
@@ -2153,9 +2155,9 @@ c     Determine mesh position (i0,j0,k0) and normalized position wrt cell face
       j0 = min(floor(coeffy),ny)
       k0 = min(floor(coeffz),nz)
       
-      xhp(1) = coeffx - i0 
-      xhp(2) = coeffy - j0 
-      xhp(3) = coeffz - k0 
+      xhp(1) = coeffx - i0*1d0
+      xhp(2) = coeffy - j0*1d0
+      xhp(3) = coeffz - k0*1d0
 
 c     Interpolate
 
@@ -2182,6 +2184,10 @@ c     End program
 c     shape2_offset
 c     ##################################################################
       subroutine shape2_offset(x,ss)
+
+c     ------------------------------------------------------------------
+c     Second-order shape function, offset to left cell-face position
+c     ------------------------------------------------------------------
 
       implicit none
 

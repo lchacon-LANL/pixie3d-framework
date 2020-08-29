@@ -108,15 +108,14 @@ c Read PETSc runtime options
      .                        ,petsc_flg,ierr)
       if (petsc_flg) ndstep = 0
 
-      call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-trestart',trstrt
-     .                        ,petsc_flg,ierr)
+      call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-restart'
+     .                         ,ts_restart,petsc_flg,ierr)
+
+      call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-trestart',trestart
+     .                        ,ts_restart,ierr)
 
       call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-cpu_quota',quota
      .                        ,petsc_flg,ierr)
-
-
-      call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-restart'
-     .                         ,ts_restart,petsc_flg,ierr)
 
       call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-test'
      .                         ,tst_flg,petsc_flg,ierr)
@@ -379,7 +378,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: nx,ny,nz,ierr,ufile
+      integer :: nx,ny,nz,ierr,ufile,itime_old
 
       type(var_array),pointer :: vmed => null()
 
@@ -416,7 +415,13 @@ c     Read files
       call equateDerivedType(u_np,u_n)
 
       do
+        itime_old = itime + 1
+
         ierr = readRecordFile(ufile,itime,time,dt,gammat,vmed)
+
+        if(switch_dumpfile(itime_old,itime,ufile)) then
+          ierr = readRecordFile(ufile,itime,time,dt,gammat,vmed)
+        endif
 
         if (ierr /= 0) then !EOF: Rollback counters and exit
           call TS_rollback_counters(exclude_itime=.true.)
@@ -425,8 +430,8 @@ c     Read files
           call TS_update_preCounters(time,exclude_itime=.true.)
           call equateDerivedType(u_n ,u_np)
           call equateDerivedType(u_np,vmed)
-          if (   (itime > nrstrt.and.nrstrt > 0)
-     .       .or.(time  > trstrt.and.trstrt > 0d0)) then
+          if (   (itime > nrestart.and.nrestart > 0)
+     .       .or.(time  > trestart.and.trestart > 0d0)) then
             call setEarlyTimeRestartFlag(.true.)
             exit
           endif
@@ -486,8 +491,8 @@ c Interfaces
 c Begin program
 
 #if defined(petsc)
-        !Begin profiling IO
-        call switch_profile_stage(iPOST)
+      !Begin profiling IO
+      call switch_profile_stage(iPOST)
 #endif
 
       igrid = 1
@@ -505,16 +510,10 @@ c Open record file
       if (.not.no_graphics_io) then
         if (.not.ts_restart) then
           !Dump initial data
-           call writeRecordFile(file,0,0d0,dt,0d0,u_0)
-           call writeRecordFile(file,0,0d0,dt,0d0,u_np)
-        elseif (getEarlyTimeRestartFlag()) then
-          if (index(file,'.bin') /= 0) then
-            file = 'record_t='//trim(int2char(floor(time)))//'.bin'
-          else
-            file = 'record_t='//trim(int2char(floor(time)))//'.bp'
-          endif
-          !Dump initial data
           call writeRecordFile(file,0,0d0,dt,0d0,u_0)
+          call writeRecordFile(file,0,0d0,dt,0d0,u_np)
+        elseif (getEarlyTimeRestartFlag()) then
+          file = new_dumpfile(itime)
           call writeRecordFile(file,itime,time,dt,gammat,u_np)
         else
           call setAppendIOMode
@@ -525,7 +524,6 @@ c Open record file
       !End profiling IO
       call switch_profile_stage(iSTUP)
 #endif
-
 
 c End programs
 

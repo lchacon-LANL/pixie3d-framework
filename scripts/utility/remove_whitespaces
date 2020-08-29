@@ -1,0 +1,14 @@
+#!/bin/bash
+# remove trailing whitespaces from a file passed as argument
+for file in "$@"
+do
+    echo "Processing $file..."
+
+    t=$(stat -c %y "$file")
+    sed -i'' -e :a -e '/^\n*$/{$d;N;};/\n$/ba' "$file"
+    sed -i -e '$a\ ' "$file"
+    sed -i'' 's/[[:space:]]*$//' "$file"
+    touch -d "$t" "$file"
+
+done
+
