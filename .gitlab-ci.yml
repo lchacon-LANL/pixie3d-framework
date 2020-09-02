@@ -58,15 +58,32 @@ before_script:
     fi
 
 ###############################################################################
-# pre-build script
+# pre-build script debug
 
-.pre_build: &pre_build
+.pre_build: &pre_build_serial
     stage: pre-build
     script:
         - mkdir build
         - cd build
         - |
-          cmake ../ -DCMAKE_PREFIX_PATH=$LIB_INSTALL_DIR \
+          cmake ../ -DCMAKE_PREFIX_PATH=$LIB_INSTALL_DIR_SERIAL \
+                    -DUSE_PETSc=$USE_PETSC \
+                    -DCMAKE_BUILD_TYPE=$BUILD_TYPE
+    artifacts:
+        paths:
+            - contrib/
+            - build/
+        expire_in: 2 days
+###############################################################################
+# pre-build script
+
+.pre_build: &pre_build_parallel
+    stage: pre-build
+    script:
+        - mkdir build
+        - cd build
+        - |
+          cmake ../ -DCMAKE_PREFIX_PATH=$LIB_INSTALL_DIR_PARALLEL \
                     -DUSE_PETSc=$USE_PETSC \
                     -DCMAKE_BUILD_TYPE=$BUILD_TYPE
     artifacts:
@@ -93,22 +110,22 @@ before_script:
 # pre-build matrix
 
 prebuild_gcc_serial_debug:
-    <<: [*pre_build]
+    <<: [*pre_build_serial]
     variables:
         <<: [*gcc, *serial, *debug]
 
 prebuild_gcc_parallel_debug:
-    <<: [*pre_build]
+    <<: [*pre_build_parallel]
     variables:
         <<: [*gcc, *parallel, *debug]
 
 prebuild_gcc_serial_release:
-    <<: [*pre_build]
+    <<: [*pre_build_serial]
     variables:
         <<: [*gcc, *serial, *release]
 
 prebuild_gcc_parallel_release:
-    <<: [*pre_build]
+    <<: [*pre_build_parallel]
     variables:
         <<: [*gcc, *parallel, *release]
 
