@@ -2110,7 +2110,7 @@ c     Begin program
       if (PRESENT(vertex)) then
         vrtx_met = vertex
       else
-        vrtx_met = .true.
+        vrtx_met = .false.
       endif
 
       have_diff = .false.
@@ -2296,7 +2296,7 @@ c     Begin program
       if (PRESENT(vertex)) then
         vrtx_met = vertex
       else
-        vrtx_met = .true.
+        vrtx_met = .false.
       endif
 
       have_diff = .false.
@@ -2488,7 +2488,7 @@ c     Begin program
       if (PRESENT(vertex)) then
         vrtx_met = vertex
       else
-        vrtx_met = .true.
+        vrtx_met = .false.
       endif
 
       have_diff = .false.
