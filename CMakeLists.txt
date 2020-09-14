@@ -301,7 +301,7 @@ if(USE_ADIOS2)
         target_link_libraries(dependencies INTERFACE adios2::fortran_mpi)
         # add compiler flags
         target_compile_definitions(
-            dependencies INTERFACE "ADIOS2" "ADIOS_VER=${ADIOS2_VERSION}"
+            dependencies INTERFACE "ADIOS2" "ADIOS2_VER=${ADIOS2_VERSION}"
                                  "ADIOS2_FILE=\"record-${ADIOS2_VERSION}.bp\""
             )
 
