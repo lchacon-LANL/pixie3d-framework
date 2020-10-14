@@ -5389,18 +5389,18 @@ c     Impose BCs
               xnp(i,dim) = xnp(i,dim) - dh(dim)
             enddo
             if(in0(i,dim)>nsize(dim)) !BC @ location=1
-     .           call pcles_bc_offset_vavg(dim,1,pbcond,nsize(dim)
-     .           ,xnp(i,:),vh(i,:),in0(i,:),wp(i)
-     .              ,ref_tag(i,:))
+     .         call pcles_bc_offset_vavg(dim,1,pbcond,nsize(dim)
+     .                                  ,xnp(i,:),vh(i,:),in0(i,:),wp(i)
+     .                                  ,ref_tag(i,:))
           else if(dx(i,dim)<0.and. xnp(i,dim).le.0) then
             do while(xnp(i,dim).le.0d0)
               in0(i,dim) = in0(i,dim)-1
               xnp(i,dim) = xnp(i,dim) + dh(dim)
             enddo
             if(in0(i,dim)<1)         !BC @ location=0
-     .           call pcles_bc_offset_vavg(dim,0,pbcond,nsize(dim)
-     .           ,xnp(i,:),vh(i,:),in0(i,:),wp(i)
-     .           ,ref_tag(i,:))
+     .         call pcles_bc_offset_vavg(dim,0,pbcond,nsize(dim)
+     .                                  ,xnp(i,:),vh(i,:),in0(i,:),wp(i)
+     .                                  ,ref_tag(i,:))
           end if
         enddo
       end do
@@ -5415,7 +5415,7 @@ c     Transfer location info
 c     pcles_bc_offset_vavg (added a new tag only)
 c     ##################################################################
       subroutine pcles_bc_offset_vavg(dim,loc,pbc,nn,xp,vp,ip,wp
-     $     ,ref_tag)
+     $                               ,ref_tag)
 
       implicit none
 
