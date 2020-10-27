@@ -10,15 +10,18 @@ DEFAULT_GCC=gcc/8.3.0
 DEFAULT_INTEL=intel/19.0.4
 
 # set the matrix components
-compilers=("$DEFAULT_GCC" "$DEFAULT_INTEL")
-parallel_types=("serial" "petsc")
-build_types=("debug" "release")
+tmp_compilers=("$DEFAULT_GCC" "$DEFAULT_INTEL")
+tmp_parallel_types=("serial" "petsc")
+tmp_build_types=("debug" "release")
 
 # init argument lists
 arg_build_types=()
 arg_compilers=()
 arg_parallel_types=()
 arg_options=()
+
+#by default, do not set arrays
+set_arrays=false
 
 # passing arguments
 for arg in "$@"
@@ -34,11 +37,11 @@ do
             ;;
         # compilers
         gcc) # default gcc
-            arg_compilers+=$DEFAULT_GCC
+            arg_compilers+=("$DEFAULT_GCC")
             shift
             ;;
         intel) # default intel
-            arg_compilers+=$DEFAULT_INTEL
+            arg_compilers+=("$DEFAULT_INTEL")
             shift
             ;;
         # specified compilers
@@ -49,6 +52,12 @@ do
         # parallel
         serial|petsc)
             arg_parallel_types+=("$arg")
+            shift
+            ;;
+
+        # set arrays
+        arrays)
+            set_arrays=true
             shift
             ;;
 
@@ -63,21 +72,32 @@ done # $@
 # check if we have build types passed
 if [ ${#arg_build_types[@]} -ne 0 ]; then
     # replace default ones, sorted
-    build_types=($(echo "${arg_build_types[@]}" \
+    tmp_build_types=($(echo "${arg_build_types[@]}" \
         | tr ' ' '\n' | sort -u | tr '\n' ' '))
 fi
 
 # check if we have compilers passed
 if [ ${#arg_compilers[@]} -ne 0 ]; then
     # replace default ones, sorted
-    compilers=($(echo "${arg_compilers[@]}" \
+    tmp_compilers=($(echo "${arg_compilers[@]}" \
         | tr ' ' '\n' | sort -u | tr '\n' ' '))
 fi
 
 # check if we have parallel types passed
 if [ ${#arg_parallel_types[@]} -ne 0 ]; then
     # replace default ones, sorted
-    parallel_types=($(echo "${arg_parallel_types[@]}" \
+    tmp_parallel_types=($(echo "${arg_parallel_types[@]}" \
         | tr ' ' '\n' | sort -u | tr '\n' ' '))
 fi
 
+if $set_arrays; then
+    build_types=(${tmp_build_types[@]})
+    compilers=(${tmp_compilers[@]})
+    parallel_types=(${tmp_parallel_types[@]})
+else
+    # pick settings, we use the first one, which are the default ones
+    # when no arguments are passed
+    COMPILER=${tmp_compilers[0]}
+    PARALLELIZATION=${tmp_parallel_types[0]}
+    BUILD_TYPE=${tmp_build_types[0]}
+fi
