@@ -13,12 +13,6 @@ script_folder="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )
 # process arguments, we will take the first ones for each
 source $script_folder/arguments $@
 
-# pick settings, we use the first one, which are the default ones
-# when no arguments are passed
-COMPILER=${compilers[0]}
-PARALLELIZATION=${parallel_types[0]}
-BUILD_TYPE=${build_types[0]}
-
 # remove old modules
 module purge
 # load modules

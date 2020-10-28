@@ -19,7 +19,7 @@ script_folder="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )
 mkdir -p bin/
 
 # process arguments
-source $script_folder/arguments $@
+source $script_folder/arguments arrays $@
 
 # loop over build types
 for build_type in ${build_types[@]}
