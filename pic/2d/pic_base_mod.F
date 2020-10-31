@@ -5748,7 +5748,7 @@ cc            write (funit,*)
      .          ,access='append')
           endif
 
-          write (funit,'(a,1pe9.3)') "time=",time
+          write (funit,'(a,1pe10.3)') "time=",time
           do iv=1,nv
             write (funit,*) vm(iv),f0(iv)
           enddo
