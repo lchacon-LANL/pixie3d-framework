@@ -39,6 +39,7 @@
 #endif
 
       integer :: lcg_seed = 123456789
+!$OMP THREADPRIVATE(lcg_seed)
 
       contains
 
@@ -1394,7 +1395,7 @@ c     Begin program
 #ifdef _OPENMP
       r = randlcg(lcg_seed)         !careful
 #else
-      call random_number(r)
+      call random_number(r)         !Problematic with OpenMP
 #endif
 #endif
 
