@@ -38,6 +38,8 @@
       logical :: is_sprng_init=.false.
 #endif
 
+      integer :: lcg_seed = 123456789
+
       contains
 
 c     is_NAN
@@ -1345,7 +1347,6 @@ c     arguments
 c     local variables
 
       real(8) :: x1,x2,w,r
-      integer, save :: seed = 1 !careful
 
 c     Begin program
 
@@ -1375,18 +1376,15 @@ c     End program
 
 c     unif_rng
 c     #################################################################
-      SUBROUTINE unif_rng(r,seed)
+      SUBROUTINE unif_rng(r)
 
       implicit none
 
 c     arguments      
 
       real(8), intent(out) :: r
-      integer, optional :: seed
       
 c     local variables
-
-      integer :: sd
 
 c     Begin program
 
@@ -1394,12 +1392,7 @@ c     Begin program
       r = sprng(stream)         
 #else
 #ifdef _OPENMP
-      if (PRESENT(seed)) then
-	sd = seed
-      else
-        sd = 123456789
-      endif
-      r = randlcg(sd)         !careful
+      r = randlcg(lcg_seed)         !careful
 #else
       call random_number(r)
 #endif
@@ -1418,8 +1411,8 @@ c     ##################################################################
       integer :: seed
       real(8) :: randlcg
 
-      seed = int(mod(16807d0*dble(seed), 2147483647d0))
-      randlcg = dble(seed)/2147483647d0      
+      seed = int(mod(16807d0*dble(seed),2147483647d0))
+      randlcg = dble(seed)/2147483647d0
 
       end function randlcg
 
@@ -1431,7 +1424,10 @@ c     -------------------------------------------------------------------------
 c     Initializes random seed for stream number "streamnum" of "nproc" #
 c     of processors
 c     -------------------------------------------------------------------------
-      
+#ifdef _OPENMP
+        use omp_lib
+#endif
+
         implicit none
         integer,INTENT(IN) :: streamnum,nproc
         logical,INTENT(IN) :: output
@@ -1457,6 +1453,18 @@ c     -------------------------------------------------------------------------
 
         if (output) junk = print_sprng(stream)
 #else
+#ifdef _OPENMP
+        integer :: thr_num
+        
+!$OMP PARALLEL
+        thr_num = omp_get_thread_num()
+!$OMP END PARALLEL
+        if (PRESENT(seed)) then
+          lcg_seed = seed +streamnum*33+thr_num*127
+        else
+          lcg_seed = 12345+streamnum*33+thr_num*127
+        endif
+#else
         INTEGER :: i, n, clock, sd
         INTEGER, DIMENSION(:), ALLOCATABLE :: sd2
 
@@ -1477,7 +1485,8 @@ c$$$        seed = clock + 37 * (/ (i - 1, i = 1, n) /)
           
         DEALLOCATE(sd2)
 #endif
-        end subroutine init_random_seed
+#endif
+      end subroutine init_random_seed
   
 c     free_random_seed
 c     #########################################################################
