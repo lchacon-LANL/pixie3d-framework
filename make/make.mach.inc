@@ -1285,6 +1285,10 @@ ifeq ($(findstring gr,$(HOST)),gr)
      SPRNG_LIBS = $(SPRNG_PAR_HOME)/lib/grizzly-gcc5.3.0-openmpi1.10.5/lib -lsprng -lstdc++ -lm
      SPRNG_INC  = $(SPRNG_PAR_HOME)/include
 
+    else
+      HDF5 = f
+      ADIOS = f
+      LIBS += -llapack -lblas
     endif
 
   endif
@@ -1326,15 +1330,15 @@ ifeq ($(findstring gr,$(HOST)),gr)
       SPRNG_INC  = $(SPRNG_PAR_HOME)/include
      else
       LIBS += -L/usr/lib -llapack -lblas
-
       HDF5 = f
-
       ADIOS = f
-
       SPRNG = f
-
      endif
-
+    else
+     HDF5 = f
+     ADIOS = f
+     SPRNG = f
+     LIBS += -L/usr/lib -llapack -lblas
     endif
 
     ifeq ($(MPI_NAME),intel-mpi)
@@ -1363,6 +1367,11 @@ ifeq ($(findstring gr,$(HOST)),gr)
       ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -llustreapi
       ADIOS_VER  = 1.10.0
      endif
+   else
+     HDF5 = f
+     ADIOS = f
+     SPRNG = f
+     LIBS += -L/usr/lib -llapack -lblas
    endif
 
   endif

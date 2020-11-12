@@ -1349,36 +1349,18 @@ c     local variables
 
 c     Begin program
 
-#ifdef _SPRNG
-      r = sprng(stream)         
-#else
-      CALL RANDOM_NUMBER(r)
-cc      r = randlcg(seed)         !careful
-#endif
+      call unif_rng(r)
       x1 = 2d0*r - 1d0      
-#ifdef _SPRNG
-      r = sprng(stream)         
-#else
-      CALL RANDOM_NUMBER(r)
-cc      r = randlcg(seed)         !careful
-#endif
+
+      call unif_rng(r)
       x2 = 2d0*r - 1d0
       w = x1*x1 + x2*x2
 
       do while(w>1d0)
-#ifdef _SPRNG
-        r = sprng(stream)         
-#else
-        CALL RANDOM_NUMBER(r)
-cc        r = randlcg(seed)       !careful
-#endif
+        call unif_rng(r)
         x1 = 2d0*r - 1d0
-#ifdef _SPRNG
-        r = sprng(stream)         
-#else
-        CALL RANDOM_NUMBER(r) 
-cc        r = randlcg(seed)
-#endif
+
+        call unif_rng(r)
         x2 = 2d0*r - 1d0
         w = x1*x1 + x2*x2
       end do
@@ -1393,23 +1375,34 @@ c     End program
 
 c     unif_rng
 c     #################################################################
-      SUBROUTINE unif_rng(r)
+      SUBROUTINE unif_rng(r,seed)
 
       implicit none
 
 c     arguments      
 
       real(8), intent(out) :: r
+      integer, optional :: seed
       
 c     local variables
+
+      integer :: sd
 
 c     Begin program
 
 #ifdef _SPRNG
       r = sprng(stream)         
 #else
-cc      r = randlcg(seed)         !careful
+#ifdef _OPENMP
+      if (PRESENT(seed)) then
+	sd = seed
+      else
+        sd = 123456789
+      endif
+      r = randlcg(sd)         !careful
+#else
       call random_number(r)
+#endif
 #endif
 
 c     End program
