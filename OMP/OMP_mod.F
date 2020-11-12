@@ -66,6 +66,8 @@ c     Local variables
 
 c     Begin program
 
+        call check_omp_thread_id()
+
         thrtot = thr_tot
         thrnum = thr_num
 
