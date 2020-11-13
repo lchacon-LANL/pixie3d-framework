@@ -1083,7 +1083,7 @@ c     Local variables
       C = 0.0d0
 
       do i=1, 2
-         !VECTOR SIMD REDUCTION(+:C)
+         !!VECTOR SIMD REDUCTION(+:C)
          do j=1, 3
             C(i) = C(i) + A(j)*B(j,i)
          end do
@@ -1107,7 +1107,7 @@ c     Local variables
       C = 0.0d0
 
       do i=1, 2
-         !VECTOR SIMD REDUCTION(+:C)
+         !!VECTOR SIMD REDUCTION(+:C)
          do j=1, 3
             C(i) = C(i) + B(j)*A(i,j)
          end do
@@ -1131,7 +1131,7 @@ c     Local variables
       C = 0.0d0
 
       do i=1, 3
-         !VECTOR SIMD REDUCTION(+:C)
+         !!VECTOR SIMD REDUCTION(+:C)
          do j=1, 2
             C(i) = C(i) + A(j)*B(j,i)
          end do
@@ -1157,7 +1157,7 @@ c     Local variables
       C(:) = 0.0d0
 
       do i=1, 3
-         !VECTOR SIMD REDUCTION(+:C)
+         !!VECTOR SIMD REDUCTION(+:C)
          do j=1, 3
             C(i) = C(i) + A(j)*B(j,i)
          end do
@@ -1181,7 +1181,7 @@ c     Local variables
       C(:) = 0.0d0
 
       do i=1, 3
-         !VECTOR SIMD REDUCTION(+:C)
+         !!VECTOR SIMD REDUCTION(+:C)
          do j=1, 3
             C(i) = C(i) + A(i,j)*B(j)
          end do
