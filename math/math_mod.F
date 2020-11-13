@@ -1456,15 +1456,13 @@ c     -------------------------------------------------------------------------
 #else
 #ifdef _OPENMP
         integer :: thr_num
-!OMP THREADPRIVATE(thr_num)
-        
-!$OMP PARALLEL
+
         thr_num = omp_get_thread_num()
-!$OMP END PARALLEL
+        
         if (PRESENT(seed)) then
-          lcg_seed = seed +streamnum*33+thr_num*127
+          lcg_seed = seed +streamnum*33!+thr_num*127
         else
-          lcg_seed = 12345+streamnum*33+thr_num*127
+          lcg_seed = 12345+streamnum*33!+thr_num*127
         endif
 #else
         INTEGER :: i, n, clock, sd
