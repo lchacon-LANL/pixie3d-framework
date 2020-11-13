@@ -1456,6 +1456,7 @@ c     -------------------------------------------------------------------------
 #else
 #ifdef _OPENMP
         integer :: thr_num
+!OMP THREADPRIVATE(thr_num)
         
 !$OMP PARALLEL
         thr_num = omp_get_thread_num()
