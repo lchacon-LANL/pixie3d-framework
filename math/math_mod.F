@@ -38,6 +38,9 @@
       logical :: is_sprng_init=.false.
 #endif
 
+      integer :: lcg_seed = 123456789
+!$OMP THREADPRIVATE(lcg_seed)
+
       contains
 
 c     is_NAN
@@ -1345,40 +1348,21 @@ c     arguments
 c     local variables
 
       real(8) :: x1,x2,w,r
-      integer, save :: seed = 1 !careful
 
 c     Begin program
 
-#ifdef _SPRNG
-      r = sprng(stream)         
-#else
-      CALL RANDOM_NUMBER(r)
-cc      r = randlcg(seed)         !careful
-#endif
+      call unif_rng(r)
       x1 = 2d0*r - 1d0      
-#ifdef _SPRNG
-      r = sprng(stream)         
-#else
-      CALL RANDOM_NUMBER(r)
-cc      r = randlcg(seed)         !careful
-#endif
+
+      call unif_rng(r)
       x2 = 2d0*r - 1d0
       w = x1*x1 + x2*x2
 
       do while(w>1d0)
-#ifdef _SPRNG
-        r = sprng(stream)         
-#else
-        CALL RANDOM_NUMBER(r)
-cc        r = randlcg(seed)       !careful
-#endif
+        call unif_rng(r)
         x1 = 2d0*r - 1d0
-#ifdef _SPRNG
-        r = sprng(stream)         
-#else
-        CALL RANDOM_NUMBER(r) 
-cc        r = randlcg(seed)
-#endif
+
+        call unif_rng(r)
         x2 = 2d0*r - 1d0
         w = x1*x1 + x2*x2
       end do
@@ -1408,8 +1392,11 @@ c     Begin program
 #ifdef _SPRNG
       r = sprng(stream)         
 #else
-cc      r = randlcg(seed)         !careful
-      call random_number(r)
+#ifdef _OPENMP
+      r = randlcg(lcg_seed)         !careful
+#else
+      call random_number(r)         !Problematic with OpenMP
+#endif
 #endif
 
 c     End program
@@ -1425,8 +1412,8 @@ c     ##################################################################
       integer :: seed
       real(8) :: randlcg
 
-      seed = int(mod(16807d0*dble(seed), 2147483647d0))
-      randlcg = dble(seed)/2147483647d0      
+      seed = int(mod(16807d0*dble(seed),2147483647d0))
+      randlcg = dble(seed)/2147483647d0
 
       end function randlcg
 
@@ -1438,7 +1425,10 @@ c     -------------------------------------------------------------------------
 c     Initializes random seed for stream number "streamnum" of "nproc" #
 c     of processors
 c     -------------------------------------------------------------------------
-      
+#ifdef _OPENMP
+        use omp_lib
+#endif
+
         implicit none
         integer,INTENT(IN) :: streamnum,nproc
         logical,INTENT(IN) :: output
@@ -1464,6 +1454,18 @@ c     -------------------------------------------------------------------------
 
         if (output) junk = print_sprng(stream)
 #else
+#ifdef _OPENMP
+        integer :: thr_num
+        
+!$OMP PARALLEL
+        thr_num = omp_get_thread_num()
+!$OMP END PARALLEL
+        if (PRESENT(seed)) then
+          lcg_seed = seed +streamnum*33+thr_num*127
+        else
+          lcg_seed = 12345+streamnum*33+thr_num*127
+        endif
+#else
         INTEGER :: i, n, clock, sd
         INTEGER, DIMENSION(:), ALLOCATABLE :: sd2
 
@@ -1484,7 +1486,8 @@ c$$$        seed = clock + 37 * (/ (i - 1, i = 1, n) /)
           
         DEALLOCATE(sd2)
 #endif
-        end subroutine init_random_seed
+#endif
+      end subroutine init_random_seed
   
 c     free_random_seed
 c     #########################################################################
