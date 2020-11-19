@@ -1285,6 +1285,10 @@ ifeq ($(findstring gr,$(HOST)),gr)
      SPRNG_LIBS = $(SPRNG_PAR_HOME)/lib/grizzly-gcc5.3.0-openmpi1.10.5/lib -lsprng -lstdc++ -lm
      SPRNG_INC  = $(SPRNG_PAR_HOME)/include
 
+    else
+      HDF5 = f
+      ADIOS = f
+      LIBS += -llapack -lblas
     endif
 
   endif
@@ -1306,7 +1310,7 @@ ifeq ($(findstring gr,$(HOST)),gr)
       HDF5 = t
 
 #      HDF5_ROOT = /usr/projects/hpcsoft/toss3/grizzly/hdf5/1.8.16_intel-17.0.4_openmpi-2.1.2
-      HDF5_LIBS =-L$(HDF5_ROOT)/lib -lhdf5_fortran -lhdf5 -lz -lm
+      HDF5_LIBS =-L$(HDF5_ROOT)/lib -lhdf5_fortran -lhdf5 -lz
       HDF5_MOD  = $(HDF5_ROOT)/include
       HDF5_INC  = $(HDF5_MOD)
 
@@ -1326,15 +1330,15 @@ ifeq ($(findstring gr,$(HOST)),gr)
       SPRNG_INC  = $(SPRNG_PAR_HOME)/include
      else
       LIBS += -L/usr/lib -llapack -lblas
-
       HDF5 = f
-
       ADIOS = f
-
       SPRNG = f
-
      endif
-
+    else
+     HDF5 = f
+     ADIOS = f
+     SPRNG = f
+     LIBS += -L/usr/lib -llapack -lblas
     endif
 
     ifeq ($(MPI_NAME),intel-mpi)
@@ -1350,7 +1354,7 @@ ifeq ($(findstring gr,$(HOST)),gr)
       HDF5 = f
 
 #      HDF5_ROOT = /usr/projects/hpcsoft/toss3/grizzly/hdf5/1.8.16_gcc-5.3.0_openmpi-1.10.3
-#      HDF5_LIBS =-L$(HDF5_ROOT)/lib -lhdf5_fortran -lhdf5 -lz -lm
+#      HDF5_LIBS =-L$(HDF5_ROOT)/lib -lhdf5_fortran -lhdf5 -lz
 #      HDF5_MOD  = $(HDF5_ROOT)/include
 #      HDF5_INC  = $(HDF5_MOD)
 
@@ -1363,6 +1367,11 @@ ifeq ($(findstring gr,$(HOST)),gr)
       ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -llustreapi
       ADIOS_VER  = 1.10.0
      endif
+   else
+     HDF5 = f
+     ADIOS = f
+     SPRNG = f
+     LIBS += -L/usr/lib -llapack -lblas
    endif
 
   endif

@@ -2110,7 +2110,7 @@ c     Begin program
       if (PRESENT(vertex)) then
         vrtx_met = vertex
       else
-        vrtx_met = .true.
+        vrtx_met = .false.
       endif
 
       have_diff = .false.
@@ -2296,7 +2296,7 @@ c     Begin program
       if (PRESENT(vertex)) then
         vrtx_met = vertex
       else
-        vrtx_met = .true.
+        vrtx_met = .false.
       endif
 
       have_diff = .false.
@@ -2488,7 +2488,7 @@ c     Begin program
       if (PRESENT(vertex)) then
         vrtx_met = vertex
       else
-        vrtx_met = .true.
+        vrtx_met = .false.
       endif
 
       have_diff = .false.
@@ -7896,11 +7896,14 @@ c     Assemble vector Laplacian on the mesh
         do j=1,ny
           do i=1,nx
             !Add grad(div) term
-            veclap(i,j,k,1) = lap_flx_x_ijk(g_def,i,j,k,igrid,divA)
+            veclap(i,j,k,1) = lap_flx_x_ijk(g_def,i,j,k,igrid,divA
+     .                                     ,vertex=.true.)
      .                       +veclap(i,j,k,1)
-            veclap(i,j,k,2) = lap_flx_y_ijk(g_def,i,j,k,igrid,divA)
+            veclap(i,j,k,2) = lap_flx_y_ijk(g_def,i,j,k,igrid,divA
+     .                                     ,vertex=.true.)
      .                       +veclap(i,j,k,2)
-            veclap(i,j,k,3) = lap_flx_z_ijk(g_def,i,j,k,igrid,divA)
+            veclap(i,j,k,3) = lap_flx_z_ijk(g_def,i,j,k,igrid,divA
+     .                                     ,vertex=.true.)
      .                       +veclap(i,j,k,3)
             if (vol_wgt) veclap(i,j,k,:)
      .                  =veclap(i,j,k,:)

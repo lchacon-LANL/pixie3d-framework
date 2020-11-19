@@ -112,7 +112,8 @@ c Read PETSc runtime options
      .                         ,ts_restart,petsc_flg,ierr)
 
       call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-trestart',trestart
-     .                        ,ts_restart,ierr)
+     .                        ,petsc_flg,ierr)
+      if (petsc_flg) ts_restart = .true.
 
       call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-cpu_quota',quota
      .                        ,petsc_flg,ierr)

@@ -891,6 +891,8 @@ c     Local variables
 
 c     Begin program
 
+      switch = .false.
+      
       do it=itime1,itime2
         file = new_dumpfile(it)
 #if defined(adios) || defined(ADIOS2)
