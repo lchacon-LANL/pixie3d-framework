@@ -32,7 +32,7 @@ c Local variables
 
       integer :: mgpcf,mgcs
 
-      logical :: petsc_flg
+      logical :: petsc_flg,petsc_flg2
      .          ,bc_debg=.false.
      .          ,mg_coarse=.true.
 
@@ -109,11 +109,11 @@ c Read PETSc runtime options
       if (petsc_flg) ndstep = 0
 
       call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-restart'
-     .                         ,ts_restart,petsc_flg,ierr)
+     .                         ,ts_restart,petsc_flg2,ierr)
 
       call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-trestart',trestart
      .                        ,petsc_flg,ierr)
-      if (petsc_flg) ts_restart = .true.
+      if (petsc_flg.and.(.not.petsc_flg2)) ts_restart = .true.
 
       call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-cpu_quota',quota
      .                        ,petsc_flg,ierr)
