@@ -1302,9 +1302,9 @@ ifeq ($(findstring gr,$(HOST)),gr)
       PETSC_DIR =/turquoise/usr/projects/magreconn/soft/petsc-3.0.0-p7
 
       ifeq ($(BOPT),O)
-       PETSC_ARCH = linux64_grizzly_intel-17.0.4_openmpi-2.1.2
+       PETSC_ARCH = linux64_grizzly_intel-19.0.4_openmpi-2.1.2
       else
-       PETSC_ARCH = linux64_grizzly_intel-17.0.4_openmpi-2.1.2_dbg
+       PETSC_ARCH = linux64_grizzly_intel-19.0.4_openmpi-2.1.2_dbg
       endif
 
       HDF5 = t
@@ -1319,7 +1319,7 @@ ifeq ($(findstring gr,$(HOST)),gr)
       ADIOS_BUFFER_MB = 1000
       ADIOS_METHOD = MPI_LUSTRE
 
-      ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.10.0/lib-grizzly-intel-17.0.1_openmpi-1.10.5
+      ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.10.0/lib-grizzly-intel-19.0.4_openmpi-2.1.2
       ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -llustreapi
       ADIOS_VER  = 1.10.0
 
