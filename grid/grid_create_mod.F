@@ -824,6 +824,8 @@ c     Find grid quantities
           do i = 0,nx(ig)
             dx(i + isig) = xx(i+1 + isig) - xx(i + isig)
           enddo
+          dx(nx(ig)+1+isig) = dx(nx(ig)+isig)
+     .                      *(dx(nx(ig)+isig)/dx(nx(ig)-1+isig))
 
           !Find half mesh spacings
           dxh(isig:isig+nx(ig)+1) = 0d0
