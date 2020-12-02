@@ -1270,10 +1270,10 @@ ifeq ($(findstring ba,$(HOST)),ba)
 
      ADIOS2 = t
      ADIOS2_METHOD = MPI_LUSTRE
-     ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-2.5/lib/badger_gcc-9.3.0_openmpi-3.1.6
-     ADIOS_LIBS = $(shell $(ADIOS_HOME)/bin/adios2-config -f)
-     ADIOS_MOD  = $(ADIOS_HOME)/include/adios2/fortran
-     ADIOS_VER  = 2.5.0
+     ADIOS2_HOME = /turquoise/usr/projects/magreconn/soft/adios-2.5/lib/badger_gcc-9.3.0_openmpi-3.1.6
+     ADIOS2_LIBS = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-libs)
+     ADIOS2_MOD  = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-flags) 
+     ADIOS2_VER  = 2.5.0
 
      SPRNG = t
 
@@ -1315,10 +1315,10 @@ ifeq ($(findstring ba,$(HOST)),ba)
 
       ADIOS2 = t
       ADIOS2_METHOD = MPI_LUSTRE
-      ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-2.5/lib/badger_intel-19.0.4_openmpi-3.1.6
-      ADIOS_LIBS = $(shell $(ADIOS_HOME)/bin/adios2-config -f)
-      ADIOS_MOD  = $(ADIOS_HOME)/include/adios2/fortran
-      ADIOS_VER  = 2.5.0
+      ADIOS2_HOME = /turquoise/usr/projects/magreconn/soft/adios-2.5/lib/badger_intel-19.0.4_openmpi-3.1.6
+      ADIOS2_LIBS = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-libs)
+      ADIOS2_MOD  = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-flags) 
+      ADIOS2_VER  = 2.5.0
      
       SPRNG = t
 
