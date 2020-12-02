@@ -3,7 +3,7 @@ c #####################################################################
       module grid_packing
 
         use math
-        use grid_def_st
+        use grid_def
 
         type(grid_pack),dimension(3),private :: g_pack
 
@@ -977,7 +977,7 @@ c     End program
 
 c     findGlobalPackedGrid
 c     #################################################################
-      subroutine findGlobalPackedGrid(lmin,lmax,bcs1,bcs2,xp,dx0,dxl,dxr
+      subroutine findGlobalPackedGrid(lmin,lmax,bcs1,bcs2,lpack
      .                               ,xg,xi,xil,xir)
 
 c     -----------------------------------------------------------------
@@ -993,20 +993,27 @@ c     Call variables
 
         integer :: bcs1,bcs2
 
-        real(8),INTENT(IN) :: lmin,lmax,dx0,dxl,dxr,xp
+        real(8),INTENT(IN) :: lmin,lmax
 
         real(8),INTENT(OUT) :: xg(0:),xi,xil,xir
 
+        type(grid_pack) :: lpack
+    
 c     Local variables
 
         integer :: n1,n2,ng,i
-        real(8) :: dh,length,lstart,lend
+        real(8) :: dh,length,lstart,lend,xp,dx0,dxl,dxr
         logical :: pack_l,pack_r,fv_l,fv_r
 
 c     Begin program
 
         ng = size(xg)-2
 
+        dx0 = lpack%dx0
+        dxl = lpack%dxl
+        dxr = lpack%dxr
+        xp  = lpack%xp
+        
           !Exception for polar coordinates
 cc          if ((ig > 1) .and. (.not.dpack%pack) .and. (bcs1 == SP)) then
 cc            dpack%pack = .true.
@@ -1266,5 +1273,48 @@ c     Begin program
 c     End program
 
       end function are_grid_packing
+
+c     findGlobalGrid
+c     #################################################################
+      subroutine findGlobalGrid(lmin,lmax,bcs1,bcs2,lpack,xxg
+     .                         ,xi_l,xi_r,xi_0)
+
+c     -----------------------------------------------------------------
+c     Finds grid on local processor
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer :: bcs1,bcs2
+
+        real(8) :: lmin,lmax,xxg(:)
+
+        type(grid_pack) :: lpack
+
+        real(8) :: xi_l,xi_r,xi_0
+
+c     Local variables
+
+c     Begin program
+
+        if (.not.(lpack%pack.and.(coords=='lpk'))) then
+
+          call findGlobalUniformGrid(lmin,lmax,bcs1,bcs2,xxg)
+
+          xi_l = 0d0 ; xi_r = 0d0 ; xi_0 = 0d0
+
+        else
+
+          !Find global packed grid
+          call findGlobalPackedGrid(lmin,lmax,bcs1,bcs2,lpack,xxg
+     .                             ,xi_0,xi_l,xi_r)
+
+        endif
+
+c     End program
+
+      end subroutine findGlobalGrid
 
       end module grid_packing

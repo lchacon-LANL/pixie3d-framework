@@ -804,7 +804,11 @@ c     Local variables
     
         integer :: ig,i,isig,ng
 
-        real(8) :: xi_l(ngrid),xi_r(ngrid),xi_0(ngrid),dx0,dxl,dxr
+        real(8),allocatable,dimension(:) :: xxg
+        
+        real(8) :: xi_l,xi_r,xi_0
+
+        real(8) :: nxi_l,nxi_r,nxi_0
 
 c     Begin program
 
@@ -816,9 +820,52 @@ c     Find grid quantities
 
           ng   = nglobal(ig)
 
-          !Find grid spacing
-          call findLocalGrid(ig,xx(isig),ng,dpack)
+          !Find global mesh
+          allocate(xxg(0:ng+1))
+          call findGlobalGrid(lmin,lmax,bcs1,bcs2,dpack,xxg
+     .                       ,xi_l,xi_r,xi_0)
+          
+c$$$          if (my_rank == 0) then
+c$$$            write (*,*) 'Grid level=',ig
+c$$$            write (*,*) 'Domain limits=',lmin,lmax
+c$$$            write (*,*) 'Coarsening ratio  =',mgr(ig)
+c$$$            write (*,*) 'Packing spacings  =',dpack%dxl
+c$$$     .                                       ,dpack%dx0
+c$$$     .                                       ,dpack%dxr
+c$$$            write (*,*) 'Geometric  factors=',xi_l
+c$$$     .                                       ,xi_0
+c$$$     .                                       ,xi_r
+c$$$            write (*,*) 'Coarsening factors=',nxi_l
+c$$$     .                                       ,nxi_0
+c$$$     .                                       ,nxi_r
+c$$$            write (*,*) 'Mesh',xxg
+c$$$            write (*,*)
+c$$$          endif
+c$$$          pause
 
+          !Compute new packing spacings for current grid and store in
+          !dpack for MG coarsening
+          if (ig /= ngrid) then
+            nxi_l = 1d0 ; nxi_r = 1d0 ; nxi_0 = 1d0
+            do i=2,mgr(ig)
+              nxi_l = nxi_l + xi_l**(i-1)
+              nxi_r = nxi_r + xi_r**(i-1)
+              nxi_0 = nxi_0 + xi_0**(i-1)
+            enddo
+
+            dpack%dx0 = dpack%dx0*nxi_0
+            dpack%dxl = dpack%dxl*nxi_l
+            dpack%dxr = dpack%dxr*nxi_r
+          endif
+
+          !Assign top-level global grid
+          if (ig == 1) xg(1:ng+2) = xxg(0:ng+1)
+
+          !Assign local grid at every level
+          xx(isig:isig+nx(ig)+1) = xxg(ilo(ig)-1:ihi(ig)+1)
+
+          deallocate(xxg)
+          
           !Find integer mesh spacings
           dx(isig:isig+nx(ig)+1) = 0d0
           do i = 0,nx(ig)
@@ -844,93 +891,6 @@ cc            dxh(nx(ig)+1 + isig) = dx(nx(ig) + isig)*0.5 !Needed for extrapola
           endif
 
         enddo
-
-      contains
-
-c     findLocalGrid
-c     #################################################################
-      subroutine findLocalGrid(ig,xx,ng,lpack)
-
-c     -----------------------------------------------------------------
-c     Finds grid on local processor
-c     -----------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-        integer :: ig,ng
-        real(8) :: xx(*)
-
-        type(grid_pack) :: lpack
-    
-c     Local variables
-
-        real(8) :: xxg(0:ng+1),nxi_l,nxi_r,nxi_0
-
-c     Begin program
-
-        if (.not.(lpack%pack.and.(coords=='lpk'))) then
-
-          call findGlobalUniformGrid(lmin,lmax,bcs1,bcs2,xxg)
-
-        else
-          
-          !Compute new packing spacings for current grid and store in
-          !lpack for MG coarsening
-          if (ig == 1) then
-            nxi_l = 1d0
-            nxi_r = 1d0
-            nxi_0 = 1d0
-          else
-            nxi_l = 1d0 ; nxi_r = 1d0 ; nxi_0 = 1d0
-            do i=2,mgr(ig-1)
-              nxi_l = nxi_l + xi_l(ig-1)**(i-1)
-              nxi_r = nxi_r + xi_r(ig-1)**(i-1)
-              nxi_0 = nxi_0 + xi_0(ig-1)**(i-1)
-            enddo
-          endif
-
-          lpack%dx0 = lpack%dx0*nxi_0
-          lpack%dxl = lpack%dxl*nxi_l
-          lpack%dxr = lpack%dxr*nxi_r
-          
-          !Find global packed grid
-          call findGlobalPackedGrid(lmin,lmax,bcs1,bcs2,lpack%xp
-     .                             ,lpack%dx0,lpack%dxl,lpack%dxr,xxg
-     .                             ,xi_0(ig),xi_l(ig),xi_r(ig))
-
-c$$$          if (my_rank == 0) then
-c$$$            write (*,*) 'Grid level=',ig
-c$$$            write (*,*) 'Domain limits=',lmin,lmax
-c$$$            write (*,*) 'Coarsening ratio  =',mgr(ig)
-c$$$            write (*,*) 'Packing spacings  =',lpack%dxl
-c$$$     .                                       ,lpack%dx0
-c$$$     .                                       ,lpack%dxr
-c$$$            write (*,*) 'Geometric  factors=',xi_l(ig)
-c$$$     .                                       ,xi_0(ig)
-c$$$     .                                       ,xi_r(ig)
-c$$$            write (*,*) 'Coarsening factors=',nxi_l
-c$$$     .                                       ,nxi_0
-c$$$     .                                       ,nxi_r
-c$$$            write (*,*) 'Mesh',xxg
-c$$$            write (*,*)
-c$$$          endif
-c$$$          pause
-
-        endif
-
-c     Assign global grid
-
-        if (ig == 1) xg(1:ng+2) = xxg(0:ng+1)
-
-c     Assign local grid
-
-        xx(1:nx(ig)+2) = xxg(ilo(ig)-1:ihi(ig)+1)
-
-c     End program
-
-      end subroutine findLocalGrid
 
       end subroutine createLogicalGrid
 
