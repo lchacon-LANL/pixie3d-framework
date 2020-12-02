@@ -1264,7 +1264,7 @@ ifeq ($(findstring ba,$(HOST)),ba)
      ADIOS = f
      ADIOS_BUFFER_MB = 1000
      ADIOS_METHOD = MPI_LUSTRE
-     ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.10.0/lib-grizzly-gcc-5.3.0_openmpi-1.10.5
+     ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.10.0/lib-badger-gcc-9.3.0_openmpi-3.1.6
      ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -llustreapi
      ADIOS_VER  = 1.10.0
 
@@ -1306,12 +1306,12 @@ ifeq ($(findstring ba,$(HOST)),ba)
       HDF5_MOD  = $(HDF5_ROOT)/include
       HDF5_INC  = $(HDF5_MOD)
 
-#      ADIOS = f
-#      ADIOS_BUFFER_MB = 1000
-#      ADIOS_METHOD = MPI_LUSTRE
-#      ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.10.0/lib-grizzly-intel-17.0.1_openmpi-1.10.5
-#      ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -llustreapi
-#      ADIOS_VER  = 1.10.0
+      ADIOS = f
+      ADIOS_BUFFER_MB = 1000
+      ADIOS_METHOD = MPI_LUSTRE
+      ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.10.0/lib-badger-intel-19.0.4_openmpi-3.1.6
+      ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -llustreapi
+      ADIOS_VER  = 1.10.0
 
       ADIOS2 = t
       ADIOS2_METHOD = MPI_LUSTRE
