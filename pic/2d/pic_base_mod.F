@@ -5351,7 +5351,8 @@ c     End program
 
 c     cell_crossing_vavg (added a new tag only)
 c     ##################################################################
-      subroutine cell_crossing_vavg(dx,xnp,vh,inp,jnp,wp,ref_tag)
+      subroutine cell_crossing_vavg(dx,xnp,vh,inp,jnp,wp,ref_tag
+     $     ,hit_wall)
 
       implicit none
 
@@ -5361,6 +5362,7 @@ c     Call variables
       real(_prec),intent(inout) :: xnp(_Npg,3),vh(_Npg,3),wp(_Npg)
       integer,intent(inout) :: inp(_Npg),jnp(_Npg)
       real(_prec),optional,intent(inout) :: ref_tag(_Npg,3) !tag for indicating which boundary is hit
+      integer,intent(inout) :: hit_wall(_Npg)
       
 c     Local variables
 
@@ -5368,7 +5370,7 @@ c     Local variables
       real(8) :: hx,hy,hz,dh(3)
 
 c     Begin program
-
+      
       call get_global_grid_size(nxg,nyg,nzg)
       call get_h(hx,hy,hz)
 
@@ -5391,20 +5393,23 @@ c     Impose BCs
             if(in0(i,dim)>nsize(dim)) !BC @ location=1
      .         call pcles_bc_offset_vavg(dim,1,pbcond,nsize(dim)
      .                                  ,xnp(i,:),vh(i,:),in0(i,:),wp(i)
-     .                                  ,ref_tag(i,:))
-          else if(dx(i,dim)<0.and. xnp(i,dim).le.0) then
+     .                                  ,ref_tag(i,dim),hit_wall(i))
+
+         else if(dx(i,dim)<0.and. xnp(i,dim).le.0) then
             do while(xnp(i,dim).le.0d0)
               in0(i,dim) = in0(i,dim)-1
               xnp(i,dim) = xnp(i,dim) + dh(dim)
             enddo
-            if(in0(i,dim)<1)         !BC @ location=0
-     .         call pcles_bc_offset_vavg(dim,0,pbcond,nsize(dim)
+            if(in0(i,dim)<1)        !BC @ location=0
+     .          call pcles_bc_offset_vavg(dim,0,pbcond,nsize(dim)
      .                                  ,xnp(i,:),vh(i,:),in0(i,:),wp(i)
-     .                                  ,ref_tag(i,:))
-          end if
+     .                                  ,ref_tag(i,dim),hit_wall(i))
+         end if
+
+         
         enddo
       end do
-
+      
 c     Transfer location info
 
       inp = in0(:,1)
@@ -5415,7 +5420,7 @@ c     Transfer location info
 c     pcles_bc_offset_vavg (added a new tag only)
 c     ##################################################################
       subroutine pcles_bc_offset_vavg(dim,loc,pbc,nn,xp,vp,ip,wp
-     $                               ,ref_tag)
+     $                               ,ref_tag,hit_wall)
 
       implicit none
 
@@ -5429,8 +5434,9 @@ c     Call variables
       integer,intent(in)   :: pbc(6),dim,loc,nn
       real(8),intent(inout):: xp(3),vp(3),wp
       integer,intent(inout):: ip(3)
-      real(_prec),optional,intent(inout) :: ref_tag(3) !tag for indicating which boundary is hit; one particle at a time
-
+      real(_prec),optional,intent(inout) :: ref_tag !tag for indicating which boundary is hit; one particle at a time
+      integer,intent(inout) :: hit_wall
+      
 c     Local variables
 
       integer :: ibc,dim1,dim2
@@ -5461,8 +5467,9 @@ c     Begin program
          if (loc == 1) ip(dim) = 1  
       case(pREF,pSP)
 !     reflective, force it to be on the boundary, before which xp=(0:eps).
-         ref_tag(dim) = -ref_tag(dim); !default 1, only flip the sign
-         
+         ref_tag = -ref_tag; !default 1, only flip the sign
+         hit_wall = 1; 
+cc         print *,"reflect",dim,ref_tag(dim)
          if (loc == 0) ip(dim) = ip(dim) + 1
          if (loc == 1) ip(dim) = ip(dim) - 1 
          xp(dim) = loc*dh(dim)
