@@ -130,7 +130,7 @@ c     Local variables
 
 c     Begin program
 
-      smax = orbit_conf%ode_conf%smax(thr_num)
+      smax = orbit_conf%ode_conf%smax(thr_id)
       ismax = 1d0/smax
 
       twopi_L = 2d0*pi*ismax
@@ -239,7 +239,7 @@ c     Local variables
 
 c     Begin program
 
-      smax = orbit_conf%ode_conf%smax(thr_num)
+      smax = orbit_conf%ode_conf%smax(thr_id)
       ismax = 1d0/smax
 
       twopi_L = 2d0*pi*ismax
@@ -353,7 +353,7 @@ c     Local variables
 
 c     Begin program
 
-      smax = orbit_conf%ode_conf%smax(thr_num)
+      smax = orbit_conf%ode_conf%smax(thr_id)
       ismax = 1d0/smax
 
       twopi_L = 2d0*pi*ismax
@@ -1124,10 +1124,10 @@ c-----------------------------------------------
 !$      if (my_rank == 0.and.iout == 1) write (*,*)
 
 !$OMP PARALLEL
-        call set_omp_thread_id()  !Initializes thr_tot,thr_num
+        call set_omp_thread_id()  !Initializes thr_tot,thr_id
 cc!$      if (my_rank == 0) then
 cc!$        write (*,'(a,i3,a1,i3)')
-cc!$   .     'OMP thread num/tot',thr_num+1,'/',thr_tot
+cc!$   .     'OMP thread num/tot',thr_id+1,'/',thr_tot
 cc!$      endif
 
 !$OMP DO PRIVATE(i,j,k,ig,jg,kg,x0,y0,z0,lsode_out)
@@ -1440,10 +1440,10 @@ c BEGIN OMP PARALLEL REGION
 c-----------------------------------------------
 !$      if (my_rank == 0.and.iout == 1) write (*,*)
 !$OMP PARALLEL
-        call set_omp_thread_id()  !Initializes thr_tot,thr_num
+        call set_omp_thread_id()  !Initializes thr_tot,thr_id
 cc!$      if (my_rank == 0) then
 cc!$        write (*,'(a,i3,a1,i3)')
-cc!$   .     'OMP thread num/tot',thr_num+1,'/',thr_tot
+cc!$   .     'OMP thread num/tot',thr_id+1,'/',thr_tot
 cc!$      endif
         
 !$OMP DO PRIVATE(i,j,k,ig,jg,kg,x0,y0,z0,lsode_out) 
@@ -1757,7 +1757,7 @@ c BEGIN OMP PARALLEL REGION
 c-----------------------------------------------
 !$      if (my_rank == 0.and.iout == 1) write (*,*)
 !$OMP PARALLEL
-        call set_omp_thread_id()  !Initializes thr_tot,thr_num
+        call set_omp_thread_id()  !Initializes thr_tot,thr_id
 
 !$OMP DO PRIVATE(i,j,k,ig,jg,kg,x0,y0,z0)
 !$OMP.     COLLAPSE(3) SCHEDULE(DYNAMIC)

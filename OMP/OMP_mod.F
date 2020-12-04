@@ -6,8 +6,8 @@ c ######################################################################
       use omp_lib
 #endif
 
-      integer :: thr_tot=-1,thr_num=-1,ilup=0
-!$OMP THREADPRIVATE(thr_tot,thr_num,ilup)
+      integer :: thr_tot=-1,thr_id=-1,ilup=0
+!$OMP THREADPRIVATE(thr_tot,thr_id,ilup)
       integer :: itot
 !$OMP THREADPRIVATE(itot)
   
@@ -42,12 +42,12 @@ c     Begin program
         endif
 
         if (PRESENT(thrnum)) then
-          thr_num = thrnum
+          thr_id = thrnum
         else
 #ifdef _OPENMP
-          thr_num = omp_get_thread_num()
+          thr_id = omp_get_thread_num()
 #endif
-          thr_num = max(thr_num,0)
+          thr_id = max(thr_id,0)
         endif
 
       end subroutine set_omp_thread_id
@@ -69,7 +69,7 @@ c     Begin program
         call check_omp_thread_id()
 
         thrtot = thr_tot
-        thrnum = thr_num
+        thrnum = thr_id
 
       end subroutine get_omp_thread_id
 
@@ -79,7 +79,7 @@ c     ###############################################################
 
         implicit none
 
-        if (thr_tot < 0 .or. thr_num < 0) then
+        if (thr_tot < 0 .or. thr_id < 0) then
           write (*,*) "Thread ID not initialized"
           write (*,*) "Aborting"
           stop
