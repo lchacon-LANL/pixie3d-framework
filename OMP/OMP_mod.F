@@ -87,18 +87,18 @@ c     ###############################################################
 
 c     check_omp_numthreads
 c     ###############################################################
-      subroutine check_omp_numthreads(io)
+      subroutine check_omp_numthreads(io,thrtot)
     
         implicit none
 
 c     Global variables
 
         logical :: io
+        integer,INTENT(OUT),optional :: thrtot
 
 c     Local variables
 
-        integer,save :: thr_tot
-!$OMP THREADPRIVATE(thr_tot)
+        integer :: thr_tot
         integer :: omp_get_num_threads
 
 c     Begin program
@@ -122,6 +122,8 @@ c     Begin program
             write (*,*)          '******************'
           endif
         endif
+
+        if (PRESENT(thrtot)) thrtot = thr_tot
 
       end subroutine check_omp_numthreads
 
