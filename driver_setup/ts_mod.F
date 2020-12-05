@@ -78,7 +78,10 @@ c     Find new time step
 
 c     Adjust to final time, if needed
 
-      if (time + dt > tmax .and. tmax > 0d0) then
+      if     (dt > 0d0 .and. time + dt > tmax .and. tmax /= 0d0) then
+        dt = tmax - time
+        time = tmax
+      elseif (dt < 0d0 .and. time + dt < tmax .and. tmax /= 0d0) then
         dt = tmax - time
         time = tmax
       else
@@ -155,7 +158,7 @@ c$$$        endif
 
           dt = dt*coef1
 
-          if (dt < 1d-6*dtbase) then
+          if (abs(dt) < 1d-6*abs(dtbase)) then
             call pstop('adapt_dt','Time step too small')
           endif
 
@@ -171,7 +174,8 @@ c$$$        endif
               if (itm == 1) then
                 dt = dtbase*ts_ramp_up_dt_fraction
               else
-                dt = min(dtbase,dt*ts_ramp_up_dt_recovery)
+                dt = min(abs(dtbase),abs(dt)*ts_ramp_up_dt_recovery)
+                dt = dt*sign(1d0,dtbase)
                 ts_ramp_up_dt = (dt /= dtbase) !Stop dt ramp-up
               endif
             elseif (itm == 1.and.ts_adapt_dt) then
@@ -183,7 +187,7 @@ c$$$        endif
      .         .or.(itm == sm_pass+2.and.      ts_adapt_dt )) then
               dt = dtbase
             else
-              dt = min(dtbase,dt*coef2)
+              dt = min(abs(dtbase),abs(dt)*coef2)*sign(1d0,dtbase)
             endif
 
           case(2)  !BDF time stepping
@@ -192,7 +196,8 @@ c$$$        endif
               if (itm == 1) then
                 dt = dtbase*ts_ramp_up_dt_fraction
               else
-                dt = min(dtbase,dt*ts_ramp_up_dt_recovery)
+                dt = min(abs(dtbase),abs(dt)*ts_ramp_up_dt_recovery)
+                dt = dt*sign(1d0,dtbase)
                 ts_ramp_up_dt = (dt /= dtbase) !Stop dt ramp-up
               endif
             elseif (ts_restart) then
@@ -205,7 +210,7 @@ c$$$        endif
 c$$$              elseif (itm == 3) then
 c$$$                dt = dtbase/coef2**15  !Quiet BDF2 start to ramp up in a few time steps
               else
-                dt = min(dtbase,dt*coef2)
+                dt = min(abs(dtbase),abs(dt)*coef2)*sign(1d0,dtbase)
               endif
             else
               if  (itm <= bdf2_init_offset) then
@@ -216,7 +221,7 @@ c$$$                dt = dtbase/coef2**15  !Quiet BDF2 start to ramp up in a few
               elseif (itm == 2+bdf2_init_offset) then
                 dt = dtbase
               else
-                dt = min(dtbase,dt*coef2)
+                dt = min(abs(dtbase),abs(dt)*coef2)*sign(1d0,dtbase)
               endif
             endif
 
@@ -226,14 +231,15 @@ c$$$                dt = dtbase/coef2**15  !Quiet BDF2 start to ramp up in a few
               if (itm == 1) then
                 dt = dtbase*ts_ramp_up_dt_fraction
               else
-                dt = min(dtbase,dt*ts_ramp_up_dt_recovery)
+                dt = min(abs(dtbase),abs(dt)*ts_ramp_up_dt_recovery)
+                dt = dt*sign(1d0,dtbase)
                 ts_ramp_up_dt = (dt /= dtbase) !Stop dt ramp-up
               endif
             elseif (ts_adapt_dt) then
               if (itm == 1) then
                 call set_explicit_dt(dt)
               elseif (itm == 2) then
-                if (dt < dtbase) then
+                if (abs(dt) < abs(dtbase)) then
                   dt = dtbase - dt
                 else
                   dt = dtbase
@@ -241,13 +247,13 @@ c$$$                dt = dtbase/coef2**15  !Quiet BDF2 start to ramp up in a few
               elseif (itm == 3) then
                 dt = dtbase
               else
-                dt = min(dtbase,dt*coef2)
+                dt = min(abs(dtbase),abs(dt)*coef2)*sign(1d0,dtbase)
               endif
             else
               if (itm == 1) then
                 dt = dtbase
               else
-                dt = min(dtbase,dt*coef2)
+                dt = min(abs(dtbase),abs(dt)*coef2)*sign(1d0,dtbase)
               endif
             endif
 
