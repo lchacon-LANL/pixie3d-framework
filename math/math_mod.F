@@ -36,7 +36,7 @@
 #include "sprng_f.h"
       SPRNG_POINTER stream
       logical :: is_sprng_init=.false.
-!$OMP THREADPRIVATE(is_sprng_init,stream)
+!$OMP THREADPRIVATE(is_sprng_init)
 #endif
 
       integer :: lcg_seed = 123456789
@@ -49,8 +49,7 @@ c     #################################################################
       function is_NAN(a)
 
 c     -----------------------------------------------------------------
-c     Perform cross product of vectors vec1 and vec2: vec3 = vec1 x vec2,
-c     where the vectors are in Cartesian coordinates.
+c     Detects whether number a is NaN
 c     -----------------------------------------------------------------
 
         implicit none
@@ -73,8 +72,7 @@ c     #################################################################
       function is_INF(a)
 
 c     -----------------------------------------------------------------
-c     Perform cross product of vectors vec1 and vec2: vec3 = vec1 x vec2,
-c     where the vectors are in Cartesian coordinates.
+c     Detects whether number a is INF
 c     -----------------------------------------------------------------
 
         implicit none

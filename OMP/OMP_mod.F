@@ -66,26 +66,24 @@ c     Local variables
 
 c     Begin program
 
-        call check_omp_thread_id()
+        if (.not.is_omp_thread_id()) call set_omp_thread_id
 
         thrtot = thr_tot
         thrnum = thr_id
 
       end subroutine get_omp_thread_id
 
-c     check_omp_thread_id
+c     is_omp_thread_id
 c     ###############################################################
-      subroutine check_omp_thread_id()
+      function is_omp_thread_id() result(is_omp)
 
         implicit none
 
-        if (thr_tot < 0 .or. thr_id < 0) then
-          write (*,*) "Thread ID not initialized"
-          write (*,*) "Aborting"
-          stop
-        endif
+        logical :: is_omp
+
+        is_omp = (thr_tot > 0 .and. thr_id > 0)
         
-      end subroutine check_omp_thread_id
+      end function is_omp_thread_id
 
 c     check_omp_numthreads
 c     ###############################################################
