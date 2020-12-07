@@ -4205,7 +4205,7 @@ c     Call variables
      .                                ,sm_ncolors
      .                                ,ks_it
         logical,optional,intent(IN) :: staggered
-     $                                ,sm_line_relax
+     .                                ,sm_line_relax
      .                                ,sm_zebra_relax
      .                                ,mg_gm_coarse_solve
      .                                ,mg_galerkin
@@ -4560,7 +4560,11 @@ c       MG solver options
         solverOptions%stol    = s_tol
 
         if (gm_drvr.or.cg_drvr) then
-          solverOptions%vcyc   = 1
+          if(PRESENT(ks_it)) then
+            solverOptions%vcyc   = vcyc
+          else
+            solverOptions%vcyc   = 1
+          endif
         else
           solverOptions%vcyc   = vcyc
         endif
