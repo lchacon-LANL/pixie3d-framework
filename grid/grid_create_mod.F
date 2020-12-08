@@ -846,11 +846,12 @@ c$$$          pause
           !Compute new packing spacings for current grid and store in
           !dpack for MG coarsening
           if (ig /= ngrid) then
+
             nxi_l = 1d0 ; nxi_r = 1d0 ; nxi_0 = 1d0
             do i=2,mgr(ig)
-              nxi_l = nxi_l + xi_l**(i-1)
-              nxi_r = nxi_r + xi_r**(i-1)
-              nxi_0 = nxi_0 + xi_0**(i-1)
+              nxi_l = nxi_l + 2*(mgr(ig)-i+1)/mgr(ig)*xi_l**(i-1)
+              nxi_r = nxi_r + 2*(mgr(ig)-i+1)/mgr(ig)*xi_r**(i-1)
+              nxi_0 = nxi_0 + 2*(mgr(ig)-i+1)/mgr(ig)*xi_0**(i-1)
             enddo
 
             dpack%dx0 = dpack%dx0*nxi_0
