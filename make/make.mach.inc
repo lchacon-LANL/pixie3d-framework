@@ -424,9 +424,9 @@ ifeq ($(findstring quevedo,$(HOST)),quevedo)
     ADIOS2_VER  = 2.5.0
 
     SPRNG = t
-    SPRNG_PAR_HOME=$(HOME)/lib/sprng5/gcc-6.5.0_openmpi-3.1.5
-    SPRNG_LIBS = $(SPRNG_PAR_HOME)/lib -lsprng -lstdc++ -lm
-    SPRNG_INC  = $(SPRNG_PAR_HOME)/include
+    SPRNG_HOME = $(HOME)/lib/sprng5/gcc-6.5.0_openmpi-3.1.5
+    SPRNG_LIBS = $(SPRNG_HOME)/lib -lsprng -lstdc++ -lm
+    SPRNG_INC  = $(SPRNG_HOME)/include
       
 #    LIBS += -L/opt/local/lib -latlas
   else
@@ -442,6 +442,11 @@ ifeq ($(findstring quevedo,$(HOST)),quevedo)
     ADIOS = f
 
     ADIOS2 = f
+
+    SPRNG = t
+    SPRNG_HOME = $(HOME)/lib/sprng5/gcc-6.5.0_serial
+    SPRNG_LIBS = $(SPRNG_HOME)/lib -lsprng -lstdc++ -lm
+    SPRNG_INC  = $(SPRNG_HOME)/include
 
   endif
 

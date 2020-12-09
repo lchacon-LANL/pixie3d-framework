@@ -138,7 +138,7 @@ c     Move particles
 #endif
            dtp = dtx
 
-           do while(maxval(dtp)>0)
+           do while(maxval(abs(dtp))>0)
              it = it+1
 
              !Perform pcle substep
@@ -699,7 +699,7 @@ c     Logical variables
 
 c     Begin program
 
-        dts = 1d-8     !Test timestep to estimate qtys
+        dts = 1d-8*sign(1d0,dt_sub)     !Test timestep to estimate qtys
 
 c     Scatter fields
 
@@ -724,7 +724,7 @@ c     Cyclotron freq.
         Omegac = qm * Bmax
         Omegac = abs(Omegac) + 1d-44  !careful
         omb = 1d0/Omegac
-        dt_sub = min(dt_sub,dt_coeff*omb)
+        dt_sub = min(abs(dt_sub),dt_coeff*omb)*sign(1d0,dt_sub)
 #endif
 
 c     Initial acceleration
@@ -797,8 +797,9 @@ c     Test for dts (presumably no cell-crossing with a small timestep)
 #endif
         end do
 
-        dt_sub = min(dt_sub,(6d0*xtoll*dts/(anup+1d-30*dts))
-     $                      **(0.333333333333333d0))
+        dt_sub = min(abs(dt_sub)
+     .       ,(6d0*xtoll*abs(dts)/(anup+1d-30*abs(dts)))
+     $                      **(0.333333333333333d0))*sign(1d0,dts)
 
       end subroutine estimate_dtp
 
@@ -819,11 +820,13 @@ c     Call variables
 c     Logical variables
 
         real(_prec) :: vhes(_Npg,3),vhcurv(_Npg,3),vhcurv_inv(_Npg,3)
-        real(_prec) :: qmdth(_Npg),iDenom(_Npg),dtb(_Npg,3)
+        real(_prec) :: qmdth(_Npg),iDenom(_Npg),dtb(_Npg,3),sgn(_Npg)
         real(_prec) :: xp_vhcurv(_Npg,3)
 
 c     Begin program
 
+        sgn = sign(1d0,dt_sub)
+        
         if (no_map) then
           call scatter_fields_nomap(x0,dt_sub,dx,A_1,A_2,A_3
      $                           ,dtA_1,dtA_2,dtA_3,Ep,Bp)
@@ -880,9 +883,9 @@ c     Begin program
              else
                if(it<5) then  !This branch needs to be taken out of the pcle loop!
                  vhcurv_inv(i,1) = 1d0/vhcurv(i,1)
-                 dtb(i,1) = min(dt_sub(i),
-     .              max((dxl(i,1)-eps)*vhcurv_inv(i,1)
-     .                 ,(dxr(i,1)+eps)*vhcurv_inv(i,1)))
+                 dtb(i,1) = min(dt_sub(i)*sgn(i),
+     .             max((dxl(i,1)-eps)*vhcurv_inv(i,1)*sgn(i)
+     .                ,(dxr(i,1)+eps)*vhcurv_inv(i,1)*sgn(i)))*sgn(i)
                else if((dx(i,1)<dxl(i,1)-eps2)
      .             .or. dx(i,1)>dxr(i,1)+eps2) then
                  dtb(i,1) = 0.5d0*dtb(i,1)
@@ -900,9 +903,9 @@ c     Begin program
              else 
                if(it<5) then  !This branch needs to be taken out of the pcle loop!
                  vhcurv_inv(i,2) = 1d0/vhcurv(i,2)
-                 dtb(i,2) = min(dt_sub(i),
-     .              max((dxl(i,2)-eps)*vhcurv_inv(i,2)
-     .                 ,(dxr(i,2)+eps)*vhcurv_inv(i,2)))
+                 dtb(i,2) = min(dt_sub(i)*sgn(i),
+     .             max((dxl(i,2)-eps)*vhcurv_inv(i,2)*sgn(i)
+     .                ,(dxr(i,2)+eps)*vhcurv_inv(i,2)*sgn(i)))*sgn(i)
                else if(dx(i,2)<dxl(i,2)-eps2 
      .            .or. dx(i,2)>dxr(i,2)+eps2) then
                  dtb(i,2) = 0.5d0*dtb(i,2)
@@ -910,7 +913,8 @@ c     Begin program
              end if
            end if
 
-           dt_sub(i) = min(dt_sub(i),dtb(i,1),dtb(i,2))
+           dt_sub(i) = min(abs(dt_sub(i)),abs(dtb(i,1)),abs(dtb(i,2)))
+           dt_sub(i) = dt_sub(i)*sgn(i)
  
         end do
 

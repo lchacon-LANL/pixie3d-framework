@@ -36,6 +36,7 @@
 #include "sprng_f.h"
       SPRNG_POINTER stream
       logical :: is_sprng_init=.false.
+!$OMP THREADPRIVATE(is_sprng_init)
 #endif
 
       integer :: lcg_seed = 123456789
@@ -48,8 +49,7 @@ c     #################################################################
       function is_NAN(a)
 
 c     -----------------------------------------------------------------
-c     Perform cross product of vectors vec1 and vec2: vec3 = vec1 x vec2,
-c     where the vectors are in Cartesian coordinates.
+c     Detects whether number a is NaN
 c     -----------------------------------------------------------------
 
         implicit none
@@ -72,8 +72,7 @@ c     #################################################################
       function is_INF(a)
 
 c     -----------------------------------------------------------------
-c     Perform cross product of vectors vec1 and vec2: vec3 = vec1 x vec2,
-c     where the vectors are in Cartesian coordinates.
+c     Detects whether number a is INF
 c     -----------------------------------------------------------------
 
         implicit none
@@ -1419,23 +1418,22 @@ c     ##################################################################
 
 c     init_random_seed
 c     #########################################################################
-      SUBROUTINE init_random_seed(nproc,streamnum,output,seed)
+      SUBROUTINE init_random_seed(nstreams,streamnum,output,seed)
 
 c     -------------------------------------------------------------------------
-c     Initializes random seed for stream number "streamnum" of "nproc" #
-c     of processors
+c     Initializes random seed for stream number "streamnum" of "nstreams"
 c     -------------------------------------------------------------------------
 #ifdef _OPENMP
         use omp_lib
 #endif
 
         implicit none
-        integer,INTENT(IN) :: streamnum,nproc
+        integer,INTENT(IN) :: streamnum,nstreams
         logical,INTENT(IN) :: output
         integer,INTENT(IN),optional :: seed
 
 #ifdef _SPRNG
-        integer :: nstreams,junk,sd
+        integer :: junk,sd
         integer :: gtype
         real(8) :: rn
 
@@ -1448,21 +1446,16 @@ c     -------------------------------------------------------------------------
         else
           sd = 985456376
         endif
-        nstreams = nproc
         
         stream = init_sprng(gtype,streamnum,nstreams,sd,SPRNG_DEFAULT)   
 
         if (output) junk = print_sprng(stream)
 #else
 #ifdef _OPENMP
-        integer :: thr_num
-
-        thr_num = omp_get_thread_num()
-        
         if (PRESENT(seed)) then
-          lcg_seed = seed +streamnum*33!+thr_num*127
+          lcg_seed = 985456376 + seed + streamnum*37
         else
-          lcg_seed = 12345+streamnum*33!+thr_num*127
+          lcg_seed = 985456376        + streamnum*37
         endif
 #else
         INTEGER :: i, n, clock, sd
