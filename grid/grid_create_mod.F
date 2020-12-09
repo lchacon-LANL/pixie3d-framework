@@ -631,9 +631,7 @@ c     #################################################################
       subroutine createMGgrid(gdef)
 
 c     -----------------------------------------------------------------
-c     Defines logical grid and finds grid quantities from:
-c       * gpack (type grid_pack): stores grid packing info
-c       * gdef (type grid_mg_def): stores grid definition.
+c     Defines logical grid and finds grid quantities in MG grid hierarchy.
 c     -----------------------------------------------------------------
 
         implicit none
@@ -835,10 +833,16 @@ c$$$     .                                       ,dpack%dxr
 c$$$            write (*,*) 'Geometric  factors=',xi_l
 c$$$     .                                       ,xi_0
 c$$$     .                                       ,xi_r
-c$$$            write (*,*) 'Coarsening factors=',nxi_l
-c$$$     .                                       ,nxi_0
-c$$$     .                                       ,nxi_r
-c$$$            write (*,*) 'Mesh',xxg
+c$$$c$$$            if (dpack%unif_nx == 0) then
+c$$$c$$$              write (*,*) 'Coarsening factors=',nxi_l
+c$$$c$$$     .                                         ,nxi_0
+c$$$c$$$     .                                         ,nxi_r
+c$$$c$$$            else
+c$$$c$$$              write (*,*) 'Coarser uniform nx=',dpack%unif_nx
+c$$$c$$$            endif
+c$$$            do i=0,ng+1
+c$$$              write (*,*) 'Mesh',i,xxg(i)
+c$$$            enddo
 c$$$            write (*,*)
 c$$$          endif
 c$$$          pause
@@ -847,16 +851,22 @@ c$$$          pause
           !dpack for MG coarsening
           if (ig /= ngrid) then
 
-            nxi_l = 1d0 ; nxi_r = 1d0 ; nxi_0 = 1d0
-            do i=2,mgr(ig)
-              nxi_l = nxi_l + 2*(mgr(ig)-i+1)/mgr(ig)*xi_l**(i-1)
-              nxi_r = nxi_r + 2*(mgr(ig)-i+1)/mgr(ig)*xi_r**(i-1)
-              nxi_0 = nxi_0 + 2*(mgr(ig)-i+1)/mgr(ig)*xi_0**(i-1)
-            enddo
+            if (dpack%unif_nx == 0) then
+              nxi_l = 1d0 ; nxi_r = 1d0 ; nxi_0 = 1d0
+              do i=2,mgr(ig)
+                nxi_l = nxi_l + 2*(mgr(ig)-i+1)/mgr(ig)*xi_l**(i-1)
+                nxi_r = nxi_r + 2*(mgr(ig)-i+1)/mgr(ig)*xi_r**(i-1)
+                nxi_0 = nxi_0 + 2*(mgr(ig)-i+1)/mgr(ig)*xi_0**(i-1)
+              enddo
 
-            dpack%dx0 = dpack%dx0*nxi_0
-            dpack%dxl = dpack%dxl*nxi_l
-            dpack%dxr = dpack%dxr*nxi_r
+              dpack%dx0 = dpack%dx0*nxi_0
+              dpack%dxl = dpack%dxl*nxi_l
+              dpack%dxr = dpack%dxr*nxi_r
+            else
+              dpack%unif_nx = dpack%unif_nx/mgr(ig)
+              dpack%left_nx = dpack%left_nx/mgr(ig)
+              dpack%rite_nx = dpack%rite_nx/mgr(ig)
+            endif
           endif
 
           !Assign top-level global grid
@@ -865,15 +875,22 @@ c$$$          pause
           !Assign local grid at every level
           xx(isig:isig+nx(ig)+1) = xxg(ilo(ig)-1:ihi(ig)+1)
 
-          deallocate(xxg)
-          
           !Find integer mesh spacings
+c$$$          dx(isig:isig+nx(ig)+1) = 0d0
+c$$$          do i = 0,nx(ig)
+c$$$            dx(i + isig) = xx(i+1 + isig) - xx(i + isig)
+c$$$          enddo
+c$$$          dx(nx(ig)+1+isig) = dx(nx(ig)+isig)
+c$$$     .                      *(dx(nx(ig)+isig)/dx(nx(ig)-1+isig))
+
           dx(isig:isig+nx(ig)+1) = 0d0
-          do i = 0,nx(ig)
-            dx(i + isig) = xx(i+1 + isig) - xx(i + isig)
+          do i = 0,nx(ig)+1
+            if (ilo(ig)+i <= ng+1) then
+              dx(i+isig) = xxg(ilo(ig)+i) - xxg(ilo(ig)+i-1)
+            else
+              dx(i+isig) = dx(i-1+isig)
+            endif
           enddo
-          dx(nx(ig)+1+isig) = dx(nx(ig)+isig)
-     .                      *(dx(nx(ig)+isig)/dx(nx(ig)-1+isig))
 
           !Find half mesh spacings
           dxh(isig:isig+nx(ig)+1) = 0d0
@@ -885,12 +902,12 @@ c$$$          pause
             dxh(0        + isig) = dxh(nx(ig) + isig)
             dxh(nx(ig)+1 + isig) = dxh(1      + isig)
           else
-cc            dxh(0        + isig) = dx(0      + isig)*0.5 !Needed for extrapolation
-cc            dxh(nx(ig)+1 + isig) = dx(nx(ig) + isig)*0.5 !Needed for extrapolation
-            dxh(0        + isig) = dx(0      + isig)
-            dxh(nx(ig)+1 + isig) = dx(nx(ig) + isig)
+            dxh(0        + isig) = dx (0      + isig)
+            dxh(nx(ig)+1 + isig) = dx (nx(ig) + isig)
           endif
 
+          deallocate(xxg)
+          
         enddo
 
       end subroutine createLogicalGrid

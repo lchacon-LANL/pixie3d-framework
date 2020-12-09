@@ -1062,21 +1062,20 @@ cc          endif
           if (xp == lstart) then !Pack to the left
             pack_l = .true.
             if (fv_l) then      !Ensure left boundary is finite-volume type
-              call packGrid(ng,lstart+0.5*dx0,lend,dx0,xg(1:ng),xi,fv_r)
+              call packGrid(ng,lstart+0.5*dxl,lend,dxl,xg(1:ng),xi,fv_r)
             else
-              call packGrid(ng,lstart        ,lend,dx0,xg(1:ng),xi,fv_r)
+              call packGrid(ng,lstart        ,lend,dxl,xg(1:ng),xi,fv_r)
             endif
+            xil = xi ; xir = 1d0
           else                  !Pack to the right
             pack_r = .true.
             if (fv_r) then      !Ensure right boundary is finite-volume type
-             call packGrid(ng,lstart,lend-0.5*dx0,-dx0,xg(1:ng),xi,fv_l)
+             call packGrid(ng,lstart,lend-0.5*dxr,-dxr,xg(1:ng),xi,fv_l)
             else
-             call packGrid(ng,lstart,lend        ,-dx0,xg(1:ng),xi,fv_l)
+             call packGrid(ng,lstart,lend        ,-dxr,xg(1:ng),xi,fv_l)
             endif
+            xir = xi ; xil = 1d0
           endif
-
-          xil = xi
-          xir = xi
 
         endif
 
@@ -1287,13 +1286,13 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer :: bcs1,bcs2
+        integer :: bcs1,bcs2,ng,nxleft,nxrite,nxunif
 
-        real(8) :: lmin,lmax,xxg(:)
+        real(8) :: lmin,lmax,llmax,llmin,length,unif_dom,xxg(0:)
 
         type(grid_pack) :: lpack
 
-        real(8) :: xi_l,xi_r,xi_0
+        real(8) :: xi_l,xi_r,xi_0,xp
 
 c     Local variables
 
@@ -1305,12 +1304,74 @@ c     Begin program
 
           xi_l = 0d0 ; xi_r = 0d0 ; xi_0 = 0d0
 
-        else
+        else  !Find global packed grid
 
-          !Find global packed grid
-          call findGlobalPackedGrid(lmin,lmax,bcs1,bcs2,lpack,xxg
-     .                             ,xi_0,xi_l,xi_r)
+          if (lpack%unif_nx == 0) then !No uniform region
 
+            call findGlobalPackedGrid(lmin,lmax,bcs1,bcs2,lpack,xxg
+     .                               ,xi_0,xi_l,xi_r)
+
+          else                         !Uniform region specified
+
+            xp = lpack%xp
+            
+            llmin = lpack%unif_dom_left_bdry
+            llmax = lpack%unif_dom_rite_bdry
+            unif_dom = llmax-llmin
+
+cc            write (*,*) lmin,llmin,llmax,lmax
+            
+            nxleft = lpack%left_nx
+            nxrite = lpack%rite_nx
+            nxunif = lpack%unif_nx
+
+            !Check uniform domain has mesh power of 2
+            if (IAND(nxunif,nxunif-1) /= 0) then
+              write (*,*) "Uniform region mesh not a power of 2"
+              stop
+            endif
+
+            ng = size(xxg) - 2
+cc            length = lmax-llmax + (llmin-lmin)
+            if (nxleft == 0.and.llmin > lmin) then
+              nxleft = (ng-nxunif)/2
+cc     .       max(2**floor(log((llmin-lmin)/length*(ng-nxunif)/log(2d0)))
+cc     .           ,1)
+            elseif (llmin <= lmin) then
+              nxleft = 0
+            endif
+            if (nxrite == 0.and.llmax < lmax) then
+              nxrite = nxleft+nxunif
+            elseif (llmax >= lmax) then
+              nxrite = ng
+            endif
+cc            write (*,*) ng,nxunif,nxleft,nxrite
+            
+            !Create uniform grid region
+            call findGlobalUniformGrid(llmin,llmax,NEU,NEU
+     .                                ,xxg(nxleft:nxrite+1))
+
+            !Pack to the left of uniform grid region
+            if (nxleft > 0) then
+              lpack%dxr = unif_dom/nxunif  !Set packing spacing to same as uniform region
+              lpack%xp  = llmin
+              call findGlobalPackedGrid(lmin,llmin,bcs1,NEU,lpack
+     .                                 ,xxg(0:nxleft+1),xi_0,xi_l,xi_r)
+            endif
+            
+            !Pack to the right of uniform grid region
+            if (nxrite < ng) then
+              lpack%dxl = unif_dom/nxunif  !Set packing spacing to same as uniform region
+              lpack%xp  = llmax
+              call findGlobalPackedGrid(llmax,lmax,NEU,bcs2,lpack
+     .                                 ,xxg(nxrite:),xi_0,xi_l,xi_r)
+            endif
+
+            !Save to configure next MG level
+            lpack%left_nx = nxleft
+            lpack%rite_nx = nxrite
+            lpack%xp      = xp
+          endif
         endif
 
 c     End program

@@ -21,11 +21,15 @@ c #####################################################################
           real(8)    :: dx0
           logical    :: pack_both_bdrys=.false.
           integer    :: modes = 1
+          real(8)    :: unif_dom_left_bdry
+          real(8)    :: unif_dom_rite_bdry
+          integer    :: unif_nx=0
           !Put these last
           real(8)    :: slope = 0d0
           real(8)    :: dxl
           real(8)    :: dxr
           logical    :: processed=.false.
+          integer    :: left_nx=0,rite_nx=0
         end type grid_pack
 
         type :: grid_metrics
