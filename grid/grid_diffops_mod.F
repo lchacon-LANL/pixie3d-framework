@@ -11157,6 +11157,71 @@ c ######################################################################
           module procedure tnsr_diff_ijk,tnsr_diff_mesh
         end INTERFACE
 
+        !Coefficient storage for 4th-order tensor diffusion routines
+        real(8),private ::
+     .              cm(4)=(/-1,7,7,-1/)/12d0
+     .             ,cl(5)=(/2,17,-11,5,-1/)/12d0
+     .             ,cr(5)=(/-1,5,-11,17,2/)/12d0
+     .             ,ax(-1:1,5) = transpose(
+     .                            reshape((/-3,-10,18,-6, 1
+     .                                    , 1,-8,  0, 8,-1
+     .                                    ,-1, 6,-18,10, 3/)
+     .                                   ,(/5,3/)))/12d0
+     .             ,ac(1:4,2:5) = transpose(
+     .                           reshape((/0,1,4,-5
+     .                                   , 11,-54,33,10
+     .                                   ,-10,-33,54,-11
+     .                                   ,5,-4,-1,0/)
+     .                                   ,(/4,4/)))/72d0
+     .             ,al(1:5,6) = transpose(
+     .                          reshape((/-36, -185, 400, -230, 60, -9
+     .                                   ,-610,-290,1770,-1340, 560, -90
+     .                                   ,116, 840, -1620, 970, -360, 54
+     .                                   ,-22, -430, 710, -360, 120, -18
+     .                                   ,12, 65, -120, 60, -20, 3/)
+     .                                   ,(/6,5/)))/60d0
+     .             ,ar(1:5,6) = transpose(
+     .                          reshape((/-3, 20, -60, 120, -65, -12
+     .                                   ,18, -120, 360, -710, 430, 22
+     .                                   ,-54,360,-970, 1620, -840, -116
+     .                                   ,90,-560, 1340, -1770, 290, 610
+     .                                   ,9, -60, 230, -400, 185, 36/)
+     .                                   ,(/6,5/)))/60d0
+     .             ,a7(0:5,6) = transpose(
+     .                          reshape((/-137,300,-300,200,-75,12
+     .                                   ,-12,-65,120,-60,20,-3
+     .                                   ,3,-30,-20,60,-15,2
+     .                                   ,-2,15,-60,20,30,-3
+     .                                   ,3,-20,60,-120,65,12
+     .                                   ,-12,75,-200,300,-300,137/)
+     .                                   ,(/6,6/)))/60d0
+c$$$      ax(-1,:)=(/-3,-10,18,-6,1/)
+c$$$      ax(0,:)=(/1,-8,0,8,-1/)
+c$$$      ax(1,:)=(/-1,6,-18,10,3/)
+c$$$      ac(1,2:5)=(/0,1,4,-5/)
+c$$$      ac(2,2:5)=(/11,-54,33,10/)
+c$$$      ac(3,2:5)=(/-10,-33,54,-11/)
+c$$$      ac(4,2:5)=(/5,-4,-1,0/)
+c$$$      ar(1,:)=(/-3, 20, -60, 120, -65, -12/)
+c$$$      ar(2,:)=(/18, -120, 360, -710, 430, 22/)
+c$$$      ar(3,:)=(/-54, 360, -970, 1620, -840, -116/)
+c$$$      ar(4,:)=(/90, -560, 1340, -1770, 290, 610/)
+c$$$      ar(5,:)=(/9, -60, 230, -400, 185, 36/)
+c$$$      al(1,:)=(/-36, -185, 400, -230, 60, -9/)
+c$$$      al(2,:)=(/-610, -290, 1770, -1340, 560, -90/)
+c$$$      al(3,:)=(/116, 840, -1620, 970, -360, 54/)
+c$$$      al(4,:)=(/-22, -430, 710, -360, 120, -18/)
+c$$$      al(5,:)=(/12, 65, -120, 60, -20, 3/)
+c$$$      a7(0,:)=(/-137,300,-300,200,-75,12/)
+c$$$      a7(1,:)=(/-12,-65,120,-60,20,-3/)
+c$$$      a7(2,:)=(/3,-30,-20,60,-15,2/)
+c$$$      a7(3,:)=(/-2,15,-60,20,30,-3/)
+c$$$      a7(4,:)=(/3,-20,60,-120,65,12/)
+c$$$      a7(5,:)=(/-12,75,-200,300,-300,137/)
+c$$$      cm=(/-1,7,7,-1/)
+c$$$      cl=(/2,17,-11,5,-1/)
+c$$$      cr=(/-1,5,-11,17,2/)
+
       contains
 
 c     lap_tnsr_flx_x_ijk
@@ -13263,43 +13328,31 @@ c     Call variables
 
 c     Local variables
 
-      integer  :: a(-1:1,5),cm(4),cl(5),cr(5)
-      real(8)  :: itwelve,bxby,flx0,flx1,flx,ih
+      real(8)  :: bxby,flx0,flx1,flx,ih
       logical  :: chk0,chk1,chk2
 
+c     Begin program
+      
       val=0
 
       ih = 1d0/h
-      itwelve = 1d0/12d0
-      
-      a(-1,:)=(/-3,-10,18,-6,1/)
-      a(0,:)=(/1,-8,0,8,-1/)
-      a(1,:)=(/-1,6,-18,10,3/)
 
-      cm=(/-1,7,7,-1/)
-      cl=(/2,17,-11,5,-1/)
-      cr=(/-1,5,-11,17,2/)
-
-      if((tagx+2)*(tagx+1)*tagx*(tagx-1)+(tagy+1)*tagy*(tagy-1)==0)then
-         select case(tagx)
-         case (-2)
-            val=sum(cl*B2*matmul(F,a(tagy,:))*itwelve*ih)*itwelve
-         case (-1)
-            val=sum(cm*B2(1:4)*matmul(F(1:4,:),a(tagy,:))
-     .           *itwelve*ih)*itwelve
-         case (0)
-            val=sum(cm*B2(2:5)*matmul(F(2:5,:),a(tagy,:))
-     .           *itwelve*ih)*itwelve
-         case (1)
-            val=sum(cr*B2*matmul(F,a(tagy,:))*itwelve*ih)*itwelve
-         end select
-      else
-         write(*,*)"Error in Get_Flux_Cross, wrong tags"
-         write(*,*)"tagx=",tagx,"tagy=",tagy
-         write(*,*)"Choices are -1, 0, or 1 for left boundary, "
-         write(*,*)"interior or right boundary points"
-         stop
-      endif
+      select case(tagx)
+      case (-2)
+        val=sum(cl*B2     *matmul(F       ,ax(tagy,:)))*ih
+      case (-1)
+        val=sum(cm*B2(1:4)*matmul(F(1:4,:),ax(tagy,:)))*ih
+      case (0)
+        val=sum(cm*B2(2:5)*matmul(F(2:5,:),ax(tagy,:)))*ih
+      case (1)
+        val=sum(cr*B2     *matmul(F       ,ax(tagy,:)))*ih
+      case default
+        write(*,*)"Error in Get_Flux_Cross, wrong tags"
+        write(*,*)"tagx=",tagx,"tagy=",tagy
+        write(*,*)"Choices are -1, 0, or 1 for left boundary, "
+        write(*,*)"interior or right boundary points"
+        stop
+      end select
 
       !Check for monotonicity (Sharma, Hammett, JCP 227 (2007))
       if (limit) then
@@ -13309,12 +13362,8 @@ c     Local variables
         flx1 = mc(F(4,3)-F(4,2),F(4,4)-F(4,3),chk=chk1)
         flx  = mc(flx0         ,flx1         ,chk=chk2)
 
-cc        write (*,*) 'here',bxby,chk0,chk1,chk2
-      
         if (chk0 .or. chk1 .or. chk2) then
           val = bxby*ih*flx
-cc          write (*,*) 'here'
-cc          val = 0d0
         endif
       endif
 
@@ -13336,88 +13385,49 @@ c     Call variables
       real(8)  :: F(6),B2(6),val,h
 
 c     Local variables
-cc      integer  :: a(5,6)
-      real(8)  :: isv2=1d0/72d0,ishty=1d0/720d0
-      integer  :: a(0:5,6),cm(4),cl(5),cr(5)
-      real(8)  :: itwelve=1d0/12d0,isixty=1d0/60d0,ih
+
+      real(8)  :: ih
+
+c     Begin program
 
       ih = 1d0/h
       
       select case(stncl)
       case(5)
-
-        val=0
-        a=0
-        a(1,2:5)=(/0,1,4,-5/)
-        a(2,2:5)=(/11,-54,33,10/)
-        a(3,2:5)=(/-10,-33,54,-11/)
-        a(4,2:5)=(/5,-4,-1,0/)
-
         select case(tag)
         case (-2)
-           a(1,:)=(/-36, -185, 400, -230, 60, -9/)
-           a(2,:)=(/-610, -290, 1770, -1340, 560, -90/)
-           a(3,:)=(/116, 840, -1620, 970, -360, 54/)
-           a(4,:)=(/-22, -430, 710, -360, 120, -18/)
-           a(5,:)=(/12, 65, -120, 60, -20, 3/)
-           val=sum(B2(1:5)*matmul(a(1:5,:),F)*ih)*ishty
-           return
+           val=sum(B2(1:5)*matmul(al(1:5, : ),F     ))*ih
         case (-1)
-           val=sum(B2(1:4)*matmul(a(1:4,2:5),F(1:4))*ih)*isv2
-           return
+           val=sum(B2(1:4)*matmul(ac(1:4,2:5),F(1:4)))*ih
         case (0)
-           val=sum(B2(2:5)*matmul(a(1:4,2:5),F(2:5))*ih)*isv2
-           return
+           val=sum(B2(2:5)*matmul(ac(1:4,2:5),F(2:5)))*ih
         case (1)
-           val=sum(B2(3:6)*matmul(a(1:4,2:5),F(3:6))*ih)*isv2
-           return
+           val=sum(B2(3:6)*matmul(ac(1:4,2:5),F(3:6)))*ih
         case (2)
-           a(1,:)=(/-3, 20, -60, 120, -65, -12/)
-           a(2,:)=(/18, -120, 360, -710, 430, 22/)
-           a(3,:)=(/-54, 360, -970, 1620, -840, -116/)
-           a(4,:)=(/90, -560, 1340, -1770, 290, 610/)
-           a(5,:)=(/9, -60, 230, -400, 185, 36/)
-           val=sum(B2(2:6)*matmul(a(1:5,:),F)*ih)*ishty
-           return
+           val=sum(B2(2:6)*matmul(ar(1:5, : ),F     ))*ih
         case default
            write(*,*)"Error in Get_Flux, wrong tag=",tag
            write(*,*)"Choices are -2, -1, 0, 1 or 2 for left boundary, "
            write(*,*)"interior or right boundary points"
-           return
+           stop
         end select
       case(7)
-        a(0,:)=(/-137,300,-300,200,-75,12/)
-        a(1,:)=(/-12,-65,120,-60,20,-3/)
-        a(2,:)=(/3,-30,-20,60,-15,2/)
-        a(3,:)=(/-2,15,-60,20,30,-3/)
-        a(4,:)=(/3,-20,60,-120,65,12/)
-        a(5,:)=(/-12,75,-200,300,-300,137/)
-
-        cm=(/-1,7,7,-1/)
-        cl=(/2,17,-11,5,-1/)
-        cr=(/-1,5,-11,17,2/)
-
         select case(tag)
         case (-2)
-           val=sum(cl*B2(1:5)*matmul(a(0:4,:),F)*isixty*ih)*itwelve
-           return
-        case (-1)
-           val=sum(cm*B2(1:4)*matmul(a(0:3,:),F)*isixty*ih)*itwelve
-           return
-        case (0)
-           val=sum(cm*B2(2:5)*matmul(a(1:4,:),F)*isixty*ih)*itwelve
-           return
-        case (1)
-           val=sum(cm*B2(3:6)*matmul(a(2:5,:),F)*isixty*ih)*itwelve
-           return
-        case (2)
-           val=sum(cr*B2(2:6)*matmul(a(1:5,:),F)*isixty*ih)*itwelve
-           return
+           val=sum(cl*B2(1:5)*matmul(a7(0:4,:),F))*ih
+        case (-1)                                    
+           val=sum(cm*B2(1:4)*matmul(a7(0:3,:),F))*ih
+        case (0)                                     
+           val=sum(cm*B2(2:5)*matmul(a7(1:4,:),F))*ih
+        case (1)                                     
+           val=sum(cm*B2(3:6)*matmul(a7(2:5,:),F))*ih
+        case (2)                                     
+           val=sum(cr*B2(2:6)*matmul(a7(1:5,:),F))*ih
         case default
            write(*,*)"Error in Get_Flux, wrong tag=",tag
            write(*,*)"Choices are -2, -1, 0, 1 or 2 for left boundary, "
            write(*,*)"interior or right boundary points"
-           return
+           stop
         end select
       case default
         call pstop('Get_Flux in par_flux_4th','Stencil not available')
@@ -13624,7 +13634,7 @@ c                 ( 2  4  5 )
 c                 ( 3  5  6 )
 c
 c     Coded by Natalia Krashenninikova, 8/2008
-c     Modified by L. Chacon, 9/2008, 11/2019
+c     Modified by L. Chacon, 9/2008, 11/2019, 12/2020
 c     ----------------------------------------------------------------
       implicit none
 
@@ -13645,7 +13655,7 @@ c     Call variables
 
 c     Local variables
 
-      real(8)  :: dx,dy,dz,avg
+      real(8)  :: idx,idy,idz,avg
       integer  :: tgx,tgy,tgz,xi,xf,yi,yf,zi,zf,ig,jg,kg,ii,jj,kk
      .           ,stncl,nx,ny,nz,ip,im,jp,jm,kp,km,advcmthd
       logical  :: limitd,vol
@@ -13697,9 +13707,9 @@ c     Get (constant) mesh spacings
 
       call getMGmap(g_def,i,j,k,igr,igr,igr,ig,jg,kg)
 
-      dx=g_def%dxh(ig)
-      dy=g_def%dyh(jg)
-      dz=g_def%dzh(kg)
+      idx=1d0/g_def%dxh(ig)
+      idy=1d0/g_def%dyh(jg)
+      idz=1d0/g_def%dzh(kg)
 
 c     Calculate fluxes
 
@@ -13710,7 +13720,7 @@ c     Calculate fluxes
           if (ii == 0) tgx = -2
           xi=max(ii-2,0)-max(ii+3-(nx+1),0)
           xf=min(ii+3,nx+1)+max(2-ii,0)
-          Flux(ii,j,k,1)=Get_Flux(dx,tgx,F(xi:xf,j,k)
+          Flux(ii,j,k,1)=Get_Flux(idx,tgx,F(xi:xf,j,k)
      .                             ,tnsrd(xi:xf,j,k,1))
 
           if (ny > 1) then
@@ -13722,7 +13732,7 @@ c     Calculate fluxes
             yi=max(j-2,0)-max(j+2-(ny+1),0)
             yf=min(j+2,ny+1)+max(2-j,0)
             Flux_cross(ii,j,k,1)=
-     .           Get_Flux_Cross(dy,tgx,tgy,F_0(xi:xf,yi:yf,k)
+     .           Get_Flux_Cross(idy,tgx,tgy,F_0(xi:xf,yi:yf,k)
      .                         ,tnsrd(xi:xf,j,k,2))
           endif
 
@@ -13736,7 +13746,7 @@ c     Calculate fluxes
             zf=min(k+2,nz+1)+max(2-k,0)
 
             Flux_cross(ii,j,k,1)=
-     .           +Get_Flux_Cross(dz,tgx,tgz,F_0(xi:xf,j,zi:zf)
+     .           Get_Flux_Cross(idz,tgx,tgz,F_0(xi:xf,j,zi:zf)
      .                          ,tnsrd(xi:xf,j,k,3))
          endif
 
@@ -13750,7 +13760,7 @@ c     Calculate fluxes
           if (jj == 0) tgy = -2
           yi=max(jj-2,0)-max(jj+3-(ny+1),0)
           yf=min(jj+3,ny+1)+max(2-jj,0)
-          Flux(i,jj,k,2)=Get_Flux(dy,tgy,F(i,yi:yf,k)
+          Flux(i,jj,k,2)=Get_Flux(idy,tgy,F(i,yi:yf,k)
      .                             ,tnsrd(i,yi:yf,k,4))
 
           if (nx > 1) then
@@ -13762,7 +13772,7 @@ c     Calculate fluxes
             yi=max(jj-2,0)-max(jj+2-(ny+1),0)
             yf=min(jj+2,ny+1)+max(2-jj,0)
             Flux_cross(i,jj,k,2)=
-     .           +Get_Flux_Cross(dx,tgy,tgx
+     .           Get_Flux_Cross(idx,tgy,tgx
      .                          ,Transpose(F_0(xi:xf,yi:yf,k))
      .                          ,tnsrd(i,yi:yf,k,2))
           endif
@@ -13776,7 +13786,7 @@ c     Calculate fluxes
             zi=max(k-2,0)-max(k+2-(nz+1),0)
             zf=min(k+2,nz+1)+max(2-k,0)
             Flux_cross(i,jj,k,2)=
-     .           +Get_Flux_Cross(dz,tgy,tgz,F_0(i,yi:yf,zi:zf)
+     .           Get_Flux_Cross(idz,tgy,tgz,F_0(i,yi:yf,zi:zf)
      .                          ,tnsrd(i,yi:yf,k,5))
           endif
         enddo
@@ -13789,7 +13799,7 @@ c     Calculate fluxes
           if (kk == 0) tgz = -2
           zi=max(kk-2,0)-max(kk+2-(nz+1),0)
           zf=min(kk+2,nz+1)+max(2-kk,0)
-          Flux(i,j,kk,3)=Get_Flux(dz,tgz,F(i,j,zi:zf)
+          Flux(i,j,kk,3)=Get_Flux(idz,tgz,F(i,j,zi:zf)
      .                             ,tnsrd(i,j,zi:zf,6))
 
           if (ny > 1) then
@@ -13801,7 +13811,7 @@ c     Calculate fluxes
             zi=max(kk-2,0)-max(kk+2-(nz+1),0)
             zf=min(kk+2,nz+1)+max(2-kk,0)
             Flux_cross(i,j,kk,3)=
-     .           +Get_Flux_Cross(dy,tgz,tgy
+     .           Get_Flux_Cross(idy,tgz,tgy
      .                     ,Transpose(F_0(i,yi:yf,zi:zf))
      .                     ,tnsrd(i,j,zi:zf,5))
           endif
@@ -13815,7 +13825,7 @@ c     Calculate fluxes
             zi=max(kk-2,0)-max(kk+2-(nz+1),0)
             zf=min(kk+2,nz+1)+max(2-kk,0)
             Flux_cross(i,j,kk,3)=
-     .           +Get_Flux_Cross(dx,tgz,tgx
+     .           Get_Flux_Cross(idx,tgz,tgx
      .                     ,Transpose(F_0(xi:xf,j,zi:zf))
      .                     ,tnsrd(i,j,zi:zf,3))
           endif
@@ -13899,9 +13909,9 @@ c     Calculate fluxes
       if (isBC(g_def,k,igr,5,NEU,bcnd=bcnd)) Flux(i,j,k-1,3) = 0d0
       if (isBC(g_def,k,igr,6,NEU,bcnd=bcnd)) Flux(i,j,k  ,3) = 0d0
 
-      lap = ((Flux(i,j,k,1)-Flux(i-1,j,k,1))/g_def%dxh(ig)
-     .      +(Flux(i,j,k,2)-Flux(i,j-1,k,2))/g_def%dyh(jg)
-     .      +(Flux(i,j,k,3)-Flux(i,j,k-1,3))/g_def%dzh(kg))
+      lap = ((Flux(i,j,k,1)-Flux(i-1,j,k,1))*idx
+     .      +(Flux(i,j,k,2)-Flux(i,j-1,k,2))*idy
+     .      +(Flux(i,j,k,3)-Flux(i,j,k-1,3))*idz)
      .      /g_def%gmetric%grid(igr)%jac(i,j,k)
 
       if (vol) lap=lap*g_def%gmetric%grid(igr)%dvol(i,j,k)
@@ -13909,7 +13919,7 @@ c     Calculate fluxes
       contains
 
 c     ################################################################
-      function Get_Flux_Cross(h,tagx,tagy,F,B2) result(val)
+      function Get_Flux_Cross(ih,tagx,tagy,F,B2) result(val)
 c     ----------------------------------------------------------------
 c     Calculates the flux for d^2/dx dy part of div.(BB.grad) operator 
 c     with 4th order accuracy at a point.
@@ -13921,50 +13931,33 @@ c     ----------------------------------------------------------------
 c     Call variables
 
       integer  :: tagx,tagy
-      real(8)  :: F(5,5),B2(5),val,h
+      real(8)  :: F(5,5),B2(5),val,ih
 
 c     Local variables
-      integer  :: a(-1:1,5),cm(4),cl(5),cr(5)
-      real(8)  :: itwelve=1d0/12d0,bxby,flx0,flx1,flx,ih
-      logical  :: chk0,chk1,chk2
 
-      val=0d0
+c     Begin program
 
-      ih = 1d0/h
-
-      a(-1,:)=(/-3,-10,18,-6,1/)
-      a(0,:)=(/1,-8,0,8,-1/)
-      a(1,:)=(/-1,6,-18,10,3/)
-
-      cm=(/-1,7,7,-1/)
-      cl=(/2,17,-11,5,-1/)
-      cr=(/-1,5,-11,17,2/)
-
-      if((tagx+2)*(tagx+1)*tagx*(tagx-1)+(tagy+1)*tagy*(tagy-1)==0)then
-         select case(tagx)
-         case (-2)
-            val=sum(cl*B2*matmul(F,a(tagy,:))*itwelve*ih)*itwelve
-         case (-1)
-            val=sum(cm*B2(1:4)*matmul(F(1:4,:),a(tagy,:))
-     .           *itwelve*ih)*itwelve
-         case (0)
-            val=sum(cm*B2(2:5)*matmul(F(2:5,:),a(tagy,:))
-     .           *itwelve*ih)*itwelve
-         case (1)
-            val=sum(cr*B2*matmul(F,a(tagy,:))*itwelve*ih)*itwelve
-         end select
-      else
-         write(*,*)"Error in Get_Flux_Cross, wrong tags"
-         write(*,*)"tagx=",tagx,"tagy=",tagy
-         write(*,*)"Choices are -1, 0, or 1 for left boundary, "
-         write(*,*)"interior or right boundary points"
-         stop
-      endif
+      select case(tagx)
+      case (-2)
+        val=sum(cl*B2     *matmul(F       ,ax(tagy,:)))*ih
+      case (-1)
+        val=sum(cm*B2(1:4)*matmul(F(1:4,:),ax(tagy,:)))*ih
+      case (0)
+        val=sum(cm*B2(2:5)*matmul(F(2:5,:),ax(tagy,:)))*ih
+      case (1)
+        val=sum(cr*B2     *matmul(F       ,ax(tagy,:)))*ih
+      case default
+        write(*,*)"Error in Get_Flux_Cross, wrong tags"
+        write(*,*)"tagx=",tagx,"tagy=",tagy
+        write(*,*)"Choices are -1, 0, or 1 for left boundary, "
+        write(*,*)"interior or right boundary points"
+        stop
+      end select
 
       end function Get_Flux_Cross
 
 c     ################################################################
-      function Get_Flux(h,tag,F,B2) result (val)
+      function Get_Flux(ih,tag,F,B2) result (val)
 c     ----------------------------------------------------------------
 c     Calculates the flux for d^2/dx^2 part of div.(BB.grad) operator 
 c     with 4th order accuracy at a point.
@@ -13976,93 +13969,48 @@ c     ----------------------------------------------------------------
 c     Call variables
 
       integer  :: tag
-      real(8)  :: F(6),B2(6),val,h
+      real(8)  :: F(6),B2(6),val,ih
 
 c     Local variables
 
-      integer  :: a(0:5,6),cm(4),cl(5),cr(5)
-      real(8)  :: twelve=12d0,sixty=60d0
-      real(8)  :: isv2=1d0/72d0,ishty=1d0/720d0,ih
-
 c     Begin program
 
-      ih = 1d0/h
-      
       select case(stncl)
       case(5)
-
-        val=0d0
-        a=0d0
-        a(1,2:5)=(/0,1,4,-5/)
-        a(2,2:5)=(/11,-54,33,10/)
-        a(3,2:5)=(/-10,-33,54,-11/)
-        a(4,2:5)=(/5,-4,-1,0/)
-
         select case(tag)
         case (-2)
-           a(1,:)=(/-36, -185, 400, -230, 60, -9/)
-           a(2,:)=(/-610, -290, 1770, -1340, 560, -90/)
-           a(3,:)=(/116, 840, -1620, 970, -360, 54/)
-           a(4,:)=(/-22, -430, 710, -360, 120, -18/)
-           a(5,:)=(/12, 65, -120, 60, -20, 3/)
-           val=sum(B2(1:5)*matmul(a(1:5,:),F))*ih*ishty
-           return
+           val=sum(B2(1:5)*matmul(al(1:5, : ),F     ))*ih
         case (-1)
-           val=sum(B2(1:4)*matmul(a(1:4,2:5),F(1:4)))*ih*isv2
-           return
+           val=sum(B2(1:4)*matmul(ac(1:4,2:5),F(1:4)))*ih
         case (0)
-           val=sum(B2(2:5)*matmul(a(1:4,2:5),F(2:5)))*ih*isv2
-           return
+           val=sum(B2(2:5)*matmul(ac(1:4,2:5),F(2:5)))*ih
         case (1)
-           val=sum(B2(3:6)*matmul(a(1:4,2:5),F(3:6)))*ih*isv2
-           return
+           val=sum(B2(3:6)*matmul(ac(1:4,2:5),F(3:6)))*ih
         case (2)
-           a(1,:)=(/-3, 20, -60, 120, -65, -12/)
-           a(2,:)=(/18, -120, 360, -710, 430, 22/)
-           a(3,:)=(/-54, 360, -970, 1620, -840, -116/)
-           a(4,:)=(/90, -560, 1340, -1770, 290, 610/)
-           a(5,:)=(/9, -60, 230, -400, 185, 36/)
-           val=sum(B2(2:6)*matmul(a(1:5,:),F))*ih*ishty
-           return
+           val=sum(B2(2:6)*matmul(ar(1:5, : ),F     ))*ih
         case default
            write(*,*)"Error in Get_Flux, wrong tag=",tag
            write(*,*)"Choices are -2, -1, 0, 1 or 2 for left boundary, "
            write(*,*)"interior or right boundary points"
-           return
+           stop
         end select
       case(7)
-        a(0,:)=(/-137,300,-300,200,-75,12/)
-        a(1,:)=(/-12,-65,120,-60,20,-3/)
-        a(2,:)=(/3,-30,-20,60,-15,2/)
-        a(3,:)=(/-2,15,-60,20,30,-3/)
-        a(4,:)=(/3,-20,60,-120,65,12/)
-        a(5,:)=(/-12,75,-200,300,-300,137/)
-
-        cm=(/-1,7,7,-1/)
-        cl=(/2,17,-11,5,-1/)
-        cr=(/-1,5,-11,17,2/)
-
         select case(tag)
         case (-2)
-           val=sum(cl*B2(1:5)*matmul(a(0:4,:),F))*ih*ishty
-           return
+           val=sum(cl*B2(1:5)*matmul(a7(0:4,:),F))*ih
         case (-1)
-           val=sum(cm*B2(1:4)*matmul(a(0:3,:),F))*ih*ishty
-           return
+           val=sum(cm*B2(1:4)*matmul(a7(0:3,:),F))*ih
         case (0)
-           val=sum(cm*B2(2:5)*matmul(a(1:4,:),F))*ih*ishty
-           return
+           val=sum(cm*B2(2:5)*matmul(a7(1:4,:),F))*ih
         case (1)
-           val=sum(cm*B2(3:6)*matmul(a(2:5,:),F))*ih*ishty
-           return
+           val=sum(cm*B2(3:6)*matmul(a7(2:5,:),F))*ih
         case (2)
-           val=sum(cr*B2(2:6)*matmul(a(1:5,:),F))*ih*ishty
-           return
+           val=sum(cr*B2(2:6)*matmul(a7(1:5,:),F))*ih
         case default
            write(*,*)"Error in Get_Flux, wrong tag=",tag
            write(*,*)"Choices are -2, -1, 0, 1 or 2 for left boundary, "
            write(*,*)"interior or right boundary points"
-           return
+           stop
         end select
       case default
         call pstop('Get_Flux in par_flux_4th','Stencil not available')
