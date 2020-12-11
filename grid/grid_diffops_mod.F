@@ -11147,6 +11147,8 @@ c ######################################################################
 
         use grid_advec_ops
 
+        use math, ONLY: mc
+
         INTERFACE par_diff
           module procedure par_diff_ijk,par_diff_mesh
         end INTERFACE
@@ -11400,13 +11402,17 @@ c     Call variables
 
 c     Local variables
 
-      integer :: im,jm,km,ip,jp,kp,ig,jg,kg,ii,jj,kk
+      integer :: im,jm,km,ip,jp,kp,ig,jg,kg,jj,kk
 
       real(8) :: d_xy,d_xz,avgt,dty,dtz
      .          ,d_xy_ipjp,d_xy_ipjm
      .          ,d_xz_ipkp,d_xz_ipkm
 
 c     Begin program
+
+      flx = 0d0
+
+      if (isSP2(g_def,i+1,igrid)) return
 
       select case(meth)
       case("symm_edge")
@@ -11483,52 +11489,47 @@ c     Begin program
 
       case("symm_vrtx")
 
-        ii = i
-        
-        flx = 0d0
-        
         do kk = k-1,k
           do jj = j-1,j
-            if (isSP2(g_def,ii+1,igrid)) cycle
               
-            call getMGmap(g_def,ii,jj,kk,igrid,igrid,igrid,ig,jg,kg)
+            call getMGmap(g_def,i,jj,kk,igrid,igrid,igrid,ig,jg,kg)
 
-            d_xy = (tnsr(ii  ,jj  ,kk  ,2)
-     .             +tnsr(ii+1,jj  ,kk  ,2)
-     .             +tnsr(ii  ,jj+1,kk  ,2)
-     .             +tnsr(ii+1,jj+1,kk  ,2)
-     .             +tnsr(ii  ,jj  ,kk+1,2)
-     .             +tnsr(ii+1,jj  ,kk+1,2)
-     .             +tnsr(ii  ,jj+1,kk+1,2)
-     .             +tnsr(ii+1,jj+1,kk+1,2))
+            d_xy = (tnsr(i  ,jj  ,kk  ,2)
+     .             +tnsr(i+1,jj  ,kk  ,2)
+     .             +tnsr(i  ,jj+1,kk  ,2)
+     .             +tnsr(i+1,jj+1,kk  ,2)
+     .             +tnsr(i  ,jj  ,kk+1,2)
+     .             +tnsr(i+1,jj  ,kk+1,2)
+     .             +tnsr(i  ,jj+1,kk+1,2)
+     .             +tnsr(i+1,jj+1,kk+1,2))
 
-            d_xz = (tnsr(ii  ,jj  ,kk  ,3)
-     .             +tnsr(ii+1,jj  ,kk  ,3)
-     .             +tnsr(ii  ,jj+1,kk  ,3)
-     .             +tnsr(ii+1,jj+1,kk  ,3)
-     .             +tnsr(ii  ,jj  ,kk+1,3)
-     .             +tnsr(ii+1,jj  ,kk+1,3)
-     .             +tnsr(ii  ,jj+1,kk+1,3)
-     .             +tnsr(ii+1,jj+1,kk+1,3))
+            d_xz = (tnsr(i  ,jj  ,kk  ,3)
+     .             +tnsr(i+1,jj  ,kk  ,3)
+     .             +tnsr(i  ,jj+1,kk  ,3)
+     .             +tnsr(i+1,jj+1,kk  ,3)
+     .             +tnsr(i  ,jj  ,kk+1,3)
+     .             +tnsr(i+1,jj  ,kk+1,3)
+     .             +tnsr(i  ,jj+1,kk+1,3)
+     .             +tnsr(i+1,jj+1,kk+1,3))
 
-            avgt = (arr(ii  ,jj  ,kk  )
-     .             +arr(ii+1,jj  ,kk  )
-     .             +arr(ii  ,jj+1,kk  )
-     .             +arr(ii+1,jj+1,kk  )
-     .             +arr(ii  ,jj  ,kk+1)
-     .             +arr(ii+1,jj  ,kk+1)
-     .             +arr(ii  ,jj+1,kk+1)
-     .             +arr(ii+1,jj+1,kk+1))
+            avgt = (arr(i  ,jj  ,kk  )
+     .             +arr(i+1,jj  ,kk  )
+     .             +arr(i  ,jj+1,kk  )
+     .             +arr(i+1,jj+1,kk  )
+     .             +arr(i  ,jj  ,kk+1)
+     .             +arr(i+1,jj  ,kk+1)
+     .             +arr(i  ,jj+1,kk+1)
+     .             +arr(i+1,jj+1,kk+1))
 
-            dty =.25*(arr(ii  ,jj+1,kk  )-arr(ii  ,jj,kk  )
-     .               +arr(ii+1,jj+1,kk  )-arr(ii+1,jj,kk  )
-     .               +arr(ii  ,jj+1,kk+1)-arr(ii  ,jj,kk+1)
-     .               +arr(ii+1,jj+1,kk+1)-arr(ii+1,jj,kk+1))
+            dty =.25*(arr(i  ,jj+1,kk  )-arr(i  ,jj,kk  )
+     .               +arr(i+1,jj+1,kk  )-arr(i+1,jj,kk  )
+     .               +arr(i  ,jj+1,kk+1)-arr(i  ,jj,kk+1)
+     .               +arr(i+1,jj+1,kk+1)-arr(i+1,jj,kk+1))
      .               /g_def%dy(jg)
-            dtz =.25*(arr(ii  ,jj  ,kk+1)-arr(ii  ,jj  ,kk)
-     .               +arr(ii+1,jj  ,kk+1)-arr(ii+1,jj  ,kk)
-     .               +arr(ii  ,jj+1,kk+1)-arr(ii  ,jj+1,kk)
-     .               +arr(ii+1,jj+1,kk+1)-arr(ii+1,jj+1,kk))
+            dtz =.25*(arr(i  ,jj  ,kk+1)-arr(i  ,jj  ,kk)
+     .               +arr(i+1,jj  ,kk+1)-arr(i+1,jj  ,kk)
+     .               +arr(i  ,jj+1,kk+1)-arr(i  ,jj+1,kk)
+     .               +arr(i+1,jj+1,kk+1)-arr(i+1,jj+1,kk))
      .               /g_def%dz(kg)
 
             if (avgt > 0d0) flx = flx + (d_xy*dty + d_xz*dtz)/avgt
@@ -11903,6 +11904,15 @@ c
 c                 ( 1  2  3 )
 c                 ( -  4  5 )
 c                 ( -  -  6 )
+c     If "limited = .true.", limiting is done by the "Du Toit" method,
+c     using the advective scheme specified by "limit_mthd".
+c
+c     "meth" refers to how cross-fluxes are gathered at faces to apply
+c     the limiting. Currently, we have "symm_edge" and "symm_vrtx":
+c     - "symm_edge" computes values of face cross-flux by averaging
+c       edge   fluxes
+c     - "symm_vrtx" computes values of face cross-flux by averaging
+c       vertex fluxes
 c     ---------------------------------------------------------------
 
       implicit none           !For safe fortran
@@ -13254,11 +13264,14 @@ c     Call variables
 c     Local variables
 
       integer  :: a(-1:1,5),cm(4),cl(5),cr(5)
-      real(8)  :: twelve=12d0,bxby,flx0,flx1,flx
+      real(8)  :: itwelve,bxby,flx0,flx1,flx,ih
       logical  :: chk0,chk1,chk2
 
       val=0
 
+      ih = 1d0/h
+      itwelve = 1d0/12d0
+      
       a(-1,:)=(/-3,-10,18,-6,1/)
       a(0,:)=(/1,-8,0,8,-1/)
       a(1,:)=(/-1,6,-18,10,3/)
@@ -13270,15 +13283,15 @@ c     Local variables
       if((tagx+2)*(tagx+1)*tagx*(tagx-1)+(tagy+1)*tagy*(tagy-1)==0)then
          select case(tagx)
          case (-2)
-            val=sum(cl*B2*matmul(F,a(tagy,:))/twelve/h)/twelve
+            val=sum(cl*B2*matmul(F,a(tagy,:))*itwelve*ih)*itwelve
          case (-1)
             val=sum(cm*B2(1:4)*matmul(F(1:4,:),a(tagy,:))
-     .           /twelve/h)/twelve
+     .           *itwelve*ih)*itwelve
          case (0)
             val=sum(cm*B2(2:5)*matmul(F(2:5,:),a(tagy,:))
-     .           /twelve/h)/twelve
+     .           *itwelve*ih)*itwelve
          case (1)
-            val=sum(cr*B2*matmul(F,a(tagy,:))/twelve/h)/twelve
+            val=sum(cr*B2*matmul(F,a(tagy,:))*itwelve*ih)*itwelve
          end select
       else
          write(*,*)"Error in Get_Flux_Cross, wrong tags"
@@ -13299,7 +13312,7 @@ c     Local variables
 cc        write (*,*) 'here',bxby,chk0,chk1,chk2
       
         if (chk0 .or. chk1 .or. chk2) then
-          val = bxby/h*flx
+          val = bxby*ih*flx
 cc          write (*,*) 'here'
 cc          val = 0d0
         endif
@@ -13324,10 +13337,12 @@ c     Call variables
 
 c     Local variables
 cc      integer  :: a(5,6)
-      real(8)  :: sv2=72d0,shty=720d0
+      real(8)  :: isv2=1d0/72d0,ishty=1d0/720d0
       integer  :: a(0:5,6),cm(4),cl(5),cr(5)
-      real(8)  :: twelve=12d0,sixty=60d0
+      real(8)  :: itwelve=1d0/12d0,isixty=1d0/60d0,ih
 
+      ih = 1d0/h
+      
       select case(stncl)
       case(5)
 
@@ -13345,16 +13360,16 @@ cc      integer  :: a(5,6)
            a(3,:)=(/116, 840, -1620, 970, -360, 54/)
            a(4,:)=(/-22, -430, 710, -360, 120, -18/)
            a(5,:)=(/12, 65, -120, 60, -20, 3/)
-           val=sum(B2(1:5)*matmul(a(1:5,:),F)/h)/shty
+           val=sum(B2(1:5)*matmul(a(1:5,:),F)*ih)*ishty
            return
         case (-1)
-           val=sum(B2(1:4)*matmul(a(1:4,2:5),F(1:4))/h)/sv2
+           val=sum(B2(1:4)*matmul(a(1:4,2:5),F(1:4))*ih)*isv2
            return
         case (0)
-           val=sum(B2(2:5)*matmul(a(1:4,2:5),F(2:5))/h)/sv2
+           val=sum(B2(2:5)*matmul(a(1:4,2:5),F(2:5))*ih)*isv2
            return
         case (1)
-           val=sum(B2(3:6)*matmul(a(1:4,2:5),F(3:6))/h)/sv2
+           val=sum(B2(3:6)*matmul(a(1:4,2:5),F(3:6))*ih)*isv2
            return
         case (2)
            a(1,:)=(/-3, 20, -60, 120, -65, -12/)
@@ -13362,7 +13377,7 @@ cc      integer  :: a(5,6)
            a(3,:)=(/-54, 360, -970, 1620, -840, -116/)
            a(4,:)=(/90, -560, 1340, -1770, 290, 610/)
            a(5,:)=(/9, -60, 230, -400, 185, 36/)
-           val=sum(B2(2:6)*matmul(a(1:5,:),F)/h)/shty
+           val=sum(B2(2:6)*matmul(a(1:5,:),F)*ih)*ishty
            return
         case default
            write(*,*)"Error in Get_Flux, wrong tag=",tag
@@ -13384,19 +13399,19 @@ cc      integer  :: a(5,6)
 
         select case(tag)
         case (-2)
-           val=sum(cl*B2(1:5)*matmul(a(0:4,:),F)/sixty/h)/twelve
+           val=sum(cl*B2(1:5)*matmul(a(0:4,:),F)*isixty*ih)*itwelve
            return
         case (-1)
-           val=sum(cm*B2(1:4)*matmul(a(0:3,:),F)/sixty/h)/twelve
+           val=sum(cm*B2(1:4)*matmul(a(0:3,:),F)*isixty*ih)*itwelve
            return
         case (0)
-           val=sum(cm*B2(2:5)*matmul(a(1:4,:),F)/sixty/h)/twelve
+           val=sum(cm*B2(2:5)*matmul(a(1:4,:),F)*isixty*ih)*itwelve
            return
         case (1)
-           val=sum(cm*B2(3:6)*matmul(a(2:5,:),F)/sixty/h)/twelve
+           val=sum(cm*B2(3:6)*matmul(a(2:5,:),F)*isixty*ih)*itwelve
            return
         case (2)
-           val=sum(cr*B2(2:6)*matmul(a(1:5,:),F)/sixty/h)/twelve
+           val=sum(cr*B2(2:6)*matmul(a(1:5,:),F)*isixty*ih)*itwelve
            return
         case default
            write(*,*)"Error in Get_Flux, wrong tag=",tag
@@ -13411,7 +13426,6 @@ cc      integer  :: a(5,6)
       end function Get_Flux
 
       end subroutine par_flux_4th
-
 
 c     tnsr_diff_mesh
 c     ###############################################################
@@ -13636,13 +13650,9 @@ c     Local variables
      .           ,stncl,nx,ny,nz,ip,im,jp,jm,kp,km,advcmthd
       logical  :: limitd,vol
 
-      real(8)  :: Fluxx(i-1:i,j-1:j,k-1:k)
-     .           ,Fluxy(i-1:i,j-1:j,k-1:k)
-     .           ,Fluxz(i-1:i,j-1:j,k-1:k)
-      real(8)  :: Fluxx_cross(i-1:i,j-1:j,k-1:k)
-     .           ,Fluxy_cross(i-1:i,j-1:j,k-1:k)
-     .           ,Fluxz_cross(i-1:i,j-1:j,k-1:k)
-      real(8) :: flxip,flxim,flxjp,flxjm,flxkp,flxkm
+      real(8)  :: Flux      (i-1:i,j-1:j,k-1:k,3)
+      real(8)  :: Flux_cross(i-1:i,j-1:j,k-1:k,3)
+      real(8)  :: flxip,flxim,flxjp,flxjm,flxkp,flxkm
 
       real(8),dimension(:,:,:),pointer :: F_0
 
@@ -13667,12 +13677,8 @@ c     Begin program
       vol = .false.
       if (PRESENT(vol_wgt)) vol = vol_wgt
 
-      Fluxx=0d0
-      Fluxy=0d0
-      Fluxz=0d0
-      Fluxx_cross=0d0
-      Fluxy_cross=0d0
-      Fluxz_cross=0d0
+      Flux=0d0
+      Flux_cross=0d0
 
       ip = i+1
       im = i-1
@@ -13704,7 +13710,7 @@ c     Calculate fluxes
           if (ii == 0) tgx = -2
           xi=max(ii-2,0)-max(ii+3-(nx+1),0)
           xf=min(ii+3,nx+1)+max(2-ii,0)
-          Fluxx(ii,j,k)=Get_Flux(dx,tgx,F(xi:xf,j,k)
+          Flux(ii,j,k,1)=Get_Flux(dx,tgx,F(xi:xf,j,k)
      .                             ,tnsrd(xi:xf,j,k,1))
 
           if (ny > 1) then
@@ -13715,7 +13721,7 @@ c     Calculate fluxes
             xf=min(ii+2,nx+1)+max(2-ii,0)
             yi=max(j-2,0)-max(j+2-(ny+1),0)
             yf=min(j+2,ny+1)+max(2-j,0)
-            Fluxx_cross(ii,j,k)=
+            Flux_cross(ii,j,k,1)=
      .           Get_Flux_Cross(dy,tgx,tgy,F_0(xi:xf,yi:yf,k)
      .                         ,tnsrd(xi:xf,j,k,2))
           endif
@@ -13729,21 +13735,12 @@ c     Calculate fluxes
             zi=max(k-2,0)-max(k+2-(nz+1),0)
             zf=min(k+2,nz+1)+max(2-k,0)
 
-            Fluxx_cross(ii,j,k)=
+            Flux_cross(ii,j,k,1)=
      .           +Get_Flux_Cross(dz,tgx,tgz,F_0(xi:xf,j,zi:zf)
      .                          ,tnsrd(xi:xf,j,k,3))
          endif
 
         enddo
-
-        if (isBdry(g_def,i,igr,1).and.(bcnd(1) == NEU)) then
-          Fluxx      (i-1,j,k) = 0d0
-          Fluxx_cross(i-1,j,k) = 0d0
-        endif
-        if (isBdry(g_def,i,igr,2).and.(bcnd(2) == NEU)) then
-          Fluxx      (i  ,j,k) = 0d0
-          Fluxx_cross(i  ,j,k) = 0d0
-        endif
       endif
 
       !Y flux
@@ -13753,7 +13750,7 @@ c     Calculate fluxes
           if (jj == 0) tgy = -2
           yi=max(jj-2,0)-max(jj+3-(ny+1),0)
           yf=min(jj+3,ny+1)+max(2-jj,0)
-          Fluxy(i,jj,k)=Get_Flux(dy,tgy,F(i,yi:yf,k)
+          Flux(i,jj,k,2)=Get_Flux(dy,tgy,F(i,yi:yf,k)
      .                             ,tnsrd(i,yi:yf,k,4))
 
           if (nx > 1) then
@@ -13764,7 +13761,7 @@ c     Calculate fluxes
             xf=min(i+2,nx+1)+max(2-i,0)
             yi=max(jj-2,0)-max(jj+2-(ny+1),0)
             yf=min(jj+2,ny+1)+max(2-jj,0)
-            Fluxy_cross(i,jj,k)=
+            Flux_cross(i,jj,k,2)=
      .           +Get_Flux_Cross(dx,tgy,tgx
      .                          ,Transpose(F_0(xi:xf,yi:yf,k))
      .                          ,tnsrd(i,yi:yf,k,2))
@@ -13778,20 +13775,11 @@ c     Calculate fluxes
             yf=min(jj+2,ny+1)+max(2-jj,0)
             zi=max(k-2,0)-max(k+2-(nz+1),0)
             zf=min(k+2,nz+1)+max(2-k,0)
-            Fluxy_cross(i,jj,k)=
+            Flux_cross(i,jj,k,2)=
      .           +Get_Flux_Cross(dz,tgy,tgz,F_0(i,yi:yf,zi:zf)
      .                          ,tnsrd(i,yi:yf,k,5))
           endif
         enddo
-
-        if (isBdry(g_def,j,igr,3).and.(bcnd(3) == NEU)) then
-          Fluxy      (i,j-1,k) = 0d0
-          Fluxy_cross(i,j-1,k) = 0d0
-        endif
-        if (isBdry(g_def,j,igr,4).and.(bcnd(4) == NEU)) then
-          Fluxy      (i,j  ,k) = 0d0
-          Fluxy_cross(i,j  ,k) = 0d0
-        endif
       endif
 
       !Z flux
@@ -13801,7 +13789,7 @@ c     Calculate fluxes
           if (kk == 0) tgz = -2
           zi=max(kk-2,0)-max(kk+2-(nz+1),0)
           zf=min(kk+2,nz+1)+max(2-kk,0)
-          Fluxz(i,j,kk)=Get_Flux(dz,tgz,F(i,j,zi:zf)
+          Flux(i,j,kk,3)=Get_Flux(dz,tgz,F(i,j,zi:zf)
      .                             ,tnsrd(i,j,zi:zf,6))
 
           if (ny > 1) then
@@ -13812,7 +13800,7 @@ c     Calculate fluxes
             yf=min(j+2,ny+1)+max(2-j,0)
             zi=max(kk-2,0)-max(kk+2-(nz+1),0)
             zf=min(kk+2,nz+1)+max(2-kk,0)
-            Fluxz_cross(i,j,kk)=
+            Flux_cross(i,j,kk,3)=
      .           +Get_Flux_Cross(dy,tgz,tgy
      .                     ,Transpose(F_0(i,yi:yf,zi:zf))
      .                     ,tnsrd(i,j,zi:zf,5))
@@ -13826,21 +13814,12 @@ c     Calculate fluxes
             xf=min(i+2,nx+1)+max(2-i,0)
             zi=max(kk-2,0)-max(kk+2-(nz+1),0)
             zf=min(kk+2,nz+1)+max(2-kk,0)
-            Fluxz_cross(i,j,kk)=
+            Flux_cross(i,j,kk,3)=
      .           +Get_Flux_Cross(dx,tgz,tgx
      .                     ,Transpose(F_0(xi:xf,j,zi:zf))
      .                     ,tnsrd(i,j,zi:zf,3))
           endif
         enddo
-
-        if (isBdry(g_def,k,igr,5).and.(bcnd(5) == NEU)) then
-          Fluxz      (i,j,k-1) = 0d0
-          Fluxz_cross(i,j,k-1) = 0d0
-        endif
-        if (isBdry(g_def,k,igr,6).and.(bcnd(6) == NEU)) then
-          Fluxz      (i,j,k  ) = 0d0
-          Fluxz_cross(i,j,k  ) = 0d0
-        endif
       endif
 
       if (limitd) then
@@ -13854,32 +13833,32 @@ c     Calculate fluxes
         flxip = 0d0
         avg =  0.5*(F_0(i ,j ,k)
      .             +F_0(ip,j ,k))
-        if (avg > 0d0) flxip=Fluxx_cross(i  ,j,k)/avg
+        if (avg > 0d0) flxip=Flux_cross(i  ,j,k,1)/avg
 
         flxim = 0d0
         avg =  0.5*(F_0(i ,j ,k)
      .             +F_0(im,j ,k))
-        if (avg > 0d0) flxim=Fluxx_cross(i-1,j,k)/avg
+        if (avg > 0d0) flxim=Flux_cross(i-1,j,k,1)/avg
 
         flxjp = 0d0
         avg =  0.5*(F_0(i,j ,k)
      .             +F_0(i,jp,k))
-        if (avg > 0d0) flxjp=Fluxy_cross(i,j  ,k)/avg
+        if (avg > 0d0) flxjp=Flux_cross(i,j  ,k,2)/avg
         
         flxjm = 0d0
         avg =  0.5*(F_0(i,j ,k)
      .             +F_0(i,jm,k))
-        if (avg > 0d0) flxjm=Fluxy_cross(i,j-1,k)/avg
+        if (avg > 0d0) flxjm=Flux_cross(i,j-1,k,2)/avg
 
         flxkp = 0d0
         avg =  0.5*(F_0(i,j,k )
      .             +F_0(i,j,kp))
-        if (avg > 0d0) flxkp=Fluxz_cross(i,j,k  )/avg
+        if (avg > 0d0) flxkp=Flux_cross(i,j,k  ,3)/avg
 
         flxkm = 0d0
         avg =  0.5*(F_0(i,j,k )
      .             +F_0(i,j,km))
-        if (avg > 0d0) flxkm=Fluxz_cross(i,j,k-1)/avg
+        if (avg > 0d0) flxkm=Flux_cross(i,j,k-1,3)/avg
 
         !Perform fake advection
         flxip =-scl_nc_advc_flx_x_new(g_def,i ,j,k,nx,ny,nz,igr
@@ -13897,23 +13876,32 @@ c     Calculate fluxes
         flxkm =-scl_nc_advc_flx_z_new(g_def,i,j,km,nx,ny,nz,igr
      $                               ,-flxkm,F,dF(:,:,:,3),advcmthd)
 
-        Fluxx_cross(i  ,j,k)=flxip
-        Fluxx_cross(i-1,j,k)=flxim
+        Flux_cross(i  ,j,k,1)=flxip
+        Flux_cross(i-1,j,k,1)=flxim
                                   
-        Fluxy_cross(i,j  ,k)=flxjp
-        Fluxy_cross(i,j-1,k)=flxjm
+        Flux_cross(i,j  ,k,2)=flxjp
+        Flux_cross(i,j-1,k,2)=flxjm
                                   
-        Fluxz_cross(i,j,k  )=flxkp
-        Fluxz_cross(i,j,k-1)=flxkm
+        Flux_cross(i,j,k  ,3)=flxkp
+        Flux_cross(i,j,k-1,3)=flxkm
       endif
 
-      Fluxx(i-1:i,j,k) = Fluxx(i-1:i,j,k) + Fluxx_cross(i-1:i,j,k)
-      Fluxy(i,j-1:j,k) = Fluxy(i,j-1:j,k) + Fluxy_cross(i,j-1:j,k)
-      Fluxz(i,j,k-1:k) = Fluxz(i,j,k-1:k) + Fluxz_cross(i,j,k-1:k)
-      
-      lap = ((Fluxx(i,j,k)-Fluxx(i-1,j,k))/g_def%dxh(ig)
-     .      +(Fluxy(i,j,k)-Fluxy(i,j-1,k))/g_def%dyh(jg)
-     .      +(Fluxz(i,j,k)-Fluxz(i,j,k-1))/g_def%dzh(kg))
+      Flux(i-1:i,j,k,1) = Flux(i-1:i,j,k,1) + Flux_cross(i-1:i,j,k,1)
+      Flux(i,j-1:j,k,2) = Flux(i,j-1:j,k,2) + Flux_cross(i,j-1:j,k,2)
+      Flux(i,j,k-1:k,3) = Flux(i,j,k-1:k,3) + Flux_cross(i,j,k-1:k,3)
+
+      !Impose BCs
+      if (isBC(g_def,i,igr,1,NEU,bcnd=bcnd)
+     &.or.isBC(g_def,i,igr,1,SP ,bcnd=bcnd)) Flux(i-1,j,k,1) = 0d0
+      if (isBC(g_def,i,igr,1,NEU,bcnd=bcnd)) Flux(i  ,j,k,1) = 0d0
+      if (isBC(g_def,j,igr,3,NEU,bcnd=bcnd)) Flux(i,j-1,k,2) = 0d0
+      if (isBC(g_def,j,igr,4,NEU,bcnd=bcnd)) Flux(i,j  ,k,2) = 0d0
+      if (isBC(g_def,k,igr,5,NEU,bcnd=bcnd)) Flux(i,j,k-1,3) = 0d0
+      if (isBC(g_def,k,igr,6,NEU,bcnd=bcnd)) Flux(i,j,k  ,3) = 0d0
+
+      lap = ((Flux(i,j,k,1)-Flux(i-1,j,k,1))/g_def%dxh(ig)
+     .      +(Flux(i,j,k,2)-Flux(i,j-1,k,2))/g_def%dyh(jg)
+     .      +(Flux(i,j,k,3)-Flux(i,j,k-1,3))/g_def%dzh(kg))
      .      /g_def%gmetric%grid(igr)%jac(i,j,k)
 
       if (vol) lap=lap*g_def%gmetric%grid(igr)%dvol(i,j,k)
@@ -13937,10 +13925,12 @@ c     Call variables
 
 c     Local variables
       integer  :: a(-1:1,5),cm(4),cl(5),cr(5)
-      real(8)  :: twelve=12d0,bxby,flx0,flx1,flx
+      real(8)  :: itwelve=1d0/12d0,bxby,flx0,flx1,flx,ih
       logical  :: chk0,chk1,chk2
 
-      val=0
+      val=0d0
+
+      ih = 1d0/h
 
       a(-1,:)=(/-3,-10,18,-6,1/)
       a(0,:)=(/1,-8,0,8,-1/)
@@ -13953,15 +13943,15 @@ c     Local variables
       if((tagx+2)*(tagx+1)*tagx*(tagx-1)+(tagy+1)*tagy*(tagy-1)==0)then
          select case(tagx)
          case (-2)
-            val=sum(cl*B2*matmul(F,a(tagy,:))/twelve/h)/twelve
+            val=sum(cl*B2*matmul(F,a(tagy,:))*itwelve*ih)*itwelve
          case (-1)
             val=sum(cm*B2(1:4)*matmul(F(1:4,:),a(tagy,:))
-     .           /twelve/h)/twelve
+     .           *itwelve*ih)*itwelve
          case (0)
             val=sum(cm*B2(2:5)*matmul(F(2:5,:),a(tagy,:))
-     .           /twelve/h)/twelve
+     .           *itwelve*ih)*itwelve
          case (1)
-            val=sum(cr*B2*matmul(F,a(tagy,:))/twelve/h)/twelve
+            val=sum(cr*B2*matmul(F,a(tagy,:))*itwelve*ih)*itwelve
          end select
       else
          write(*,*)"Error in Get_Flux_Cross, wrong tags"
@@ -13970,23 +13960,6 @@ c     Local variables
          write(*,*)"interior or right boundary points"
          stop
       endif
-
-c$$$      !Check for monotonicity (Sharma, Hammett, JCP 227 (2007))
-c$$$      if (limitd) then
-c$$$        bxby = 0.5*(B2(4)+B2(3))
-c$$$
-c$$$        flx0 = mc(F(3,3)-F(3,2),F(3,4)-F(3,3),chk0)
-c$$$        flx1 = mc(F(4,3)-F(4,2),F(4,4)-F(4,3),chk1)
-c$$$        flx  = mc(flx0         ,flx1         ,chk2)
-c$$$
-c$$$cc        write (*,*) 'here',bxby,chk0,chk1,chk2
-c$$$      
-c$$$        if (chk0 .or. chk1 .or. chk2) then
-c$$$          val = bxby/h*flx
-c$$$cc          write (*,*) 'here'
-c$$$cc          val = 0d0
-c$$$        endif
-c$$$      endif
 
       end function Get_Flux_Cross
 
@@ -14009,15 +13982,17 @@ c     Local variables
 
       integer  :: a(0:5,6),cm(4),cl(5),cr(5)
       real(8)  :: twelve=12d0,sixty=60d0
-      real(8)  :: isv2=1d0/72d0,ishty=1d0/720d0
+      real(8)  :: isv2=1d0/72d0,ishty=1d0/720d0,ih
 
 c     Begin program
 
+      ih = 1d0/h
+      
       select case(stncl)
       case(5)
 
-        val=0
-        a=0
+        val=0d0
+        a=0d0
         a(1,2:5)=(/0,1,4,-5/)
         a(2,2:5)=(/11,-54,33,10/)
         a(3,2:5)=(/-10,-33,54,-11/)
@@ -14030,16 +14005,16 @@ c     Begin program
            a(3,:)=(/116, 840, -1620, 970, -360, 54/)
            a(4,:)=(/-22, -430, 710, -360, 120, -18/)
            a(5,:)=(/12, 65, -120, 60, -20, 3/)
-           val=sum(B2(1:5)*matmul(a(1:5,:),F))/h*ishty
+           val=sum(B2(1:5)*matmul(a(1:5,:),F))*ih*ishty
            return
         case (-1)
-           val=sum(B2(1:4)*matmul(a(1:4,2:5),F(1:4)))/h*isv2
+           val=sum(B2(1:4)*matmul(a(1:4,2:5),F(1:4)))*ih*isv2
            return
         case (0)
-           val=sum(B2(2:5)*matmul(a(1:4,2:5),F(2:5)))/h*isv2
+           val=sum(B2(2:5)*matmul(a(1:4,2:5),F(2:5)))*ih*isv2
            return
         case (1)
-           val=sum(B2(3:6)*matmul(a(1:4,2:5),F(3:6)))/h*isv2
+           val=sum(B2(3:6)*matmul(a(1:4,2:5),F(3:6)))*ih*isv2
            return
         case (2)
            a(1,:)=(/-3, 20, -60, 120, -65, -12/)
@@ -14047,7 +14022,7 @@ c     Begin program
            a(3,:)=(/-54, 360, -970, 1620, -840, -116/)
            a(4,:)=(/90, -560, 1340, -1770, 290, 610/)
            a(5,:)=(/9, -60, 230, -400, 185, 36/)
-           val=sum(B2(2:6)*matmul(a(1:5,:),F))/h*ishty
+           val=sum(B2(2:6)*matmul(a(1:5,:),F))*ih*ishty
            return
         case default
            write(*,*)"Error in Get_Flux, wrong tag=",tag
@@ -14069,19 +14044,19 @@ c     Begin program
 
         select case(tag)
         case (-2)
-           val=sum(cl*B2(1:5)*matmul(a(0:4,:),F))/h*ishty
+           val=sum(cl*B2(1:5)*matmul(a(0:4,:),F))*ih*ishty
            return
         case (-1)
-           val=sum(cm*B2(1:4)*matmul(a(0:3,:),F))/h*ishty
+           val=sum(cm*B2(1:4)*matmul(a(0:3,:),F))*ih*ishty
            return
         case (0)
-           val=sum(cm*B2(2:5)*matmul(a(1:4,:),F))/h*ishty
+           val=sum(cm*B2(2:5)*matmul(a(1:4,:),F))*ih*ishty
            return
         case (1)
-           val=sum(cm*B2(3:6)*matmul(a(2:5,:),F))/h*ishty
+           val=sum(cm*B2(3:6)*matmul(a(2:5,:),F))*ih*ishty
            return
         case (2)
-           val=sum(cr*B2(2:6)*matmul(a(1:5,:),F))/h*ishty
+           val=sum(cr*B2(2:6)*matmul(a(1:5,:),F))*ih*ishty
            return
         case default
            write(*,*)"Error in Get_Flux, wrong tag=",tag
@@ -14095,77 +14070,7 @@ c     Begin program
 
       end function Get_Flux
 
-c$$$c     minmod
-c$$$c     #################################################################
-c$$$      function minmod(a,b)
-c$$$
-c$$$      real(8) :: a,b,minmod
-c$$$
-c$$$      if (a*b <= 0d0) then
-c$$$        minmod = 0d0
-c$$$        return
-c$$$      endif
-c$$$
-c$$$      if (a > 0d0) then
-c$$$        minmod = min(a,b)
-c$$$      else
-c$$$        minmod = max(a,b)
-c$$$      endif
-c$$$
-c$$$      end function minmod
-c$$$
-c$$$c     mc
-c$$$c     #################################################################
-c$$$      function mc(a,b,chk_limited)
-c$$$
-c$$$      real(8) :: a,b,mc,ho_flx
-c$$$
-c$$$      logical :: chk_limited
-c$$$
-c$$$      ho_flx = 0.5*(a+b)
-c$$$
-c$$$      mc = minmod(2*minmod(a,b),ho_flx)
-c$$$
-c$$$      chk_limited = (mc /= ho_flx)
-c$$$
-c$$$      end function mc
-
       end function lap_tnsr_4th
-
-c     minmod
-c     #################################################################
-      function minmod(a,b)
-
-      real(8) :: a,b,minmod
-
-      if (a*b <= 0d0) then
-        minmod = 0d0
-        return
-      endif
-
-      if (a > 0d0) then
-        minmod = min(a,b)
-      else
-        minmod = max(a,b)
-      endif
-
-      end function minmod
-
-c     mc
-c     #################################################################
-      function mc(a,b,chk)
-
-      real(8) :: a,b,mc,ho_flx
-
-      logical,optional :: chk
-
-      ho_flx = 0.5*(a+b)
-
-      mc = minmod(2*minmod(a,b),ho_flx)
-
-      if (PRESENT(chk)) chk = (mc /= ho_flx)
-
-      end function mc
 
 c     G_covector_calc
 c     ##################################################################
@@ -14217,17 +14122,17 @@ c     Call variables
       real(8) :: b(2), x(2)
 
 c     Local variables
-      real(8) :: A_inv(2,2), A_det
+      real(8) :: A_inv(2,2), iA_det
 
 c     Begin program
 
       ! Compute the determinant
-      A_det        = A(1,1)*A(2,2) - A(1,2)*A(2,1)
+      iA_det       = 1d0/(A(1,1)*A(2,2) - A(1,2)*A(2,1))
       ! Compute the inverse of matrix
-      A_inv(1,1)   = A(2,2)/A_det
-      A_inv(1,2)   =-A(1,2)/A_det
-      A_inv(2,1)   =-A(2,1)/A_det
-      A_inv(2,2)   = A(1,1)/A_det
+      A_inv(1,1)   = A(2,2)*iA_det
+      A_inv(1,2)   =-A(1,2)*iA_det
+      A_inv(2,1)   =-A(2,1)*iA_det
+      A_inv(2,2)   = A(1,1)*iA_det
       ! Solve
       x(1)         = A_inv(1,1)*b(1) + A_inv(1,2)*b(2)
       x(2)         = A_inv(2,1)*b(1) + A_inv(2,2)*b(2)
