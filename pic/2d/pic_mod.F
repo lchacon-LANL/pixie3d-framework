@@ -2406,15 +2406,24 @@ c     Begin progra
       call shape2_offset(yfp,dum2)
       My2(:,1,1:3) = (dum2-dum1)*0.5d0
 
-      !VECTOR SIMD
-      do k=1,_Npg
-#ifdef __GNU
-        Mxy2(k,1:3,1:3)= opt_vecvec_3(Mx2(k,:,:),My2(k,:,:))
-#else
-        Mxy2(k,1:3,1:3)= matmul      (Mx2(k,:,:),My2(k,:,:))
-#endif
-      end do
+c$$$      !VECTOR SIMD
+c$$$      do k=1,_Npg
+c$$$#ifdef __GNU
+c$$$        Mxy2(k,1:3,1:3)= opt_vecvec_3(Mx2(k,:,:),My2(k,:,:))
+c$$$#else
+c$$$        Mxy2(k,1:3,1:3)= matmul      (Mx2(k,:,:),My2(k,:,:))
+c$$$#endif
+c$$$      end do
 
+      do il=1,3
+         do jl=1,3
+!VECTOR SIMD
+            do k=1,_Npg
+               Mxy2(k,il,jl)= Mx2(k,il,1)*My2(k,1,jl)
+            enddo
+         enddo
+      enddo
+      
       call shape2_offset(xp ,dum1)
       call shape2_offset(xfp,dum2)
       Mx2(:,1:3,1) = (dum1+dum2)*0.5d0 !careful
@@ -2510,16 +2519,26 @@ c     Begin program
       !Use local registers for performance (C. Mikida)
       w_pcle = pcle_nu%w_np
 
-      !VECTOR SIMD
-      do k=1,_Npg
-#ifdef __GNU
-        Mxy2(k,1:3,1:3)= opt_vecvec_3(Mx2(k,:,:),My2(k,:,:))
-#else
-        Mxy2(k,1:3,1:3)= matmul(Mx2(k,:,:),My2(k,:,:))
-#endif
-        M_w_prod(k,:,:) = Mxy2(k,:,:)*w_pcle(k)
-      enddo
+c$$$      !VECTOR SIMD
+c$$$      do k=1,_Npg
+c$$$#ifdef __GNU
+c$$$        Mxy2(k,1:3,1:3)= opt_vecvec_3(Mx2(k,:,:),My2(k,:,:))
+c$$$#else
+c$$$        Mxy2(k,1:3,1:3)= matmul(Mx2(k,:,:),My2(k,:,:))
+c$$$#endif
+c$$$        M_w_prod(k,:,:) = Mxy2(k,:,:)*w_pcle(k)
+c$$$      enddo
 
+      do il=1,3
+         do jl=1,3
+!VECTOR SIMD
+            do k=1,_Npg
+               Mxy2(k,il,jl)= Mx2(k,il,1)*My2(k,1,jl)
+               M_w_prod(k,il,jl) = Mxy2(k,il,jl)*w_pcle(k)
+            enddo
+         enddo
+      enddo
+      
       !Do NOT put SIMD statement, reduction!!!!
       v0 = pcle_nu%v_np
       call xform_pcle_idx(pcle_nu%ijk_np,nxg,i,j)
