@@ -527,8 +527,8 @@ c     Initialize Picard
         vh_k = vh
         dx_k = dx
 
-        substeps = substeps + _Npg
-
+        substeps = substeps + _Npg !count(dt_sub > 1d-14) 
+        
         !Perform Boris push
         call Boris_solve(it,x0_loc,v0_loc,dx,vh,dt_sub)
 
