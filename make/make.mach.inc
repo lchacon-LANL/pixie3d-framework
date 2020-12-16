@@ -1184,6 +1184,151 @@ ifeq ($(findstring gr,$(HOST)),gr)
 
 endif
 
+#####################
+# Badger turquoise #
+#####################
+
+ifeq ($(findstring ba,$(HOST)),ba)
+
+  override MACHINE = badger
+
+  ifeq ($(findstring gfortran,$(FC)),gfortran)
+
+    NETCDF=f
+
+    ifdef BOPT
+     PETSC_DIR =/turquoise/usr/projects/magreconn/soft/petsc-3.0.0-p7
+
+     ifeq ($(BOPT),O)
+      PETSC_ARCH = linux64_badger_openmpi-3.1.6_gcc-9.3.0
+     else
+      PETSC_ARCH = linux64_badger_openmpi-3.1.6_gcc-9.3.0_g
+     endif
+
+     HDF5 = t
+
+#     HDF5_ROOT = /usr/projects/hpcsoft/toss3/grizzly/hdf5/1.8.16_gcc-5.3.0_openmpi-1.10.5
+     HDF5_LIBS =-L$(HDF5_ROOT)/lib -lhdf5_fortran -lhdf5 -lz -lm
+     HDF5_MOD  = $(HDF5_ROOT)/include
+     HDF5_INC  = $(HDF5_MOD)
+
+     ADIOS = f
+     ADIOS_BUFFER_MB = 1000
+     ADIOS_METHOD = MPI_LUSTRE
+     ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.10.0/lib-grizzly-gcc-5.3.0_openmpi-1.10.5
+     ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -llustreapi
+     ADIOS_VER  = 1.10.0
+
+     ADIOS2 = t
+     ADIOS2_METHOD = MPI_LUSTRE
+     ADIOS2_HOME = /turquoise/usr/projects/magreconn/soft/adios-2.5/lib/badger_gcc-9.3.0_openmpi-3.1.6
+     ADIOS2_LIBS = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-libs)
+     ADIOS2_MOD  = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-flags) 
+     ADIOS2_VER  = 2.5.0
+     
+     SPRNG = t
+
+     SPRNG_PAR_HOME = /turquoise/usr/projects/magreconn/soft/sprng5
+     SPRNG_LIBS = $(SPRNG_PAR_HOME)/lib/badger_gcc-9.3.0_openmpi-3.1.6/lib -lsprng -lstdc++ -lm
+     SPRNG_INC  = $(SPRNG_PAR_HOME)/include
+    else
+      LIBS += -L/usr/lib -llapack -lblas
+
+      HDF5 = f
+
+      ADIOS = f
+
+      SPRNG = f
+
+    endif
+
+  endif
+
+  ifeq ($(findstring ifort,$(FC)),ifort)
+
+    NETCDF=f
+
+    ifeq ($(MPI_NAME),openmpi)
+     ifdef BOPT
+      PETSC_DIR =/turquoise/usr/projects/magreconn/soft/petsc-3.0.0-p7
+
+      ifeq ($(BOPT),O)
+       PETSC_ARCH = linux64_badger_openmpi-3.1.6_intel-19.0.4
+      else
+       PETSC_ARCH = linux64_badger_openmpi-3.1.6_intel-19.0.4_g
+      endif
+
+      HDF5 = t
+
+#      HDF5_ROOT = /usr/projects/hpcsoft/toss3/grizzly/hdf5/1.8.16_intel-17.0.4_openmpi-2.1.2
+      HDF5_LIBS =-L$(HDF5_ROOT)/lib -lhdf5_fortran -lhdf5 -lz -lm
+      HDF5_MOD  = $(HDF5_ROOT)/include
+      HDF5_INC  = $(HDF5_MOD)
+
+#      ADIOS = f
+#      ADIOS_BUFFER_MB = 1000
+#      ADIOS_METHOD = MPI_LUSTRE
+#      ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.10.0/lib-grizzly-intel-17.0.1_openmpi-1.10.5
+#      ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -llustreapi
+#      ADIOS_VER  = 1.10.0
+
+      ADIOS2 = t
+      ADIOS2_METHOD = MPI_LUSTRE
+      ADIOS2_HOME = /turquoise/usr/projects/magreconn/soft/adios-2.5/lib/badger_intel-19.0.4_openmpi-3.1.6
+      ADIOS2_LIBS = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-libs)
+      ADIOS2_MOD  = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-flags) 
+      ADIOS2_VER  = 2.5.0
+     
+      SPRNG = t
+
+      SPRNG_PAR_HOME = /turquoise/usr/projects/magreconn/soft/sprng5
+      SPRNG_LIBS = $(SPRNG_PAR_HOME)/lib/badger_intel-19.0.4_openmpi-3.1.6/lib -lsprng -lstdc++
+      SPRNG_INC  = $(SPRNG_PAR_HOME)/include
+     else
+      LIBS += -L/usr/lib -llapack -lblas
+
+      HDF5 = f
+
+      ADIOS = f
+
+      SPRNG = f
+
+     endif
+
+    endif
+
+    ifeq ($(MPI_NAME),intel-mpi)
+     ifdef BOPT
+      PETSC_DIR =/turquoise/usr/projects/magreconn/soft/petsc-3.0.0-p7
+
+      ifeq ($(BOPT),O)
+       PETSC_ARCH = linux64_grizzly_intel17.0.1_intelmpi2017.1
+      else
+       PETSC_ARCH = linux64_grizzly_intel17.0.1_intelmpi2017.1_dbg
+      endif
+
+      HDF5 = f
+
+#      HDF5_ROOT = /usr/projects/hpcsoft/toss3/grizzly/hdf5/1.8.16_gcc-5.3.0_openmpi-1.10.3
+#      HDF5_LIBS =-L$(HDF5_ROOT)/lib -lhdf5_fortran -lhdf5 -lz -lm
+#      HDF5_MOD  = $(HDF5_ROOT)/include
+#      HDF5_INC  = $(HDF5_MOD)
+
+      ADIOS = f
+
+      ADIOS_BUFFER_MB = 1000
+      ADIOS_METHOD = MPI_LUSTRE
+
+      ADIOS_HOME = /turquoise/usr/projects/magreconn/soft/adios-1.10.0/lib-grizzly-intel-17.0.1_intelmpi-2017.1
+      ADIOS_LIBS = -I$(ADIOS_HOME)/include -L$(ADIOS_HOME)/lib -ladiosf_v1 -llustreapi
+      ADIOS_VER  = 1.10.0
+     endif
+   endif
+
+  endif
+
+endif
+
 ####################
 # marconi #
 ####################
