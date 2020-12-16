@@ -13132,7 +13132,7 @@ c     CANNOT handle different dx, dy, dz, (except for reduced dimensions)
 c     Need information about MG to do that, hence for now dx=dy=dz=h
 c
 c     Coded by Natalia Krashenninikova, 8/2008
-c     Modified by L. Chacon, 9/2008
+c     Modified by L. Chacon, 9/2008, 12/2020
 c     ----------------------------------------------------------------
       implicit none
 
