@@ -730,18 +730,18 @@ c     Begin program
         !Override maximum limits
         if (PRESENT(t_max)) then
           tmax = t_max
-          ode_conf%tmax(thr_num) = tmax
+          ode_conf%tmax(thr_id) = tmax
 cc          ode_conf%tmax = tmax
         else
-          tmax = ode_conf%tmax(thr_num) 
+          tmax = ode_conf%tmax(thr_id) 
         endif
 
         if (PRESENT(s_max)) then
           smax = s_max
-          ode_conf%smax(thr_num) = smax
+          ode_conf%smax(thr_id) = smax
 cc          ode_conf%smax = smax
         else
-          smax = ode_conf%smax(thr_num)
+          smax = ode_conf%smax(thr_id)
         endif
 
         if (PRESENT(lsode_f).and.(.not.PRESENT(lsode_sum))
@@ -779,33 +779,33 @@ c     Daniele,23/03/2009: dump the initial point of the orbit
 
           if(lssx .and. x0 == xss0) then
            if (.not. ridge .and. .not. auto_corr) then
-            write(nunitx(thr_num)) real(y0),real(z0)
+            write(nunitx(thr_id)) real(y0),real(z0)
            endif
           endif
 
           if(lssy .and. y0 == yss0) then
            if (.not. ridge .and. .not. auto_corr) then
             if (flux) then
-              write(nunity(thr_num)) real(0.5*x0**2),real(z0)
+              write(nunity(thr_id)) real(0.5*x0**2),real(z0)
             else
-              write(nunity(thr_num)) real(x0),real(z0)
+              write(nunity(thr_id)) real(x0),real(z0)
             endif
            else if (ridge) then
 !#! Marco, write initial position in the y=yss0 plane,ridgeridge
-            call ridge_write(x0,z0,thr_num)
+            call ridge_write(x0,z0,thr_id)
            endif
           endif
 
           if(lssz .and. z0 == zss0) then
            if (.not. ridge .and. .not. auto_corr) then
             if (flux) then
-              write(nunitz(thr_num)) real(0.5*x0**2),real(y0) !In flux
+              write(nunitz(thr_id)) real(0.5*x0**2),real(y0) !In flux
             else
-              write(nunitz(thr_num)) real(x0),real(y0)        !In radius
+              write(nunitz(thr_id)) real(x0),real(y0)        !In radius
             endif
            else if (ridge) then
 !#! Marco, write initial position in the z=zss0 plane
-            call ridge_write(x0,y0,thr_num)
+            call ridge_write(x0,y0,thr_id)
            endif
           endif
 
@@ -888,11 +888,11 @@ c     Daniele,23/03/2009: dump the initial point of the orbit
           !#! Marco, january 15th 2019
           if (connect) then
             if (.not. cnc_back .and. x .gt. cnctth) then
-              call connect_write(x0,y0,z0,ss,thr_num)
+              call connect_write(x0,y0,z0,ss,thr_id)
               !#! Marco, no need to continue after threshold is reached
               exit
             else if (cnc_back .and. x .lt. cnctth) then
-              call connect_write(x0,y0,z0,ss,thr_num)
+              call connect_write(x0,y0,z0,ss,thr_id)
               exit
             endif
           endif
@@ -911,8 +911,8 @@ c     Daniele,23/03/2009: dump the initial point of the orbit
             exit_loop = exit_loop.or.(abs(ss) >= smax)
 !#!Marco, qui per smax in connect
             if (exit_loop .and. connect) then
-              write(*,*) 'over thr ',thr_num,big_n
-              call connect_write(x0,y0,z0,big_n,thr_num)
+              write(*,*) 'over thr ',thr_id,big_n
+              call connect_write(x0,y0,z0,big_n,thr_id)
             endif
 
             if (abs(ss) > smax) then !4th order interpolation of orbit end points
@@ -989,10 +989,10 @@ cc            endif
 c     Write orbit separator in XDRAW file
 
        if ((.not. ridge) .and. (.not. auto_corr) .and. chk_ss) then
-          if (lssx) write(nunitx(thr_num))
-          if (lssy) write(nunity(thr_num))
-          if (lssz) write(nunitz(thr_num))
-          if (rzss) write(nunitrz(thr_num))
+          if (lssx) write(nunitx(thr_id))
+          if (lssy) write(nunity(thr_id))
+          if (lssz) write(nunitz(thr_id))
+          if (rzss) write(nunitrz(thr_id))
        endif
 
 c     End orbit
@@ -2497,7 +2497,7 @@ cc      end subroutine ss_io_init
 !          rzss = .false.
 !        endif
 !
-!        if (my_rank == 0.and.thr_num==0) then
+!        if (my_rank == 0.and.thr_id==0) then
 !          if (lssx) then
 !            dummy = 'ssx'//trim(file)
 !cc            ierr = rm_files(dummy)
@@ -2538,27 +2538,27 @@ cc      end subroutine ss_io_init
 !        endif
 !
 !c!$OMP CRITICAL
-!        ifile = thr_num + thr_tot*my_rank
+!        ifile = thr_id + thr_tot*my_rank
 !        if (lssx) then
-!          nunitx=6027+thr_num
+!          nunitx=6027+thr_id
 !          open(unit=nunitx,file=trim(ssx(ifile))
 !     .        ,form='unformatted')
 !        endif
 !
 !        if (lssy) then
-!          nunity=7027+thr_num
+!          nunity=7027+thr_id
 !          open(unit=nunity,file=trim(ssy(ifile))
 !     .        ,form='unformatted')
 !        endif
 !
 !        if (lssz) then
-!          nunitz=8027+thr_num
+!          nunitz=8027+thr_id
 !          open(unit=nunitz,file=trim(ssz(ifile))
 !     .        ,form='unformatted')
 !        endif
 !
 !        if (rzss) then
-!          nunitrz=9027+thr_num
+!          nunitrz=9027+thr_id
 !          open(unit=nunitrz,file=trim(ssrz(ifile))
 !     .        ,form='unformatted')
 !        endif
@@ -2808,7 +2808,7 @@ c     Check for intersection with X surface of section
 
           if (ss_io) then
             call chk_pos(xss,yss,zss) !this resets logical coords
-            write(nunitx(thr_num)) real(yss),real(zss)
+            write(nunitx(thr_id)) real(yss),real(zss)
           endif
 
           !Accumulate B diagnostics
@@ -2829,9 +2829,9 @@ c     Check for intersection with Y surface of section
             call chk_pos(xss,yss,zss) !this resets logical coords
             
             if (flux) then
-              write(nunity(thr_num)) real(0.5*xss**2),real(zss)
+              write(nunity(thr_id)) real(0.5*xss**2),real(zss)
             else
-              write(nunity(thr_num)) real(xss),real(zss)
+              write(nunity(thr_id)) real(xss),real(zss)
             endif
           endif
 
@@ -2853,16 +2853,16 @@ c     Check for intersection with Z surface of section
             if (rzss) then   !Find R-Z plane positions
               call evalX(xss,yss,zss,xcar,ycar,zcar) !Eval Cartesian coords; also resets logical coords
               rr = sqrt(xcar**2+ycar**2)
-              write(nunitrz(thr_num)) real(rr),real(zcar)
+              write(nunitrz(thr_id)) real(rr),real(zcar)
             endif
 
             if (lssz) then
               call chk_pos(xss,yss,zss) !this resets logical coords
 
               if (flux) then
-                write(nunitz(thr_num)) real(0.5*xss**2),real(yss) !In flux
+                write(nunitz(thr_id)) real(0.5*xss**2),real(yss) !In flux
               else
-                write(nunitz(thr_num)) real(xss)       ,real(yss) !In radius
+                write(nunitz(thr_id)) real(xss)       ,real(yss) !In radius
               endif
             endif
           endif
@@ -3057,7 +3057,7 @@ c     Check for intersection with X surface of section
             mx = mx + 1
             if (.not. ridge .and. .not. auto_corr) then
              call chk_pos(xss,yss,zss) !this resets logical coords
-             write(nunitx(thr_num)) real(yss),real(zss)
+             write(nunitx(thr_id)) real(yss),real(zss)
             endif
           endif
 
@@ -3086,16 +3086,16 @@ c     Check for intersection with Y surface of section
            if ((my .lt. max_inter_y) 
      .         .and. (mod(my,delta_y) .eq. 0)) then
 !#!Marco, ridge write
-            call ridge_write(xss,zss,thr_num)
+            call ridge_write(xss,zss,thr_id)
            endif
           endif
  
           if (.not. ridge .and. .not. auto_corr) then
            call chk_pos(xss,yss,zss) !this resets logical coords
            if (flux) then
-             write(nunity(thr_num)) real(0.5*xss**2),real(zss)
+             write(nunity(thr_id)) real(0.5*xss**2),real(zss)
            else
-             write(nunity(thr_num)) real(xss),real(zss)
+             write(nunity(thr_id)) real(xss),real(zss)
            endif
           endif
          endif
@@ -3122,7 +3122,7 @@ c     Check for intersection with Z surface of section
              if (.not. ridge .and. .not. auto_corr) then
               call evalX(xss,yss,zss,xcar,ycar,zcar) !Eval Cartesian coords; also resets logical coords
               rr = sqrt(xcar**2+ycar**2)
-              write(nunitrz(thr_num)) real(rr),real(zcar)
+              write(nunitrz(thr_id)) real(rr),real(zcar)
              endif
             endif
 
@@ -3130,21 +3130,21 @@ c     Check for intersection with Z surface of section
             if (auto_corr) then
              !update number of intersections
              call auto_corr_intersz_update(intersect_z)
-!             write(*,*) 'DIAGac0',thr_num,intersect_z
+!             write(*,*) 'DIAGac0',thr_id,intersect_z
             endif
 
 !#!Marco, update intersection counter
             mz = mz + 1
-!            write(*,*) 'DIAGz0',thr_num,mz,delta_z,max_inter_z
+!            write(*,*) 'DIAGz0',thr_id,mz,delta_z,max_inter_z
 
             if (ridge) then 
              if ((mz .lt. max_inter_z)
      .           .and. (mod(mz,delta_z) .eq. 0)) then
-                if (thr_num .eq. 0) then
+                if (thr_id .eq. 0) then
 !                 write(*,*) 'DIAGridge',mz,delta_z,xss,yss
                 endif
 !#!Marco, ridge write
-              call ridge_write(xss,yss,thr_num)
+              call ridge_write(xss,yss,thr_id)
              endif
             endif
  
@@ -3152,9 +3152,9 @@ c     Check for intersection with Z surface of section
 !             write(*,*) 'DIAG_chkpos'
              call chk_pos(xss,yss,zss) !this resets logical coords
              if (flux) then
-               write(nunitz(thr_num)) real(0.5*xss**2),real(yss) !In flux
+               write(nunitz(thr_id)) real(0.5*xss**2),real(yss) !In flux
              else
-               write(nunitz(thr_num)) real(xss)       ,real(yss) !In radius
+               write(nunitz(thr_id)) real(xss)       ,real(yss) !In radius
              endif
 
             endif

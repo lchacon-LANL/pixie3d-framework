@@ -191,7 +191,8 @@ c     Local variables
 
 c     Begin program
 
-      exit_tloop = (tmax.gt.0d0.and.time.ge.(tmax-1d-9*dt))
+      exit_tloop = (tmax /= 0d0.and.time >= (tmax-1d-9*dt).and.dt>0d0)
+     .         .or.(                time <= (tmax-1d-9*dt).and.dt<0d0)
      .         .or.(numtime.ge.0.and.itime+1.ge.(numtime+inewtime))
      .         .or.(exec_time > quota)
 

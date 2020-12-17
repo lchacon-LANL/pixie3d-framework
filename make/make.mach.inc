@@ -419,6 +419,11 @@ ifeq ($(findstring quevedo,$(HOST)),quevedo)
     ADIOS2_MOD  = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-flags)
     ADIOS2_VER  = 2.5.0
 
+    SPRNG = t
+    SPRNG_HOME = $(HOME)/lib/sprng5/gcc-6.5.0_openmpi-3.1.5
+    SPRNG_LIBS = $(SPRNG_HOME)/lib -lsprng -lstdc++ -lm
+    SPRNG_INC  = $(SPRNG_HOME)/include
+      
 #    LIBS += -L/opt/local/lib -latlas
   else
     LIBS += -L/opt/local/lib/lapack -llapack -lblas
@@ -433,6 +438,11 @@ ifeq ($(findstring quevedo,$(HOST)),quevedo)
     ADIOS = f
 
     ADIOS2 = f
+
+    SPRNG = t
+    SPRNG_HOME = $(HOME)/lib/sprng5/gcc-6.5.0_serial
+    SPRNG_LIBS = $(SPRNG_HOME)/lib -lsprng -lstdc++ -lm
+    SPRNG_INC  = $(SPRNG_HOME)/include
 
   endif
 
@@ -1280,6 +1290,14 @@ ifeq ($(findstring ba,$(HOST)),ba)
      SPRNG_PAR_HOME = /turquoise/usr/projects/magreconn/soft/sprng5
      SPRNG_LIBS = $(SPRNG_PAR_HOME)/lib/badger_gcc-9.3.0_openmpi-3.1.6/lib -lsprng -lstdc++ -lm
      SPRNG_INC  = $(SPRNG_PAR_HOME)/include
+    else
+      LIBS += -L/usr/lib -llapack -lblas
+
+      HDF5 = f
+
+      ADIOS = f
+
+      SPRNG = f
 
     endif
 
