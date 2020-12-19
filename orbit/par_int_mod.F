@@ -29,7 +29,7 @@ c     ---------------------------------------------------------------
 
       alpha = alp
 
-      if (alpha /= -1d0 .and. alpha /= 1d0 .and. alpha /= 2d0) then
+      if (alpha >= 0d0 .and. alpha /= 1d0 .and. alpha /= 2d0) then
         call pstop("setup_T_kernels","Diffusion order not supported")
       endif
 
@@ -46,15 +46,10 @@ c     ---------------------------------------------------------------
       endif
 
       !Compute line integral cut-offs for alpha=-1 (diffusion-advection)
-      if (alpha == -1d0) then
-        T_cutoff2 = 1d0
-        S_cutoff2 = 1d0
-        do i=1,10
-          T_cutoff2 = abs(log(    sqrpi*t_tol*sqrt(T_cutoff2)))
-          S_cutoff2 = abs(log(2d0*sqrpi*t_tol*     S_cutoff2 ))
-        enddo
+      if (alpha < 0d0) then
+        T_cutoff2 = tol
+        S_cutoff2 = tol
       endif
-
 
       !Compute coefficient matrix for SDC kernels
       aa = 0d0
@@ -97,7 +92,7 @@ c     Call variables
 
 c     Local variables
 
-      real(8) :: isct0,s2
+      real(8) :: isct0,s2,isD,eta
       real(8) :: dt
 
 c     Begin program
@@ -109,21 +104,22 @@ c     Begin program
 
         ex_loop = (s2 > 4*T_cutoff2*ct0)
       elseif (alpha == 1d0) then
-        tkernel = ipi/(ct0*(1+(ss*ss)/(ct0*ct0)))
+        isct0 = 1d0/ct0
+        eta = ss*isct0
+        tkernel = ipi*isct0/(1+eta*eta)
 
         ex_loop = (abs(ss) >  2d0*ipi/t_tol*ct0)
-      elseif (alpha == -1d0) then
-        dt = sqrt(ct0)
-        isct0 = 1d0/dt
-        s2 = (ss-dt)*(ss-dt)
-        tkernel = 0.5d0*isqrpi*isct0*exp(-0.25*s2*isct0*isct0) !ct0=chi_par*t0 
-        ex_loop = (abs(ss)>15*dt)  ! (ss*ss > 225*dt**2) !4*T_cutoff2*ct0)
+      elseif (alpha < 0d0) then
+        isD = abs(alpha)
+      
+        isct0 = isD/ct0        !epsilon/dt/sqrt(D*)
+        eta = ss*isct0
+        s2 = 0.25*(eta+isD)*(eta+isD)
+        tkernel = 0.5d0*isqrpi*isct0*exp(-s2)
 
-c        if (ss<0) then
-c          ex_loop = (ss < dt - 15d0*sqrt(T_cutoff2*ct0))
-c        else
-c          ex_loop = (ss > dt + 15d0*sqrt(T_cutoff2*ct0))   ! v=1
-c        endif
+        !ex_loop = (s2>lag_cutoff*lag_cutoff*dte*dte)
+        ex_loop = (tkernel<T_cutoff2)
+        if (ex_loop) tkernel=0d0
       else
         call pstop('tkernel_3d','Fractional order not implemented')
       endif
@@ -216,57 +212,48 @@ c     Local variables
 
       real(8) :: eta,z,dum
       real(8) :: chi,dt,sigss
-      real(8) :: erf1,erf2,ex
-
+      real(8) :: erfc1,erfc2,ex,isD,dtinv
 
 c     Begin program
 
-
-      z = abs(ss)
-
       if (alpha == 2d0) then
+        z = abs(ss)
         dum = 1d0/sqrt(ct0)       !ct0=chi_par/chi_perp*t0
         eta = 0.5d0*z*dum
         skernel = ukernel(eta,0)*dum
 cc        skernel = (exp(-eta*eta)*isqrpi-eta*erfc(eta))*dum
         
         ex_loop = (z*z > 4*S_cutoff2*ct0)
-cc      elseif (alpha == 1d0) then
-cc        skernel = 1d0/(pi*ct0*(1+(abs(ss)/ct0)**2))
-cc
-cc        slim = s_max + 2/pi/t_tol*ct0
-cc
-cc        ex_loop = (abs(ss) > slim)
-       
-      elseif (alpha==-1d0) then 
-        dt = sqrt(ct0)    
-        chi = dt
+      elseif (alpha == 1d0) then
+        z = abs(ss)
+        dum = 1d0/ct0
+        eta = ss*dum
+        skernel = ipi*dum/(1+eta*eta)
 
-        dum=1d0/dt
-        sigss= dsign(1d0,ss) 
-        !exponential exp(vs/D)
-        ex=exp(ss/chi)
- 
-        ! erf((s+vt)/sqrt(4Dt))
-        eta=(ss+dt)*0.5d0*dum  ! v=1, chi = delt     
-        CALL CALERF(eta,erf1,0)
-   
-        ! erf((s-vt)/sqrt(4Dt))
-        eta=(ss-dt)*0.5d0*dum 
-        CALL CALERF(eta,erf2,0)
+        ex_loop = (abs(ss) > 2*ipi/t_tol*ct0)
+      elseif (alpha < 0d0) then 
+        isD = abs(alpha)
       
+        dtinv=1d0/ct0     ! epsilon/dt
 
-        skernel= 0.5d0*(ex*(erf1-sigss)-erf2+sigss)*dum
-        
-        ex_loop = (z > 15*dt)
+        eta = ss*dtinv
+      
+        sigss=sign(1d0,eta)
 
-c        if (ss<0) then
-c          ex_loop = (z > 15d0*sqrt(S_cutoff2*ct0))
-c        else
-c          ex_loop = (z > dt + 15d0*sqrt(S_cutoff2*ct0))   ! v=1
-c        endif
-
-
+        ! exponential exp(s/t') 
+        ex= exp(min(-eta*isD*isD,709d0))
+ 
+        dum=(abs(eta)-sigss)*0.5d0*isD    
+        CALL CALERF(dum,erfc1,1)
+   
+        dum=(abs(eta)+sigss)*0.5d0*isD 
+        CALL CALERF(dum,erfc2,1)
+      
+        skernel= sigss*0.5d0*(ex*erfc1-erfc2)*dtinv 
+      
+        !ex_loop = (ss < -(lag_cutoff+1d0)*dt_e)  !D=dt,15dt corresponds to abs tol of 1e-10
+        ex_loop = (skernel<S_cutoff2) 
+        if (ex_loop) skernel=0d0 
 
       else
         call pstop('skernel_3d','Fractional order not implemented')
@@ -375,12 +362,12 @@ c     Begin program
         skernel = ukernel(eta,jj)*dum
 
         ex_loop = (z*z > 4*S_cutoff2*sig)
-cc      elseif (alpha == 1d0) then
-cc        skernel = 1d0/(pi*sig*(1+(abs(ss)/sig)**2))
-cc
-cc        slim = s_max + 2/pi/t_tol*sig
-cc
-cc        ex_loop = (abs(ss) > slim)
+      elseif (alpha == 1d0) then
+        dum = 1d0/sig
+        eta = z*dum
+        skernel = ipi*dum/(1+eta*eta)
+
+        ex_loop = (abs(ss) > 2*ipi/t_tol*sig)
       else
         call pstop('sdc_kernel_3d','Fractional order not implemented')
       endif
@@ -520,10 +507,6 @@ c     Local variables
       integer :: i,mtwo_to_j
       real(8) :: ff,eta2,et2,errorf
 
-#if defined(pgf90)
-cc      real(8) :: erfc
-#endif
-
 c     Begin program
 
       et2 = eta*eta
@@ -536,8 +519,6 @@ c     Begin program
          mtwo_to_j = -2*mtwo_to_j
       enddo
 
-cc      errorf = erfc(eta)
-cc      errorf = erfcc(eta)
       CALL CALERF(eta,errorf,2)
       ukernel = exp(-et2)*( ff  !Factor ff includes factor 1/sqrt(pi)
      .           -mtwo_to_j*eta2*eta*errorf)*cc(jj)
