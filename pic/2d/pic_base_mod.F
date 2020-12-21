@@ -3308,7 +3308,7 @@ c     Begin program
       if (PRESENT(iout)) then
         iiout = iout
       else
-        iiout = -1   !no output
+        iiout = 0   !no output
       endif
       
 c     Build GLOBAL 9-point stencil Mass Matrix
@@ -3523,7 +3523,7 @@ c     Begin program
       if (PRESENT(iout)) then
         iiout = iout
       else
-        iiout = -1   !no output
+        iiout = 0   !no output
       endif
       
       if (associated(Jpz)) then
@@ -3674,7 +3674,7 @@ c     Begin program
       if (PRESENT(iout)) then
         iiout = iout
       else
-        iiout = -1   !no output
+        iiout = 0   !no output
       endif
       
       if (associated(Jpx)) then
@@ -3829,7 +3829,7 @@ c     Begin program
       if (PRESENT(iout)) then
         iiout = iout
       else
-        iiout = -1   !no output
+        iiout = 0   !no output
       endif
       
       if (associated(Jpy)) then
