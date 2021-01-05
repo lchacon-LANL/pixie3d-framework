@@ -1025,6 +1025,41 @@ c     End
 
       end function fmed_vec
 
+c     minmod
+c     #################################################################
+      function minmod(a,b)
+
+      real(8) :: a,b,minmod
+
+      if (a*b <= 0d0) then
+        minmod = 0d0
+        return
+      endif
+
+      if (a > 0d0) then
+        minmod = min(a,b)
+      else
+        minmod = max(a,b)
+      endif
+
+      end function minmod
+
+c     mc
+c     #################################################################
+      function mc(a,b,chk)
+
+      real(8) :: a,b,mc,ho_flx
+
+      logical,optional :: chk
+
+      ho_flx = 0.5*(a+b)
+
+      mc = minmod(2*minmod(a,b),ho_flx)
+
+      if (PRESENT(chk)) chk = (mc /= ho_flx)
+
+      end function mc
+
 c     ellipticK_vec
 c     ####################################################################
       function ellipticK_vec(eta,pole) result(ellK)
