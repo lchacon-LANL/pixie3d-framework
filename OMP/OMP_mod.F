@@ -104,8 +104,10 @@ c     Local variables
 c     Begin program
 
 #ifdef _OPENMP
-!$omp parallel
+!$omp parallel 
+!$omp critical
         thr_tot = omp_get_num_threads()
+!$omp end critical
 !$omp end parallel
 #else
         thr_tot = 1
