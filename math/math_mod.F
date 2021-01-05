@@ -2062,7 +2062,7 @@ C---------- Last card of DERFCX ----------
           NULLTY=NULLTY+1
 70        J=J+ICOL
 80      CONTINUE
-        IFAULT=0.0
+        IFAULT=0
 100     RETURN
         END SUBROUTINE CHOLA
 
