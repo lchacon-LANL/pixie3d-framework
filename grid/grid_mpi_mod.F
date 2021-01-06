@@ -2132,6 +2132,7 @@ c     Call variables
 c     Local variables
 
       integer :: nx,ny,nz,sum_exp,nd,navg,exp(3),npt(3),nprocs
+      logical :: debug=.false.
 
 c     Begin program
 
@@ -2209,13 +2210,19 @@ c     Find dimensionality
       endif
 
       !Find exponents
-      navg = int((1d0*(nx*ny*nz)/nprocs)**(1./nd))
+      navg = int((((1d0*nx)*(1.*ny)*(1.*nz))/nprocs)**(1./nd))
 
       npt = (/nx,ny,nz/)
       exp = log(max(1d0*npt/navg,1d0))/log(2d0) + 0.3
 
-cc      write (*,*) 'DIAG -- procAlloc, my_rank=',my_rank,' exp=',exp
-cc     .           ,' sum_exp 0=',sum(exp)
+      if (debug) then 
+        write (*,*) 'DIAG -- procAlloc, my_rank=',my_rank
+     $             ,' nprocs=',nprocs
+        write (*,*) 'DIAG -- procAlloc, my_rank=',my_rank,' npt=',npt
+     .             ,' navg=',navg
+        write (*,*) 'DIAG -- procAlloc, my_rank=',my_rank,' exp=',exp
+     .             ,' sum_exp 0=',sum(exp)
+      endif
 
       !Consistency check (1st layer)
       if (sum(exp) /= sum_exp) then
@@ -2228,8 +2235,9 @@ cc     .           ,' sum_exp 0=',sum(exp)
         endif
       endif
 
-cc      write (*,*) 'DIAG -- procAlloc, my_rank=',my_rank,' exp=',exp
-cc     .           ,' sum_exp 1=',sum(exp)
+      if (debug)
+     .  write (*,*) 'DIAG -- procAlloc, my_rank=',my_rank,' exp=',exp
+     .            ,' sum_exp 1=',sum(exp)
 
       !Consistency check (2nd layer)
       if (sum(exp) /= sum_exp) then
@@ -2248,13 +2256,15 @@ c     Find processor distribution
       if (npy == 0) npy = 2**exp(2)
       if (npz == 0) npz = 2**exp(3)
 
-cc      write (*,*) 'DIAG -- procAlloc, my_rank=',my_rank,' exp=',exp
-cc     .           ,' sum_exp=',sum_exp
-cc      write (*,*) 'DIAG -- procAlloc, my_rank=',my_rank,' npt=',npt
-cc     .            ,' nprocs=',nprocs,' navg=',navg
-cc      write (*,*) 'DIAG -- procAlloc, my_rank=',my_rank
-cc     .           ,'Procs alloc=',npx,npy,npz
-cc      stop
+      if (debug) then
+        write (*,*) 'DIAG -- procAlloc, my_rank=',my_rank,' exp=',exp
+     .             ,' sum_exp=',sum_exp
+        write (*,*) 'DIAG -- procAlloc, my_rank=',my_rank,' npt=',npt
+     .              ,' nprocs=',nprocs,' navg=',navg
+        write (*,*) 'DIAG -- procAlloc, my_rank=',my_rank
+     .             ,'Procs alloc=',npx,npy,npz
+        stop
+      endif
 
 c     End program
 
