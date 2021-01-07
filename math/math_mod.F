@@ -36,7 +36,8 @@
 #include "sprng_f.h"
       SPRNG_POINTER stream
       logical :: is_sprng_init=.false.
-!$OMP THREADPRIVATE(is_sprng_init)
+      logical :: is_lcg_init=.false.
+!$OMP THREADPRIVATE(is_sprng_init,is_lcg_init)
 #endif
 
       integer :: lcg_seed = 123456789
@@ -1424,14 +1425,16 @@ c     local variables
 c     Begin program
 
 #ifdef _SPRNG
-      r = sprng(stream)         
+      if (is_sprng_init) then
+        r = sprng(stream)
+      elseif(is_lcg_init) then
 #else
-#ifdef _OPENMP
-      r = randlcg(lcg_seed)         !careful
-#else
-      call random_number(r)         !Problematic with OpenMP
+      if(is_lcg_init) then
 #endif
-#endif
+        r = randlcg(lcg_seed)   !careful
+      else
+        call random_number(r)
+      endif
 
 c     End program
       
@@ -1458,9 +1461,6 @@ c     #########################################################################
 c     -------------------------------------------------------------------------
 c     Initializes random seed for stream number "streamnum" of "nstreams"
 c     -------------------------------------------------------------------------
-#ifdef _OPENMP
-        use omp_lib
-#endif
 
         implicit none
         integer,INTENT(IN) :: streamnum,nstreams
@@ -1468,54 +1468,110 @@ c     -------------------------------------------------------------------------
         integer,INTENT(IN),optional :: seed
 
 #ifdef _SPRNG
-        integer :: junk,sd
-        integer :: gtype
-        real(8) :: rn
-
-        if (is_sprng_init) return
-        is_sprng_init = .true.
-        
-        gtype = 1       !lcg
-        if (PRESENT(seed)) then
-          sd = 985456376 + 37*seed
-        else
-          sd = 985456376
-        endif
-        
-        stream = init_sprng(gtype,streamnum,nstreams,sd,SPRNG_DEFAULT)   
-
-        if (output) junk = print_sprng(stream)
+        call init_random_seed_sprng(nstreams,streamnum,output,seed=seed)
 #else
 #ifdef _OPENMP
-        if (PRESENT(seed)) then
-          lcg_seed = 985456376 + seed + streamnum*37
-        else
-          lcg_seed = 985456376        + streamnum*37
-        endif
+        call init_random_seed_lcg(streamnum,seed=seed)
 #else
-        INTEGER :: i, n, clock, sd
-        INTEGER, DIMENSION(:), ALLOCATABLE :: sd2
-
-        CALL RANDOM_SEED(size = n)
-        ALLOCATE(sd2(n))
-
-        if (PRESENT(seed)) then
-          sd = seed
-        else
-          sd = streamnum
-        endif
-          
-c$$$        CALL SYSTEM_CLOCK(COUNT=clock)
-c$$$          
-c$$$        seed = clock + 37 * (/ (i - 1, i = 1, n) /)
-        sd2 = sd + 37 * (/ (i - 1, i = 1, n) /)
-        CALL RANDOM_SEED(PUT = sd2)
-          
-        DEALLOCATE(sd2)
+        call init_random_seed_f90(streamnum,seed=seed)
 #endif
 #endif
       end subroutine init_random_seed
-  
+
+#ifdef _SPRNG
+c     init_random_seed_sprng
+c     #########################################################################
+      SUBROUTINE init_random_seed_sprng(nstreams,streamnum,output,seed)
+
+c     -------------------------------------------------------------------------
+c     Initializes random seed for stream number "streamnum" of "nstreams"
+c     -------------------------------------------------------------------------
+
+      implicit none
+      integer,INTENT(IN) :: streamnum,nstreams
+      logical,INTENT(IN) :: output
+      integer,INTENT(IN),optional :: seed
+
+      integer :: junk,sd
+      integer :: gtype
+      real(8) :: rn
+
+      if (is_sprng_init) return
+      is_sprng_init = .true.
+      
+      gtype = 1       !lcg
+      if (PRESENT(seed)) then
+        sd = 985456376 + 37*seed
+      else
+        sd = 985456376
+      endif
+      
+      stream = init_sprng(gtype,streamnum,nstreams,sd,SPRNG_DEFAULT)   
+
+      if (output) junk = print_sprng(stream)
+
+      end subroutine init_random_seed_sprng
+#endif
+      
+c     init_random_seed_f90
+c     #########################################################################
+      SUBROUTINE init_random_seed_f90(streamnum,seed)
+
+c     -------------------------------------------------------------------------
+c     Initializes random seed for stream number "streamnum" of "nstreams"
+c     -------------------------------------------------------------------------
+
+      implicit none
+      
+      integer,INTENT(IN) :: streamnum
+      integer,INTENT(IN),optional :: seed
+
+      INTEGER :: i, n, clock, sd
+      INTEGER, DIMENSION(:), ALLOCATABLE :: sd2
+
+      CALL RANDOM_SEED(size = n)
+      ALLOCATE(sd2(n))
+
+      if (PRESENT(seed)) then
+        sd = seed
+      else
+        sd = streamnum
+      endif
+        
+c$$$      CALL SYSTEM_CLOCK(COUNT=clock)
+c$$$        
+c$$$      seed = clock + 37 * (/ (i - 1, i = 1, n) /)
+      sd2 = sd + 37 * (/ (i - 1, i = 1, n) /)
+      CALL RANDOM_SEED(PUT = sd2)
+        
+      DEALLOCATE(sd2)
+        
+      end subroutine init_random_seed_f90
+
+c     init_random_seed_lcg
+c     #########################################################################
+      SUBROUTINE init_random_seed_lcg(streamnum,seed)
+
+c     -------------------------------------------------------------------------
+c     Initializes random seed for stream number "streamnum" of "nstreams"
+c     -------------------------------------------------------------------------
+
+      implicit none
+      
+      integer,INTENT(IN) :: streamnum
+      integer,INTENT(IN),optional :: seed
+
+      if (is_lcg_init) return
+      is_lcg_init = .true.
+
+      if (PRESENT(seed)) then
+        lcg_seed = 985456376 + seed + streamnum*37
+      else
+        lcg_seed = 985456376        + streamnum*37
+      endif
+
+      end subroutine init_random_seed_lcg
+
 c     free_random_seed
 c     #########################################################################
       SUBROUTINE free_random_seed()
