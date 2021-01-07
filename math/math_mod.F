@@ -36,9 +36,11 @@
 #include "sprng_f.h"
       SPRNG_POINTER stream
       logical :: is_sprng_init=.false.
-      logical :: is_lcg_init=.false.
-!$OMP THREADPRIVATE(is_sprng_init,is_lcg_init)
+!$OMP THREADPRIVATE(is_sprng_init)
 #endif
+
+      logical :: is_lcg_init=.false.
+!$OMP THREADPRIVATE(is_lcg_init)
 
       integer :: lcg_seed = 123456789
 !$OMP THREADPRIVATE(lcg_seed)
