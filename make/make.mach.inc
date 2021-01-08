@@ -1360,7 +1360,7 @@ ifeq ($(findstring ba,$(HOST)),ba)
       SPRNG = t
 
       SPRNG_HOME = /turquoise/usr/projects/magreconn/soft/sprng5
-      SPRNG_LIBS = $(SPRNG_HOME)/lib/badger_intel-19.0.4/lib -lsprng -lstdc++ -lm
+      SPRNG_LIBS = $(SPRNG_HOME)/lib/badger_intel-19.0.4/lib -lsprng -lstdc++
       SPRNG_INC  = $(SPRNG_HOME)/include
 
      endif
