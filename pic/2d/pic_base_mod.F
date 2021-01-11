@@ -3281,20 +3281,22 @@ c     ######################################################################
 
 c     find_pcle_weights
 c     ######################################################################
-      subroutine find_pcle_weights(mments,w_accnt,dens_given)
+      subroutine find_pcle_weights(mments,w_accnt,dens_given,iout)
 
       implicit none
 
 c     Call variables
 
       real(8), intent(in) :: mments(0:,0:,:)
-      real(8), intent(in),optional :: dens_given(0:,0:,:)
       logical :: w_accnt
+
+      real(8), intent(in),optional :: dens_given(0:,0:,:)
+      integer,optional :: iout
       
 c     Local variables
       
       integer :: bcs(6,n_sp),igl,jgl,kgl,i,j,k,ii,ip,isp,numspcs
-     .          ,numpcles
+     .          ,numpcles,iiout
 
       real(8) :: tol_out,sump(n_sp),lsump(n_sp)
       integer :: i_n(_Npg), j_n(_Npg)
@@ -3303,6 +3305,12 @@ c     Local variables
 
 c     Begin program
 
+      if (PRESENT(iout)) then
+        iiout = iout
+      else
+        iiout = 0   !no output
+      endif
+      
 c     Build GLOBAL 9-point stencil Mass Matrix
 
       call build_mass_matrix(w_accnt)  !False to prevent singularity with no particles
@@ -3346,7 +3354,6 @@ c     Solve 2D mass matrix problem
       enddo
       where (bcs == pREF .or. bcs == pOPN) bcs = NEU
 
-      iiout = 0 !No output
       call cSolver(gpicdef,numspcs,nnl,rr,sol,bcs
      .            ,1,iiout,0,massmat_mtvc,.false.
      .            ,tol           = 1d-12
@@ -3487,14 +3494,19 @@ c     Free work space
 
 c     find_pcle_drift_velocity_z (vz only, which is cell-centered)
 c     ######################################################################
-      subroutine find_pcle_drift_velocity_z(vzmom,vzmom_given)
+      subroutine find_pcle_drift_velocity_z(vzmom,vzmom_given,iout)
 
       implicit none
 
+c     Call variables
+      
       real(8), intent(in) :: vzmom(0:,0:,:)
       real(8), intent(in),optional :: vzmom_given(0:,0:,:)
-
-      integer :: bcs(6,n_sp)
+      integer,optional :: iout
+      
+c     Local variables
+      
+      integer :: bcs(6,n_sp),iiout
       integer :: ci(9),ipcl,numpcles,numspcs
 
       integer :: i,j,k,im,ip,jm,jp,ijk,ijkim,ijkip,ijkjm,ijkjp
@@ -3508,6 +3520,12 @@ c     ######################################################################
 
 c     Begin program
 
+      if (PRESENT(iout)) then
+        iiout = iout
+      else
+        iiout = 0   !no output
+      endif
+      
       if (associated(Jpz)) then
         if (maxval(abs(Jpz(:,:,:)))==0d0
      .    .and.(.not.PRESENT(vzmom_given))) return
@@ -3555,7 +3573,6 @@ c     Solve 2D mass matrix problem
       where (bcs == pREF) bcs = NEU
       where (bcs == pOPN) bcs = DIR
 
-      iiout = 0 !No output
       call cSolver(gpicdef,numspcs,nnl,rr,sol,bcs
      .            ,1,iiout,0,massmat_mtvc,.false.
      .            ,tol           = 1d-12
@@ -3626,13 +3643,18 @@ cc     .                                     -v0_z(isp)
 
 c     find_pcle_drift_velocity_x (vx only)
 c     ######################################################################
-      subroutine find_pcle_drift_velocity_x(vxmom,vxmom_given)
+      subroutine find_pcle_drift_velocity_x(vxmom,vxmom_given,iout)
 
       implicit none
 
+c     Call variables
+      
       real(8), intent(in) :: vxmom(0:,0:,:)
       real(8), intent(in),optional :: vxmom_given(0:,0:,:)
+      integer,optional :: iout
 
+c     Local variables
+      
       integer :: bcs(6,n_sp)
       integer :: ci(9),ipcl,numpcles,numspcs
 
@@ -3649,6 +3671,12 @@ c     ######################################################################
 
 c     Begin program
 
+      if (PRESENT(iout)) then
+        iiout = iout
+      else
+        iiout = 0   !no output
+      endif
+      
       if (associated(Jpx)) then
         if (maxval(abs(Jpx(:,:,:)))==0d0
      .    .and.(.not.PRESENT(vxmom_given))) return
@@ -3696,7 +3724,6 @@ c     Solve 2D mass matrix problem
       where (bcs == pREF) bcs = NEU
       where (bcs == pOPN) bcs = DIR
 
-      iiout = 0 !No output
       call cSolver(gpicdef,numspcs,nnl,rr,sol,bcs
      .            ,1,iiout,0,massmat_mtvc,.false.
      .            ,tol           = 1d-12
@@ -3772,13 +3799,18 @@ c     Assign particle drift velocity vz (Stardard curvilinear convention, i.e., 
 
 c     find_pcle_drift_velocity_y (vy only)
 c     ######################################################################
-      subroutine find_pcle_drift_velocity_y(vymom,vymom_given)
+      subroutine find_pcle_drift_velocity_y(vymom,vymom_given,iout)
 
       implicit none
 
+c     Call variables
+
       real(8), intent(in) :: vymom(0:,0:,:)
       real(8), intent(in),optional :: vymom_given(0:,0:,:)
+      integer,optional :: iout
 
+c     Local variables
+      
       integer :: bcs(6,n_sp)
       integer :: ci(9),ipcl,numpcles,numspcs
 
@@ -3794,6 +3826,12 @@ c     ######################################################################
 
 c     Begin program
 
+      if (PRESENT(iout)) then
+        iiout = iout
+      else
+        iiout = 0   !no output
+      endif
+      
       if (associated(Jpy)) then
         if (maxval(abs(Jpy(:,:,:)))==0d0
      .    .and.(.not.PRESENT(vymom_given))) return
@@ -3841,7 +3879,6 @@ c     Solve 2D mass matrix problem
       where (bcs == pREF) bcs = NEU
       where (bcs == pOPN) bcs = DIR
 
-      iiout = 0 !No output
       call cSolver(gpicdef,numspcs,nnl,rr,sol,bcs
      .            ,1,iiout,0,massmat_mtvc,.false.
      .            ,tol           = 1d-12

@@ -1291,14 +1291,17 @@ ifeq ($(findstring ba,$(HOST)),ba)
      SPRNG_LIBS = $(SPRNG_PAR_HOME)/lib/badger_gcc-9.3.0_openmpi-3.1.6/lib -lsprng -lstdc++ -lm
      SPRNG_INC  = $(SPRNG_PAR_HOME)/include
     else
-      LIBS += -L/usr/lib -llapack -lblas
+     LIBS += -L/usr/lib -llapack -lblas
 
-      HDF5 = f
+     HDF5 = f
 
-      ADIOS = f
+     ADIOS = f
 
-      SPRNG = f
+     SPRNG = t
 
+     SPRNG_HOME = /turquoise/usr/projects/magreconn/soft/sprng5
+     SPRNG_LIBS = $(SPRNG_HOME)/lib/badger_gcc-9.3.0/lib -lsprng -lstdc++ -lm
+     SPRNG_INC  = $(SPRNG_HOME)/include
     endif
 
   endif
@@ -1350,7 +1353,11 @@ ifeq ($(findstring ba,$(HOST)),ba)
 
       ADIOS = f
 
-      SPRNG = f
+      SPRNG = t
+
+      SPRNG_HOME = /turquoise/usr/projects/magreconn/soft/sprng5
+      SPRNG_LIBS = $(SPRNG_HOME)/lib/badger_intel-19.0.4/lib -lsprng -lstdc++
+      SPRNG_INC  = $(SPRNG_HOME)/include
 
      endif
 

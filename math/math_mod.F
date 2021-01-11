@@ -39,6 +39,9 @@
 !$OMP THREADPRIVATE(is_sprng_init)
 #endif
 
+      logical :: is_lcg_init=.false.
+!$OMP THREADPRIVATE(is_lcg_init)
+
       integer :: lcg_seed = 123456789
 !$OMP THREADPRIVATE(lcg_seed)
 
@@ -1025,6 +1028,41 @@ c     End
 
       end function fmed_vec
 
+c     minmod
+c     #################################################################
+      function minmod(a,b)
+
+      real(8) :: a,b,minmod
+
+      if (a*b <= 0d0) then
+        minmod = 0d0
+        return
+      endif
+
+      if (a > 0d0) then
+        minmod = min(a,b)
+      else
+        minmod = max(a,b)
+      endif
+
+      end function minmod
+
+c     mc
+c     #################################################################
+      function mc(a,b,chk)
+
+      real(8) :: a,b,mc,ho_flx
+
+      logical,optional :: chk
+
+      ho_flx = 0.5*(a+b)
+
+      mc = minmod(2*minmod(a,b),ho_flx)
+
+      if (PRESENT(chk)) chk = (mc /= ho_flx)
+
+      end function mc
+
 c     ellipticK_vec
 c     ####################################################################
       function ellipticK_vec(eta,pole) result(ellK)
@@ -1389,14 +1427,16 @@ c     local variables
 c     Begin program
 
 #ifdef _SPRNG
-      r = sprng(stream)         
+      if (is_sprng_init) then
+        r = sprng(stream)
+      elseif(is_lcg_init) then
 #else
-#ifdef _OPENMP
-      r = randlcg(lcg_seed)         !careful
-#else
-      call random_number(r)         !Problematic with OpenMP
+      if(is_lcg_init) then
 #endif
-#endif
+        r = randlcg(lcg_seed)   !careful
+      else
+        call random_number(r)
+      endif
 
 c     End program
       
@@ -1423,9 +1463,6 @@ c     #########################################################################
 c     -------------------------------------------------------------------------
 c     Initializes random seed for stream number "streamnum" of "nstreams"
 c     -------------------------------------------------------------------------
-#ifdef _OPENMP
-        use omp_lib
-#endif
 
         implicit none
         integer,INTENT(IN) :: streamnum,nstreams
@@ -1433,54 +1470,110 @@ c     -------------------------------------------------------------------------
         integer,INTENT(IN),optional :: seed
 
 #ifdef _SPRNG
-        integer :: junk,sd
-        integer :: gtype
-        real(8) :: rn
-
-        if (is_sprng_init) return
-        is_sprng_init = .true.
-        
-        gtype = 1       !lcg
-        if (PRESENT(seed)) then
-          sd = 985456376 + 37*seed
-        else
-          sd = 985456376
-        endif
-        
-        stream = init_sprng(gtype,streamnum,nstreams,sd,SPRNG_DEFAULT)   
-
-        if (output) junk = print_sprng(stream)
+        call init_random_seed_sprng(nstreams,streamnum,output,seed=seed)
 #else
 #ifdef _OPENMP
-        if (PRESENT(seed)) then
-          lcg_seed = 985456376 + seed + streamnum*37
-        else
-          lcg_seed = 985456376        + streamnum*37
-        endif
+        call init_random_seed_lcg(streamnum,seed=seed)
 #else
-        INTEGER :: i, n, clock, sd
-        INTEGER, DIMENSION(:), ALLOCATABLE :: sd2
-
-        CALL RANDOM_SEED(size = n)
-        ALLOCATE(sd2(n))
-
-        if (PRESENT(seed)) then
-          sd = seed
-        else
-          sd = streamnum
-        endif
-          
-c$$$        CALL SYSTEM_CLOCK(COUNT=clock)
-c$$$          
-c$$$        seed = clock + 37 * (/ (i - 1, i = 1, n) /)
-        sd2 = sd + 37 * (/ (i - 1, i = 1, n) /)
-        CALL RANDOM_SEED(PUT = sd2)
-          
-        DEALLOCATE(sd2)
+        call init_random_seed_f90(streamnum,seed=seed)
 #endif
 #endif
       end subroutine init_random_seed
-  
+
+#ifdef _SPRNG
+c     init_random_seed_sprng
+c     #########################################################################
+      SUBROUTINE init_random_seed_sprng(nstreams,streamnum,output,seed)
+
+c     -------------------------------------------------------------------------
+c     Initializes random seed for stream number "streamnum" of "nstreams"
+c     -------------------------------------------------------------------------
+
+      implicit none
+      integer,INTENT(IN) :: streamnum,nstreams
+      logical,INTENT(IN) :: output
+      integer,INTENT(IN),optional :: seed
+
+      integer :: junk,sd
+      integer :: gtype
+      real(8) :: rn
+
+      if (is_sprng_init) return
+      is_sprng_init = .true.
+      
+      gtype = 1       !lcg
+      if (PRESENT(seed)) then
+        sd = 985456376 + 37*seed
+      else
+        sd = 985456376
+      endif
+      
+      stream = init_sprng(gtype,streamnum,nstreams,sd,SPRNG_DEFAULT)   
+
+      if (output) junk = print_sprng(stream)
+
+      end subroutine init_random_seed_sprng
+#endif
+      
+c     init_random_seed_f90
+c     #########################################################################
+      SUBROUTINE init_random_seed_f90(streamnum,seed)
+
+c     -------------------------------------------------------------------------
+c     Initializes random seed for stream number "streamnum" of "nstreams"
+c     -------------------------------------------------------------------------
+
+      implicit none
+      
+      integer,INTENT(IN) :: streamnum
+      integer,INTENT(IN),optional :: seed
+
+      INTEGER :: i, n, clock, sd
+      INTEGER, DIMENSION(:), ALLOCATABLE :: sd2
+
+      CALL RANDOM_SEED(size = n)
+      ALLOCATE(sd2(n))
+
+      if (PRESENT(seed)) then
+        sd = seed
+      else
+        sd = streamnum
+      endif
+        
+c$$$      CALL SYSTEM_CLOCK(COUNT=clock)
+c$$$        
+c$$$      seed = clock + 37 * (/ (i - 1, i = 1, n) /)
+      sd2 = sd + 37 * (/ (i - 1, i = 1, n) /)
+      CALL RANDOM_SEED(PUT = sd2)
+        
+      DEALLOCATE(sd2)
+        
+      end subroutine init_random_seed_f90
+
+c     init_random_seed_lcg
+c     #########################################################################
+      SUBROUTINE init_random_seed_lcg(streamnum,seed)
+
+c     -------------------------------------------------------------------------
+c     Initializes random seed for stream number "streamnum" of "nstreams"
+c     -------------------------------------------------------------------------
+
+      implicit none
+      
+      integer,INTENT(IN) :: streamnum
+      integer,INTENT(IN),optional :: seed
+
+      if (is_lcg_init) return
+      is_lcg_init = .true.
+
+      if (PRESENT(seed)) then
+        lcg_seed = 985456376 + seed + streamnum*37
+      else
+        lcg_seed = 985456376        + streamnum*37
+      endif
+
+      end subroutine init_random_seed_lcg
+
 c     free_random_seed
 c     #########################################################################
       SUBROUTINE free_random_seed()
@@ -1868,6 +1961,280 @@ CS    ERFCX = RESULT
       RETURN
 C---------- Last card of DERFCX ----------
       END
+      
+!**********************************************************************************
+!  Copyright (C) 1985 Numerical Recipes Software -- GAMMLN
+!**********************************************************************************
+      FUNCTION GAMMLN(XX)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      DOUBLE PRECISION COF(6),STP,HALF,ONE,FPF,X,TMP,SER,XX
+!c      DATA COF,STP/76.18009173D0,-86.50532033D0,24.01409822D0,
+!c    *    -1.231739516D0,.120858003D-2,-.536382D-5,2.50662827465D0/
+      DATA COF,STP/76.18009173,-86.50532033,24.01409822,
+     *    -1.231739516,.120858003E-2,-.536382E-5,2.50662827465/
+      DATA HALF,ONE,FPF/0.5,1.0,5.5/
+      X=XX-ONE
+      TMP=X+FPF
+      TMP=(X+HALF)*LOG(TMP)-TMP
+      SER=ONE
+      DO 11 J=1,6
+        X=X+ONE
+        SER=SER+COF(J)/X
+11    CONTINUE
+      GAMMLN=TMP+LOG(STP*SER)
+      RETURN
+      END
+
+
+!c     SYMINV
+!c     ########################################################################
+      SUBROUTINE SYMINV(A,N,C,W,NULLTY,IFAULT,RMAX,CMY,TOL)
+!C
+!C       Algorithm AS7, Applied Statistics, Vol.17, 1968.
+!C
+!C       ARGUMENTS:-
+!C       A()     = input, the symmetric matrix to be inverted, stored in
+!C                 lower triangular form
+!C       N       = input, order of the matrix
+!C       C()     = output, the inverse of a (a generalized inverse if c is
+!C                 singular), also stored in lower triangular.
+!C                 c and a may occupy the same locations.
+!C       W()     = workspace, dimension at least n.
+!C       NULLTY  = output, the rank deficiency of a.
+!C       IFAULT  = output, error indicator
+!C                       = 1 if n < 1
+!C                       = 2 if a is not +ve semi-definite
+!C                       = 0 otherwise
+!C       RMAX    = output, approximate bound on the accuracy of the diagonal
+!C                 elements of c.  e.g. if rmax = 1.e-04 then the diagonal
+!C                 elements of c will be accurate to about 4 dec. digits.
+!C
+!C       Latest revision - 18 April 1981
+
+!C        IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+       IMPLICIT NONE             ! GC 2016      
+!C     call variables
+       integer :: N,NULLTY,IFAULT
+       real(8) :: A(N*N),C(N*N),W(N),CMY(N*(N+1)/2),RMAX,TOL
+
+!C     local varialbe
+       integer :: NROW,NN,IMY,IROW,ICOL,JCOL,MDIAG,L,NDIAG,K,I,J
+       real(8) :: X
+
+        NROW=N
+        IFAULT=1
+        IF(NROW.LE.0) GO TO 100
+        IFAULT=0
+!C       Cholesky factorization of A, result in C
+        CALL CHOLA(A,NROW,C,NULLTY,IFAULT,RMAX,W,TOL)
+        IF(IFAULT.NE.0) GO TO 100
+!C       Invert C & form the product (CINV)'*CINV, where CINV is the inverse
+!C       of C, row by row starting with the last row.
+!C       IROW = the row number, NDIAG = location of last element in the row.
+        NN=NROW*(NROW+1)/2
+        DO 200 IMY=1,NN
+200       CMY(IMY)=C(IMY)
+        IROW=NROW
+        NDIAG=NN
+10      IF(C(NDIAG).EQ.0.0) GO TO 60
+        L=NDIAG
+        DO 20 I=IROW,NROW
+          W(I)=C(L)
+          L=L+I
+20      CONTINUE
+        ICOL=NROW
+        JCOL=NN
+        MDIAG=NN
+30      L=JCOL
+        X=0.0
+        IF(ICOL.EQ.IROW) X=1.0/W(IROW)
+        K=NROW
+40      IF(K.EQ.IROW) GO TO 50
+        X=X-W(K)*C(L)
+        K=K-1
+        L=L-1
+        IF(L.GT.MDIAG) L=L-K+1
+        GO TO 40
+50      C(L)=X/W(IROW)
+        IF(ICOL.EQ.IROW) GO TO 80
+        MDIAG=MDIAG-ICOL
+        ICOL=ICOL-1
+        JCOL=JCOL-1
+        GO TO 30
+60      L=NDIAG
+        DO 70 J=IROW,NROW
+          C(L)=0.0
+          L=L+J
+70      CONTINUE
+80      NDIAG=NDIAG-IROW
+        IROW=IROW-1
+        IF(IROW.NE.0) GO TO 10
+100     RETURN
+        END SUBROUTINE SYMINV
+
+!c     CHOLA
+!c     ########################################################################
+        SUBROUTINE CHOLA(A,N,U,NULLTY,IFAULT,RMAX,R,TOL)
+!C
+!C       Algorithm AS6, Applied Statistics, Vol.17, 1968, with
+!C       modifications by A.J.Miller
+!C
+!C       ARGUMENTS:-
+!C       A()     = input, a +ve definite matrix stored in lower-triangular
+!C                 form.
+!C       N       = input, the order of A
+!C       U()     = output, a lower triangular matrix such that U*U' = A.
+!C                 A & U may occupy the same locations.
+!C       NULLTY  = output, the rank deficiency of A.
+!C       IFAULT  = output, error indicator
+!C                       = 1 if N < 1
+!C                       = 2 if A is not +ve semi-definite
+!C                       = 0 otherwise
+!C       RMAX    = output, an estimate of the relative accuracy of the
+!C                 diagonal elements of U.
+!C       R()     = output, array containing bounds on the relative accuracy
+!C                 of each diagonal element of U.
+!C
+!C       Latest revision - 18 April 1981
+!C
+!C        IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+        IMPLICIT NONE ! GC 2016
+!C     call variables
+       integer :: N,NULLTY,IFAULT
+       real(8) :: A(N*N),U(N*N),R(N),RMAX,TOL
+       
+!C     Local variables
+       integer :: I,J,K,ICOL,IROW,L,M
+       real(8) :: ETA,W,RSQ
+
+!C       ETA should be set equal to the smallest +ve value such that
+!C       1.0 + eta is calculated as being greater than 1.0 in the accuracy
+!C       being used.
+!C        DATA ETA/1.e-07/
+        ETA=TOL
+        IFAULT=1
+        IF(N.LE.0) GO TO 100
+        IFAULT=2
+        NULLTY=0
+        RMAX=ETA
+        R(1)=ETA
+        J=1
+        K=0
+!C       Factorize column by column, ICOL = Column No.
+        DO 80 ICOL=1,N
+          L=0
+!C       IROW = row number within column ICOL
+          DO 40 IROW=1,ICOL
+            K=K+1
+            W=A(K)
+            IF(IROW.EQ.ICOL) RSQ=(W*ETA)**2
+            M=J
+            DO 10 I=1,IROW
+              L=L+1
+              IF(I.EQ.IROW) GO TO 20
+              W=W-U(L)*U(M)
+              IF(IROW.EQ.ICOL) RSQ=RSQ+(U(L)**2*R(I))**2
+              M=M+1
+10          CONTINUE
+20          IF(IROW.EQ.ICOL) GO TO 50
+            IF(U(L).EQ.0.0) GO TO 30
+            U(K)=W/U(L)
+            GO TO 40
+30          U(K)=0.0
+            IF(ABS(W).GT.ABS(RMAX*A(K))) GO TO 100
+40        CONTINUE
+!C         End of row, estimate relative accuracy of diagonal element.
+50        RSQ=SQRT(RSQ)
+          IF(ABS(W).LE.5.*RSQ) GO TO 60
+          IF(W.LT.0.0) GO TO 100
+          U(K)=SQRT(W)
+          R(I)=RSQ/W
+          IF(R(I).GT.RMAX) RMAX=R(I)
+          GO TO 70
+60        U(K)=0.0
+          NULLTY=NULLTY+1
+70        J=J+ICOL
+80      CONTINUE
+        IFAULT=0
+100     RETURN
+        END SUBROUTINE CHOLA
+
+      subroutine EIG_Jacobi(a,x,abserr,n)
+      !===========================================================
+      ! Evaluate eigenvalues and eigenvectors
+      ! of a real symmetric matrix a(n,n): a*x = lambda*x 
+      ! method: Jacoby method for symmetric matrices 
+      ! Alex G. (December 2009)
+      !-----------------------------------------------------------
+      ! input ...
+      ! a(n,n) - array of coefficients for matrix A
+      ! n      - number of equations
+      ! abserr - abs tolerance [sum of (off-diagonal elements)^2]
+      ! output ...
+      ! a(i,i) - eigenvalues
+      ! x(i,j) - eigenvectors
+      ! comments ...
+      !===========================================================
+      implicit none
+      integer i, j, k, n
+      double precision a(n,n),x(n,n)
+      double precision abserr, b2, bar
+      double precision beta, coeff, c, s, cs, sc
+
+      ! initialize x(i,j)=0, x(i,i)=1
+      ! *** the array operation x=0.0 is specific for Fortran 90/95
+      x = 0.0
+      do i=1,n
+        x(i,i) = 1.0
+      end do
+
+      ! find the sum of all off-diagonal elements (squared)
+      b2 = 0.0
+      do i=1,n
+        do j=1,n
+          if (i.ne.j) b2 = b2 + a(i,j)**2
+        end do
+      end do
+
+      if (b2 <= abserr) return
+
+      ! average for off-diagonal elements /2
+      bar = 0.5*b2/float(n*n)
+
+      do while (b2.gt.abserr)
+      do i=1,n-1
+        do j=i+1,n
+          if (a(j,i)**2 <= bar) cycle  ! do not touch small elements
+          b2 = b2 - 2.0*a(j,i)**2
+          bar = 0.5*b2/float(n*n)
+          ! calculate coefficient c and s for Givens matrix
+          beta = (a(j,j)-a(i,i))/(2.0*a(j,i))
+          coeff = 0.5*beta/sqrt(1.0+beta**2)
+          s = sqrt(max(0.5+coeff,0.0))
+          c = sqrt(max(0.5-coeff,0.0))
+          ! recalculate rows i and j
+          do k=1,n
+            cs =  c*a(i,k)+s*a(j,k)
+            sc = -s*a(i,k)+c*a(j,k)
+            a(i,k) = cs
+            a(j,k) = sc
+          end do
+          ! new matrix a_{k+1} from a_{k}, and eigenvectors 
+          do k=1,n
+            cs =  c*a(k,i)+s*a(k,j)
+            sc = -s*a(k,i)+c*a(k,j)
+            a(k,i) = cs
+            a(k,j) = sc
+            cs =  c*x(k,i)+s*x(k,j)
+            sc = -s*x(k,i)+c*x(k,j)
+            x(k,i) = cs
+            x(k,j) = sc
+          end do
+        end do
+      end do
+      end do
+      return
+      end subroutine EIG_Jacobi
 
 c     blockSolve
 c     #################################################################

@@ -2487,7 +2487,7 @@ c     Find dimensionality
       endif
 
       !Find exponents
-      navg = int((1d0*(nx*ny*nz)/nprocs)**(1d0/nd)) !Average number of points per proc per dim
+      navg = int(((1d0*nx)*(1d0*ny)*(1d0*nz)/nprocs)**(1d0/nd)) !Average number of points per proc per dim
       navg = 2**(floor(log(1d0*navg))/log(2d0))     !Find nearest power of 2 from below
 
       npt = (/nx,ny,nz/)
