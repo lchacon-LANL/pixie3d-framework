@@ -7,8 +7,8 @@ c #############################################################################
         use math, ONLY: factorial,pi,calerf
 
         integer,private :: kmax=100      !Maximum number of Fourier modes in Fourier Green's f. form
-        real(8),private :: t_tol,T_cutoff2,S_cutoff2,alpha=0d0
-     .                    ,aa(0:10,0:10),cc(0:10)
+        real(8),private :: t_tol,T_cutoff,T_cutoff2,S_cutoff2,S_cutoffp
+     .                    ,S_cutoffm,alpha=0d0,aa(0:10,0:10),cc(0:10)
 
         real(8),parameter :: sqrpi=dsqrt(pi),isqrpi=1d0/sqrpi,ipi=1d0/pi
 
@@ -25,8 +25,9 @@ c     ---------------------------------------------------------------
       implicit none
 
       real(8) :: alp,tol
-      integer :: i,j
 
+      integer :: i,j
+      
       alpha = alp
 
       if (alpha >= 0d0 .and. alpha /= 1d0 .and. alpha /= 2d0) then
@@ -47,8 +48,23 @@ c     ---------------------------------------------------------------
 
       !Compute line integral cut-offs for alpha=-1 (diffusion-advection)
       if (alpha < 0d0) then
-        T_cutoff2 = tol
-        S_cutoff2 = tol
+cc        T_cutoff2 = tol
+        T_cutoff2 = 1d0
+        S_cutoffm = 1d0 + abs(0.5*alpha) 
+        S_cutoffp = 1d0 
+        do i=1,10
+          T_cutoff2 = abs(log(2d0*sqrpi*t_tol*sqrt(T_cutoff2)))
+          S_cutoffm = abs(0.5*alpha)
+     .          + sqrt(abs(log(sqrpi*t_tol*S_cutoffm
+     .                    *sqrt(S_cutoffm*(S_cutoffm-abs(0.5*alpha))))))
+          S_cutoffp =-abs(0.5*alpha)
+     .          + sqrt(abs(log(sqrpi*t_tol*S_cutoffp
+     .                    *sqrt(S_cutoffp*(S_cutoffp+abs(0.5*alpha))))))
+        enddo
+        T_cutoff = sqrt(T_cutoff2)
+        S_cutoffm = S_cutoffm/abs(0.5*alpha)
+        S_cutoffp = S_cutoffp/abs(0.5*alpha)
+cc        write (*,*) T_cutoff,S_cutoffm,S_cutoffp
       endif
 
       !Compute coefficient matrix for SDC kernels
@@ -117,8 +133,8 @@ c     Begin program
         s2 = 0.25*(eta+isD)*(eta+isD)
         tkernel = 0.5d0*isqrpi*isct0*exp(-s2)
 
-        !ex_loop = (s2>lag_cutoff*lag_cutoff*dte*dte)
-        ex_loop = (tkernel<T_cutoff2)
+        ex_loop = (abs(abs(eta)+sign(isD,ss)) > 2d0*T_cutoff)
+cc        ex_loop = (tkernel<t_tol)
         if (ex_loop) tkernel=0d0
       else
         call pstop('tkernel_3d','Fractional order not implemented')
@@ -251,10 +267,14 @@ cc        skernel = (exp(-eta*eta)*isqrpi-eta*erfc(eta))*dum
       
         skernel= sigss*0.5d0*(ex*erfc1-erfc2)*dtinv 
       
-        !ex_loop = (ss < -(lag_cutoff+1d0)*dt_e)  !D=dt,15dt corresponds to abs tol of 1e-10
-        ex_loop = (skernel<S_cutoff2) 
-        if (ex_loop) skernel=0d0 
-
+        ex_loop =    (abs(eta)>S_cutoffm.and.eta<0d0)
+     .           .or.(abs(eta)>S_cutoffp.and.eta>0d0)
+cc        ex_loop = (skernel<t_tol)
+        if (ex_loop) then
+          skernel=0d0 
+c$$$          if (eta<0d0) write (*,*) "m",eta,S_cutoffm,dtinv
+c$$$          if (eta>0d0) write (*,*) "p",eta,S_cutoffp,dtinv
+        endif
       else
         call pstop('skernel_3d','Fractional order not implemented')
       endif
