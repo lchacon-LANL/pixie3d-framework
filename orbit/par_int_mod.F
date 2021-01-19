@@ -1176,7 +1176,7 @@ cc        allocate(dummy   (nxg+2,nyg+2,nzg+2,neq))
 #endif
 c     Spline temperature field
 
-        if (is_spline_local()) then
+        if (is_spline_local().or.no_global_spl) then
           sp_coef = vg
         else
 cc          dummy = vg
