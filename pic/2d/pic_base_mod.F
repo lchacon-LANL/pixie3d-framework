@@ -15,17 +15,17 @@ c ######################################################################
 
       integer, parameter :: nsp_max=5,Npg=_Npg,dim=_Dim,dimt=_Dim+_Dimx
 
+      !Exactly 16*_Npg bytes in DP, which fits exactly in cache registers
       type :: particle
         SEQUENCE
-        real(_prec) :: x_np(_Npg,3)
-        real(_prec) :: v_np(_Npg,3)
-        real(_prec) :: x_n(_Npg,3)
-        real(_prec) :: v_n(_Npg,3)
-        integer :: ijk_np(_Npg), ijk_n(_Npg)
-#if _Npg == 4
-        integer :: inpdum(_Npg),indum(_Npg) !Padding in double prec
-#endif
-        real(_prec) :: w_np(_Npg),w_n(_Npg)
+        real(_prec) :: x_np(_Npg,3)  !3*_Npg bytes
+        real(_prec) :: v_np(_Npg,3)  !3*_Npg bytes
+        real(_prec) :: x_n(_Npg,3)   !3*_Npg bytes
+        real(_prec) :: v_n(_Npg,3)   !3*_Npg bytes
+        real(_prec) :: w_np(_Npg)    !_Npg bytes
+        real(_prec) :: w_n(_Npg)     !_Npg bytes
+        real(_prec) :: w_0(_Npg)     !_Npg bytes
+        integer :: ijk_np(_Npg), ijk_n(_Npg) !_Npg bytes
       end type particle
 
       type :: species
