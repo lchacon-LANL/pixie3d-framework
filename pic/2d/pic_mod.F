@@ -19,8 +19,7 @@ c #####################################################################
 c     pic_mover_2d_sub
 c     ##################################################################
       subroutine pic_mover_2d_sub(dt,A,phi,DtA,B0,pit_sum,psh_sum
-     .  ,pst_sum,pitmax,pstmax,ntot_pcles,timer,tfv,tfx,cm,pm,cm_exch
-     .  ,src_eval)
+     .  ,pst_sum,pitmax,pstmax,ntot_pcles,timer,tfv,tfx,cm,pm,cm_exch)
         
       implicit none
         
@@ -32,16 +31,6 @@ c     Call variables
       real(8),intent(out),optional :: cm(3),pm(3),cm_exch(3)
 
       integer(8) :: pit_sum,psh_sum,pst_sum,pitmax,pstmax,ntot_pcles
-
-      optional :: src_eval
-
-      !Interface for generic source function along pcle orbit (optional)
-      INTERFACE
-        subroutine src_eval(n,x,v,s)
-        integer :: n
-        real(8) :: x(n,3),v(n,3),s(n)
-        end subroutine src_eval
-      END INTERFACE
       
 c     Local variables
 
@@ -158,7 +147,7 @@ c     Move particles
      .                                ,spcs(isp)%pcles(ipc)
      $                                ,dt,dtp,dt_sub
      $                                ,DtA,B0,A,phi,dx
-     $                                ,psts,pits,src_eval=src_eval)
+     $                                ,psts,pits)
 
              !Use local registers for performance (C. Mikida)
              w_pcle = spcs(isp)%pcles(ipc)%w_np
@@ -424,8 +413,7 @@ c     End program
 c     ACC_CN_incell_offset
 c     ##################################################################
       subroutine ACC_CN_incell_offset (q_m,pcle_nu,pcle,dt,dtp,dt_sub
-     .                                ,DtA,B0,A,phi,dx,substeps,it
-     .                                ,src_eval)
+     .                                ,DtA,B0,A,phi,dx,substeps,it)
 
       implicit none
       
@@ -442,16 +430,6 @@ c     Call variables
 
       integer,intent(out):: substeps,it
 
-      optional :: src_eval
-
-      !Interface for generic source function along pcle orbit (optional)
-      INTERFACE
-        subroutine src_eval(n,x,v,s)
-        integer :: n
-        real(8) :: x(n,3),v(n,3),s(n)
-        end subroutine src_eval
-      END INTERFACE
-      
 c     Local variables
 
       integer :: i,j,k,nxg,nyg,nzg
@@ -588,13 +566,14 @@ c     Update particle quantities
       vnp_loc = vn_loc + 2d0*(vh - vn_loc) !2d0*vh - vn_loc
       xnp_loc = xn_loc + dx
 
-      if (PRESENT(src_eval)) then
-        xh = xn_loc + dx*0.5
-        call src_eval(_Npg,xh,vh,srcp)
-        wnp_loc = wn_loc + dt_sub*srcp*w0_loc
-      else
-        wnp_loc = wn_loc
-      endif
+#if defined(PIC_VERIF)
+      xh = xn_loc + dx*0.5
+      call pic_wgt_src(_Npg,xh,vh,srcp)
+      wnp_loc = wn_loc + dt_sub*srcp*w0_loc
+cc      write (*,*) w0_loc
+#else
+      wnp_loc = wn_loc
+#endif
 
       inp_loc = i0
       jnp_loc = j0
@@ -2838,7 +2817,7 @@ c #####################################################################
 
 c     pic_mover_2d
 c     ##################################################################
-      subroutine pic_mover_2d(dt,A,phi,DtA,B0,tfv,tfx,cm,pm,cm_exch,src)
+      subroutine pic_mover_2d(dt,A,phi,DtA,B0,tfv,tfx,cm,pm,cm_exch)
         
       implicit none
         
@@ -2848,16 +2827,6 @@ c     Call variables
       real(8),intent(inout) :: B0(3),dt
       real(8),intent(in),optional :: tfv,tfx
       real(8),intent(out),optional :: cm(3),pm(3),cm_exch(3)
-
-      optional :: src
-
-      !Interface for generic source function along pcle orbit (optional)
-      INTERFACE
-        subroutine src(n,xh,vh,s)
-        integer :: n
-        real(8) :: xh(n,3),vh(n,3),s(n)
-        end subroutine src
-      END INTERFACE
 
 c     Local variables
 
@@ -2890,8 +2859,7 @@ c$$$     $                   )
      $                   ,tfx=tfx
      $                   ,cm=cm  !Canonical momenta diagnostic (output)
      $                   ,pm=pm  !Linear momenta diagnostic (output)
-     $                   ,cm_exch=cm_exch  !Canonical momenta exchange diagnostic (output)
-     $                   ,src_eval=src)
+     $                   ,cm_exch=cm_exch)  !Canonical momenta exchange diagnostic (output)
       case("avg")
         call pic_mover_2d_vavg(dt
      $                   ,A
