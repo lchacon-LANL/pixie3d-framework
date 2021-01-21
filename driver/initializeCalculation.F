@@ -92,6 +92,9 @@ c Read PETSc runtime options
       call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-ilevel',ilevel
      .                       ,petsc_flg,ierr)
 
+      call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-dt',dt
+     .                        ,petsc_flg,ierr)
+
       call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-numtime',numtime
      .                       ,petsc_flg,ierr)
       if (petsc_flg) tmax = 0d0
@@ -420,7 +423,7 @@ c     Read files
 
         ierr = readRecordFile(ufile,itime,time,dt,gammat,vmed)
 
-        if(switch_dumpfile(itime_old,itime,ufile)) then
+        if(ierr==0.and.switch_dumpfile(itime_old,itime,ufile)) then
           ierr = readRecordFile(ufile,itime,time,dt,gammat,vmed)
         endif
 
