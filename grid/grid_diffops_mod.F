@@ -9490,7 +9490,6 @@ c     Compute difference arrays and communicate BCs
         darr(:,:,1:nz,3) = arr(:,:,2:nz+1)-arr(:,:,0:nz-1)
 
         bcnd(:,1) = abs(bcs)
-c$$$      bcnd(:,1) = (/bcs(1),bcs(2),DEF,DEF,DEF,DEF/)
         !Change parity (darr is gradient)
         where     (bcnd(1:2,1) == NEU)
           bcnd(1:2,1) = DIR
@@ -9499,7 +9498,6 @@ c$$$      bcnd(:,1) = (/bcs(1),bcs(2),DEF,DEF,DEF,DEF/)
         end where
       
         bcnd(:,2) = abs(bcs)
-c$$$      bcnd(:,2) = (/DEF,DEF,bcs(3),bcs(4),DEF,DEF/)
         !Change parity (darr is gradient)
         where     (bcnd(3:4,2) == DIR)
           bcnd(3:4,2) = NEU
@@ -9508,7 +9506,6 @@ c$$$      bcnd(:,2) = (/DEF,DEF,bcs(3),bcs(4),DEF,DEF/)
         end where
 
         bcnd(:,3) = abs(bcs)
-c$$$      bcnd(:,3) = (/DEF,DEF,DEF,DEF,bcs(5),bcs(6)/)
         !Change parity (darr is gradient)
         where     (bcnd(5:6,3) == DIR)
           bcnd(5:6,3) = NEU
@@ -9523,28 +9520,6 @@ c$$$      bcnd(:,3) = (/DEF,DEF,DEF,DEF,bcs(5),bcs(6)/)
       else
         darr = 0d0
       endif
-
-c$$$      !Check for special boundaries
-c$$$      where (bcond == SP ) bcnd(:,1) = SP
-c$$$      where (bcond == SP ) bcnd(:,2) = SP
-c$$$      where (bcond == SP ) bcnd(:,3) = SP
-c$$$      where (bcond == PER) bcnd(:,1) = PER
-c$$$      where (bcond == PER) bcnd(:,2) = PER
-c$$$      where (bcond == PER) bcnd(:,3) = PER
-c$$$cc      where (bcnd /= DEF .and. bcnd /= PER .and. bcnd /= SP) bcnd = EXT
-c$$$      where (bcnd /= PER .and. bcnd /= SP) bcnd = EXT
-c$$$
-c$$$      call setMGBC(g_def,0,3,nx,ny,nz,igrid,darr,bcnd,icomp=(/1/)
-c$$$     .            ,is_cnv=.false.,is_vec=.true.,iorder=1)
-      
-c diag *****
-c$$$      open(unit=110,file='debug.bin',form='unformatted'
-c$$$     .    ,status='replace')
-c$$$      call contour(darr(:,:,1,1),nx+2,ny+2,0d0,1d0,0d0,1d0,0,110)
-c$$$      call contour(darr(:,:,1,2),nx+2,ny+2,0d0,1d0,0d0,1d0,1,110)
-c$$$      call contour(darr(:,:,1,3),nx+2,ny+2,0d0,1d0,0d0,1d0,1,110)
-c$$$      close(110)
-c diag *****
       
 c     Compute advection
 
@@ -11195,32 +11170,6 @@ c$$$        end INTERFACE
      .                                 ,3,-20,60,-120,65,12
      .                                 ,-12,75,-200,300,-300,137/)/6d1
      .                                 ,(/6,6/)))
-c$$$      ax(-1,:)=(/-3,-10,18,-6,1/)
-c$$$      ax(0,:)=(/1,-8,0,8,-1/)
-c$$$      ax(1,:)=(/-1,6,-18,10,3/)
-c$$$      ac(1,2:5)=(/0,1,4,-5/)
-c$$$      ac(2,2:5)=(/11,-54,33,10/)
-c$$$      ac(3,2:5)=(/-10,-33,54,-11/)
-c$$$      ac(4,2:5)=(/5,-4,-1,0/)
-c$$$      ar(1,:)=(/-3, 20, -60, 120, -65, -12/)
-c$$$      ar(2,:)=(/18, -120, 360, -710, 430, 22/)
-c$$$      ar(3,:)=(/-54, 360, -970, 1620, -840, -116/)
-c$$$      ar(4,:)=(/90, -560, 1340, -1770, 290, 610/)
-c$$$      ar(5,:)=(/9, -60, 230, -400, 185, 36/)
-c$$$      al(1,:)=(/-36, -185, 400, -230, 60, -9/)
-c$$$      al(2,:)=(/-610, -290, 1770, -1340, 560, -90/)
-c$$$      al(3,:)=(/116, 840, -1620, 970, -360, 54/)
-c$$$      al(4,:)=(/-22, -430, 710, -360, 120, -18/)
-c$$$      al(5,:)=(/12, 65, -120, 60, -20, 3/)
-c$$$      a7(0,:)=(/-137,300,-300,200,-75,12/)
-c$$$      a7(1,:)=(/-12,-65,120,-60,20,-3/)
-c$$$      a7(2,:)=(/3,-30,-20,60,-15,2/)
-c$$$      a7(3,:)=(/-2,15,-60,20,30,-3/)
-c$$$      a7(4,:)=(/3,-20,60,-120,65,12/)
-c$$$      a7(5,:)=(/-12,75,-200,300,-300,137/)
-c$$$      cm=(/-1,7,7,-1/)
-c$$$      cl=(/2,17,-11,5,-1/)
-c$$$      cr=(/-1,5,-11,17,2/)
 
       contains
 
@@ -13949,6 +13898,9 @@ c     Begin program
             enddo
           enddo
         enddo
+        
+        !Synchronize fluxes in parallel
+        call flux_sync(flx)
       case(4)
         do k=0,nz
           do j=0,ny
@@ -13959,6 +13911,9 @@ c     Begin program
             enddo
           enddo
         enddo
+
+        !Synchronize fluxes in parallel at periodic and logical bdries
+        call flux_sync(flx)
       case default
         write (*,*) 'Order not implemented'
         stop        
@@ -13966,35 +13921,6 @@ c     Begin program
 
 c     Compute divergence of flux
       
-c$$$      call getMGmap(g_def,1,1,1,igrid,igrid,igrid,ig,jg,kg)
-c$$$
-c$$$      idx = 1d0/g_def%dxh(ig:ig+nx-1)
-c$$$      idy = 1d0/g_def%dyh(jg:jg+ny-1)
-c$$$      idz = 1d0/g_def%dzh(kg:kg+nz-1)
-c$$$
-c$$$      do k=1,nz
-c$$$        do j=1,ny
-c$$$          lap(1:nx,j,k) =
-c$$$     .                   (flx(1:nx  ,j,k,1)
-c$$$     .                   -flx(0:nx-1,j,k,1))*idx
-c$$$        enddo
-c$$$      enddo
-c$$$
-c$$$      do k=1,nz
-c$$$        do i=1,nx
-c$$$          lap(i,1:ny,k) = lap(i,1:ny,k)
-c$$$     .                  +(flx(i,1:ny  ,k,2)
-c$$$     .                   -flx(i,0:ny-1,k,2))*idy
-c$$$        enddo
-c$$$      enddo
-c$$$
-c$$$      do j=1,ny
-c$$$        do i=1,nx
-c$$$          lap(i,j,1:nz) = lap(i,j,1:nz)
-c$$$     .                  +(flx(i,j,1:nz  ,3)
-c$$$     .                   -flx(i,j,0:nz-1,3))*idz
-c$$$        enddo
-c$$$      enddo
       do k=1,nz
         do j=1,ny
           do i=1,nx
@@ -14033,6 +13959,77 @@ c diag *****
 
 c     End program
 
+      contains
+
+c     flux_sync
+c     ####################################################################
+      subroutine flux_sync(flx)
+
+      implicit none
+
+      real(8) :: flx(0:,0:,0:,:)
+      real(8) :: flx2(0:size(flx,1)-1,0:size(flx,2)-1,0:size(flx,3)-1,3)
+
+      integer :: bcnd(6,3)
+
+      !Get topological BCs
+      call get_topol_bcs(bcnd(:,1))
+      call get_topol_bcs(bcnd(:,2))
+      call get_topol_bcs(bcnd(:,3))
+
+      !Save left boundary fluxes
+      if ((.not.isBdry(g_def,1,igrid,1)).or.bcnd(1,1)==PER) then
+        flx2(0,:,:,1) = flx(0,:,:,1)  !To be averaged later in this proc
+        flx2(1,:,:,1) = flx(1,:,:,1)  !To be recovered later in this proc
+        flx (1,:,:,1) = flx(0,:,:,1)  !To be communicated to (nx+1) on adjacent proc
+      endif
+
+      if ((.not.isBdry(g_def,1,igrid,3)).or.bcnd(3,1)==PER) then
+        flx2(:,0,:,2) = flx(:,0,:,2)  !To be averaged later in this proc            
+        flx2(:,1,:,2) = flx(:,1,:,2)  !To be recovered later in this proc           
+        flx (:,1,:,2) = flx(:,0,:,2)  !To be communicated to (ny+1) on adjacent proc
+      endif
+      
+      if ((.not.isBdry(g_def,1,igrid,5)).or.bcnd(5,1)==PER) then
+        flx2(:,:,0,3) = flx(:,:,0,3)  !To be averaged later in this proc            
+        flx2(:,:,1,3) = flx(:,:,1,3)  !To be recovered later in this proc           
+        flx (:,:,1,3) = flx(:,:,0,3)  !To be communicated to (nz+1) on adjacent proc
+      endif
+
+      !Communicate boundary fluxes
+      call imposeBConVector_stg_ez(g_def,igrid,flx,.true.,bcnd,2)
+      
+      !Synchronize and recover boundary fluxes at periodic and logical bdries
+      if ((.not.isBdry(g_def,1 ,igrid,1)).or.bcnd(1,1)==PER) then
+        flx(0   ,:,:,1) = 0.5*(flx2(0   ,:,:,1)+flx(0 ,:,:,1))
+        flx(1,:,:,1) = flx2(1,:,:,1)
+      endif
+      if ((.not.isBdry(g_def,nx,igrid,2)).or.bcnd(2,1)==PER)
+     .  flx(nx  ,:,:,1) = 0.5*(flx (nx+1,:,:,1)+flx(nx,:,:,1))
+
+      if ((.not.isBdry(g_def,1 ,igrid,3)).or.bcnd(3,1)==PER) then
+        flx(:,0   ,:,2) = 0.5*(flx2(:,0   ,:,2)+flx(:,0 ,:,2))
+        flx(:,1,:,2) = flx2(:,1,:,2)
+      endif
+      if ((.not.isBdry(g_def,ny,igrid,4)).or.bcnd(4,1)==PER)
+     .  flx(:,ny  ,:,2) = 0.5*(flx (:,ny+1,:,2)+flx(:,ny,:,2))
+
+      if ((.not.isBdry(g_def,1 ,igrid,5)).or.bcnd(5,1)==PER) then
+        flx(:,:,0   ,3) = 0.5*(flx2(:,:,0   ,3)+flx(:,:,0 ,3))
+        flx(:,:,1,3) = flx2(:,:,1,3)
+      endif
+      if ((.not.isBdry(g_def,nz,igrid,6)).or.bcnd(6,1)==PER)
+     .  flx(:,:,nz  ,3) = 0.5*(flx (:,:,nz+1,3)+flx(:,:,nz,3))
+
+c$$$      write (*,*) "flx error 1="
+c$$$     .     ,sqrt(sum((flx(1:nx,0,1,1)-flx(1:nx,ny,1,1))**2)/nx)
+c$$$      write (*,*) "flx error 2="
+c$$$     .     ,sqrt(sum((flx(1:nx,0,1,2)-flx(1:nx,ny,1,2))**2)/nx)
+c$$$      write (*,*) "flx error 3="
+c$$$     .     ,sqrt(sum((flx(1:nx,0,1,3)-flx(1:nx,ny,1,3))**2)/nx)
+     
+      end subroutine flux_sync
+      
       end function tnsr_diff_mesh
 
 c$$$c     tnsr_diff_ijk
