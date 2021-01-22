@@ -22,10 +22,9 @@ c ######################################################################
         real(_prec) :: v_np(_Npg,3)  !3*_Npg bytes
         real(_prec) :: x_n(_Npg,3)   !3*_Npg bytes
         real(_prec) :: v_n(_Npg,3)   !3*_Npg bytes
-        real(_prec) :: w_np(_Npg)    !_Npg bytes
-        real(_prec) :: w_n(_Npg)     !_Npg bytes
-        real(_prec) :: w_0(_Npg)     !_Npg bytes
         integer :: ijk_np(_Npg), ijk_n(_Npg) !_Npg bytes
+        real(_prec) :: w_0(_Npg)     !_Npg bytes
+        real(_prec) :: w_np(_Npg),w_n(_Npg)
       end type particle
 
       type :: species
