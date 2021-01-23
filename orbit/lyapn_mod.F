@@ -47,7 +47,7 @@
        integer, dimension(:), allocatable :: cnctx
        integer, dimension(:), allocatable :: ridgex
        integer :: cnc_bdry_alg = 3  !1 -> O(N) min-max, 2 -> O(log(N)) min-max, 3 -> O(N) angle
-       integer :: cnc_bdry_ndiv= 50 !Number of bdry divisions for alg #3
+       integer :: cnc_bdry_ndiv= 1000 !Number of bdry divisions for alg #3
 
 !connect private variables
 
@@ -886,6 +886,15 @@ c$$$        enddo
         
         if (.not.cnc_ext_bdry) then
           inside = (x1 < cnc_xbdry)
+          !Code to generate boundary points at give radius
+c$$$          do ipt=0,100
+c$$$            dum = 2*pi/100*ipt
+c$$$            call evalX(cnc_xbdry,dum,0d0,xc(1),xc(2),xc(3),ierr=ierr)
+c$$$            rz(1) = sqrt(xc(1)*xc(1)+xc(2)*xc(2))
+c$$$            rz(2) = xc(3)
+c$$$            write (*,*) rz(1),rz(2)
+c$$$          enddo
+c$$$          stop
         else
           !Find Cartesian components and R-Z coordinates
           call evalX(x1,x2,x3,xc(1),xc(2),xc(3),ierr=ierr)
@@ -939,7 +948,7 @@ c$$$            stop
             !Works for arbitrary curve shape
             theta = 0d0
             b = rz-cnc_bdry(1,:)
-            do ipt=2,npt-1,npt/cnc_bdry_ndiv
+            do ipt=2,npt-1,max(npt/cnc_bdry_ndiv,1)
               a = b
               b = rz-cnc_bdry(ipt,:)
               dth = atan2((a(1)*b(2)-a(2)*b(1)),dot_product(a,b))
