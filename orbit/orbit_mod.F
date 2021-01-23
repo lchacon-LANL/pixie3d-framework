@@ -2551,6 +2551,7 @@ c     Begin program
         thrtot = omp_get_num_threads()
 !$OMP END PARALLEL
 #endif
+        if (my_rank==0) ierr =rm_files('ss*'//trim('_'//file))
 
         ss_io = .true.   !Turn on SS XDRAW IO
   
@@ -2611,7 +2612,7 @@ cc            ierr = rm_files(dummy)
           if (rzss) then
             dummy = 'ssrz_'//trim(file)
 cc            ierr = rm_files(dummy)
-            drawin = 'draw'//dummy(1:cpos+4)//'.in'
+            drawin = 'draw'//dummy(1:cpos+5)//'.in'
             call createDrawInGfile(1,1,ssrz
      .                         ,'RZ surface of section'
      .                         ,'R',(/1/),(/'Z'/),(/0/),(/0,0/)
