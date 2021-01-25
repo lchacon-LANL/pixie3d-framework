@@ -100,10 +100,10 @@ cc      if (my_rank == 0) write (*,*) "Time counters",e_time, quota
 #endif
 
 #if defined(RFX)
-      dump = (nrst.eq.ndstep.or.tmrst.ge.         dstep.or.e_time>quota)
+      dump = (nrst.eq.ndstep.or.tmrst.ge.dstep.or.e_time>quota)
 #else
       dump = (nrst.eq.ndstep)
-     .   .or.(sign(1d0,dt)*tmrst.ge.0.999999*dstep)
+     .   .or.(sign(1d0,dt)*(tmrst-dstep)>=1d-10)
      .   .or.(e_time>quota)
 #endif
 
@@ -261,10 +261,11 @@ c     Local variables
 
 c     Begin program
 
-      dump = ( nplot        == ndplot       .and. nplot > 0)
+      dump = (nplot == ndplot.and.nplot > 0)
 cc     .   .or.((time-tmplot) >= dplot-0.9*dt .and. dplot > 0d0)
      .   .or.(sign(1d0,dt)*(time-tmplot)>=dplot-.9*abs(dt).and.dplot>0.)
-     .   .or.(time         == 0d0)
+     .   .or.(sign(1d0,dt)*(tmax-time  )<=1d-10           .and.dplot>0.)
+     .   .or.(time == 0d0)
 
       if (reset.and.dump) then
         nplot = 0
