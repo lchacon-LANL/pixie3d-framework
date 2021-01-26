@@ -11975,6 +11975,8 @@ c     Local variables
 
       real(8),dimension(:,:,:),pointer :: arr_0
 
+      real(8) :: vel
+
 c     Begin program
 
       nx = size(arr,1)-2
@@ -12024,15 +12026,21 @@ c     Begin program
      .                                         ,"symm_edge")
 
           !Perform fake advection
-          if (j>0.and.k>0)
-     $         flux(1) =-scl_nc_advc_flx_x_new(gdef,i,j,k,nx,ny,nz,igr
-     $                             ,-flux(1),arr,darr(:,:,:,1),advcmthd)
-          if (i>0.and.k>0)
-     $         flux(2) =-scl_nc_advc_flx_y_new(gdef,i,j,k,nx,ny,nz,igr
-     $                             ,-flux(2),arr,darr(:,:,:,2),advcmthd)
-          if (i>0.and.j>0)
-     $         flux(3) =-scl_nc_advc_flx_z_new(gdef,i,j,k,nx,ny,nz,igr
-     $                             ,-flux(3),arr,darr(:,:,:,3),advcmthd)
+          if (j>0.and.k>0) then
+             vel = -flux(1)
+             flux(1) =-scl_nc_advc_flx_x_new(gdef,i,j,k,nx,ny,nz,igr
+     $                   ,vel,arr,darr(0:nx+1,0:ny+1,0:nz+1,1),advcmthd)
+          endif
+          if (i>0.and.k>0) then
+             vel = -flux(2)
+             flux(2) =-scl_nc_advc_flx_y_new(gdef,i,j,k,nx,ny,nz,igr
+     $                   ,vel,arr,darr(0:nx+1,0:ny+1,0:nz+1,2),advcmthd)
+          endif
+          if (i>0.and.j>0) then
+             vel = -flux(3)
+             flux(3) =-scl_nc_advc_flx_z_new(gdef,i,j,k,nx,ny,nz,igr
+     $                   ,vel,arr,darr(0:nx+1,0:ny+1,0:nz+1,3),advcmthd)
+          endif
 
           !Co-derivative terms
           if (j>0.and.k>0)
