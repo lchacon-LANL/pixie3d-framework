@@ -111,6 +111,9 @@ c Read PETSc runtime options
      .                        ,petsc_flg,ierr)
       if (petsc_flg) ndstep = 0
 
+      call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-adapt_dt'
+     .                         ,ts_adapt_dt,petsc_flg,ierr)
+
       call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-restart'
      .                         ,ts_restart,petsc_flg2,ierr)
 
