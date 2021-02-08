@@ -9,7 +9,7 @@ c ######################################################################
         end INTERFACE
 
         INTERFACE gradDiv_vrtx
-          module procedure gradDiv_vrtx_ijk,gradDiv_vrtx_mesh
+          module procedure gradDiv_vrtx_mesh!,gradDiv_vrtx_ijk
         end INTERFACE
 
       contains
@@ -36,25 +36,21 @@ c     Call variables
 
 c     Local variables
 
-      integer :: ig,jg,kg,ip,i0,jp,j0,kp,k0,nx,ny,nz
+      integer :: ig,jg,kg,ip,i0,jp,j0,kp,k0
       real(8) :: idhx,idhy,idhz,fp,fm
 
 c     Begin program
 
       call getMGmap(g_def,i,j,k,igx,igy,igz,ig,jg,kg)
 
-      nx = g_def%nxgl(igx)
-      ny = g_def%nygl(igy)
-      nz = g_def%nzgl(igz)
-
       if (vrtx) then
-        idhx = 1./g_def%dx(ig)
-        idhy = 1./g_def%dy(jg)
-        idhz = 1./g_def%dz(kg)
+        idhx = 1d0/g_def%dx(ig)
+        idhy = 1d0/g_def%dy(jg)
+        idhz = 1d0/g_def%dz(kg)
       else
-        idhx = 1./g_def%dxh(ig)
-        idhy = 1./g_def%dyh(jg)
-        idhz = 1./g_def%dzh(kg)
+        idhx = 1d0/g_def%dxh(ig)
+        idhy = 1d0/g_def%dyh(jg)
+        idhz = 1d0/g_def%dzh(kg)
       endif
 
       ip = 2
@@ -134,7 +130,7 @@ c     End program
 
 c     curl_cell2vrtx_mesh
 c     ##################################################################
-      function curl_cell2vrtx_mesh(g_def,igrid,vv,tocov) result(vec)
+      function curl_cell2vrtx_mesh(g_def,igrid,vv) result(vec)
 
 c     ------------------------------------------------------------------
 c     Calculates curl of vv (covariant) at vertices from cell centers.
@@ -153,8 +149,6 @@ c     Call variables
       integer :: igrid
       real(8) :: vv(0:,0:,0:,1:)
      $          ,vec(0:size(vv,1)-1,0:size(vv,2)-1,0:size(vv,3)-1,3)
-
-      logical :: tocov
 
 c     Local variables
 
@@ -175,8 +169,6 @@ c     Begin program
         enddo
       enddo
 
-      if (tocov) vec = XformToCov_vrtx(g_def,igrid,vec)
-      
 c     End program
 
       end function curl_cell2vrtx_mesh
@@ -199,7 +191,7 @@ c     ------------------------------------------------------------------
 
 c     Call variables
 
-        type(grid_mg_def),pointer :: g_def
+      type(grid_mg_def),pointer :: g_def
 
       integer :: igrid
       real(8) :: vv(0:,0:,0:,1:)
@@ -343,72 +335,72 @@ c     End program
 
       end function div_vrtx
 
-c     graddiv_vrtx_ijk
-c     ###############################################################
-      function graddiv_vrtx_ijk(g_def,i,j,k,nx,ny,nz,igx,igy,igz,cnv,vol
-     .                         ,ret_cnv) result(gdiv)
-
-c     ---------------------------------------------------------------
-c     Calculates grad(div(A)) at cell centers in general non-orthogonal
-c     coordinates, preserving the self-adjoint property. The vector A
-c     is contravariant, and returns covariant components.
-c     ---------------------------------------------------------------
-
-      implicit none           !For safe fortran
-
-c     Call variables
-
-      type(grid_mg_def),pointer :: g_def
-
-      integer :: i,j,k,nx,ny,nz,igx,igy,igz
-
-      real(8) :: cnv(0:nx+1,0:ny+1,0:nz+1,3),gdiv(3)
-
-      logical,optional,intent(IN) :: vol,ret_cnv
-
-c     Local variables
-
-      integer :: il,jl,kl,ii,jj,kk
-
-      real(8) :: div(2,2,2)
-
-      logical :: vol_wgt,tocnv
-
-c     Begin program
-
-      vol_wgt = .false.
-      if (PRESENT(vol)) vol_wgt = vol
-
-      tocnv = .false.
-      if (PRESENT(ret_cnv)) tocnv = ret_cnv
-
-c     Divergence at vertices
-
-      do kl=1,2
-        do jl=1,2
-          do il=1,2
-            ii = i+il-2
-            jj = j+jl-2
-            kk = k+kl-2
-
-            div(il,jl,kl) = div_vrtx(g_def,ii,jj,kk,igx,igy,igz
-     .                         ,cnv(ii:ii+1,jj:jj+1,kk:kk+1,:)
-     .                         ,.true.)
-          enddo
-        enddo
-      enddo
-
-c     Gradient at cell centers
-
-      gdiv = grad_vrtx(g_def,i,j,k,igx,igy,igz,div,.false.)
-
-      if (vol_wgt) gdiv=gdiv*g_def%gmetric%grid(igx)%dvol(i,j,k)
-
-      if (tocnv) gdiv = XformToCnv(g_def,i,j,k,igx,gdiv)
-
-c     End program
-
-      end function graddiv_vrtx_ijk
+c$$$c     graddiv_vrtx_ijk
+c$$$c     ###############################################################
+c$$$      function graddiv_vrtx_ijk(g_def,i,j,k,nx,ny,nz,igx,igy,igz,cnv,vol
+c$$$     .                         ,ret_cnv) result(gdiv)
+c$$$
+c$$$c     ---------------------------------------------------------------
+c$$$c     Calculates grad(div(A)) at cell centers in general non-orthogonal
+c$$$c     coordinates, preserving the self-adjoint property. The vector A
+c$$$c     is contravariant, and returns covariant components.
+c$$$c     ---------------------------------------------------------------
+c$$$
+c$$$      implicit none           !For safe fortran
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$      type(grid_mg_def),pointer :: g_def
+c$$$
+c$$$      integer :: i,j,k,nx,ny,nz,igx,igy,igz
+c$$$
+c$$$      real(8) :: cnv(0:nx+1,0:ny+1,0:nz+1,3),gdiv(3)
+c$$$
+c$$$      logical,optional,intent(IN) :: vol,ret_cnv
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$      integer :: il,jl,kl,ii,jj,kk
+c$$$
+c$$$      real(8) :: div(2,2,2)
+c$$$
+c$$$      logical :: vol_wgt,tocnv
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$      vol_wgt = .false.
+c$$$      if (PRESENT(vol)) vol_wgt = vol
+c$$$
+c$$$      tocnv = .false.
+c$$$      if (PRESENT(ret_cnv)) tocnv = ret_cnv
+c$$$
+c$$$c     Divergence at vertices
+c$$$
+c$$$      do kl=1,2
+c$$$        do jl=1,2
+c$$$          do il=1,2
+c$$$            ii = i+il-2
+c$$$            jj = j+jl-2
+c$$$            kk = k+kl-2
+c$$$
+c$$$            div(il,jl,kl) = div_vrtx(g_def,ii,jj,kk,igx,igy,igz
+c$$$     .                         ,cnv(ii:ii+1,jj:jj+1,kk:kk+1,:)
+c$$$     .                         ,.true.)
+c$$$          enddo
+c$$$        enddo
+c$$$      enddo
+c$$$
+c$$$c     Gradient from vertex to cell centers
+c$$$
+c$$$      gdiv = grad_vrtx(g_def,i,j,k,igx,igy,igz,div,.false.)
+c$$$
+c$$$      if (vol_wgt) gdiv=gdiv*g_def%gmetric%grid(igx)%dvol(i,j,k)
+c$$$
+c$$$      if (tocnv) gdiv = XformToCnv(g_def,i,j,k,igx,gdiv)
+c$$$
+c$$$c     End program
+c$$$
+c$$$      end function graddiv_vrtx_ijk
 
 c     graddiv_vrtx_mesh
 c     ###############################################################
@@ -431,6 +423,9 @@ c     Call variables
 
       real(8) :: cnv(0:,0:,0:,:)
 
+      real(8) ::  div(0:size(cnv,1)-1
+     .               ,0:size(cnv,2)-1
+     .               ,0:size(cnv,3)-1)
       real(8) :: gdiv(0:size(cnv,1)-1
      .               ,0:size(cnv,2)-1
      .               ,0:size(cnv,3)-1
@@ -441,22 +436,47 @@ c     Call variables
 c     Local variables
 
       integer :: i,j,k,nx,ny,nz
-
+      logical :: vol_wgt,tocnv
+      
 c     Begin program
+
+      vol_wgt = .false.
+      if (PRESENT(vol)) vol_wgt = vol
+
+      tocnv = .false.
+      if (PRESENT(ret_cnv)) tocnv = ret_cnv
 
       nx = size(cnv,1)-2
       ny = size(cnv,2)-2
       nz = size(cnv,3)-2
 
-      do k=1,nz
-        do j=1,ny
-          do i=1,nx
-            gdiv(i,j,k,:) = gradDiv_vrtx_ijk(g_def,i,j,k,nx,ny,nz
-     .                                      ,igr,igr,igr,cnv
-     .                                      ,vol=vol,ret_cnv=ret_cnv)
+      do k=0,nz
+        do j=0,ny
+          do i=0,nx
+            div(i,j,k) = div_vrtx(g_def,i,j,k,igr,igr,igr
+     .                           ,cnv(i:i+1,j:j+1,k:k+1,:)
+     .                           ,.true.)
           enddo
         enddo
       enddo
+
+      do k=1,nz
+        do j=1,ny
+          do i=1,nx
+            gdiv(i,j,k,:) = grad_vrtx(g_def,i,j,k,igr,igr,igr
+     .                               ,div(i-1:i,j-1:j,k-1:k)
+     .                               ,.false.)
+          enddo
+        enddo
+      enddo
+
+      if (vol_wgt) then
+        gdiv(:,:,:,1)=gdiv(:,:,:,1)*g_def%gmetric%grid(igr)%dvol
+        gdiv(:,:,:,2)=gdiv(:,:,:,2)*g_def%gmetric%grid(igr)%dvol
+        gdiv(:,:,:,3)=gdiv(:,:,:,3)*g_def%gmetric%grid(igr)%dvol
+      endif
+      
+      if (tocnv) gdiv = XformToCnv(g_def,igr,gdiv)
 
 c     End program
 
@@ -667,8 +687,10 @@ c     Begin program
       endif
 
       !Compute covariant vertex curl
-      vec = curl_cell2vrtx_mesh(g_def,igrid,vv,.true.)
+      vec = curl_cell2vrtx_mesh(g_def,igrid,vv)
 
+      vec = XformToCov_vrtx(g_def,igrid,vec)
+      
       !Add transport coefficient (if provided)
       if (have_coef) then
         do ivar=1,3
@@ -5603,7 +5625,7 @@ c     End program
 
 c     veclap2_cov_mesh
 c     ###############################################################
-      function veclap2_cov_mesh(g_def,igrid,cov,diff) result(cov_out)
+      function veclap2_cov_mesh(g_def,igrid,cov) result(cov_out)
 
 c     ---------------------------------------------------------------
 c     Calculates curl(A) in general non-orthogonal coordinates. Is
@@ -5624,9 +5646,9 @@ c     Call variables
      $                  ,0:size(cov,2)-1
      $                  ,0:size(cov,3)-1,3)
 
-      real(8),optional :: diff(0:size(cov,1)-1
-     $                        ,0:size(cov,2)-1
-     $                        ,0:size(cov,3)-1)
+c$$$      real(8),optional :: diff(0:size(cov,1)-1
+c$$$     $                        ,0:size(cov,2)-1
+c$$$     $                        ,0:size(cov,3)-1)
 
 c     Local variables
 
