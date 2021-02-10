@@ -877,7 +877,9 @@ c     Check Anderson convergence/failure
         is_ieee_exception = is_NAN(fkp).or.is_INF(fkp)
         convergence = convergence.and.(.not.is_ieee_exception)
 
-        failure     = (check > check_lim .or. jit == ntit_max_rej)
+        failure     = (    check > check_lim
+     .                .or. jit == ntit_max_rej
+     .                .or. damp < 1d-5)
      .               .and.(.not.convergence)
 
         exit_lp = (convergence .or. failure)
@@ -896,7 +898,7 @@ c     ###############################################################
       if (failure) then 
         if (jit == ntit_max_rej .and. prnt) write (*,220) check
         if (check > check_lim .and. prnt) write (*,230) check,check_lim
-        if (damp  < 1d-4 .and. prnt)
+        if (damp  < 1d-5 .and. prnt)
      $       write (*,*) 'Damping parameter too small'
         ierr = NOCONV
       !Accept solution, but warn user
