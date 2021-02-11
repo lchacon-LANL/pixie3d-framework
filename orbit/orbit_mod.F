@@ -2552,6 +2552,7 @@ c     Begin program
 !$OMP END PARALLEL
 #endif
         if (my_rank==0) ierr =rm_files('ss*'//trim('_'//file))
+        call MPI_Barrier(MPI_COMM_WORLD,mpierr)
 
         ss_io = .true.   !Turn on SS XDRAW IO
   
@@ -2629,7 +2630,7 @@ c     Open output files (one per thread and MPI process)
         if (lssx) then
           do ic = 0, thrtot - 1
             ifile = ic + thrtot*my_rank 
-            nunitx(ic) = 6027+ic
+            nunitx(ic) = find_unit(6027+ifile)
             open(unit=nunitx(ic),file=trim(ssx(ifile))
      .           ,form='unformatted')
           enddo
@@ -2638,7 +2639,7 @@ c     Open output files (one per thread and MPI process)
         if (lssy) then
           do ic = 0, thrtot - 1
             ifile = ic + thrtot*my_rank 
-            nunity(ic) = 7027+ic
+            nunity(ic) = find_unit(7027+ifile)
             open(unit=nunity(ic),file=trim(ssy(ifile))
      .           ,form='unformatted')
           enddo
@@ -2647,7 +2648,7 @@ c     Open output files (one per thread and MPI process)
         if (lssz) then
           do ic = 0, thrtot - 1
             ifile = ic + thrtot*my_rank 
-            nunitz(ic) = 8027+ic
+            nunitz(ic) = find_unit(8027+ifile)
             open(unit=nunitz(ic),file=trim(ssz(ifile))
      .           ,form='unformatted')
           enddo
@@ -2655,8 +2656,8 @@ c     Open output files (one per thread and MPI process)
 
         if (rzss) then
           do ic = 0, thrtot - 1
-            ifile = ic + thrtot*my_rank 
-            nunitrz(ic) = 9027+ic
+            ifile = ic + thrtot*my_rank
+            nunitrz(ic) = find_unit(9027+ifile)
             open(unit=nunitrz(ic),file=trim(ssrz(ifile))
      .           ,form='unformatted')
           enddo

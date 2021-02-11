@@ -65,51 +65,6 @@
       contains
 
 !#! IO routines
-!     read_ext_file
-!     #################################################################
-      subroutine read_ext_file(init_cond_file,nextci,temp4,itot)
-
-!     -----------------------------------------------------------------
-!     Read initial conditions from external file
-!     -----------------------------------------------------------------
-
-        implicit none
-
-!     Call variables
-        character*200 :: init_cond_file
-        integer(8), intent(in) :: nextci
-        real(8), intent(out) :: temp4(0:nextci,0:2)
-        integer, intent(out) :: itot
-
-!     Local variables
-        character*200 :: tfile
-        real(8) :: tot, temp0
-        real(8) :: temp3(0:2)
-        integer :: iost,part
-
-!#! initial conditions from file, to have initial conditions on the same
-!#! flux surface
-       tfile = trim(init_cond_file)
-       tot=0.
-       part = 1
-       open(unit=657,file=trim(tfile),
-     .      form='unformatted',status='unknown')
-
-       do
-        read(657,iostat=iost) temp3(0:2)
-!        write(*,*) 'DIAG_read',temp3
-        tot = tot + 1.
-        temp4(part,:)=temp3
-        part = part + 1
-        if (iost .ne. 0) then
-         exit
-        endif
-       enddo
-       close(657)
-
-       itot=int(tot)
-
-      end subroutine read_ext_file
 
 !     lyap_io_init
 !     #################################################################
