@@ -66,9 +66,9 @@
 
 !#! IO routines
 
-!     lyap_io_init
+!     lyap_orbit_io_init
 !     #################################################################
-      subroutine lyap_io_init
+      subroutine lyap_orbit_io_init
 
 !     -----------------------------------------------------------------
 !     Sets up Lyapunov output files
@@ -98,7 +98,7 @@
         slyp = 0.d0
         slyp_old = 0.d0
 
-      end subroutine lyap_io_init
+      end subroutine lyap_orbit_io_init
 
 !     lyap_write_ci
 !     #################################################################
@@ -129,8 +129,61 @@
         enddo
        close(unit=657)
 
-      end subroutine
+      end subroutine lyap_write_ci
+      
+!     lyap_orbit_io_end
+!     #################################################################
+      subroutine lyap_orbit_io_end
 
+!     -----------------------------------------------------------------
+!     Closes lyap output files
+!     -----------------------------------------------------------------
+
+        implicit none
+
+!     Call variables
+
+        integer :: nunitx
+
+!     Begin program
+
+          nunitx= 56027+ilup
+          close(nunitx)
+
+      end subroutine lyap_orbit_io_end
+
+!     lyap_io_end
+!     #################################################################
+      subroutine lyap_io_end(idx,idy,idz)
+
+!     -----------------------------------------------------------------
+!     Closes XDRAW surface of section output files
+!     -----------------------------------------------------------------
+
+        implicit none
+
+!     Call variables
+
+        integer :: idx,idy,idz
+        
+!     Local variables
+
+        integer :: ncouples
+
+!     Begin program
+
+!#! perform the first part of the post-processing computation of the Lyapunov exponent.
+
+        call lyap_orbit_couples(idx,idy,idz)
+
+        ncouples = (idx * idy * idz) /2 - 1
+
+!#! final computation, must be done serially, at the end of the parallel part
+      
+        if (my_rank .eq. 0) call lypnv3(ncouples,np)
+
+      end subroutine lyap_io_end
+      
 !     ridge_io_init
 !     #################################################################
       subroutine ridge_io_init(file,y_surf,z_surf,rz_ss)
@@ -225,7 +278,8 @@
 
 !     ridge_io_end
 !     #################################################################
-      subroutine ridge_io_end
+      subroutine ridge_io_end(zsurf,numberic,NstationFiles
+     .                       ,ddeltar,ddeltath)
 
 !     -----------------------------------------------------------------
 !     Closes XDRAW surface of section output files
@@ -235,6 +289,9 @@
 
 !     Call variables
 
+        integer :: numberic,NstationFiles
+        real(8) :: zsurf,ddeltar,ddeltath
+        
 !     Local variables
 
         integer :: ith
@@ -246,6 +303,10 @@
         enddo
 
         deallocate(ridgex)
+
+        if (my_rank .eq. 0) 
+     .    call ridge_final_cond(zsurf,numberic,NstationFiles
+     .                         ,ddeltar,ddeltath)
 
       end subroutine ridge_io_end
 
@@ -272,30 +333,187 @@
 
       end subroutine ridge_write
 
-!     lyap_io_end
-!     #################################################################
-      subroutine lyap_io_end
+c     ridge_final_cond
+c     ###############################################################
+      subroutine ridge_final_cond(zsurf,numberic,NstationFiles
+     .                           ,ddeltar,ddeltath)
 
-!     -----------------------------------------------------------------
-!     Closes lyap output files
-!     -----------------------------------------------------------------
+      implicit none 
 
-        implicit none
+      ! Local variables
+      real(8) :: r
+      real(8), intent(in) :: zsurf,ddeltar,ddeltath ! input
+      real(8), allocatable,dimension(:,:) :: real_points_start
+      real(8), allocatable,dimension(:,:) :: real_points_end
+      integer :: number_ci_for_thread!,thrtt
+      integer, parameter :: n_intersection = 1
+      integer :: n_data_tot,dumm,counter,qq,tenmod
+      real(8), dimension(2) :: dati
+      character(50) l_ll
+      real(8), allocatable,dimension(:,:) :: punti
+      integer :: i,ll,ii,aa,reason,iStation
+      integer, intent(in) :: NstationFiles
+      character(LEN=100), dimension(:), allocatable :: stationFileNames
+      character(50) :: filename 
+      integer, intent(in):: numberic !input 
 
-!     Call variables
+!      call system('ls ridgez* > fileContents.txt')
+!      open(3331,FILE='fileContents.txt',action="read")
+!
+!      !how many
+!      i = 0
+!
+!      do
+!       read(3331,FMT='(a)',iostat=reason) r
+!       write(*,*) r
+!       if (reason/=0) EXIT
+!       i = i+1
+!      end do
+!      close(3331)
+!
+!      NstationFiles = i
+      number_ci_for_thread = int(numberic/NstationFiles)
+      write(*,*) 'NstationFiles',NstationFiles,number_ci_for_thread
+!     .            ,thrtt
 
-        integer :: nunitx
+!      open(unit=290,file='data.dat',status='old',
+!     .       form='formatted',action='write')
+      open(unit=190,file='final_conditions.bin',status='unknown',
+     .       form='unformatted',action='write')
 
-!     Begin program
 
-          nunitx= 56027+ilup
-          close(nunitx)
+!------------- inizio a leggere e scrivere------------
 
-      end subroutine lyap_io_end
+      allocate (punti(0:1,0:number_ci_for_thread
+     .           *(1+n_intersection) - 1))
+
+
+      allocate (real_points_start(0:1,
+     .          0:(number_ci_for_thread
+     .           *(1+n_intersection) - 1)/10))
+
+      allocate (real_points_end(0:1,
+     .          0:(number_ci_for_thread
+     .           *(1+n_intersection) - 1)/10))
+!#! Marco, set to zero the vectors
+      punti(:,:) = 0.d0
+      real_points_start(:,:) = 0.d0
+      real_points_end(:,:) = 0.d0
+      counter = 0
+
+      do ll = 0,NstationFiles-1
+     
+       filename = 'ridgez_proc'//int2char(ll)
+       write(*,*) 'DIAGfilename',filename,ll
+
+       open(unit=180,file=filename,status='old',
+     .       form='unformatted',action='read')
+
+!        write(*,*) 'DIAG2',number_ci_for_thread,n_intersection
+!        do ii=0,number_ci_for_thread*(1+n_intersection) - 1
+!         read(180,iostat=dumm), dati
+!!         write(*,*) 'dati  ', ii,dati     
+!         if (dumm .eq. 0) then
+!          punti(0:1,ii) = dati
+!         else
+!          exit
+!         endif
+!        enddo
+
+        do ii=0,number_ci_for_thread*(1+n_intersection) - 1
+         read(180,iostat=dumm) dati
+!         write(*,*) 'dati  ', ii,dati     
+         if (dumm .eq. 0) then
+          punti(0:1,ii) = dati
+         else 
+          tenmod = mod(ii,10)
+!#! Marco, nel file ridgez_proc* devono esserci number_ci_for_thread*2
+!valori scritti
+          counter = counter + (number_ci_for_thread*2- (ii-tenmod))
+          write(*,*) 'error reading, skipping at i=',ii
+          write(*,*) 'number of ci not written '
+     .       , number_ci_for_thread*2 - (ii-tenmod)
+          !#! remove broken couple c.i.+advanced
+           punti(0,ii-tenmod:ii) = 0.5d0 
+           punti(1,ii-tenmod:ii) = 0.5d0
+           do qq=ii-10-tenmod,ii 
+            write(*,*) 'check',qq,punti(0,qq)
+           enddo
+          exit
+         endif
+        enddo
+
+
+
+!        do ii=0,number_ci_for_thread*(1+n_intersection) - 1
+!         read(180,iostat=dumm), dati
+!!         write(*,*) 'dati  ', ii,dati     
+!         if (dumm .eq. 0) then
+!          punti(0:1,ii) = dati
+!         else 
+!          counter = counter + (number_ci_for_thread*2- ii)
+!          write(*,*) 'error reading, skipping at i=',ii,counter
+!          exit
+!         endif
+!        enddo
+
+        n_data_tot = number_ci_for_thread*(1+n_intersection)
+        ! end of ll-th thread data reading
+        !get real data
+
+!        deltar = abs(punti(0,1) - punti(0,0))
+!        deltath = abs(punti(1,3) - punti(1,0))
+        real_points_start = punti(0:1,0:n_data_tot:10)
+        real_points_end = punti(0:1,1:n_data_tot:10)
+
+        do aa = 0,size(real_points_end(0,:)) -1
+               
+         write(190)  real_points_end(0,aa),
+     .               real_points_end(1,aa), zsurf
+
+         write(190)  real_points_end(0,aa) + ddeltar,
+     .               real_points_end(1,aa), zsurf
+
+         write(190)  real_points_end(0,aa) - ddeltar,
+     .               real_points_end(1,aa), zsurf
+
+         write(190)  real_points_end(0,aa),
+     .               real_points_end(1,aa) + ddeltath, 
+     .               zsurf
+
+         write(190)  real_points_end(0,aa),
+     .               real_points_end(1,aa) - ddeltath,
+     .               zsurf
+
+
+!         write(290,'(2f13.7)'),
+!     .    real_points_end(0,aa),real_points_end(1,aa)
+!
+!         write(290,'(2f13.7)'), real_points_end(0,aa) + deltar,
+!     .               real_points_end(1,aa)
+!
+!         write(290,'(2f13.7)'), real_points_end(0,aa) - deltar,
+!     .               real_points_end(1,aa)
+!
+!         write(290,'(2f13.7)'), real_points_end(0,aa),
+!     .               real_points_end(1,aa) + deltath
+!
+!         write(290,'(2f13.7)'), real_points_end(0,aa),
+!     .               real_points_end(1,aa) - deltath
+!
+
+        enddo
+        close(180) ! close reading file
+       enddo ! close reading loop
+       close(190) !close writing file
+       write(*,*) 'Ho mancato ',counter,' condizioni iniziali su '
+     .        ,numberic
+
+      end subroutine ridge_final_cond
 
 !#! Marco, post-processing routines to determine the Lyapunov exponent.
 
-!     orbit_couples
+!     lyap_orbit_couples
 !     #################################################################
       subroutine lyap_orbit_couples(idxx,idyy,idzz)
 
@@ -342,10 +560,6 @@
          exit
         enddo 
        endif
-
-!#! final computation, must be done serially, at the end of the parallel
-!part
-      
  
       end subroutine lyap_orbit_couples
 
@@ -1213,9 +1427,9 @@ c     ###############################################################
 
 !#! Lyapunov routines
 
-c     lyap_write
+c     lyap_orbit_write
 c     ###############################################################
-      subroutine lyap_write(x,ss)
+      subroutine lyap_orbit_write(x,ss)
 
 !     ------------------------------------------------------------------------
 !     Write orbit radial position when needed
@@ -1239,7 +1453,7 @@ c     ###############################################################
         
         slyp_old = slyp
 
-      end subroutine lyap_write
+      end subroutine lyap_orbit_write
 
 c     connect_write
 c     ###############################################################
@@ -1488,185 +1702,6 @@ c     ###############################################################
      $           .or.(lssz .and. (intersect_z .ge. max_inter_z))
  
       end function auto_corr_inters_stop
-
-!#! routine per ridges
-c     write_final_cond
-c     ###############################################################
-      subroutine write_final_cond(zsurf,numberic,NstationFiles
-     .    ,ddeltar,ddeltath)
-
-      implicit none 
-
-      ! Local variables
-      real(8) :: r
-      real(8), intent(in) :: zsurf,ddeltar,ddeltath ! input
-      real(8), allocatable,dimension(:,:) :: real_points_start
-      real(8), allocatable,dimension(:,:) :: real_points_end
-      integer :: number_ci_for_thread!,thrtt
-      integer, parameter :: n_intersection = 1
-      integer :: n_data_tot,dumm,counter,qq,tenmod
-      real(8), dimension(2) :: dati
-      character(50) l_ll
-      real(8), allocatable,dimension(:,:) :: punti
-      integer :: i,ll,ii,aa,reason,iStation
-      integer, intent(in) :: NstationFiles
-      character(LEN=100), dimension(:), allocatable :: stationFileNames
-      character(50) :: filename 
-      integer, intent(in):: numberic !input 
-
-!      call system('ls ridgez* > fileContents.txt')
-!      open(3331,FILE='fileContents.txt',action="read")
-!
-!      !how many
-!      i = 0
-!
-!      do
-!       read(3331,FMT='(a)',iostat=reason) r
-!       write(*,*) r
-!       if (reason/=0) EXIT
-!       i = i+1
-!      end do
-!      close(3331)
-!
-!      NstationFiles = i
-      number_ci_for_thread = int(numberic/NstationFiles)
-      write(*,*) 'NstationFiles',NstationFiles,number_ci_for_thread
-!     .            ,thrtt
-
-!      open(unit=290,file='data.dat',status='old',
-!     .       form='formatted',action='write')
-      open(unit=190,file='final_conditions.bin',status='unknown',
-     .       form='unformatted',action='write')
-
-
-!------------- inizio a leggere e scrivere------------
-
-      allocate (punti(0:1,0:number_ci_for_thread
-     .           *(1+n_intersection) - 1))
-
-
-      allocate (real_points_start(0:1,
-     .          0:(number_ci_for_thread
-     .           *(1+n_intersection) - 1)/10))
-
-      allocate (real_points_end(0:1,
-     .          0:(number_ci_for_thread
-     .           *(1+n_intersection) - 1)/10))
-!#! Marco, set to zero the vectors
-      punti(:,:) = 0.d0
-      real_points_start(:,:) = 0.d0
-      real_points_end(:,:) = 0.d0
-      counter = 0
-
-      do ll = 0,NstationFiles-1
-     
-       filename = 'ridgez_proc'//int2char(ll)
-       write(*,*) 'DIAGfilename',filename,ll
-
-       open(unit=180,file=filename,status='old',
-     .       form='unformatted',action='read')
-
-!        write(*,*) 'DIAG2',number_ci_for_thread,n_intersection
-!        do ii=0,number_ci_for_thread*(1+n_intersection) - 1
-!         read(180,iostat=dumm), dati
-!!         write(*,*) 'dati  ', ii,dati     
-!         if (dumm .eq. 0) then
-!          punti(0:1,ii) = dati
-!         else
-!          exit
-!         endif
-!        enddo
-
-        do ii=0,number_ci_for_thread*(1+n_intersection) - 1
-         read(180,iostat=dumm) dati
-!         write(*,*) 'dati  ', ii,dati     
-         if (dumm .eq. 0) then
-          punti(0:1,ii) = dati
-         else 
-          tenmod = mod(ii,10)
-!#! Marco, nel file ridgez_proc* devono esserci number_ci_for_thread*2
-!valori scritti
-          counter = counter + (number_ci_for_thread*2- (ii-tenmod))
-          write(*,*) 'error reading, skipping at i=',ii
-          write(*,*) 'number of ci not written '
-     .       , number_ci_for_thread*2 - (ii-tenmod)
-          !#! remove broken couple c.i.+advanced
-           punti(0,ii-tenmod:ii) = 0.5d0 
-           punti(1,ii-tenmod:ii) = 0.5d0
-           do qq=ii-10-tenmod,ii 
-            write(*,*) 'check',qq,punti(0,qq)
-           enddo
-          exit
-         endif
-        enddo
-
-
-
-!        do ii=0,number_ci_for_thread*(1+n_intersection) - 1
-!         read(180,iostat=dumm), dati
-!!         write(*,*) 'dati  ', ii,dati     
-!         if (dumm .eq. 0) then
-!          punti(0:1,ii) = dati
-!         else 
-!          counter = counter + (number_ci_for_thread*2- ii)
-!          write(*,*) 'error reading, skipping at i=',ii,counter
-!          exit
-!         endif
-!        enddo
-
-        n_data_tot = number_ci_for_thread*(1+n_intersection)
-        ! end of ll-th thread data reading
-        !get real data
-
-!        deltar = abs(punti(0,1) - punti(0,0))
-!        deltath = abs(punti(1,3) - punti(1,0))
-        real_points_start = punti(0:1,0:n_data_tot:10)
-        real_points_end = punti(0:1,1:n_data_tot:10)
-
-        do aa = 0,size(real_points_end(0,:)) -1
-               
-         write(190)  real_points_end(0,aa),
-     .               real_points_end(1,aa), zsurf
-
-         write(190)  real_points_end(0,aa) + ddeltar,
-     .               real_points_end(1,aa), zsurf
-
-         write(190)  real_points_end(0,aa) - ddeltar,
-     .               real_points_end(1,aa), zsurf
-
-         write(190)  real_points_end(0,aa),
-     .               real_points_end(1,aa) + ddeltath, 
-     .               zsurf
-
-         write(190)  real_points_end(0,aa),
-     .               real_points_end(1,aa) - ddeltath,
-     .               zsurf
-
-
-!         write(290,'(2f13.7)'),
-!     .    real_points_end(0,aa),real_points_end(1,aa)
-!
-!         write(290,'(2f13.7)'), real_points_end(0,aa) + deltar,
-!     .               real_points_end(1,aa)
-!
-!         write(290,'(2f13.7)'), real_points_end(0,aa) - deltar,
-!     .               real_points_end(1,aa)
-!
-!         write(290,'(2f13.7)'), real_points_end(0,aa),
-!     .               real_points_end(1,aa) + deltath
-!
-!         write(290,'(2f13.7)'), real_points_end(0,aa),
-!     .               real_points_end(1,aa) - deltath
-!
-
-        enddo
-        close(180) ! close reading file
-       enddo ! close reading loop
-       close(190) !close writing file
-       write(*,*) 'Ho mancato ',counter,' condizioni iniziali su '
-     .        ,numberic
-
-      end subroutine write_final_cond
 
       end module lyapn
 

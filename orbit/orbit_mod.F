@@ -783,7 +783,7 @@ c     Daniele,23/03/2009: dump the initial point of the orbit
         endif
 
 !#! lyapunov
-        if (lyap) call lyap_io_init
+        if (lyap) call lyap_orbit_io_init
 
 !#! auto_corr
         if (auto_corr) then
@@ -820,7 +820,7 @@ c     Daniele,23/03/2009: dump the initial point of the orbit
           yold  = y
           zold  = z
         
-          if (lyap) call lyap_write(x,ss)
+          if (lyap) call lyap_orbit_write(x,ss)
 
           if (auto_corr) then
             call auto_corr_write(x,y,z,atc_tol,deltass
@@ -949,7 +949,7 @@ cc            endif
         if (auto_corr) call auto_corr_io_end(lssx,lssy,lssz,rzss
      .                                      ,x0,y0,z0,ss)
 
-        if (lyap) call lyap_io_end
+        if (lyap) call lyap_orbit_io_end
 
         if (PRESENT(ierror)) ierror = iterror
 
