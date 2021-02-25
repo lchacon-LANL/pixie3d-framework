@@ -1224,7 +1224,7 @@ c     Local variables
       real(_prec) :: rx(_Npg),ry(_Npg),rz(_Npg)
 
       real(_prec), parameter :: eps  = 1d-12 !Buffer for dt computation in pcle Xing
-     .                         ,eps2 = 1d-8  !Buffer for pcle Xing
+     .                         ,eps2 = 1d-12  !Buffer for pcle Xing
 
       real(_prec) :: ptola,alpha=0d0,dt_coeff=0.2
 
@@ -1249,6 +1249,7 @@ c     Local variables
 
       real(_prec) :: phi_loc(_Npg,3,3),xnp_loc(_Npg,3),vnp_loc(_Npg,3)
       real(_prec) :: x0_loc(_Npg,3),v0_loc(_Npg,3),wp_loc(_Npg)
+     $     ,xn_loc(_Npg,3)
       real(_prec) :: x0p(_Npg),y0p(_Npg)
       real(_prec) :: Sx2_o(_Npg,3),Sy2_o(_Npg,3)
       real(_prec) :: dteq0(_Npg)
@@ -1299,8 +1300,9 @@ c     Estimate sub-time-step
       call estimate_dtp(dt_sub)
 
 c     Initialize Picard
-
-      call initialize_it(v0_loc,dt_sub,dx)
+      vh =  v0_loc
+      
+      call initialize_it(vh,dt_sub,dx)
 
       it=0
 
@@ -1313,9 +1315,12 @@ c     Initialize Picard
         dx_k = dx
 
         substeps = substeps + _Npg
-
+        
         !Perform Boris push
         call Boris_solve(it,x0_loc,v0_loc,dx,vh,dt_sub)
+
+!     update position
+        call find_dx(vh,dt_sub,x0_loc,dx) !This may change dt_sub
 
         !Check convergence (very expensive!!!)
         if (mod(it,2) /= 0) cycle  !Check everyother iteration
@@ -1368,6 +1373,50 @@ c     Back to the global registers now:
 c     End program
 
       contains
+c     find_dx
+c     ######################################################################
+      subroutine find_dx(vh,dts,xn_loc,dx)
+
+      implicit none
+
+c     Call variables
+
+      real(_prec) :: dts(_Npg),dx(_Npg,3),vh(_Npg,3),xn_loc(_Npg,3)
+
+c     Local variables
+
+      real(_prec) :: vhcurv(_Npg,3),vhcurv_inv(_Npg,3)
+      real(_prec) :: dxl(_Npg,2),dxr(_Npg,2)
+
+c     Begin program
+
+c     Find dx
+
+      if (no_map) then
+        vhcurv = vh
+      else
+        vhcurv = find_vcurv(i0,j0,xn_loc,vh)
+      endif
+
+      vhcurv_inv = 1d0/(vhcurv + 1d-44)
+
+      dxl(:,1) =   -xn_loc(:,1)
+      dxr(:,1) = hx-xn_loc(:,1)
+            
+      dxl(:,2) =   -xn_loc(:,2)
+      dxr(:,2) = hy-xn_loc(:,2)
+
+      dts = min(dts
+     .            ,max((dxl(:,1)-eps2)*vhcurv_inv(:,1)
+     .                ,(dxr(:,1)+eps2)*vhcurv_inv(:,1))
+     .            ,max((dxl(:,2)-eps2)*vhcurv_inv(:,2)
+     .                ,(dxr(:,2)+eps2)*vhcurv_inv(:,2)))
+
+      dx(:,1) = vhcurv(:,1)*dts
+      dx(:,2) = vhcurv(:,2)*dts
+      dx(:,3) = vhcurv(:,3)*dts
+
+      end subroutine find_dx
 
 c     initialize_it
 c     ######################################################################
@@ -1641,67 +1690,67 @@ c     Begin program
         vh(:,3) = (vhes(:,3)+qmdth*(vhes(:,1)*Bp(:,2)-vhes(:,2)*Bp(:,1) 
      .                            + vdotB*Bp(:,3)))*iDenom
 
-        !Time step estimate for cell crossing
-        if (no_map) then
-          vhcurv = vh
-        else
-          xp_vhcurv = x0 + 0.5*dx
-          vhcurv = find_vcurv(i0,j0,xp_vhcurv,vh)
-        endif
+c$$$        !Time step estimate for cell crossing
+c$$$        if (no_map) then
+c$$$          vhcurv = vh
+c$$$        else
+c$$$          xp_vhcurv = x0 + 0.5*dx
+c$$$          vhcurv = find_vcurv(i0,j0,xp_vhcurv,vh)
+c$$$        endif
+c$$$
+c$$$        dx(:,1) = dt_sub*vhcurv(:,1)
+c$$$        dx(:,2) = dt_sub*vhcurv(:,2)
+c$$$        dx(:,3) = dt_sub*vhcurv(:,3)
 
-        dx(:,1) = dt_sub*vhcurv(:,1)
-        dx(:,2) = dt_sub*vhcurv(:,2)
-        dx(:,3) = dt_sub*vhcurv(:,3)
-
-        !VECTOR SIMD
-        do i=1,_Npg
-           !x-direction
-           dtb(i,1) = dt_sub(i)
-           if((dx(i,1)<dxl(i,1)-eps) .or. (dx(i,1)>dxr(i,1)+eps) ) then
-             if(v0curv(i,1)*vhcurv(i,1)<0d0) then
-               dtb(i,1) = 0.5d0*dt_sub(i)
-               vh(i,:) = v0(i,:)
-               vhcurv(i,:) = v0curv(i,:)
-             else
-               if(it<5) then  !This branch needs to be taken out of the pcle loop!
-                 vhcurv_inv(i,1) = 1d0/vhcurv(i,1)
-                 dtb(i,1) = min(dt_sub(i),
-     .              max((dxl(i,1)-eps)*vhcurv_inv(i,1)
-     .                 ,(dxr(i,1)+eps)*vhcurv_inv(i,1)))
-               else if((dx(i,1)<dxl(i,1)-eps2)
-     .             .or. dx(i,1)>dxr(i,1)+eps2) then
-                 dtb(i,1) = 0.5d0*dtb(i,1)
-               end if
-             end if
-           end if
-
-           !y-direction
-           dtb(i,2) = dt_sub(i)
-           if((dx(i,2)<dxl(i,2)-eps) .or. dx(i,2)>dxr(i,2)+eps) then
-             if(v0curv(i,2)*vhcurv(i,2)<0d0) then
-               dtb(i,2) = 0.5d0*dt_sub(i)
-               vh(i,:) = v0(i,:)
-               vhcurv(i,:) = v0curv(i,:)
-             else 
-               if(it<5) then  !This branch needs to be taken out of the pcle loop!
-                 vhcurv_inv(i,2) = 1d0/vhcurv(i,2)
-                 dtb(i,2) = min(dt_sub(i),
-     .              max((dxl(i,2)-eps)*vhcurv_inv(i,2)
-     .                 ,(dxr(i,2)+eps)*vhcurv_inv(i,2)))
-               else if(dx(i,2)<dxl(i,2)-eps2 
-     .            .or. dx(i,2)>dxr(i,2)+eps2) then
-                 dtb(i,2) = 0.5d0*dtb(i,2)
-               end if
-             end if
-           end if
-
-           dt_sub(i) = min(dt_sub(i),dtb(i,1),dtb(i,2))
- 
-        end do
-
-        dx(:,1) = dt_sub*vhcurv(:,1)
-        dx(:,2) = dt_sub*vhcurv(:,2)
-        dx(:,3) = dt_sub*vhcurv(:,3)
+c$$$        !VECTOR SIMD
+c$$$        do i=1,_Npg
+c$$$           !x-direction
+c$$$           dtb(i,1) = dt_sub(i)
+c$$$           if((dx(i,1)<dxl(i,1)-eps) .or. (dx(i,1)>dxr(i,1)+eps) ) then
+c$$$             if(v0curv(i,1)*vhcurv(i,1)<0d0) then
+c$$$               dtb(i,1) = 0.5d0*dt_sub(i)
+c$$$               vh(i,:) = v0(i,:)
+c$$$               vhcurv(i,:) = v0curv(i,:)
+c$$$             else
+c$$$               if(it<5) then  !This branch needs to be taken out of the pcle loop!
+c$$$                 vhcurv_inv(i,1) = 1d0/vhcurv(i,1)
+c$$$                 dtb(i,1) = min(dt_sub(i),
+c$$$     .              max((dxl(i,1)-eps)*vhcurv_inv(i,1)
+c$$$     .                 ,(dxr(i,1)+eps)*vhcurv_inv(i,1)))
+c$$$               else if((dx(i,1)<dxl(i,1)-eps2)
+c$$$     .             .or. dx(i,1)>dxr(i,1)+eps2) then
+c$$$                 dtb(i,1) = 0.5d0*dtb(i,1)
+c$$$               end if
+c$$$             end if
+c$$$           end if
+c$$$
+c$$$           !y-direction
+c$$$           dtb(i,2) = dt_sub(i)
+c$$$           if((dx(i,2)<dxl(i,2)-eps) .or. dx(i,2)>dxr(i,2)+eps) then
+c$$$             if(v0curv(i,2)*vhcurv(i,2)<0d0) then
+c$$$               dtb(i,2) = 0.5d0*dt_sub(i)
+c$$$               vh(i,:) = v0(i,:)
+c$$$               vhcurv(i,:) = v0curv(i,:)
+c$$$             else 
+c$$$               if(it<5) then  !This branch needs to be taken out of the pcle loop!
+c$$$                 vhcurv_inv(i,2) = 1d0/vhcurv(i,2)
+c$$$                 dtb(i,2) = min(dt_sub(i),
+c$$$     .              max((dxl(i,2)-eps)*vhcurv_inv(i,2)
+c$$$     .                 ,(dxr(i,2)+eps)*vhcurv_inv(i,2)))
+c$$$               else if(dx(i,2)<dxl(i,2)-eps2 
+c$$$     .            .or. dx(i,2)>dxr(i,2)+eps2) then
+c$$$                 dtb(i,2) = 0.5d0*dtb(i,2)
+c$$$               end if
+c$$$             end if
+c$$$           end if
+c$$$
+c$$$           dt_sub(i) = min(dt_sub(i),dtb(i,1),dtb(i,2))
+c$$$ 
+c$$$        end do
+c$$$
+c$$$        dx(:,1) = dt_sub*vhcurv(:,1)
+c$$$        dx(:,2) = dt_sub*vhcurv(:,2)
+c$$$        dx(:,3) = dt_sub*vhcurv(:,3)
 
 c     End program
 
@@ -2063,127 +2112,129 @@ cc            print *,isp,ipc
             pcle_nu%v_np  = spcs(isp)%pcles(ipc)%v_np
             hit_wall = 0        !default is 0, if hit a wall, 1             
            !Picard iteration loop
-           do pit = 1, pitmax
+c$$$           do pit = 1, pitmax
 c$$$              if(ipc==3) then
 c$$$                 print *,pit
 c$$$                 print *, spcs(isp)%pcles(ipc)%v_n,
 c$$$     $                spcs(isp)%pcles(ipc)%v_np
 c$$$              end if
-             pcle_nu%ijk_n = spcs(isp)%pcles(ipc)%ijk_n
-             pcle_nu%x_n   = spcs(isp)%pcles(ipc)%x_n
-             pcle_nu%v_n   = spcs(isp)%pcles(ipc)%v_n
-             pcle_nu%w_n   = spcs(isp)%pcles(ipc)%w_n
-             
-             Ep_avg = 0d0
-             Bp_avg = 0d0
-             REF_SIGN = 1       !default, flip sign when hitting a wall
-             it = 0
-
-#if defined(PIC_CM_DIAG)
-             if(pit==pitmax) d_x = 0d0
-#endif
-             dtp = dtx
-             v0 = pcle_nu%v_n
-             vh = 0.5d0*(v0+pcle_nu%v_np)
-             !Pcle sub-stepping
-             do while(maxval(dtp)>0)
-               it = it+1
-               
-               !Find pcle position update w/ given velocity
-               call update_pcle_pos(pcle_nu,vh,dt,dtp,dt_sub ,DtA,B0,A
-     $              ,phi,dx,Ep,Bp,REF_SIGN,hit_wall)
-
-#if defined(PIC_CM_DIAG)
-               !accumulate particle displacement (for diagnose canonical mom conservation)
-               if(pit==pitmax) d_x = d_x + dx
-#endif
-               !Update pcle counters
-               pst_sum = pst_sum + _Npg   !Particle substep counter
-               psh_sum = psh_sum + _Npg   !Total number of particle pushes (including ALL picard iterations)
-
-               !Accumulate fields
-               Ep_avg(:,1) = Ep_avg(:,1) + Ep(:,1)*dt_sub(:)
-               Ep_avg(:,2) = Ep_avg(:,2) + Ep(:,2)*dt_sub(:)
-               Ep_avg(:,3) = Ep_avg(:,3) + Ep(:,3)*dt_sub(:)
-               Bp_avg(:,1) = Bp_avg(:,1) + Bp(:,1)*dt_sub(:)
-               Bp_avg(:,2) = Bp_avg(:,2) + Bp(:,2)*dt_sub(:)
-               Bp_avg(:,3) = Bp_avg(:,3) + Bp(:,3)*dt_sub(:)
-
-c$$$               !If reflective bc (flip signs for perpendicular E, and tangential B)
-c$$$               Ep_avg(:,1) = Ep_avg(:,1)*REF_SIGN(:,1)
-c$$$               Ep_avg(:,2) = Ep_avg(:,2)*REF_SIGN(:,2)
-c$$$               Ep_avg(:,3) = Ep_avg(:,3)*REF_SIGN(:,3)
-c$$$               Bp_avg(:,1) =-Bp_avg(:,1)*REF_SIGN(:,1)
-c$$$               Bp_avg(:,2) =-Bp_avg(:,2)*REF_SIGN(:,2)
-c$$$               Bp_avg(:,3) =-Bp_avg(:,3)*REF_SIGN(:,3)
-               
-               
-!Scatter ORBIT AVERAGED moments (only in last picard iteration)
-!no moments for particles that hit a wall, but finish the iterations anyway               
-c$$$               if(pit==pitmax.and. maxval(hit_wall).eq.0) call
-c$$$     $              gather_orbit_avg_moments(pcle_nu,dx,hit_wall)
-
-               if(pit==pitmax) then
-                  pcle_tmp(it) = pcle_nu
-                  dx_tmp(:,:,it) = dx
-               end if
-
-               !Prepare for next substep (except new-time velocity)
-               pcle_nu%ijk_n = pcle_nu%ijk_np
-               pcle_nu%x_n   = pcle_nu%x_np
-               pcle_nu%w_n   = pcle_nu%w_np
-
-               dtp = dtp-dt_sub
-
-             end do             !sub-stepping
-
-             !Find new-time pcle velocity w/ averaged fields
-             Ep_avg = Ep_avg*idtx
-             Bp_avg = Bp_avg*idtx
-             
-             call update_pcle_vel(q_m,v0,pcle_nu%v_np
-     .                           ,dt,Ep_avg,Bp_avg)
-
-             pcle_nu%v_np = v0 + 2d0*(pcle_nu%v_np-v0)
-
-             !Count total number of picard iterations
-             pit_sum = pit_sum + _Npg
-
-             !Maximum number of substeps per timestep
-             pstmax  = max(it,pstmax)
-             
-             !Compute NEW-TIME moments (only in last picard iteration)
-             if(pit==pitmax) then
-                spcs(isp)%pcles(ipc)%v_np(:,1)   = pcle_nu%v_np(:,1)
-                spcs(isp)%pcles(ipc)%v_np(:,2)   = pcle_nu%v_np(:,2)
-                spcs(isp)%pcles(ipc)%v_np(:,3)   = pcle_nu%v_np(:,3)
-                spcs(isp)%pcles(ipc)%ijk_np = pcle_nu%ijk_np 
-                spcs(isp)%pcles(ipc)%x_np   = pcle_nu%x_np   
-                spcs(isp)%pcles(ipc)%w_np   = pcle_nu%w_np
-                
-
-                if(it>NUM_TMP) then
-                   print *,"iteration=",it
-     $                  ,"> fixed pcle_tmp storage length",NUM_TMP
-                   print *,'stop'
-                   stop
-                end if
-                   num_sub=it
-                   do it = 1, num_sub
-                      pcle_nu = pcle_tmp(it)
-                      dx = dx_tmp(:,:,it)
-                      call gather_orbit_avg_moments(pcle_nu,dx,hit_wall) !1st moments                       
-                   end do
+c$$$             pcle_nu%ijk_n = spcs(isp)%pcles(ipc)%ijk_n
+c$$$             pcle_nu%x_n   = spcs(isp)%pcles(ipc)%x_n
+c$$$             pcle_nu%v_n   = spcs(isp)%pcles(ipc)%v_n
+c$$$             pcle_nu%w_n   = spcs(isp)%pcles(ipc)%w_n
+c$$$             
+c$$$             Ep_avg = 0d0
+c$$$             Bp_avg = 0d0
+c$$$             REF_SIGN = 1       !default, flip sign when hitting a wall
+c$$$             it = 0
+c$$$
+c$$$#if defined(PIC_CM_DIAG)
+c$$$             if(pit==pitmax) d_x = 0d0
+c$$$#endif
+c$$$             dtp = dtx
+c$$$             v0 = pcle_nu%v_n
+c$$$             vh = 0.5d0*(v0+pcle_nu%v_np)
+c$$$             !Pcle sub-stepping
+c$$$             do while(maxval(dtp)>0)
+c$$$               it = it+1
+c$$$               
+c$$$               !Find pcle position update w/ given velocity
+c$$$               call update_pcle_pos(pcle_nu,vh,dt,dtp,dt_sub ,DtA,B0,A
+c$$$     $              ,phi,dx,Ep,Bp,REF_SIGN,hit_wall)
+c$$$
+c$$$#if defined(PIC_CM_DIAG)
+c$$$               !accumulate particle displacement (for diagnose canonical mom conservation)
+c$$$               if(pit==pitmax) d_x = d_x + dx
+c$$$#endif
+c$$$               if(pit==pitmax) then
+c$$$               !Update pcle counters
+c$$$                  pst_sum = pst_sum + _Npg !Particle substep counter
+c$$$                  psh_sum = psh_sum + _Npg !Total number of particle pushes (including ALL picard iterations)
+c$$$               end if
+c$$$            
+c$$$               !Accumulate fields
+c$$$               Ep_avg(:,1) = Ep_avg(:,1) + Ep(:,1)*dt_sub(:)
+c$$$               Ep_avg(:,2) = Ep_avg(:,2) + Ep(:,2)*dt_sub(:)
+c$$$               Ep_avg(:,3) = Ep_avg(:,3) + Ep(:,3)*dt_sub(:)
+c$$$               Bp_avg(:,1) = Bp_avg(:,1) + Bp(:,1)*dt_sub(:)
+c$$$               Bp_avg(:,2) = Bp_avg(:,2) + Bp(:,2)*dt_sub(:)
+c$$$               Bp_avg(:,3) = Bp_avg(:,3) + Bp(:,3)*dt_sub(:)
+c$$$
+c$$$c$$$               !If reflective bc (flip signs for perpendicular E, and tangential B)
+c$$$c$$$               Ep_avg(:,1) = Ep_avg(:,1)*REF_SIGN(:,1)
+c$$$c$$$               Ep_avg(:,2) = Ep_avg(:,2)*REF_SIGN(:,2)
+c$$$c$$$               Ep_avg(:,3) = Ep_avg(:,3)*REF_SIGN(:,3)
+c$$$c$$$               Bp_avg(:,1) =-Bp_avg(:,1)*REF_SIGN(:,1)
+c$$$c$$$               Bp_avg(:,2) =-Bp_avg(:,2)*REF_SIGN(:,2)
+c$$$c$$$               Bp_avg(:,3) =-Bp_avg(:,3)*REF_SIGN(:,3)
+c$$$               
+c$$$               
+c$$$!Scatter ORBIT AVERAGED moments (only in last picard iteration)
+c$$$!no moments for particles that hit a wall, but finish the iterations anyway               
+c$$$c$$$               if(pit==pitmax.and. maxval(hit_wall).eq.0) call
+c$$$c$$$     $              gather_orbit_avg_moments(pcle_nu,dx,hit_wall)
+c$$$
+c$$$               if(pit==pitmax) then
+c$$$                  pcle_tmp(it) = pcle_nu
+c$$$                  dx_tmp(:,:,it) = dx
+c$$$               end if
+c$$$
+c$$$               !Prepare for next substep (except new-time velocity)
+c$$$               pcle_nu%ijk_n = pcle_nu%ijk_np
+c$$$               pcle_nu%x_n   = pcle_nu%x_np
+c$$$               pcle_nu%w_n   = pcle_nu%w_np
+c$$$
+c$$$               dtp = dtp-dt_sub
+c$$$
+c$$$             end do             !sub-stepping
+c$$$
+c$$$             !Find new-time pcle velocity w/ averaged fields
+c$$$             Ep_avg = Ep_avg*idtx
+c$$$             Bp_avg = Bp_avg*idtx
+c$$$             
+c$$$             call update_pcle_vel(q_m,v0,pcle_nu%v_np
+c$$$     .                           ,dt,Ep_avg,Bp_avg)
+c$$$
+c$$$             pcle_nu%v_np = v0 + 2d0*(pcle_nu%v_np-v0)
+c$$$
+c$$$             !Count total number of picard iterations
+c$$$             pit_sum = pit_sum + _Npg
+c$$$
+c$$$             !Maximum number of substeps per timestep
+c$$$             pstmax  = max(it,pstmax)
+c$$$             
+c$$$             !Compute NEW-TIME moments (only in last picard iteration)
+c$$$             if(pit==pitmax) then
+c$$$                spcs(isp)%pcles(ipc)%v_np(:,1)   = pcle_nu%v_np(:,1)
+c$$$                spcs(isp)%pcles(ipc)%v_np(:,2)   = pcle_nu%v_np(:,2)
+c$$$                spcs(isp)%pcles(ipc)%v_np(:,3)   = pcle_nu%v_np(:,3)
+c$$$                spcs(isp)%pcles(ipc)%ijk_np = pcle_nu%ijk_np 
+c$$$                spcs(isp)%pcles(ipc)%x_np   = pcle_nu%x_np   
+c$$$                spcs(isp)%pcles(ipc)%w_np   = pcle_nu%w_np
+c$$$                
+c$$$
+c$$$                if(it>NUM_TMP) then
+c$$$                   print *,"iteration=",it
+c$$$     $                  ,"> fixed pcle_tmp storage length",NUM_TMP
+c$$$                   print *,'stop'
+c$$$                   stop
+c$$$                end if
+c$$$                   num_sub=it
+c$$$                   do it = 1, num_sub
+c$$$                      pcle_nu = pcle_tmp(it)
+c$$$                      dx = dx_tmp(:,:,it)
+c$$$!                      call gather_orbit_avg_moments(pcle_nu,dx,hit_wall) !1st moments                       
+c$$$                   end do
 !******if some particles hit a wall, revert back to integrator 'sub'                   
 cc                else
-                   if(maxval(hit_wall)==1) then
-                   do k = 1, _Npg
-                      if(hit_wall(k).eq.1) then
-                         hit_wall(k) = 0
-                      else
-                         hit_wall(k) = 1
-                      end if
-                   end do
+c$$$                   if(maxval(hit_wall)==1) then
+c$$$                   do k = 1, _Npg
+c$$$                      if(hit_wall(k).eq.1) then
+c$$$                         hit_wall(k) = 0
+c$$$                      else
+c$$$                         hit_wall(k) = 1
+c$$$                      end if
+c$$$                   end do
 cc                   print *,hit_wall
            pcle_nu%ijk_n = spcs(isp)%pcles(ipc)%ijk_n
            pcle_nu%x_n   = spcs(isp)%pcles(ipc)%x_n
@@ -2216,22 +2267,22 @@ cc                   print *,hit_wall
           end do
 !     Update final pcle quantities (serial)
           do k = 1, _Npg
-             if(hit_wall(k)==0)then
+cc             if(hit_wall(k)==0)then
                 spcs(isp)%pcles(ipc)%v_np(k,1)   = pcle_nu%v_np(k,1)
                 spcs(isp)%pcles(ipc)%v_np(k,2)   = pcle_nu%v_np(k,2)
                 spcs(isp)%pcles(ipc)%v_np(k,3)   = pcle_nu%v_np(k,3)
                 spcs(isp)%pcles(ipc)%ijk_np(k)   = pcle_nu%ijk_np(k) 
                 spcs(isp)%pcles(ipc)%x_np(k,:)   = pcle_nu%x_np(k,:)
                 spcs(isp)%pcles(ipc)%w_np(k)     = pcle_nu%w_np(k)
-             end if
+cc             end if
           end do
-           end if
+cc           end if
 !******     
                 
            call gather_new_time_moments(spcs(isp)%pcles(ipc),d_x,pml,cml
      $          ,cmex)
-             end if
-           end do !pit
+cc             end if
+c$$$           end do !pit
 
 c$$$           !Update final pcle quantities
 c$$$           spcs(isp)%pcles(ipc)%v_np(:,1)   = pcle_nu%v_np(:,1)
@@ -2434,9 +2485,9 @@ c$$$      end do
 
 !Do NOT vectorize: memory race issues
       do k=1, _Npg
-         if(hit_wall(k)==1) then 
-            cycle            !no scatter if hit a wall            
-         end if
+c$$$         if(hit_wall(k)==1) then 
+c$$$            cycle            !no scatter if hit a wall            
+c$$$         end if
 #ifdef __GNU
         Mxy2(k,1:3,1:3)= Mxy2(k,1:3,1:3)
      $                 +opt_vecvec_3(Mx2(k,:,:),My2(k,:,:))
