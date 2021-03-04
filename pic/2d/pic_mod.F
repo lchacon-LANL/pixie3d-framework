@@ -2075,7 +2075,7 @@ c     Move particles
       psh_sum = 0
       pst_sum = 0
       pit_sum = 0
-      pitmax  = 10 !Number of outer Picard iterations
+      pitmax  = 0 !Number of outer Picard iterations
       pstmax  = 0
 
       numspcs = size(spcs)
@@ -2253,6 +2253,14 @@ cc                   print *,hit_wall
      $                                ,DtA,B0,A,phi,dx
      $                                ,psts,pits)
 
+             !Update pcle counters
+             pst_sum = pst_sum + _Npg     !Particle substep counter
+
+             pitmax  = max(pits,pitmax)   !Maximum number of Picard iterations per substep
+
+             pit_sum = pit_sum + pits     !Total number of picard iterations
+             psh_sum = psh_sum + psts     !Total number of particle pushes (including ALL picard iterations)
+
             !Scatter ORBIT AVERAGED v-moments 
              call gather_orbit_avg_moments(pcle_nu,dx,hit_wall) !moments for particles that hit a wall
 
@@ -2278,7 +2286,7 @@ cc             end if
           end do
 cc           end if
 !******     
-                
+
            call gather_new_time_moments(spcs(isp)%pcles(ipc),d_x,pml,cml
      $          ,cmex)
 cc             end if
