@@ -5591,7 +5591,7 @@ c     End program
 
 c     plotPDF_xv
 c     ##################################################################
-      subroutine plotPDF_xv(nv,label,init,xdraw,v_min,v_max) 
+      subroutine plotPDF_xv(nv,label,init,xdraw,v_min,v_max,charge) 
 
 c     ------------------------------------------------------------------
 c     Accumulates particles on mesh, returning result in mesh array garr.
@@ -5608,6 +5608,7 @@ c     Call variables
       logical :: init,xdraw
 
       real(8),optional :: v_min,v_max
+      logical,optional :: charge
       
 c     Local variables
 
@@ -5618,14 +5619,26 @@ c     Local variables
 
       character(100) :: suffix
 
+      logical :: chrg
+
 c     Begin program
 
       call get_domain_limits(xmin,xmax,ymin,ymax,zmin,zmax)
 
       call get_global_grid_size(nxg,nyg,nzg)
 
+      if (PRESENT(charge)) then
+        chrg = charge
+      else
+        chrg = .false.
+      endif
+
       if (my_rank_pic == 0) then
-        write (*,*) 'Dumping PDFs...'
+        if (chrg) then
+          write (*,*) 'Dumping charge PDFs...'
+        else
+          write (*,*) 'Dumping particle PDFs...'
+        endif
       endif
 
 c     Gather 1d-1v PDF
@@ -5640,6 +5653,8 @@ c     Gather 1d-1v PDF
 
         if (ierr == 1) cycle
 
+        if (chrg) garr = garr*spcs(isp)%q
+        
         !Dump contour plots
         if (my_rank_pic == 0) then
           suffix = trim(label)//'-sp'//trim(int2char(isp))
