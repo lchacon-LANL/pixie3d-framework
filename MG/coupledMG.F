@@ -666,12 +666,12 @@ c ######################################################################
         use variables
 
         type :: garray
-          real(8),pointer,dimension(:,:,:,:) :: array
+          real(8),pointer,dimension(:,:,:,:) :: array => null()
         end type garray
 
         type :: mg_array
           type(grid_mg_def),pointer :: g_def => null()
-          type(garray),pointer,dimension(:) :: grid
+          type(garray),pointer,dimension(:) :: grid => null()
           type(mg_array),pointer :: mg_crse_array => null()
         end type mg_array
 

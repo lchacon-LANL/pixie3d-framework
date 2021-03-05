@@ -15,16 +15,15 @@ c ######################################################################
 
       integer, parameter :: nsp_max=5,Npg=_Npg,dim=_Dim,dimt=_Dim+_Dimx
 
+      !Exactly 16*_Npg bytes in DP, which fits exactly in cache registers
       type :: particle
         SEQUENCE
-        real(_prec) :: x_np(_Npg,3)
-        real(_prec) :: v_np(_Npg,3)
-        real(_prec) :: x_n(_Npg,3)
-        real(_prec) :: v_n(_Npg,3)
-        integer :: ijk_np(_Npg), ijk_n(_Npg)
-#if _Npg == 4
-        integer :: inpdum(_Npg),indum(_Npg) !Padding in double prec
-#endif
+        real(_prec) :: x_np(_Npg,3)  !3*_Npg bytes
+        real(_prec) :: v_np(_Npg,3)  !3*_Npg bytes
+        real(_prec) :: x_n(_Npg,3)   !3*_Npg bytes
+        real(_prec) :: v_n(_Npg,3)   !3*_Npg bytes
+        integer :: ijk_np(_Npg), ijk_n(_Npg) !_Npg bytes
+        real(_prec) :: w_0(_Npg)     !_Npg bytes
         real(_prec) :: w_np(_Npg),w_n(_Npg)
       end type particle
 
@@ -1083,7 +1082,7 @@ c     Local variables
       C = 0.0d0
 
       do i=1, 2
-         !VECTOR SIMD REDUCTION(+:C)
+         !!VECTOR SIMD REDUCTION(+:C)
          do j=1, 3
             C(i) = C(i) + A(j)*B(j,i)
          end do
@@ -1107,7 +1106,7 @@ c     Local variables
       C = 0.0d0
 
       do i=1, 2
-         !VECTOR SIMD REDUCTION(+:C)
+         !!VECTOR SIMD REDUCTION(+:C)
          do j=1, 3
             C(i) = C(i) + B(j)*A(i,j)
          end do
@@ -1131,7 +1130,7 @@ c     Local variables
       C = 0.0d0
 
       do i=1, 3
-         !VECTOR SIMD REDUCTION(+:C)
+         !!VECTOR SIMD REDUCTION(+:C)
          do j=1, 2
             C(i) = C(i) + A(j)*B(j,i)
          end do
@@ -1157,7 +1156,7 @@ c     Local variables
       C(:) = 0.0d0
 
       do i=1, 3
-         !VECTOR SIMD REDUCTION(+:C)
+         !!VECTOR SIMD REDUCTION(+:C)
          do j=1, 3
             C(i) = C(i) + A(j)*B(j,i)
          end do
@@ -1181,7 +1180,7 @@ c     Local variables
       C(:) = 0.0d0
 
       do i=1, 3
-         !VECTOR SIMD REDUCTION(+:C)
+         !!VECTOR SIMD REDUCTION(+:C)
          do j=1, 3
             C(i) = C(i) + A(i,j)*B(j)
          end do
@@ -3281,20 +3280,22 @@ c     ######################################################################
 
 c     find_pcle_weights
 c     ######################################################################
-      subroutine find_pcle_weights(mments,w_accnt,dens_given)
+      subroutine find_pcle_weights(mments,w_accnt,dens_given,iout)
 
       implicit none
 
 c     Call variables
 
       real(8), intent(in) :: mments(0:,0:,:)
-      real(8), intent(in),optional :: dens_given(0:,0:,:)
       logical :: w_accnt
+
+      real(8), intent(in),optional :: dens_given(0:,0:,:)
+      integer,optional :: iout
       
 c     Local variables
       
       integer :: bcs(6,n_sp),igl,jgl,kgl,i,j,k,ii,ip,isp,numspcs
-     .          ,numpcles
+     .          ,numpcles,iiout
 
       real(8) :: tol_out,sump(n_sp),lsump(n_sp)
       integer :: i_n(_Npg), j_n(_Npg)
@@ -3303,6 +3304,12 @@ c     Local variables
 
 c     Begin program
 
+      if (PRESENT(iout)) then
+        iiout = iout
+      else
+        iiout = 0   !no output
+      endif
+      
 c     Build GLOBAL 9-point stencil Mass Matrix
 
       call build_mass_matrix(w_accnt)  !False to prevent singularity with no particles
@@ -3346,7 +3353,6 @@ c     Solve 2D mass matrix problem
       enddo
       where (bcs == pREF .or. bcs == pOPN) bcs = NEU
 
-      iiout = 0 !No output
       call cSolver(gpicdef,numspcs,nnl,rr,sol,bcs
      .            ,1,iiout,0,massmat_mtvc,.false.
      .            ,tol           = 1d-12
@@ -3487,14 +3493,19 @@ c     Free work space
 
 c     find_pcle_drift_velocity_z (vz only, which is cell-centered)
 c     ######################################################################
-      subroutine find_pcle_drift_velocity_z(vzmom,vzmom_given)
+      subroutine find_pcle_drift_velocity_z(vzmom,vzmom_given,iout)
 
       implicit none
 
+c     Call variables
+      
       real(8), intent(in) :: vzmom(0:,0:,:)
       real(8), intent(in),optional :: vzmom_given(0:,0:,:)
-
-      integer :: bcs(6,n_sp)
+      integer,optional :: iout
+      
+c     Local variables
+      
+      integer :: bcs(6,n_sp),iiout
       integer :: ci(9),ipcl,numpcles,numspcs
 
       integer :: i,j,k,im,ip,jm,jp,ijk,ijkim,ijkip,ijkjm,ijkjp
@@ -3508,6 +3519,12 @@ c     ######################################################################
 
 c     Begin program
 
+      if (PRESENT(iout)) then
+        iiout = iout
+      else
+        iiout = 0   !no output
+      endif
+      
       if (associated(Jpz)) then
         if (maxval(abs(Jpz(:,:,:)))==0d0
      .    .and.(.not.PRESENT(vzmom_given))) return
@@ -3555,7 +3572,6 @@ c     Solve 2D mass matrix problem
       where (bcs == pREF) bcs = NEU
       where (bcs == pOPN) bcs = DIR
 
-      iiout = 0 !No output
       call cSolver(gpicdef,numspcs,nnl,rr,sol,bcs
      .            ,1,iiout,0,massmat_mtvc,.false.
      .            ,tol           = 1d-12
@@ -3626,13 +3642,18 @@ cc     .                                     -v0_z(isp)
 
 c     find_pcle_drift_velocity_x (vx only)
 c     ######################################################################
-      subroutine find_pcle_drift_velocity_x(vxmom,vxmom_given)
+      subroutine find_pcle_drift_velocity_x(vxmom,vxmom_given,iout)
 
       implicit none
 
+c     Call variables
+      
       real(8), intent(in) :: vxmom(0:,0:,:)
       real(8), intent(in),optional :: vxmom_given(0:,0:,:)
+      integer,optional :: iout
 
+c     Local variables
+      
       integer :: bcs(6,n_sp)
       integer :: ci(9),ipcl,numpcles,numspcs
 
@@ -3649,6 +3670,12 @@ c     ######################################################################
 
 c     Begin program
 
+      if (PRESENT(iout)) then
+        iiout = iout
+      else
+        iiout = 0   !no output
+      endif
+      
       if (associated(Jpx)) then
         if (maxval(abs(Jpx(:,:,:)))==0d0
      .    .and.(.not.PRESENT(vxmom_given))) return
@@ -3696,7 +3723,6 @@ c     Solve 2D mass matrix problem
       where (bcs == pREF) bcs = NEU
       where (bcs == pOPN) bcs = DIR
 
-      iiout = 0 !No output
       call cSolver(gpicdef,numspcs,nnl,rr,sol,bcs
      .            ,1,iiout,0,massmat_mtvc,.false.
      .            ,tol           = 1d-12
@@ -3772,13 +3798,18 @@ c     Assign particle drift velocity vz (Stardard curvilinear convention, i.e., 
 
 c     find_pcle_drift_velocity_y (vy only)
 c     ######################################################################
-      subroutine find_pcle_drift_velocity_y(vymom,vymom_given)
+      subroutine find_pcle_drift_velocity_y(vymom,vymom_given,iout)
 
       implicit none
 
+c     Call variables
+
       real(8), intent(in) :: vymom(0:,0:,:)
       real(8), intent(in),optional :: vymom_given(0:,0:,:)
+      integer,optional :: iout
 
+c     Local variables
+      
       integer :: bcs(6,n_sp)
       integer :: ci(9),ipcl,numpcles,numspcs
 
@@ -3794,6 +3825,12 @@ c     ######################################################################
 
 c     Begin program
 
+      if (PRESENT(iout)) then
+        iiout = iout
+      else
+        iiout = 0   !no output
+      endif
+      
       if (associated(Jpy)) then
         if (maxval(abs(Jpy(:,:,:)))==0d0
      .    .and.(.not.PRESENT(vymom_given))) return
@@ -3841,7 +3878,6 @@ c     Solve 2D mass matrix problem
       where (bcs == pREF) bcs = NEU
       where (bcs == pOPN) bcs = DIR
 
-      iiout = 0 !No output
       call cSolver(gpicdef,numspcs,nnl,rr,sol,bcs
      .            ,1,iiout,0,massmat_mtvc,.false.
      .            ,tol           = 1d-12
@@ -5709,7 +5745,7 @@ c     End program
 
 c     plotPDF_xv
 c     ##################################################################
-      subroutine plotPDF_xv(nv,label,init,xdraw,v_min,v_max) 
+      subroutine plotPDF_xv(nv,label,init,xdraw,v_min,v_max,charge) 
 
 c     ------------------------------------------------------------------
 c     Accumulates particles on mesh, returning result in mesh array garr.
@@ -5726,6 +5762,7 @@ c     Call variables
       logical :: init,xdraw
 
       real(8),optional :: v_min,v_max
+      logical,optional :: charge
       
 c     Local variables
 
@@ -5736,14 +5773,26 @@ c     Local variables
 
       character(100) :: suffix
 
+      logical :: chrg
+
 c     Begin program
 
       call get_domain_limits(xmin,xmax,ymin,ymax,zmin,zmax)
 
       call get_global_grid_size(nxg,nyg,nzg)
 
+      if (PRESENT(charge)) then
+        chrg = charge
+      else
+        chrg = .false.
+      endif
+
       if (my_rank_pic == 0) then
-        write (*,*) 'Dumping PDFs...'
+        if (chrg) then
+          write (*,*) 'Dumping charge PDFs...'
+        else
+          write (*,*) 'Dumping particle PDFs...'
+        endif
       endif
 
 c     Gather 1d-1v PDF
@@ -5758,6 +5807,8 @@ c     Gather 1d-1v PDF
 
         if (ierr == 1) cycle
 
+        if (chrg) garr = garr*spcs(isp)%q
+        
         !Dump contour plots
         if (my_rank_pic == 0) then
           suffix = trim(label)//'-sp'//trim(int2char(isp))
@@ -5902,7 +5953,7 @@ cc            write (funit,*)
      .          ,access='append')
           endif
 
-          write (funit,'(a,1pe9.3)') "time=",time
+          write (funit,'(a,1pe10.3)') "time=",time
           do iv=1,nv
             write (funit,*) vm(iv),f0(iv)
           enddo

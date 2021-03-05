@@ -1,8 +1,13 @@
 # create target 3dplot and add sources in 3dplot folder
 add_library(
-  3dplot STATIC
-  "3dplot.F" "ADIOS_graphics_mod.F" "graphics_mod.F" "acc_test_mod.F"
-  "HDF5_graphics_mod.F" "xdraw_graphics_mod.F"
+    3dplot STATIC
+    "3dplot.F"
+    "ADIOS_graphics_mod.F"
+    "ADIOS2_graphics_mod.F90"
+    "graphics_mod.F"
+    "acc_test_mod.F"
+    "HDF5_graphics_mod.F"
+    "xdraw_graphics_mod.F"
 )
 # set dependencies
 target_link_libraries(3dplot driver_setup)

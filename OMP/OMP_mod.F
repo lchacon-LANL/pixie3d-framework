@@ -6,8 +6,8 @@ c ######################################################################
       use omp_lib
 #endif
 
-      integer :: thr_tot=-1,thr_num=-1,ilup=0
-!$OMP THREADPRIVATE(thr_tot,thr_num,ilup)
+      integer :: thr_tot=-1,thr_id=-1,ilup=0
+!$OMP THREADPRIVATE(thr_tot,thr_id,ilup)
       integer :: itot
 !$OMP THREADPRIVATE(itot)
   
@@ -42,12 +42,12 @@ c     Begin program
         endif
 
         if (PRESENT(thrnum)) then
-          thr_num = thrnum
+          thr_id = thrnum
         else
 #ifdef _OPENMP
-          thr_num = omp_get_thread_num()
+          thr_id = omp_get_thread_num()
 #endif
-          thr_num = max(thr_num,0)
+          thr_id = max(thr_id,0)
         endif
 
       end subroutine set_omp_thread_id
@@ -66,46 +66,48 @@ c     Local variables
 
 c     Begin program
 
+        if (.not.is_omp_thread_id()) call set_omp_thread_id
+
         thrtot = thr_tot
-        thrnum = thr_num
+        thrnum = thr_id
 
       end subroutine get_omp_thread_id
 
-c     check_omp_thread_id
+c     is_omp_thread_id
 c     ###############################################################
-      subroutine check_omp_thread_id()
+      function is_omp_thread_id() result(is_omp)
 
         implicit none
 
-        if (thr_tot < 0 .or. thr_num < 0) then
-          write (*,*) "Thread ID not initialized"
-          write (*,*) "Aborting"
-          stop
-        endif
+        logical :: is_omp
+
+        is_omp = (thr_tot > 0 .and. thr_id > 0)
         
-      end subroutine check_omp_thread_id
+      end function is_omp_thread_id
 
 c     check_omp_numthreads
 c     ###############################################################
-      subroutine check_omp_numthreads(io)
+      subroutine check_omp_numthreads(io,thrtot)
     
         implicit none
 
 c     Global variables
 
         logical :: io
+        integer,INTENT(OUT),optional :: thrtot
 
 c     Local variables
 
-        integer,save :: thr_tot
-!$OMP THREADPRIVATE(thr_tot)
+        integer :: thr_tot
         integer :: omp_get_num_threads
 
 c     Begin program
 
 #ifdef _OPENMP
-!$omp parallel
+!$omp parallel 
+!$omp critical
         thr_tot = omp_get_num_threads()
+!$omp end critical
 !$omp end parallel
 #else
         thr_tot = 1
@@ -122,6 +124,8 @@ c     Begin program
             write (*,*)          '******************'
           endif
         endif
+
+        if (PRESENT(thrtot)) thrtot = thr_tot
 
       end subroutine check_omp_numthreads
 

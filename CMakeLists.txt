@@ -81,6 +81,24 @@ function(framework_option option_name description default)
   endif()
 endfunction()
 
+# function if option is available and if not, turn off
+function(framework_dependent_option option_name description default condition disabled_default)
+  # options are only available, if this is not includes as a subproject,
+  # otherwise the app has to set these
+  if(NOT subproject)
+    # create option
+    cmake_dependent_option(${option_name} ${description} ${default} ${condition} ${disabled_default})
+
+    # check if option is defined by main project
+  elseif(NOT DEFINED ${option_name})
+    # default option to off
+    set(${option_name}
+        ${disabled_default}
+        PARENT_SCOPE
+    )
+  endif()
+endfunction()
+
 framework_option(USE_OPENMP "Use OpenMP for shared memory parallelization" OFF)
 framework_option(USE_PETSc "Enable parallelization using PETSc" OFF)
 framework_option(USE_SPRNG "Use SPRNG5 random number generator" OFF)
@@ -95,13 +113,12 @@ framework_option(USE_HDF5 "Use HDF5 libraries" OFF)
 framework_option(USE_ARPACK "Use ARPACK libraries" OFF)
 framework_option(USE_SAMRAI "Use SAMRAI" OFF)
 framework_option(
-  USE_Werror "Turns all warnings into errors, good to fix errors" OFF
+    USE_Werror "Turns all warnings into errors, good to fix errors" ON
 )
 
+framework_dependent_option(USE_ADIOS2 "Enable ADIOS2 io library" ON "USE_PETSc" OFF)
 # adios is only available if PETSc is enabled
-cmake_dependent_option(
-  USE_ADIOS "Enable ADIOS io library" ON "USE_PETSc;NOT subproject" OFF
-)
+framework_dependent_option(USE_ADIOS "Enable ADIOS io library" OFF "USE_PETSc;NOT USE_ADIOS2" OFF)
 
 # apply options to dependencies target
 # ##############################################################################
@@ -272,6 +289,31 @@ endif()
 
 # other packages
 # ##############################################################################
+# adios2
+if(USE_ADIOS2)
+    message(STATUS "Enabling ADIOS 2")
+
+    find_package(ADIOS2 REQUIRED)
+    
+    # check for parallel
+    if (USE_PETSc)
+        # add ADIOS MPI to interface
+        target_link_libraries(dependencies INTERFACE adios2::fortran_mpi)
+        # add compiler flags
+        target_compile_definitions(
+            dependencies INTERFACE "ADIOS2" "ADIOS2_VER=${ADIOS2_VERSION}"
+                                 "ADIOS2_FILE=\"record-${ADIOS2_VERSION}.bp\""
+            )
+
+    else()
+        # add ADIOS serial to interface, no flags, since framework does not 
+        # support serial version at the moment
+        target_link_libraries(dependencies INTERFACE adios2::fortran)
+
+    endif()
+
+endif()
+
 # adios
 if(USE_ADIOS)
   message(STATUS "Enabling ADIOS")

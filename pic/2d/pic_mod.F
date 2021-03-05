@@ -31,7 +31,7 @@ c     Call variables
       real(8),intent(out),optional :: cm(3),pm(3),cm_exch(3)
 
       integer(8) :: pit_sum,psh_sum,pst_sum,pitmax,pstmax,ntot_pcles
-
+      
 c     Local variables
 
       integer :: ipc,isp,i0(_Npg),j0(_Npg),i(_Npg),j(_Npg)
@@ -55,9 +55,9 @@ c     Local variables
      .              ,lacc(9),gacc(9)
 
       real(_prec) :: dtv,dtx,idtx
-      real(8) :: ihx,ihy,ihz
+      real(8)     :: ihx,ihy,ihz
 
-      integer(8) :: liacc(4),giacc(4)
+      integer(8)  :: liacc(4),giacc(4)
       
       type(particle) :: pcle_nu
 
@@ -130,6 +130,7 @@ c     Move particles
            pcle_nu%x_n   = spcs(isp)%pcles(ipc)%x_n
            pcle_nu%v_n   = spcs(isp)%pcles(ipc)%v_n
            pcle_nu%w_n   = spcs(isp)%pcles(ipc)%w_n
+           pcle_nu%w_0   = spcs(isp)%pcles(ipc)%w_0
 
            it = 0
 
@@ -138,7 +139,7 @@ c     Move particles
 #endif
            dtp = dtx
 
-           do while(maxval(dtp)>0)
+           do while(maxval(abs(dtp))>0)
              it = it+1
 
              !Perform pcle substep
@@ -412,7 +413,7 @@ c     End program
 c     ACC_CN_incell_offset
 c     ##################################################################
       subroutine ACC_CN_incell_offset (q_m,pcle_nu,pcle,dt,dtp,dt_sub
-     $                                ,DtA,B0,A,phi,dx,substeps,it)
+     .                                ,DtA,B0,A,phi,dx,substeps,it)
 
       implicit none
       
@@ -445,11 +446,10 @@ c     Local variables
 
       real(_prec) :: am(_Npg,_Dim)
 
-      real(_prec) :: x_k(_Npg),x_nh(_Npg),y_nh(_Npg),d_err(_Npg)
-      real(_prec) :: dx_k(_Npg,3),vh_k(_Npg,3),dx_err
+      real(_prec) :: xh(_Npg,3),dx_k(_Npg,3),dx_err,d_err(_Npg)
       
       real(_prec) :: ac0(_Npg,3),v0curv(_Npg,3),vh(_Npg,3),vhes(_Npg,3)
-     $              ,vhcurv(_Npg,3)
+     $              ,vhcurv(_Npg,3),vh_k(_Npg,3)
 
       real(_prec) :: Omegac(_Npg),omb(_Npg),qm(_Npg)
      $              ,Bmax(_Npg),vdotB(_Npg)
@@ -461,11 +461,11 @@ c     Local variables
       real(_prec) :: DtA_1 (_Npg,2,3),DtA_2 (_Npg,3,2),DtA_3 (_Npg,3,3)
       real(_prec) :: A_1   (_Npg,2,3),A_2   (_Npg,3,2),A_3   (_Npg,3,3)
       real(_prec) :: E_1   (_Npg,2,3),E_2   (_Npg,3,2),E_3   (_Npg,3,3)
+      real(_prec) :: phi_loc(_Npg,3,3)
 
-      real(_prec) :: phi_loc(_Npg,3,3),xnp_loc(_Npg,3),vnp_loc(_Npg,3)
-      real(_prec) :: x0_loc(_Npg,3),v0_loc(_Npg,3),wp_loc(_Npg)
-      real(_prec) :: x0p(_Npg),y0p(_Npg)
-      real(_prec) :: Sx2_o(_Npg,3),Sy2_o(_Npg,3)
+      real(_prec) :: xnp_loc(_Npg,3),vnp_loc(_Npg,3)
+      real(_prec) :: xn_loc (_Npg,3),vn_loc (_Npg,3)
+      real(_prec) :: wn_loc(_Npg),w0_loc(_Npg),wnp_loc(_Npg),srcp(_Npg)
       real(_prec) :: dteq0(_Npg)
 
 c     Begin program
@@ -482,9 +482,10 @@ c     Initialize local registers
 
       call xform_pcle_idx(pcle_nu%ijk_n,nxg,i0,j0)
 
-      x0_loc = pcle_nu%x_n
-      v0_loc = pcle_nu%v_n
-      wp_loc = pcle_nu%w_n
+      xn_loc = pcle_nu%x_n
+      vn_loc = pcle_nu%v_n
+      wn_loc = pcle_nu%w_n
+      w0_loc = pcle_nu%w_0   !1/f0(x0,v0)
 
 c     Also define some insets of arrays for later use (C. Mikida)
 
@@ -515,7 +516,7 @@ c     Estimate sub-time-step
 
 c     Initialize Picard
 
-      call initialize_it(v0_loc,dt_sub,dx)
+      call initialize_it(vn_loc,dt_sub,dx)
 
       it=0
 
@@ -527,10 +528,10 @@ c     Initialize Picard
         vh_k = vh
         dx_k = dx
 
-        substeps = substeps + _Npg
-
+        substeps = substeps + _Npg !count(dt_sub > 1d-14) 
+        
         !Perform Boris push
-        call Boris_solve(it,x0_loc,v0_loc,dx,vh,dt_sub)
+        call Boris_solve(it,xn_loc,vn_loc,dx,vh,dt_sub)
 
         !Check convergence (very expensive!!!)
         if (mod(it,2) /= 0) cycle  !Check everyother iteration
@@ -562,15 +563,24 @@ c$$$     $           +sum(abs(vh-vh_k)))/(2*_Npg)
       
 c     Update particle quantities
 
-      vnp_loc = v0_loc + 2d0*(vh - v0_loc) !2d0*vh - v0
-      xnp_loc = x0_loc + dx
+      vnp_loc = vn_loc + 2d0*(vh - vn_loc) !2d0*vh - vn_loc
+      xnp_loc = xn_loc + dx
+
+#if defined(PIC_VERIF)
+      xh = xn_loc + dx*0.5
+      call pic_wgt_src(_Npg,xh,vh,srcp)
+      wnp_loc = wn_loc + dt_sub*srcp*w0_loc
+cc      write (*,*) w0_loc
+#else
+      wnp_loc = wn_loc
+#endif
 
       inp_loc = i0
       jnp_loc = j0
 
 c     Cell crossing and particle b.c.
 
-      call cell_crossing(dx,xnp_loc,vnp_loc,inp_loc,jnp_loc,wp_loc)
+      call cell_crossing(dx,xnp_loc,vnp_loc,inp_loc,jnp_loc,wnp_loc)
 
 c     Back to the global registers now:
 
@@ -578,7 +588,7 @@ c     Back to the global registers now:
 
       pcle%v_np = vnp_loc
       pcle%x_np = xnp_loc
-      pcle%w_np = wp_loc
+      pcle%w_np = wnp_loc
 
 c     End program
 
@@ -607,11 +617,11 @@ c     Find dx
       if (no_map) then
         vhcurv = vh
       else
-        vhcurv = find_vcurv(i0,j0,x0_loc,vh)
+        vhcurv = find_vcurv(i0,j0,xn_loc,vh)
 
 c WARNING: CHRISTOFFEL SYMBOL NOT IMPLEMENTED IN 3D.
 
-c$$$           vhcurv = find_vcurv(i0,j0,x0_loc,vh,gamma=Chrtof2)
+c$$$           vhcurv = find_vcurv(i0,j0,xn_loc,vh,gamma=Chrtof2)
 c$$$           ainert(:,:) = 0d0
 c$$$
 c$$$           do i=1,3
@@ -627,11 +637,11 @@ c$$$           end do
 
       vhcurv_inv = 1d0/(vhcurv + 1d-44)
 
-      dxl(:,1) =   -x0_loc(:,1)
-      dxr(:,1) = hx-x0_loc(:,1)
+      dxl(:,1) =   -xn_loc(:,1)
+      dxr(:,1) = hx-xn_loc(:,1)
             
-      dxl(:,2) =   -x0_loc(:,2)
-      dxr(:,2) = hy-x0_loc(:,2)
+      dxl(:,2) =   -xn_loc(:,2)
+      dxr(:,2) = hy-xn_loc(:,2)
 
       dts = min(dts
      .            ,max((dxl(:,1)-eps2)*vhcurv_inv(:,1)
@@ -646,10 +656,10 @@ c$$$           end do
 c     Guess for dx error
 
 c$$$      if (no_map) then
-c$$$        call scatter_fields_nomap(x0_loc,dteq0,dx,A_1,A_2,A_3
+c$$$        call scatter_fields_nomap(xn_loc,dteq0,dx,A_1,A_2,A_3
 c$$$     $                           ,dtA_1,dtA_2,dtA_3,Ep,Bp)
 c$$$      else
-c$$$        call scatter_fields_curv (x0_loc,dteq0,dx,A_1,A_2,A_3
+c$$$        call scatter_fields_curv (xn_loc,dteq0,dx,A_1,A_2,A_3
 c$$$     $                           ,dtA_1,dtA_2,dtA_3,Ep,Bp)
 c$$$      endif
 c$$$
@@ -699,17 +709,17 @@ c     Logical variables
 
 c     Begin program
 
-        dts = 1d-8     !Test timestep to estimate qtys
+        dts = 1d-8*sign(1d0,dt_sub)     !Test timestep to estimate qtys
 
 c     Scatter fields
 
         dx = 0d0
 
         if (no_map) then
-          call scatter_fields_nomap(x0_loc,dteq0,dx,A_1,A_2,A_3
+          call scatter_fields_nomap(xn_loc,dteq0,dx,A_1,A_2,A_3
      $                             ,dtA_1,dtA_2,dtA_3,Ep,Bp)
         else
-          call scatter_fields_curv (x0_loc,dteq0,dx,A_1,A_2,A_3
+          call scatter_fields_curv (xn_loc,dteq0,dx,A_1,A_2,A_3
      $                             ,dtA_1,dtA_2,dtA_3,Ep,Bp)
         endif
 
@@ -724,12 +734,12 @@ c     Cyclotron freq.
         Omegac = qm * Bmax
         Omegac = abs(Omegac) + 1d-44  !careful
         omb = 1d0/Omegac
-        dt_sub = min(dt_sub,dt_coeff*omb)
+        dt_sub = min(abs(dt_sub),dt_coeff*omb)*sign(1d0,dt_sub)
 #endif
 
 c     Initial acceleration
 
-        vh = v0_loc
+        vh = vn_loc
 
         !VECTOR SIMD
         do i=1,_Npg
@@ -743,7 +753,7 @@ c     Test for dts (presumably no cell-crossing with a small timestep)
         if (no_map) then
            vhcurv = vh
         else
-           vhcurv = find_vcurv(i0,j0,x0_loc,vh)
+           vhcurv = find_vcurv(i0,j0,xn_loc,vh)
         endif
         v0curv = vhcurv
 
@@ -752,18 +762,18 @@ c     Test for dts (presumably no cell-crossing with a small timestep)
         dx(:,3) = dts*vhcurv(:,3)
 
         if (no_map) then
-          call scatter_fields_nomap(x0_loc,dts,dx,A_1,A_2,A_3
+          call scatter_fields_nomap(xn_loc,dts,dx,A_1,A_2,A_3
      $                             ,dtA_1,dtA_2,dtA_3,Ep,Bp) !mid-point
         else
-          call scatter_fields_curv (x0_loc,dts,dx,A_1,A_2,A_3
+          call scatter_fields_curv (xn_loc,dts,dx,A_1,A_2,A_3
      $                             ,dtA_1,dtA_2,dtA_3,Ep,Bp) !mid-point
         endif
         
         !Velocity update
         qmdth = qm*dts*0.5d0
-        vhes(:,1) = v0_loc(:,1) + qmdth*Ep(:,1)
-        vhes(:,2) = v0_loc(:,2) + qmdth*Ep(:,2)
-        vhes(:,3) = v0_loc(:,3) + qmdth*Ep(:,3)
+        vhes(:,1) = vn_loc(:,1) + qmdth*Ep(:,1)
+        vhes(:,2) = vn_loc(:,2) + qmdth*Ep(:,2)
+        vhes(:,3) = vn_loc(:,3) + qmdth*Ep(:,3)
 
         !VECTOR SIMD
         do i=1,_Npg
@@ -797,8 +807,9 @@ c     Test for dts (presumably no cell-crossing with a small timestep)
 #endif
         end do
 
-        dt_sub = min(dt_sub,(6d0*xtoll*dts/(anup+1d-30*dts))
-     $                      **(0.333333333333333d0))
+        dt_sub = min(abs(dt_sub)
+     .       ,(6d0*xtoll*abs(dts)/(anup+1d-30*abs(dts)))
+     $                      **(0.333333333333333d0))*sign(1d0,dts)
 
       end subroutine estimate_dtp
 
@@ -819,11 +830,13 @@ c     Call variables
 c     Logical variables
 
         real(_prec) :: vhes(_Npg,3),vhcurv(_Npg,3),vhcurv_inv(_Npg,3)
-        real(_prec) :: qmdth(_Npg),iDenom(_Npg),dtb(_Npg,3)
+        real(_prec) :: qmdth(_Npg),iDenom(_Npg),dtb(_Npg,3),sgn(_Npg)
         real(_prec) :: xp_vhcurv(_Npg,3)
 
 c     Begin program
 
+        sgn = sign(1d0,dt_sub)
+        
         if (no_map) then
           call scatter_fields_nomap(x0,dt_sub,dx,A_1,A_2,A_3
      $                           ,dtA_1,dtA_2,dtA_3,Ep,Bp)
@@ -880,9 +893,9 @@ c     Begin program
              else
                if(it<5) then  !This branch needs to be taken out of the pcle loop!
                  vhcurv_inv(i,1) = 1d0/vhcurv(i,1)
-                 dtb(i,1) = min(dt_sub(i),
-     .              max((dxl(i,1)-eps)*vhcurv_inv(i,1)
-     .                 ,(dxr(i,1)+eps)*vhcurv_inv(i,1)))
+                 dtb(i,1) = min(dt_sub(i)*sgn(i),
+     .             max((dxl(i,1)-eps)*vhcurv_inv(i,1)*sgn(i)
+     .                ,(dxr(i,1)+eps)*vhcurv_inv(i,1)*sgn(i)))*sgn(i)
                else if((dx(i,1)<dxl(i,1)-eps2)
      .             .or. dx(i,1)>dxr(i,1)+eps2) then
                  dtb(i,1) = 0.5d0*dtb(i,1)
@@ -900,9 +913,9 @@ c     Begin program
              else 
                if(it<5) then  !This branch needs to be taken out of the pcle loop!
                  vhcurv_inv(i,2) = 1d0/vhcurv(i,2)
-                 dtb(i,2) = min(dt_sub(i),
-     .              max((dxl(i,2)-eps)*vhcurv_inv(i,2)
-     .                 ,(dxr(i,2)+eps)*vhcurv_inv(i,2)))
+                 dtb(i,2) = min(dt_sub(i)*sgn(i),
+     .             max((dxl(i,2)-eps)*vhcurv_inv(i,2)*sgn(i)
+     .                ,(dxr(i,2)+eps)*vhcurv_inv(i,2)*sgn(i)))*sgn(i)
                else if(dx(i,2)<dxl(i,2)-eps2 
      .            .or. dx(i,2)>dxr(i,2)+eps2) then
                  dtb(i,2) = 0.5d0*dtb(i,2)
@@ -910,7 +923,8 @@ c     Begin program
              end if
            end if
 
-           dt_sub(i) = min(dt_sub(i),dtb(i,1),dtb(i,2))
+           dt_sub(i) = min(abs(dt_sub(i)),abs(dtb(i,1)),abs(dtb(i,2)))
+           dt_sub(i) = dt_sub(i)*sgn(i)
  
         end do
 

@@ -8,58 +8,10 @@
 #
 # NOTE used by sourcing: source path/to/load_environment <debug|release|profile>
 
-
-# default compiler version
-DEFAULT_GCC=gcc/8.3.0
-DEFAULT_INTEL=intel/19.0.4
-
-# default settings
-BUILD_TYPE=debug
-COMPILER=$DEFAULT_GCC
-
-# passing arguments
-for arg in "$@"
-do
-    # convert to lower case
-    arg=$(echo "$arg" | tr '[:upper:]' '[:lower:]')
-
-    case $arg in
-        # build types
-        debug)
-            BUILD_TYPE=debug
-            shift
-            ;;
-        release)
-            BUILD_TYPE=release
-            shift
-            ;;
-
-        # compilers
-        gcc) # default gcc
-            COMILER=$DEFAULT_GCC
-            shift
-            ;;
-        gcc*) # other gcc version
-            COMPILER=$arg
-            shift
-            ;;
-
-        intel) # default intel
-            COMPILER=$DEFAULT_INTEL
-            shift
-            ;;
-        intel*) # other intel version
-            COMPILER=$arg
-            shift
-            ;;
-
-        *)
-            echo "Unrecognized argument: $arg"
-            shift
-            ;;
-    esac # $arg
-done # $@
-
+# get script folder
+script_folder="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+# process arguments, we will take the first ones for each
+source $script_folder/arguments $@
 
 # remove old modules
 module purge
@@ -92,18 +44,30 @@ else
         return 1
 fi
 
+# set petsc option
+if [[ $PARALLELIZATION == "petsc" ]]; then
+    CMAKE_USE_PETSc=ON
+elif [[ $PARALLELIZATION == "serial" ]]; then
+    CMAKE_USE_PETSc=OFF
+else
+        echo "Unsupported parallelization type $PARALLELIZATION"
+        return 1
+fi
+
 # make compiler string ok for folder names
 COMPILER="${COMPILER//\//_}"
 
 # export variables
 export MACHINE
 export COMPILER
+export PARALLELIZATION
 export BUILD_TYPE
-export LIB_INSTALL_DIR=/usr/projects/tbiifp/env/$MACHINE/$COMPILER/$BUILD_TYPE
+export LIB_INSTALL_DIR=/usr/projects/tbiifp/env/$MACHINE/$COMPILER/$PARALLELIZATION/$BUILD_TYPE
 
 # create cmake command
 export CMAKE_COMMAND="cmake -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE \
                             -DCMAKE_PREFIX_PATH=$LIB_INSTALL_DIR \
+                            -DUSE_PETSc=$CMAKE_USE_PETSc \
                             -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=gold"
 
 # define alias for cmake

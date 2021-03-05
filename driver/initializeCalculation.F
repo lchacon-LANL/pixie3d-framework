@@ -32,7 +32,7 @@ c Local variables
 
       integer :: mgcf,mgcs
 
-      logical :: petsc_flg
+      logical :: petsc_flg,petsc_flg2
      .          ,bc_debg=.false.
      .          ,mg_coarse=.true.
 
@@ -92,6 +92,9 @@ c Read PETSc runtime options
       call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-ilevel',ilevel
      .                       ,petsc_flg,ierr)
 
+      call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-dt',dt
+     .                        ,petsc_flg,ierr)
+
       call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-numtime',numtime
      .                       ,petsc_flg,ierr)
       if (petsc_flg) tmax = 0d0
@@ -108,11 +111,15 @@ c Read PETSc runtime options
      .                        ,petsc_flg,ierr)
       if (petsc_flg) ndstep = 0
 
+      call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-adapt_dt'
+     .                         ,ts_adapt_dt,petsc_flg,ierr)
+
       call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-restart'
-     .                         ,ts_restart,petsc_flg,ierr)
+     .                         ,ts_restart,petsc_flg2,ierr)
 
       call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-trestart',trestart
-     .                        ,ts_restart,ierr)
+     .                        ,petsc_flg,ierr)
+      if (petsc_flg.and.(.not.petsc_flg2)) ts_restart = .true.
 
       call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-cpu_quota',quota
      .                        ,petsc_flg,ierr)
@@ -419,7 +426,7 @@ c     Read files
 
         ierr = readRecordFile(ufile,itime,time,dt,gammat,vmed)
 
-        if(switch_dumpfile(itime_old,itime,ufile)) then
+        if(ierr==0.and.switch_dumpfile(itime_old,itime,ufile)) then
           ierr = readRecordFile(ufile,itime,time,dt,gammat,vmed)
         endif
 
