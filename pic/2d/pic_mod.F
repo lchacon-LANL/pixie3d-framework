@@ -2672,9 +2672,9 @@ c$$$      enddo
       
       end subroutine pic_mover_2d_vavg_gy
 
-c     pic_mover_2d_vavg_luis
+c     pic_mover_2d_vavg
 c     ##################################################################
-      subroutine pic_mover_2d_vavg_luis(dt,A,phi,DtA,B0,pit_sum,psh_sum
+      subroutine pic_mover_2d_vavg(dt,A,phi,DtA,B0,pit_sum,psh_sum
      .  ,pst_sum,pitmax,pstmax,ntot_pcles,timer,tfx,cm,pm,cm_exch)
         
       implicit none
@@ -2766,7 +2766,7 @@ c     Move particles
            pcle_nu%v_n   = spcs(isp)%pcles(ipc)%v_n
 
            !Picard iteration loop (converges on vh)
-           do pit = 1,10 !pitmax
+           do pit = 1,pitmax
              pcle_nu%ijk_n = spcs(isp)%pcles(ipc)%ijk_n
              pcle_nu%x_n   = spcs(isp)%pcles(ipc)%x_n
              pcle_nu%w_n   = spcs(isp)%pcles(ipc)%w_n
@@ -3263,7 +3263,7 @@ c     Begin program
 
       end subroutine gather_new_time_moments
       
-      end subroutine pic_mover_2d_vavg_luis
+      end subroutine pic_mover_2d_vavg
       
 c     update_pcle_pos
 c     ##################################################################
@@ -3318,7 +3318,6 @@ c     Initialize local registers
 
       xn_loc = pcle_nu%x_n
       wn_loc = pcle_nu%w_n
-
 
 c     Also define some insets of arrays for later use (C. Mikida)
 
@@ -3375,9 +3374,8 @@ c     Update particle quantities (including cell crossing)
         end do
       end do
       call cell_crossing_vavg(dx,xnp_loc,vh_loc,inp_loc,jnp_loc,wn_loc
-     $     ,ref_tag,hit_wall)
+     $                       ,ref_tag,hit_wall)
 
-      
 c     Update particle registers (except new-time velocity)
 
       pcle_nu%ijk_np = inp_loc + nxg*(jnp_loc - 1)
@@ -4448,7 +4446,7 @@ c$$$     $                   )
      $                   ,cm_exch=cm_exch  !Canonical momenta exchange diagnostic (output)
      $                   )
       case("av2")
-        call pic_mover_2d_vavg_luis(dt
+        call pic_mover_2d_vavg(dt
      $                   ,A
      $                   ,Phi 
      $                   ,DtA
