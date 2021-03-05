@@ -113,7 +113,7 @@ framework_option(USE_HDF5 "Use HDF5 libraries" OFF)
 framework_option(USE_ARPACK "Use ARPACK libraries" OFF)
 framework_option(USE_SAMRAI "Use SAMRAI" OFF)
 framework_option(
-  USE_Werror "Turns all warnings into errors, good to fix errors" OFF
+    USE_Werror "Turns all warnings into errors, good to fix errors" ON
 )
 
 framework_dependent_option(USE_ADIOS2 "Enable ADIOS2 io library" ON "USE_PETSc" OFF)
