@@ -5,6 +5,8 @@ add_library(
 )
 # set dependencies
 target_link_libraries(math io)
+# set legacy standard because of deleted features FIXME
+target_compile_options(math PRIVATE -std=legacy)
 
 # do standard actions on target
 init_target(math)
