@@ -16,7 +16,7 @@ SUBDIRS = $(COMMONDIR)/math\
 regularization_aa_mod.o: aamem_utilities_mod.o
 gm_utils_mod.o: regularization_aa_mod.o
 gs_kmeans_mod.o: gm_utils_mod.o
-kmeans_mod.o: gm_utils_mod.o
+kmeans_mod.o: gs_kmeans_mod.o
 gm_init_mod.o: kmeans_mod.o
 EM_utils_mod.o: gm_init_mod.o
 EM_mod.o: EM_utils_mod.o
