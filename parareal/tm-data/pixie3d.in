@@ -1,0 +1,127 @@
+ &setup
+    nxd      = 64
+    nyd      = 64
+    nzd      = 1
+
+    numerical_grid = f
+
+    xmax     = 1.
+    ymax     = 4.
+    zmax     = 1.
+
+    bcs      = 'def','def','per','per','per','per'
+
+    coords   = 'car'
+    gparams  = -0.05,0d0,0d0,0d0,0d0
+ /
+
+ &phys
+    equil    = 'tmcar'
+
+    eta      = 1d-2
+    nu       = 1d-3
+    dd       = 0d-1
+    chi      = 0d-2
+
+    dlambda  = .2
+    rshear   = 1.
+    vperflow = 0.
+
+    adiabatic  = t
+
+    nh2      = 1
+    pvy      = 1d-5
+    odd      = t,f,f
+ /
+
+ &fv
+    solenoidal = t
+    nc_eom_f   = f
+    nc_eom_v   = f
+    use_p_eom  = t
+ /
+
+ &ts
+    dt       = 1d-2
+    tmax     = 1d-1
+    dstep    = 1d-2
+
+    cnfactor = 0.5
+    sm_flag  = 0
+
+    restart  = f
+    timecorr = f
+    predictor= f
+
+    source   = t
+ /
+
+ &nks
+    iguess   = 0
+
+    maxksp   = 20
+    maxitgm  = 20
+    tolgm    = 8d-1
+    rtol     = 1d-4
+    method   = 1
+    mf_eps   = 1d-6
+
+    pc_as_solver = f
+ /
+
+ &pc
+    pc_type  = 'id'
+    pc_tol   = 1d-5
+    pc_iter  = 1
+    pc_debug = f
+
+    mg_vcyc  = 1
+    mg_ores  = 2
+    mg_oprol = 2
+
+    sm_iter  = 4
+ /
+
+ &i_o
+    ilevel   = 0
+    test     = t
+ /
+
+ &graphdef
+    sel_diag  = 2,12,15,16,17,18,19,20,21
+    sel_graph = 1,2,3,4,5,6,7,8,11
+    dplot = 1d-2
+    prof_conf = 1,'x',1,10,1
+    cont_conf = 3,'x','y',1,1,1
+ /
+
+ &advance
+   ifile1 = 'record1.bin'
+   ifile2 = 'record2.bin'
+   ifile3 = 'record3.bin'
+   ofile  = 'outfile.bin'
+   ntimelevels = 12
+ /
+
+ &c2f
+   ofile = 'pixie3d_pit_chkpnt-fine.bin'
+   ifile = 'pixie3d_pit_chkpnt-coarse.bin'
+   ntimelevels = 1
+   grid_prolongation_factor = 2
+   order = 3
+ /
+
+ &f2c
+   ifile = 'pixie3d_pit_chkpnt-fine.bin'
+   ofile = 'pixie3d_pit_chkpnt-coarse.bin'
+   ntimelevels = 1
+   grid_restriction_factor = 2
+   order = 1
+ /
+
+ &conv_tst
+   file_diag_old = 'pixie3d_pit_conv_coarse.txt'
+   file_diag_new = 'pixie3d_pit_conv_fine.txt'
+   file_conv_result = 'result.txt'
+   err_tol = 1d-5
+ /

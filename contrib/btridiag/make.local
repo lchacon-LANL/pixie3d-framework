@@ -1,0 +1,14 @@
+#Define library name
+
+LIBNAME = libbtrid.a
+LIB_PATH = lib
+
+#Define message
+
+MESSAGE = "Compiling SERIAL BLOCK TRIDIAGONAL libraries"
+
+#Define subdirectories for common code
+
+COMMONDIR = ../..
+
+SUBDIRS = 

@@ -1,0 +1,17 @@
+#Define message
+
+MESSAGE = "Compiling PARAREAL  modules"
+
+#Define subdirectories for common code
+
+COMMONDIR = ../..
+
+SUBDIRS = $(COMMONDIR)/math\
+          $(COMMONDIR)/io\
+          $(COMMONDIR)/interpolation/1d_int\
+          $(COMMONDIR)/grid\
+          $(COMMONDIR)/var_setup
+
+#Exclusions
+
+#EXCLUDE = %var_bc_mod.F %grid_bc_mod.F
