@@ -381,7 +381,7 @@ CBOTTOM_OMP!$OMP END PARALLEL
       ! and sample 'NIND' points from a Gaussian distributions with
       ! these parameters.... Output in XREF(NIND,NATT)
 
-      USE AAMEM_UTILITIES_MOD, ONLY: M33CHOLESKLY
+      USE AAMEM_UTILITIES_MOD, ONLY: MCHOLESKY
 
       IMPLICIT NONE
 
@@ -393,17 +393,10 @@ CBOTTOM_OMP!$OMP END PARALLEL
       !   Local variables
       REAL(8), PARAMETER :: PI=3.14159265358979D0
       INTEGER :: I,J,K,II,JJ
-c$$$      REAL(8) :: U1(NIND,NATT),U2(NIND,NATT),RADIUS(NIND,NATT)
-c$$$     $          ,THETA(NIND,NATT)
       REAL(8) :: L(NATT,NATT),LX(NATT)
       CHARACTER(300) :: FILENAME
 
       ! Code begins
-c$$$      CALL RANDOM_NUMBER(U1(1:NIND,1:NATT))  !Problematic with OpenMP
-c$$$      CALL RANDOM_NUMBER(U2(1:NIND,1:NATT))  !Problematic with OpenMP
-c$$$      RADIUS = SQRT(-2D0*LOG(U1))
-c$$$      THETA  = 2D0*PI*U2
-c$$$      XREF = RADIUS*SIN(THETA) ! Random normal ~ N(0,I)
       DO I=1,NATT
 CBOTTOM_OMP!$OMP PARALLEL DEFAULT(SHARED) private(J)
 CBOTTOM_OMP!$OMP DO
@@ -414,13 +407,11 @@ CBOTTOM_OMP!$OMP END DO
 CBOTTOM_OMP!$OMP END PARALLEL
       END DO
         
-c$$$      U1 = XREF ! make a copy of XREF
-c$$$      XREF = 0D0
       ! Compute the lower-triangular matrix L in the Cholesky decomp. of XVAR: 
       !     XVAR = L * L^T
-      CALL M33CHOLESKLY(XVAR,NATT,L)    ! Truong: Here, because of the implementation
-                                        ! of M33CHOLESKLY, the returned L is symmetric
-                                        ! so we need to zero-out the upper triangular part of L
+      CALL MCHOLESKY(XVAR,NATT,L)    ! Truong: Here, because of the implementation
+                                     ! of MCHOLESKY, the returned L is symmetric
+                                     ! so we need to zero-out the upper triangular part of L
       ! Zero out the upper triangular part of L:
       DO II=1,NATT
         DO JJ=II+1,NATT
