@@ -1058,10 +1058,10 @@ c     .         ,WSUM(1:NG),WTOT,ALIVE_GRP(1:NG))
         IF (ALIVE_GRP(K) .EQ. 1) THEN
           !CALL CHOLESKY_FACT(XVAR(K,:,:),NATT,LOWER_XVAR(K,:,:))
           !CALL CHOLESKY_FACT(GXVAR(K,:,:),NATT,LOWER_GXVAR(K,:,:))
-          CALL M33CHOLESKLY(XVAR(K,1:NATT,1:NATT),NATT
-     .                    ,LOWER_XVAR(K,1:NATT,1:NATT))
-          CALL M33CHOLESKLY(GXVAR(K,1:NATT,1:NATT),NATT
-     .                     ,LOWER_GXVAR(K,1:NATT,1:NATT))
+          CALL MCHOLESKY(XVAR(K,1:NATT,1:NATT),NATT
+     .                  ,LOWER_XVAR(K,1:NATT,1:NATT))
+          CALL MCHOLESKY(GXVAR(K,1:NATT,1:NATT),NATT
+     .                  ,LOWER_GXVAR(K,1:NATT,1:NATT))
           ! Truong: note that the L matrices LOWER_XVAR & LOWER_GXVAR 
           !   returned here are symmetrix of the lower-triangular matrices
           !   but in the following, we only store the lower-triangular part

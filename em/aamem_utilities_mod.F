@@ -5,7 +5,7 @@
      $    GPARAMS_TO_MOMENTS,GMOMENTS_TO_PARAMS,
      $    PRINT_GPARAMS,LOGLIKELIHOOD_IO,
      $    MONOTONICITY_DIAGNOSTIC_IO,REGULARIZED_FACTOR_IO,
-     $    KILL_GAUSS_HISTORY_IO,M33CHOLESKLY,
+     $    KILL_GAUSS_HISTORY_IO,MCHOLESKY,
      $    WRITE_SAMPLES_IO,WRITE_GPARAMS_IO
 
        CONTAINS
@@ -228,10 +228,10 @@
     
     
 !######################################################################
-!       M33CHOLESKLY
+!       MCHOLESKY
 !       Cholesky factorization for (3x3) matrix using CHOLA
 !######################################################################        
-       SUBROUTINE M33CHOLESKLY(A,N,L)
+       SUBROUTINE MCHOLESKY(A,N,L)
 
        IMPLICIT NONE
 
@@ -244,28 +244,35 @@
        !       Local variables
        INTEGER :: I,J,K
 
-       IF (N .NE. 3) THEN
-       WRITE(*,*) 'Input matrix is not a 3-by-3. 
-     $                  Should use subroutine CHOLESKY_FACT'
-       END IF
+       select case(N)
+       case(3)
+         L(:,:) = 0D0
+         L(1,1) = SQRT(A(1,1))
+         L(2,1) = A(2,1)/L(1,1)
+         L(3,1) = A(3,1)/L(1,1)
 
-       L(:,:) = 0D0
-       L(1,1) = SQRT(A(1,1))
-       L(2,1) = A(2,1)/L(1,1)
-       L(3,1) = A(3,1)/L(1,1)
+         L(1,2) = L(2,1)
+         L(2,2) = SQRT( A(2,2)-L(2,1)*L(2,1) )
+         L(3,2) = (A(3,2)-L(3,1)*L(2,1))/L(2,2)
 
-       L(1,2) = L(2,1)
-       L(2,2) = SQRT( A(2,2)-L(2,1)*L(2,1) )
-       L(3,2) = (A(3,2)-L(3,1)*L(2,1))/L(2,2)
+         L(1,3) = L(3,1)
+         L(2,3) = L(3,2)
+         L(3,3) = SQRT( A(3,3)-L(3,1)*L(3,1)-L(3,2)*L(3,2) )
+       case(2)
+         L(:,:) = 0D0
+         L(1,1) = SQRT(A(1,1))
+         L(2,1) = A(2,1)/L(1,1)
 
-       L(1,3) = L(3,1)
-       L(2,3) = L(3,2)
-       L(3,3) = SQRT( A(3,3)-L(3,1)*L(3,1)-L(3,2)*L(3,2) )
-
-       END SUBROUTINE M33CHOLESKLY
-    
-    
-    
+         L(1,2) = L(2,1)
+         L(2,2) = SQRT( A(2,2)-L(2,1)*L(2,1) )
+       case(1)
+         L(1,1) = SQRT(A(1,1))
+       case default
+         WRITE(*,*) 'Cannot factorize A in M33Cholesky'
+         STOP
+       end select
+       
+       END SUBROUTINE MCHOLESKY
     
     
        !######################################################################
