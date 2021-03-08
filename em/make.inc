@@ -8,8 +8,7 @@ COMMONDIR = ..
 
 SUBDIRS = $(COMMONDIR)/math\
 	  $(COMMONDIR)/io\
-	  $(COMMONDIR)/OMP\
-	  $(COMMONDIR)/pic/2d
+	  $(COMMONDIR)/OMP
 	  
 #Define dependencies
 
