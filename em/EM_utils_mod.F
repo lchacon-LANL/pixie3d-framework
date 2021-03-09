@@ -5,7 +5,7 @@ c     ##################################################################
       use gm_init
 
       INTEGER :: MAXSPLIT
-CTOP_OMP!$OMP THREADPRIVATE(MAXSPLIT)
+!$OMP THREADPRIVATE(MAXSPLIT)
 
 C     Constants that define array sizes at compilation time.
 

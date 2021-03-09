@@ -12,11 +12,11 @@ c     ##################################################################
 
       LOGICAL :: STD_IO=.true.                     !Whether we output to STD output
      &          ,DIAG_IO=.false.                   !Whether we output diagnostics to file
-CTOP_OMP!$OMP THREADPRIVATE(STD_IO,DIAG_IO)
+!$OMP THREADPRIVATE(STD_IO,DIAG_IO)
 
       INTEGER :: FYLENO                            !File id for GMM output file
      &          ,ML_IO                             !File id for ML output file
-CTOP_OMP!$OMP THREADPRIVATE(FYLENO,ML_IO)
+!$OMP THREADPRIVATE(FYLENO,ML_IO)
 
       contains
 

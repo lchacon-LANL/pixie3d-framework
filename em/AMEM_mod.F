@@ -11,7 +11,7 @@ c     ##################################################################
       PUBLIC :: AMEM
 
       INTEGER :: NCOV
-CTOP_OMP!$OMP THREADPRIVATE(NCOV)
+!$OMP THREADPRIVATE(NCOV)
 
       integer,private :: mpierr
 
