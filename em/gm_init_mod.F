@@ -26,9 +26,9 @@ c     ##################################################################
      &          ,KM_NG_MAX  = 10  ! max # of Gaussians
      &          ,KM_NG_ADJ  = 2   ! to avoid underestimate # of Gaussians
 
-      namelist /gmm_init/ gmm_random_init,gmm_kmeans_init
-     .                   ,gmm_gs_kmeans_multi_init,km_runs,km_ref_set
-     .                   ,km_ng_min,km_ng_max,km_ng_adj
+c$$$      namelist /gmm_init/ gmm_random_init,gmm_kmeans_init
+c$$$     .                   ,gmm_gs_kmeans_multi_init,km_runs,km_ref_set
+c$$$     .                   ,km_ng_min,km_ng_max,km_ng_adj
 
       contains
 
