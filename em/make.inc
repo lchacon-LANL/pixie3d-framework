@@ -9,7 +9,11 @@ COMMONDIR = ..
 SUBDIRS = $(COMMONDIR)/math\
 	  $(COMMONDIR)/io\
 	  $(COMMONDIR)/OMP
-	  
+
+ifndef BOPT
+  override CPPFLAGS += $(PREPROC)CGMM_OMP=""
+endif
+
 #Define dependencies
 
 regularization_aa_mod.o: aamem_utilities_mod.o
