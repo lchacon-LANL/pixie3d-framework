@@ -5,7 +5,7 @@ c     ##################################################################
       use gm_init
 
       INTEGER :: MAXSPLIT
-!$OMP THREADPRIVATE(MAXSPLIT)
+CGMM_OMP!$OMP THREADPRIVATE(MAXSPLIT)
 
 C     Constants that define array sizes at compilation time.
 
@@ -33,9 +33,6 @@ C     from the posterior probabilities W, into NG groups
 
       if (NIND == 0) return
 
-CBOTTOM_OMP!$OMP PARALLEL DEFAULT(SHARED) private(I,K,MAX,CKOUT)
-CBOTTOM_OMP!$OMP DO
-CBOTTOM_OMP!$OMP.reduction(+:XCC)
       DO I=1,NIND
         MAX=1
 
@@ -50,8 +47,6 @@ CBOTTOM_OMP!$OMP.reduction(+:XCC)
 
         IF (CKOUT.LT.0.0001) IDT(I)=0
       END DO
-CBOTTOM_OMP!$OMP END DO
-CBOTTOM_OMP!$OMP END PARALLEL
       
       END SUBROUTINE CAPART
       
@@ -142,8 +137,6 @@ c     Begin program
       
 c     Calculate multivariate density of each point for every group
 
-CBOTTOM_OMP!$OMP PARALLEL DEFAULT(SHARED) private(JJ,KK,p_ik)
-CBOTTOM_OMP!$OMP DO
       DO JJ=1,NIND              !particle
         DO KK=1,NG              !group
           !Calculate component density
@@ -156,8 +149,6 @@ CBOTTOM_OMP!$OMP DO
         END DO                  !group
         GUM(JJ) = sum(W(JJ,1:NG))
       END DO                    !particle
-CBOTTOM_OMP!$OMP END DO
-CBOTTOM_OMP!$OMP END PARALLEL
       
 C     MSTEP Compute new estimate of mixing proportion (T) for each group.
 C     Calculate sum of posterior probabilities in each group (=effective

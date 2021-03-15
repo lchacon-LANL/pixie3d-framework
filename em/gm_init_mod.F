@@ -11,10 +11,10 @@ c     ##################################################################
       REAL(8)                              :: TS
       REAL(8), DIMENSION(:  ), ALLOCATABLE :: XMUS
       REAL(8), DIMENSION(:,:), ALLOCATABLE :: XVARS
-!$OMP THREADPRIVATE(TS,XMUS,XVARS)
+CGMM_OMP!$OMP THREADPRIVATE(TS,XMUS,XVARS)
 
       INTEGER,PRIVATE :: NINDT  ! Global number of observations
-!$OMP THREADPRIVATE(NINDT)
+CGMM_OMP!$OMP THREADPRIVATE(NINDT)
 
       LOGICAL :: GMM_RANDOM_INIT=.false.           !Whether we use RANDOM GMM init (else GRP8)
      &          ,GMM_KMEANS_INIT=.false.           !Whether we use KMEANS GMM (on top of RND or GRP8)
@@ -106,19 +106,19 @@ c     Begin program
 
       if (GMM_RANDOM_INIT) then
 
-!$OMP MASTER
+CGMM_OMP!$OMP MASTER
         if (my_rank_gmm==0.and.std_io)
      .       PRINT*,"Performing RANDOM init"
-!$OMP END MASTER
+CGMM_OMP!$OMP END MASTER
 
         call GMM_INIT_RANDOM(NIND,NATT,NG,W,WSUM,X,XMU,XVAR,T)
 
       elseif (GMM_KMEANS_INIT) THEN
 
-!$OMP MASTER
+CGMM_OMP!$OMP MASTER
         if (my_rank_gmm==0.and.std_io)
      .       PRINT*,"Performing GS-Kmeans init"
-!$OMP END MASTER
+CGMM_OMP!$OMP END MASTER
 
 c      Perform KMEANS adaptive refinement
 c      Option to use GS--Multi-Kmeans initialization
@@ -152,9 +152,9 @@ c$$$     $          ,XVAR(1:NG,1:NATT,1:NATT),T(1:NG),WTOT,IDT)
 
       else
 
-!$OMP MASTER
+CGMM_OMP!$OMP MASTER
         if (my_rank_gmm==0.and.std_io) PRINT*,"Performing GRP8 init"
-!$OMP END MASTER
+CGMM_OMP!$OMP END MASTER
 
         !Default: group of eight init
         call GMM_INIT_GRP8  (NIND,NATT,NG,W,WSUM,X,XMU,XVAR,T)
@@ -331,9 +331,9 @@ c     Begin program
       end if
        
       if (my_rank_gmm == 0.and.std_io) then
-!$OMP CRITICAL
+CGMM_OMP!$OMP CRITICAL
         write (*,*) "Performing GR8 GMM initialization"
-!$OMP END CRITICAL
+CGMM_OMP!$OMP END CRITICAL
       endif
       
 c     Calculate initial Gaussian moments

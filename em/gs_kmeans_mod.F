@@ -318,14 +318,10 @@
           PRINT*,DIFF
 CC          CALL RANDOM_NUMBER(XREF(1:NIND,I)) !Problematic with OpenMP
 CC          XREF(1:NIND,I) = DIFF*XREF(1:NIND,I)+XMIN
-CBOTTOM_OMP!$OMP PARALLEL DEFAULT(SHARED) private(J)
-CBOTTOM_OMP!$OMP DO
           DO J=1,NIND
             CALL UNIF_RNG(XREF(J,I))
             XREF(J,I) = DIFF*XREF(J,I)+XMIN
           END DO
-CBOTTOM_OMP!$OMP END DO
-CBOTTOM_OMP!$OMP END PARALLEL
         END DO
       ELSE IF (METHOD .EQ. 2) THEN
         ! Generate the reference features from a uniform distribution 
@@ -350,14 +346,10 @@ CBOTTOM_OMP!$OMP END PARALLEL
           !XMIN = 0D0
 CC          CALL RANDOM_NUMBER(ZP(1:NIND,I))  !Problematic with OpenMP
 CC          ZP(1:NIND,I) = DIFF*ZP(1:NIND,I)+XMIN
-CBOTTOM_OMP!$OMP PARALLEL DEFAULT(SHARED) private(J)
-CBOTTOM_OMP!$OMP DO
           DO J=1,NIND
             CALL UNIF_RNG(ZP(J,I))
             ZP(J,I) = DIFF*ZP(J,I)+XMIN
           END DO
-CBOTTOM_OMP!$OMP END DO
-CBOTTOM_OMP!$OMP END PARALLEL
         END DO
         ! Finally, transform back via XREF = Z = ZP*V^T
         XREF = 0D0
@@ -398,13 +390,9 @@ CBOTTOM_OMP!$OMP END PARALLEL
 
       ! Code begins
       DO I=1,NATT
-CBOTTOM_OMP!$OMP PARALLEL DEFAULT(SHARED) private(J)
-CBOTTOM_OMP!$OMP DO
         DO J=1,NIND
           CALL GAUSS2(XREF(J,I))
         END DO
-CBOTTOM_OMP!$OMP END DO
-CBOTTOM_OMP!$OMP END PARALLEL
       END DO
         
       ! Compute the lower-triangular matrix L in the Cholesky decomp. of XVAR: 
@@ -420,15 +408,11 @@ CBOTTOM_OMP!$OMP END PARALLEL
       END DO
 
       !For each data point XREF(I,:), do XREF(I,:) = L*XREF(I,:) + XMU(:)
-CBOTTOM_OMP!$OMP PARALLEL DEFAULT(SHARED) private(I,LX)
-CBOTTOM_OMP!$OMP DO
       DO I=1,NIND
         LX = XREF(I,:)
         CALL DGEMV('N',NATT,NATT,1.0D0,L,NATT,LX,1,0D0,XREF(I,1:NATT),1)
         XREF(I,1:NATT) = XREF(I,1:NATT) + XMU(1:NATT)
       END DO
-CBOTTOM_OMP!$OMP END DO
-CBOTTOM_OMP!$OMP END PARALLEL
       ! On output, XREF ~ Normal(XMU,XVAR)
 
 
@@ -455,13 +439,9 @@ CBOTTOM_OMP!$OMP END PARALLEL
       XMU = 0D0
       XVAR = 0D0
     
-CBOTTOM_OMP!$OMP PARALLEL DEFAULT(SHARED) private(I)
-CBOTTOM_OMP!$OMP DO    
       DO I=1,NIND
         XMU(1:NATT) = XMU(1:NATT)+X(I,1:NATT)
       END DO
-CBOTTOM_OMP!$OMP END DO
-CBOTTOM_OMP!$OMP END PARALLEL
 #if defined(petsc)
       LSUM = XMU
       call MPI_Allreduce(lsum,XMU,NATT,MPI_DOUBLE_PRECISION
@@ -472,13 +452,9 @@ CBOTTOM_OMP!$OMP END PARALLEL
       DO J=1,NATT
         DO I=1,J
           XVAR(I,J)=0.0D0
-CBOTTOM_OMP!$OMP PARALLEL DEFAULT(SHARED) private(JJ)
-CBOTTOM_OMP!$OMP DO
           DO JJ=1,NIND
             XVAR(I,J)=XVAR(I,J)+(X(JJ,I)-XMU(I))*(X(JJ,J)-XMU(J)) 
           END DO
-CBOTTOM_OMP!$OMP END DO
-CBOTTOM_OMP!$OMP END PARALLEL
           XVAR(J,I)=XVAR(I,J)
         END DO
       END DO
@@ -840,14 +816,9 @@ CC        CALL RANDOM_NUMBER(R)
 
       SUM =0.0
       DO J=1,NATT
-CBOTTOM_OMP!$OMP PARALLEL DEFAULT(SHARED) private(JJ)
-CBOTTOM_OMP!$OMP DO
-CBOTTOM_OMP!$OMP.reduction(+:sum)
          DO JJ=1,NIND
             SUM(J)=SUM(J)+X(JJ,J)*W(JJ)
          END DO
-CBOTTOM_OMP!$OMP END DO
-CBOTTOM_OMP!$OMP END PARALLEL
       END DO    
 #if defined(petsc)
       LSUM = SUM
@@ -861,15 +832,10 @@ CBOTTOM_OMP!$OMP END PARALLEL
       XVAR=0.0
       DO J=1,NATT
         DO I=1,J
-CBOTTOM_OMP!$OMP PARALLEL DEFAULT(SHARED) private(JJ)
-CBOTTOM_OMP!$OMP DO
-CBOTTOM_OMP!$OMP.reduction(+:XVAR)
           DO JJ=1,NIND
             XVAR(I,J)=XVAR(I,J)
      .               +(X(JJ,I)-XMU(I))*(X(JJ,J)-XMU(J))*W(JJ)
           END DO
-CBOTTOM_OMP!$OMP END DO
-CBOTTOM_OMP!$OMP END PARALLEL
           XVAR(J,I)=XVAR(I,J)
         END DO
       END DO
