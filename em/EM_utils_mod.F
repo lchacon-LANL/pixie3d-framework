@@ -237,7 +237,6 @@ c     Begin program
       NG_Killed = 0
       WSUM = 0d0
 
-
       ! Make a copy of Gaussians' proportions at the current
       ! iteration before updating it for merging purposes
       T_OLD(1:NG) = T(1:NG)
@@ -263,7 +262,6 @@ c     Begin program
 C	Mixing proportion calc. by Figuireido's 2002 paper
 
         T(K) = max(WSUM(K)-NPARBY2,0d0)/(WTOT-NG_OLD*NPARBY2)
-        T(1:NG) = T(1:NG)/SUM(T(1:NG)) ! Follow Figueiredo&Jain2002
 
 C	!Weed out too-small Gaussians and/or update moments
 C	!The following IF-statement is consistent with algorithm
@@ -280,7 +278,7 @@ C	!An easier condition for killing Gaussian:
           ! need to remove the probabilities of dead component from GUM
           ! (01/28/2020)
           DO JJ=1,NIND
-            GUM(JJ)=GUM(JJ)-AL(JJ,K)
+            GUM(JJ)=abs(GUM(JJ)-AL(JJ,K))+1d-14
           END DO
 
         else
@@ -293,7 +291,7 @@ C	!An easier condition for killing Gaussian:
             K_tmp = K
           end if
           
-cc          T(1:NG) = T(1:NG)/SUM(T(1:NG)) ! Follow Figueiredo&Jain2002
+          T(1:NG) = T(1:NG)/SUM(T(1:NG)) ! Follow Figueiredo&Jain2002
 
           call update_gaussian_moments(NIND,NATT,K,X,W(:,K),DV(K_tmp)
      .                                ,XMU(K_tmp,:),XVAR(K_tmp,:,:)
