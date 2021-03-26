@@ -229,7 +229,7 @@
     
 !######################################################################
 !       MCHOLESKY
-!       Cholesky factorization for (3x3) matrix using CHOLA
+!       Cholesky factorization for square matrix using CHOLA
 !######################################################################        
        SUBROUTINE MCHOLESKY(A,N,L)
 
