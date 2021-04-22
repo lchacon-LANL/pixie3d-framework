@@ -77,8 +77,8 @@ endif()
 
 # arpack ! FIXME not tested
 # ######################################################################################################################
-generate(arpack "arpack") # find source files and create library target
-target_link_libraries(arpack) # set dependencies
+#generate(arpack "arpack") # find source files and create library target
+#target_link_libraries(arpack) # set dependencies
 
 # btridiag ! FIXME not tested
 # ######################################################################################################################

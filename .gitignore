@@ -1,11 +1,11 @@
 # files ignored by git
 
 # project folders
-contrib/*/*
+#contrib/*/*
 bin
 
 # These are created as part of make setup
-contrib/*
+em/makefile
 3dplot/makefile
 MG/makefile
 driver-petsc/makefile

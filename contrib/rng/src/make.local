@@ -1,0 +1,19 @@
+#Define message
+
+MESSAGE = "Compiling f90 RNG modules"
+
+#Define subdirectories for common code
+
+COMMONDIR = 
+
+SUBDIRS = 
+
+#Dependencies
+
+normal_mod.o: hammersley_mod.o
+
+#Specific code
+
+CPPFLAGS += 
+LIBNAME=librng.a
+LIB_PATH=../lib

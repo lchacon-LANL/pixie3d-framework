@@ -186,15 +186,20 @@ c Call variables
 
 c Local variables
 
-      integer :: ierr
+      integer :: ierr,provided
 
 c Begin program
 
 c Initialize PETSc and MPI (parallel version)
 
 #if defined(petsc)
-      call PetscInitialize(PETSC_NULL_CHARACTER,ierr)
+CGMM_OMP      call MPI_init_thread(MPI_THREAD_MULTIPLE,provided,ierr)
+CGMM_OMP      if (provided < MPI_THREAD_MULTIPLE) then
+CGMM_OMP        call pstop("DR_init","Cannot provide MPI threading requested")
+CGMM_OMP      endif
 
+      call PetscInitialize(PETSC_NULL_CHARACTER,ierr)
+      
       !Setup profiling
       call init_petsc_profile
 
