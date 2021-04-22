@@ -7017,7 +7017,7 @@ c     ####################################################################
       implicit none
 
       logical :: cov
-      integer :: order,bcnd(6:3)
+      integer :: order,bcnd(6,3)
       
       bcnd(:,1) = bcond
       bcnd(:,2) = bcond
