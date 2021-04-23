@@ -81,7 +81,7 @@ distclean: clean
 
 #Main setup targets
 
-setup: contrib_setup
+setup:
 	-@for subdir in `find . -name "make.inc" -exec dirname {} \;` ; do \
 		rm $$subdir/makefile 2>/dev/null ; \
 		ln -sf $(PWD)/Makefile $$subdir/makefile 2>/dev/null ; \
@@ -111,19 +111,10 @@ endif
 contrib: ;
 	$(MAKE) --no-print-directory -e -C contrib/lsode lib
 	$(MAKE) --no-print-directory -e -C contrib/slatec lib
-ifeq ($(ARPACK),t)
-	$(MAKE) --no-print-directory -e -C contrib/arpack PLAT=$(FC) home=$(PWD)/contrib/arpack lib
-ifdef BOPT
-	$(MAKE) --no-print-directory -e -C contrib/arpack PLAT=$(FC) home=$(PWD)/contrib/arpack plib
-endif
-endif
 	$(MAKE) --no-print-directory -e -C contrib/fpa/src lib
 	$(MAKE) --no-print-directory -e -C contrib/sdc/src lib
 	$(MAKE) --no-print-directory -e -C contrib/rng/src lib
 	$(MAKE) --no-print-directory -e -C contrib/btridiag lib
-ifeq ($(PIT),t)
-	$(MAKE) --no-print-directory -e -C contrib/parareal all	
-endif
 ifdef BOPT
 	$(MAKE) --no-print-directory -e -C contrib/ptridiag lib
 endif
@@ -131,22 +122,11 @@ endif
 contrib_clean: ;
 	@$(MAKE) -e -C contrib/lsode clean
 	@$(MAKE) -e -C contrib/slatec distclean
-ifeq ($(ARPACK),t)
-	@$(MAKE) -e -C contrib/arpack PLAT=$(FC) home=$(PWD)/contrib/arpack clean
-endif
 	@$(MAKE) -e -C contrib/fpa/src distclean
 	@$(MAKE) -e -C contrib/sdc/src distclean
-	@$(MAKE) -e -C contrib/parareal clean	
 	@$(MAKE) -e -C contrib/rng/src clean
 	@$(MAKE) -e -C contrib/btridiag clean
 	@$(MAKE) -e -C contrib/ptridiag clean
-
-contrib_setup: ;
-	-@tar xzf common_contrib.tgz
-
-contrib_pack: ;
-	-@rm -f common_contrib.tgz > /dev/null
-	-@tar czf common_contrib.tgz contrib
 
 #Define dependencies
 

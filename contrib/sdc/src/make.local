@@ -1,0 +1,20 @@
+#Define message
+
+MESSAGE = "Compiling f90 SDC modules"
+
+#Define subdirectories for common code
+
+COMMONDIR = 
+
+SUBDIRS = 
+
+#Dependencies
+
+sdcModule.o: realKindModule.o
+sdcInterfaceModule.o: sdcModule.o
+sdcIntegrationModule.o: sdcInterfaceModule.o
+
+#Specific code
+
+LIBNAME=libsdc.a
+LIB_PATH=../lib

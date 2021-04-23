@@ -1583,7 +1583,10 @@ c     #########################################################################
 #ifdef _SPRNG
         integer :: junk
 
-        if (is_sprng_init) junk = free_sprng(stream)
+        if (is_sprng_init) then
+          junk = free_sprng(stream)
+          is_sprng_init = .false.
+        endif
 #endif
 
       END SUBROUTINE free_random_seed

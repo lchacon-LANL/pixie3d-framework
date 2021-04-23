@@ -1,0 +1,24 @@
+ &setup
+    nxd      = 32 
+    nyd      = 32 
+    nzd      = 1
+
+    numerical_grid = f
+
+    xmax     = 1.
+    ymax     = 4.
+    zmax     = 1.
+
+    bcs      = 'def','def','per','per','per','per'
+
+    coords   = 'car'
+    gparams  = -0.05,0d0,0d0,0d0,0d0
+ /
+
+ &f2c
+   ifile = 'record-a.bin'
+   ofile = 'outfile.bin'
+   ntimelevels = 12
+   grid_restriction_factor = 2
+   order = 0
+ /

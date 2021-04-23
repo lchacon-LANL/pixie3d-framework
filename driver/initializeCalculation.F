@@ -401,7 +401,7 @@ c     Allocate intermediate variable
 
 c     Read equilibrium
 
-      if (my_rank == 0) write (*,*) ' Reading restart file(s)...'
+      if (my_rank == 0) write (*,'(a)') ' Reading restart file(s)...'
 
       ierr = readRecordFile(ufile,itime,time,dt,gammat,u_0)
 
@@ -453,7 +453,7 @@ c     Setup source
 
 c     Exit
 
-      if (my_rank == 0) write (*,*) ' Done!'
+      if (my_rank == 0) write (*,'(a)') ' Done!'
 
 #if defined(pit)
       dt = dtbase  !Reset time step with parallel-in-time

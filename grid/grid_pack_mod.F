@@ -154,7 +154,6 @@ c     Local variables
         real(8) :: LL,Lm,Lp,alpha
         
         real(8) :: dd,xbar,dx,eps,a1,a2
-cc        real(8) :: lambda,ilambda,Tm,Tp,Cm,Cp,Ep,Em
         real(8) :: erfv,exp1,exp2,ff,dff,dexp1d1,dexp1d2,dexp2d1
      .            ,dexp2d2,derfv,derfv1,derfv2,erfv1,erfv2
 
@@ -175,6 +174,7 @@ c     Begin program
 
         if (slope > 1d0 .or. Lp == 0d0 .or. Lm == 0d0) then
           call prep_cubic
+cc          call prep_tanh_oneside
         else
           call prep_gaussian
         endif
@@ -343,60 +343,96 @@ cc        write (*,*) i,dxi(i,:),res(i,:)
 
       end subroutine prep_gaussian
 
-c$$$c     prep_tanh
-c$$$c     ###############################################################
-c$$$      subroutine prep_tanh
-c$$$
-c$$$      implicit none
-c$$$              
-c$$$          LL = xmax-xmin
-c$$$          Lp = xmax-x0
-c$$$          Lm = LL - Lp
-c$$$
-c$$$          if (Lp == Lm) then
-c$$$            Lp = Lp*(1d0+1d-8)
-c$$$            Lm = Lm*(1d0-1d-8)
-c$$$          endif
-c$$$
-c$$$          !Newton iteration
-c$$$          lambda = 1d0 ; Ep = Lp
-c$$$
-c$$$          do i=1,nit
-c$$$            Em = LL - Ep
-c$$$            ilambda = 1d0/lambda
-c$$$
-c$$$            Cp = 1d0/cosh(Ep*ilambda)
-c$$$            Cp = Cp*Cp
-c$$$
-c$$$            Cm = 1d0/cosh(Em*ilambda)
-c$$$            Cm = Cm*Cm
-c$$$
-c$$$            Tp = tanh(Ep*ilambda)
-c$$$            Tm = tanh(Em*ilambda)
-c$$$
-c$$$            !Var 1 is Ep, Var 2 is lambda
-c$$$            res(i,1) = (Ep + slope*lambda)*Tp - Lp
-c$$$            res(i,2) = (Em + slope*lambda)*Tm - Lm
-c$$$
-c$$$            jac(1,1) = Tp + (Ep+slope*lambda)*Cp*ilambda
-c$$$            jac(1,2) =slope*Tp-(Ep+slope*lambda)*Cp*Ep*(ilambda*ilambda)
-c$$$            jac(2,1) =-Tm - (Em+slope*lambda)*Cm*ilambda
-c$$$            jac(2,2) =slope*Tm-(Em+slope*lambda)*Cm*Em*(ilambda*ilambda)
-c$$$
-c$$$            call blockSolve(2,jac,1,res(i,:),dxi(i,:))
-c$$$
-c$$$            Ep = abs(Ep - dxi(i,1))
-c$$$            lambda = abs(lambda - dxi(i,2))
-c$$$
-c$$$cc            write (*,*) i,Ep,lambda,res(i,:),dxi(i,:)
-c$$$            if (  sqrt(sum(res(i,:)**2))<1d-10
-c$$$     .       .or.(sqrt(sum(dxi(i,:)**2))<eps)) exit
-c$$$          enddo
-c$$$
-c$$$          eta = Ep/lambda
-c$$$
-c$$$      end subroutine prep_tanh
+c     prep_tanh
+c     ###############################################################
+      subroutine prep_tanh
 
+      implicit none
+
+      real(8) :: lambda,ilambda,Tm,Tp,Cm,Cp,Ep,Em
+
+      if (Lp == Lm) then
+        Lp = Lp*(1d0+1d-8)
+        Lm = Lm*(1d0-1d-8)
+      endif
+
+      !Newton iteration
+      lambda = 1d0 ; Ep = Lp
+
+      do i=1,nit
+        Em = LL - Ep
+        ilambda = 1d0/lambda
+
+        Cp = 1d0/cosh(Ep*ilambda)
+        Cp = Cp*Cp
+
+        Cm = 1d0/cosh(Em*ilambda)
+        Cm = Cm*Cm
+
+        Tp = tanh(Ep*ilambda)
+        Tm = tanh(Em*ilambda)
+
+        !Var 1 is Ep, Var 2 is lambda
+        res(i,1) = (Ep + slope*lambda)*Tp - Lp
+        res(i,2) = (Em + slope*lambda)*Tm - Lm
+
+        jac(1,1) = Tp + (Ep+slope*lambda)*Cp*ilambda
+        jac(1,2) =slope*Tp-(Ep+slope*lambda)*Cp*Ep*(ilambda*ilambda)
+        jac(2,1) =-Tm - (Em+slope*lambda)*Cm*ilambda
+        jac(2,2) =slope*Tm-(Em+slope*lambda)*Cm*Em*(ilambda*ilambda)
+
+        call blockSolve(2,jac(1:2,1:2),1,res(i,1:2),dxi(i,1:2))
+
+        Ep = abs(Ep - dxi(i,1))
+        lambda = abs(lambda - dxi(i,2))
+
+        if (  sqrt(sum(res(i,1:2)**2))<1d-10
+     .   .or.(sqrt(sum(dxi(i,1:2)**2))<eps)) exit
+      enddo
+
+      eta = Ep/lambda
+
+      end subroutine prep_tanh
+
+c     prep_tanh_oneside
+c     ###############################################################
+      subroutine prep_tanh_oneside
+
+c     ---------------------------------------------------------------
+c     Solves one-sided |x|tahn(x/lambda) profile
+c     ---------------------------------------------------------------
+      
+      implicit none
+
+      real(8) :: T,C,C2,xi,jac
+
+      xi = 1d0  !lambda/LL
+
+      !Newton iteration
+      do i=1,nit
+        C = 1d0/cosh(1d0/xi)
+        C2 = C*C
+
+        T = tanh(1d0/xi)
+
+        !Var 1 is Ep, Var 2 is lambda
+        res(i,1) = 1d0 - (1d0 + slope*xi)*T
+
+        jac = -slope*T+(1+slope*xi)*C2/(xi*xi)
+
+        dxi(i,1) = -res(i,1)/jac
+cc        write (*,*) res(i,1),jac,dxi(i,1),LL*xi
+
+        xi = abs(xi + dxi(i,1))
+
+        if (  abs(res(i,1))<1d-10
+     .   .or.(abs(dxi(i,1))<eps)) exit
+      enddo
+
+      eta = 1d0/xi  !LL/lambda
+
+      end subroutine prep_tanh_oneside
+      
       end function find_eta
 
 c     scale_coord
@@ -510,6 +546,7 @@ c     Packing
           if (gp(2)>1d0.or.(lmin==gp(1)).or.(lmax==gp(1))) then
             xcurv = cubic_scl   (dim,xlog,eta(dim),lmin,lmax,gp(1),gp(2)
      .                         ,deriv=deriv)
+c$$$            xcurv = tanh_scl   (dim,xlog,eta(dim),lmin,lmax,gp(1),gp(2))
           else
             xcurv = gaussian_scl(dim,xlog,eta(dim),lmin,lmax,gp(1),gp(2)
      .                         ,deriv=deriv)
@@ -665,66 +702,72 @@ c     End program
 
       end function cubic_scl
 
-c$$$c     tanh_scl
-c$$$c     #################################################################
-c$$$      function tanh_scl(dim,xi,eta,xmin,xmax,x0,x0p) result(x)
-c$$$
-c$$$c     -----------------------------------------------------------------
-c$$$c     Packs coordinate using |x|*tanh(x/lambda) prescription at location
-c$$$c     x0 with slope x0p. Note:      
-c$$$c       * x0p <> 1d0 --> dx0 ~ dxi*x0p
-c$$$c       * x0p == 0d0 --> No packing
-c$$$c     -----------------------------------------------------------------
-c$$$
-c$$$        implicit none
-c$$$
-c$$$c     Global variables
-c$$$
-c$$$        integer :: dim
-c$$$        real(8),INTENT(IN) :: xmin,xmax,x0,eta,xi,x0p
-c$$$        real(8) :: x
-c$$$
-c$$$c     Local variables
-c$$$
-c$$$        real(8) :: bb,LL,Lp,Lm,Tp,Tm,lambda,xi0,Ep,dx
-c$$$
-c$$$c     Begin program
-c$$$
-c$$$        if (x0p == 0d0 .or. eta == 0d0) then
-c$$$
-c$$$          x = xi
-c$$$
-c$$$        else
-c$$$
-c$$$          LL = xmax-xmin
-c$$$          Lp = xmax-x0
-c$$$          Lm = LL - Lp
-c$$$
-c$$$          if (Lp == Lm) then
-c$$$            Lp = Lp*(1d0+1d-8)
-c$$$            Lm = Lm*(1d0-1d-8)
-c$$$          endif
-c$$$
-c$$$          lambda = Lp/((eta+x0p)*tanh(eta))
-c$$$
-c$$$          Ep = eta*lambda
-c$$$
-c$$$          xi0 = xmax - Ep
-c$$$          bb  = x0p*lambda
-c$$$
-c$$$          if (xi < xmin.and.bcSP(dim=dim)) then
-c$$$            dx = xmin - xi
-c$$$            x = x0 + (abs(xmin+dx-xi0) + bb)*tanh((xmin+dx-xi0)/lambda)
-c$$$            x = 2*xmin - x
-c$$$          else
-c$$$            x = x0 + (abs(xi-xi0) + bb)*tanh((xi-xi0)/lambda)
-c$$$          endif
-c$$$
-c$$$        endif
-c$$$
-c$$$c     End program
-c$$$
-c$$$      end function tanh_scl
+c     tanh_scl
+c     #################################################################
+      function tanh_scl(dim,xi,eta,xmin,xmax,x0,x0p) result(x)
+
+c     -----------------------------------------------------------------
+c     Packs coordinate using |x|*tanh(x/lambda) prescription at location
+c     x0 with slope x0p. Note:      
+c       * x0p <> 0d0 --> dx0 ~ dxi*x0p
+c       * x0p == 0d0 --> No packing
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Global variables
+
+        integer :: dim
+        real(8),INTENT(IN) :: xmin,xmax,x0,eta,xi,x0p
+        real(8) :: x
+
+c     Local variables
+
+        real(8) :: bb,LL,Lp,Lm,Tp,Tm,lambda,xi0,Ep,dx
+
+c     Begin program
+
+        if (x0p == 0d0 .or. eta == 0d0) then
+
+          x = xi
+
+        else
+
+          LL = xmax-xmin
+          Lp = xmax-x0
+          Lm = LL - Lp
+
+          if (Lp == 0d0 .or. Lm == 0d0) then
+            xi0 = x0
+            lambda = LL/eta
+            bb = x0p*lambda
+          else
+            if (Lp == Lm) then
+              Lp = Lp*(1d0+1d-8)
+              Lm = Lm*(1d0-1d-8)
+            endif
+
+            lambda = Lp/((eta+x0p)*tanh(eta))
+
+            Ep = eta*lambda
+
+            xi0 = xmax - Ep
+            bb  = x0p*lambda
+          endif
+          
+          if (xi < xmin.and.bcSP(dim=dim)) then
+            dx = xmin - xi
+            x = x0 + (abs(xmin+dx-xi0) + bb)*tanh((xmin+dx-xi0)/lambda)
+            x = 2*xmin - x
+          else
+            x = x0 + (abs(xi-xi0) + bb)*tanh((xi-xi0)/lambda)
+          endif
+
+        endif
+
+c     End program
+
+      end function tanh_scl
 
 c     gaussian_scl
 c     #################################################################
