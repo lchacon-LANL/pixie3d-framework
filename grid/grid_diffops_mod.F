@@ -2862,11 +2862,11 @@ c     Begin program
           cntv = .false.
         endif
 
-c$$$        if (cntv) then
-c$$$          cc1 = 1 ; cc2 = 3
-c$$$        else
+        if (cntv) then
+          cc1 = 1 ; cc2 = 3
+        else
           cc1 = comp1 ; cc2 = comp2
-c$$$        endif
+        endif
 
         !Defaults
 
@@ -5759,7 +5759,7 @@ c     Begin program
       else
         vec  => vfield !Pointer passed to nabtensor routines
         if (PRESENT(diff)) coef => diff   !Pointer passed to nabtensor routines
-        vlap = div_tensor(g_def,i,j,k,nx,ny,nz,igx,igy,igz,.true.
+        vlap = div_tensor(g_def,i,j,k,nx,ny,nz,igx,igy,igz,bcSP()
      .                   ,nabtensor_x,nabtensor_y,nabtensor_z
      $                   ,vol=vol)
         if (PRESENT(diff)) nullify(coef)
