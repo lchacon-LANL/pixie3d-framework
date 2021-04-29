@@ -352,8 +352,8 @@ c     Local variables
 c     Begin program
       
 #if defined(petsc)
-        !Begin profiling NL solver
-        call switch_profile_stage(iNL)
+      !Begin profiling NL solver
+      call switch_profile_stage(iNL)
 #endif
 
 c     Perform TS update

@@ -92,6 +92,8 @@ c     Time update
 
         ierr = TS_update(u_np,ilevel)
 
+        if (ts_no_exact.and.ierr==EXACT) ierr = NOERR
+        
 c     Check for error in time stepping
 
         select case(ierr)
