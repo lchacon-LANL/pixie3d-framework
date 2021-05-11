@@ -30,6 +30,7 @@
 
       INTERFACE chkRoundOff
         module procedure chkRoundOff_dp,chkRoundOff_sp
+     $                  ,chkRoundOff_dp_vec
       END INTERFACE
 
 #ifdef _SPRNG
@@ -241,6 +242,36 @@ c     Local variables
       enddo
 
       end function findRoundOff
+
+c     chkRoundOff_dp_vec
+c     ###############################################################
+      function chkRoundOff_dp_vec(test,var) result(eps)
+
+      implicit none
+
+c     ---------------------------------------------------------------
+c     Finds machine round-off constant epsmac
+c     ---------------------------------------------------------------
+
+c     Call variables
+
+      logical :: test
+      real(8) :: var(:),eps(size(var))
+
+c     Local variables
+
+      real(8),save :: roundoff=0d0
+
+c     Begin program
+
+      eps = var
+      if (.not.test) return
+      
+      if (roundoff == 0d0) roundoff=findRoundOff()
+
+      where (abs(var) < 1000*roundoff) eps = 0d0
+
+      end function chkRoundOff_dp_vec
 
 c     chkRoundOff_dp
 c     ###############################################################
