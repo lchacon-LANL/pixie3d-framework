@@ -235,10 +235,10 @@ c$$$          enddo
           car(3) = bb*xlog(1)
 
         case ('sh3')
-! Shaped toroidal coordinates system from X. Z. Tang
-! x = (R0 + r*a*cos(theta+asin(delta*sin(theta))))*cos(-phi)
-! y = (R0 + r*a*cos(theta+asin(delta*sin(theta))))*sin(-phi)
-! z =  Z0 + r*kappa*sin(theta + zeta*sin(2*theta))
+! Shaped toroidal coordinates system from X. Z. Tang (with extra r^2 factor to ensure circle at SP)
+! x = (R0 + r*a*cos(theta+asin(delta*r**2*sin(theta))))*cos(-phi)
+! y = (R0 + r*a*cos(theta+asin(delta*r**2*sin(theta))))*sin(-phi)
+! z =  Z0 + r*kappa*sin(theta + zeta*r**2*sin(2*theta))
 
           major_r = gp(1)  !R-coord of magnetic axis (major radius)
           Z0      = gp(2)  !Z-coord of magnetic axis

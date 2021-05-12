@@ -5670,7 +5670,7 @@ c     End program
 
 c     veclap_mesh
 c     ###############################################################
-      function veclap_mesh(g_def,igrid,cnv,diff) result(cnv_out)
+      function veclap_mesh(g_def,igrid,cnv,diff,clean) result(cnv_out)
 
 c     ---------------------------------------------------------------
 c     Calculates curl(A) in general non-orthogonal coordinates. Is
@@ -5695,16 +5695,29 @@ c     Call variables
      $                        ,0:size(cnv,2)-1
      $                        ,0:size(cnv,3)-1)
 
+      logical,optional :: clean
+      
 c     Local variables
 
       integer :: nx,ny,nz,i,j,k
 
+      logical :: project_kernel
+      
 c     Begin program
 
+      if(PRESENT(clean)) then
+        project_kernel = clean
+      else
+        project_kernel = .false.
+      endif
+      
       nx = g_def%nxv(igrid)
       ny = g_def%nyv(igrid)
       nz = g_def%nzv(igrid)
 
+      if (project_kernel)
+     $     call project_vlap_kernel(g_def,igrid,cnv,2,.true.)
+      
       do k=1,nz
         do j=1,ny
           do i=1,nx
@@ -6305,7 +6318,8 @@ c$$$      end subroutine nabtensor_cnv_z
 
 c     veclap_cov_mesh
 c     ###############################################################
-      function veclap_cov_mesh(g_def,igrid,cov,diff) result(cov_out)
+      function veclap_cov_mesh(g_def,igrid,cov,diff,clean)
+     $         result(cov_out)
 
 c     ---------------------------------------------------------------
 c     Calculates covariant components of lap(vfield) at cell
@@ -6330,15 +6344,28 @@ c     Call variables
      $                        ,0:size(cov,2)-1
      $                        ,0:size(cov,3)-1)
 
+      logical,optional :: clean
+      
 c     Local variables
 
       integer :: nx,ny,nz,i,j,k
 
+      logical :: project_kernel
+      
 c     Begin program
+
+      if(PRESENT(clean)) then
+        project_kernel = clean
+      else
+        project_kernel = .false.
+      endif
 
       nx = size(cov,1)-2
       ny = size(cov,2)-2
       nz = size(cov,3)-2
+
+      if (project_kernel)
+     $     call project_vlap_kernel(g_def,igrid,cov,2,.false.)
 
       do k=1,nz
         do j=1,ny
@@ -6831,6 +6858,302 @@ c     End program
 
       end function veclap_vrtx
 
+c     project_vlap_kernel
+c     ################################################################
+      subroutine project_vlap_kernel(gl_def,igr,vec,order_avg,iscnv)
+
+      implicit none
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: gl_def
+
+      real(8) :: vec(0:,0:,0:,:)
+
+      integer :: igr,order_avg
+
+      logical :: iscnv
+
+c     Begin program
+
+      !Project constant vector
+      call project0SingularBC(gl_def,igr,vec,order_avg,iscnv)
+      !Project linear vector (in Cartesian space)
+      call project1SingularBC(gl_def,igr,vec,order_avg,iscnv)
+
+      end subroutine project_vlap_kernel
+      
+c     project0SingularBC
+c     ################################################################
+      subroutine project0SingularBC(gl_def,igr,vec,order_avg,iscnv)
+
+      implicit none
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: gl_def
+
+      real(8) :: vec(0:,0:,0:,:)
+
+      integer :: igr,order_avg
+
+      logical :: iscnv
+
+c     Local variables
+      
+      integer :: nx,ny,nz,neq,i,j,k,ig,jg,kg,ieq,one,two,thr
+     .          ,oavg,oext,icomp,ivar
+
+      real(8) :: curv(3),car(3),dv_sum
+
+      real(8),allocatable :: sp_sum(:),l_sum(:)
+     $                      ,avg_v(:,:,:)
+
+      real(8),pointer,dimension(:) :: xx
+
+c     Begin program
+
+      neq = size(vec,4)
+
+      nx = gl_def%nxv(igr)
+      ny = gl_def%nyv(igr)
+      nz = gl_def%nzv(igr)
+
+c     Prepare interpolations
+
+      oavg = min(order_avg,nx)
+
+      one = 1 ; two = 2; thr = 3
+
+      if (oavg <= 1) then
+        two = one
+        thr = one
+      elseif (oavg == 2) then
+        thr = two
+      endif
+
+      call getMGmap(gl_def,1,1,1,igr,igr,igr,ig,jg,kg)
+
+      xx => gl_def%xx
+
+c     Regularize innermost cell layer (closest to SP)
+
+      allocate(sp_sum(3),avg_v(0:ny+1,0:nz+1,3))
+
+      sp_sum = 0d0
+      
+      do ivar=1,neq/3
+        icomp = 3*(ivar-1)
+
+        !Transform to Cartesian
+        vec(:,:,:,icomp+1:icomp+3)
+     $    = XformToCar(gl_def,igr,vec(:,:,:,icomp+1:icomp+3),.not.iscnv)
+
+        !Compute weighed average around SP
+        do ieq=1,3
+          avg_v(:,:,ieq) =
+     .        quad_int(xx(ig),xx(ig+one),xx(ig+two),xx(ig+thr)
+     .                ,vec(1    ,:,:,icomp+ieq),vec(1+one,:,:,icomp+ieq)
+     .                ,vec(1+two,:,:,icomp+ieq),vec(1+thr,:,:,icomp+ieq)
+     .                ,0d0,oavg)
+
+          sp_sum(ieq)= sum(avg_v(1:ny,1:nz,ieq)
+     .                *gl_def%gmetric%grid(igr)%dvol(1,1:ny,1:nz))
+        enddo
+        dv_sum = sum(gl_def%gmetric%grid(igr)%dvol(1,1:ny,1:nz))
+
+#if defined(petsc)
+        allocate(l_sum(3))
+        
+        l_sum = sp_sum
+        call MPI_Allreduce(l_sum,sp_sum,3
+     .                    ,MPI_DOUBLE_PRECISION
+     .                    ,MPI_SUM,gl_def%MPI_COMM,mpierr)
+
+        l_sum(1) = dv_sum
+        call MPI_Allreduce(l_sum(1),dv_sum,1
+     .                    ,MPI_DOUBLE_PRECISION
+     .                    ,MPI_SUM,gl_def%MPI_COMM,mpierr)
+
+        deallocate(l_sum)
+#endif
+
+        !Subtract from main vector
+        do ieq=1,3
+          sp_sum(ieq) = sp_sum(ieq)/dv_sum
+c$$$          if (my_rank == 0)
+c$$$     .      write (*,*) "Cnst vec",ieq,chkRoundOff(.true.,sp_sum(ieq))
+
+          do i=0,nx+1
+            vec(i,:,:,icomp+ieq) = vec(i,:,:,icomp+ieq)-sp_sum(ieq)
+          enddo
+        enddo
+          
+        !Transform back to Curvilinear
+        vec(:,:,:,icomp+1:icomp+3)
+     $       = XformToCurv(gl_def,igr,vec(:,:,:,icomp+1:icomp+3),iscnv)
+
+      enddo
+
+      deallocate(sp_sum,avg_v)
+        
+c     End program
+
+      end subroutine project0SingularBC
+
+c     project1SingularBC
+c     ################################################################
+      subroutine project1SingularBC(gl_def,igr,vec,order_avg,iscnv)
+
+      implicit none
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: gl_def
+
+      real(8) :: vec(0:,0:,0:,:)
+
+      integer :: igr,order_avg
+
+      logical :: iscnv
+
+c     Local variables
+      
+      integer :: nx,ny,nz,neq,i,j,k,ig,jg,kg,one,two,thr
+     .          ,oavg,oext,icomp,ivar,m,l
+
+      real(8) :: curv(3),car(3),tnsr(3,3),tnsr_car(3,3),dv_sum,x1,y1,z1
+
+      real(8),allocatable :: sp_sum(:,:),l_sum(:,:)
+     $                      ,tensor(:,:,:,:,:)
+
+      real(8),pointer,dimension(:) :: xx
+
+c     Begin program
+
+      neq = size(vec,4)
+
+      nx = gl_def%nxv(igr)
+      ny = gl_def%nyv(igr)
+      nz = gl_def%nzv(igr)
+
+c     Prepare interpolations
+
+      oavg = min(order_avg,nx)
+
+      one = 1 ; two = 2; thr = 3
+
+      if (oavg <= 1) then
+        two = one
+        thr = one
+      elseif (oavg == 2) then
+        thr = two
+      endif
+
+      call getMGmap(gl_def,1,1,1,igr,igr,igr,ig,jg,kg)
+
+      xx => gl_def%xx
+
+c     Regularize innermost cell layer (closest to SP)
+
+      allocate(sp_sum(3,3))
+      allocate(tensor(0:nx+1,0:ny+1,0:nz+1,3,3))
+
+      sp_sum = 0d0
+      
+      do ivar=1,neq/3
+        icomp = 3*(ivar-1)
+
+        !Transform to covariant
+        if (iscnv) vec(:,:,:,icomp+1:icomp+3)
+     $             = XformToCov(gl_def,igr,vec(:,:,:,icomp+1:icomp+3))
+
+        !Find Cartesian nabla(vec) tensor
+        do k = 1,nz
+          do j = 1,ny
+            do i = 1,1+oavg
+              tnsr = fnabla_v_cov(gl_def,i,j,k,igr
+     $                           ,vec(:,:,:,icomp+1:icomp+3),0)
+
+              tnsr_car = 0d0
+              do m=1,3
+                do l=1,3
+                  tnsr_car = tnsr_car + tnsr(m,l)
+     $      *matmul(transpose(gl_def%gmetric%grid(igr)%cov(i,j,k,m:m,:))
+     $                       ,gl_def%gmetric%grid(igr)%cov(i,j,k,l:l,:))
+                enddo
+              enddo
+              tensor(i,j,k,:,:) = tnsr_car
+cc              write (*,*) i,j,k,tnsr_car
+            enddo
+          enddo
+        enddo
+
+        !Compute weighed average
+        do m=1,3
+          do l=1,3
+            tensor(0,1:ny,1:nz,m,l) =
+     .        quad_int(xx(ig),xx(ig+one),xx(ig+two),xx(ig+thr)
+     .                ,tensor(1    ,1:ny,1:nz,m,l)
+     $                ,tensor(1+one,1:ny,1:nz,m,l)
+     .                ,tensor(1+two,1:ny,1:nz,m,l)
+     $                ,tensor(1+thr,1:ny,1:nz,m,l)
+     .                ,0d0,oavg)
+
+            sp_sum(m,l)= sum(tensor(0,1:ny,1:nz,m,l)
+     .                  *gl_def%gmetric%grid(igr)%dvol(1,1:ny,1:nz))
+          enddo
+        enddo
+        dv_sum = sum(gl_def%gmetric%grid(igr)%dvol(1,1:ny,1:nz))
+
+#if defined(petsc)
+        allocate(l_sum(3,3))
+        l_sum = sp_sum
+        call MPI_Allreduce(l_sum,sp_sum,9
+     .                    ,MPI_DOUBLE_PRECISION
+     .                    ,MPI_SUM,gl_def%MPI_COMM,mpierr)
+
+        l_sum(1,1) = dv_sum
+        call MPI_Allreduce(l_sum(1,1),dv_sum,1
+     .                    ,MPI_DOUBLE_PRECISION
+     .                    ,MPI_SUM,gl_def%MPI_COMM,mpierr)
+
+        deallocate(l_sum)
+#endif
+
+        !Subtract from main vector
+        sp_sum = sp_sum/dv_sum
+c$$$        if (my_rank == 0) then
+c$$$          write(*,*) "Cnst tensor row 1",chkRoundOff(.true.,sp_sum(1,:))
+c$$$          write(*,*) "Cnst tensor row 2",chkRoundOff(.true.,sp_sum(2,:))
+c$$$          write(*,*) "Cnst tensor row 3",chkRoundOff(.true.,sp_sum(3,:))
+c$$$        endif
+        
+        do k = 0,nz+1
+          do j = 0,ny+1
+            do i = 0,nx+1
+              call getCartesianCoordinates(gl_def,i,j,k,igr,igr,igr
+     .                                    ,ig,jg,kg,x1,y1,z1)
+              curv = vec(i,j,k,icomp+1:icomp+3)
+              vec(i,j,k,icomp+1:icomp+3)
+     .             = XformToCar_ijk(gl_def,i,j,k,igr,curv,.true.)
+     .              -matmul((/x1,y1,z1/),sp_sum)
+            enddo
+          enddo
+        enddo
+          
+        !Transform back to curvilinear (input format)
+        vec(:,:,:,icomp+1:icomp+3)
+     $       = XformToCurv(gl_def,igr,vec(:,:,:,icomp+1:icomp+3),iscnv)
+
+      enddo
+
+      deallocate(sp_sum,tensor)
+        
+c     End program
+
+      end subroutine project1SingularBC
+      
 c     vlapchk
 c     ####################################################################
       subroutine vlapchk(g_def,igr,order)
@@ -6894,30 +7217,31 @@ c     Begin program
 
               !Vector Laplacian is vector zero
               a(i,j,k,1) = 1. 
-              a(i,j,k,2) = 1. 
-              a(i,j,k,3) = 1.            
+              a(i,j,k,2) = 2. 
+              a(i,j,k,3) = 3.            
             enddo
           enddo
         enddo
         binfile = 'vlap0.bin'
         drawfile= 'drawvlap0.in'
+        if (my_rank == 0) write (*,*) " Zeroth order chk"
       case(1)
         do k = klom,khip
           do j = jlom,jhip
             do i = ilom,ihip
               call getCartesianCoordinates(g_def,i,j,k,igr,igr,igr
-     .                                  ,ig,jg,kg,x1,y1,z1)
+     .                                    ,ig,jg,kg,x1,y1,z1)
 
-              !Vector Laplacian is vector zero
-              a(i,j,k,1) = x1 + y1
-              a(i,j,k,2) = y1 + x1
-              a(i,j,k,3) = z1
-            
+              !Vector Laplacian is vector zero (no linear z dependence because it is periodic)
+              a(i,j,k,1) = 1 +   x1 + 2*y1
+              a(i,j,k,2) = 2 + 4*x1 + 3*y1 
+              a(i,j,k,3) = 3 
             enddo
           enddo
         enddo
         binfile = 'vlap1.bin'
         drawfile= 'drawvlap1.in'
+        if (my_rank == 0) write (*,*) " First order chk"
       case(2)
         do k = klom,khip
           do j = jlom,jhip
@@ -6925,15 +7249,16 @@ c     Begin program
               call getCartesianCoordinates(g_def,i,j,k,igr,igr,igr
      .                                  ,ig,jg,kg,x1,y1,z1)
 
-              !Vector Laplacian is vector (1,1,1)
+              !Vector Laplacian is vector (1,1,0) (no quadratic z dependence because it is periodic)
               a(i,j,k,1) = 0.5*x1**2 
               a(i,j,k,2) = 0.5*y1**2 
-              a(i,j,k,3) = 0.5*z1**2
+              a(i,j,k,3) = 0
             enddo
           enddo
         enddo
         binfile = 'vlap2.bin'
         drawfile= 'drawvlap2.in'
+        if (my_rank == 0) write (*,*) " Second order chk"
       case default
         call pstop("vlapchk","Order not implemented")
       end select
@@ -6946,12 +7271,6 @@ c     Begin program
      .          ,'vcnv1'
      .          ,'vcnv2'
      .          ,'vcnv3'
-c$$$     .          ,'cnv1 wo AE'
-c$$$     .          ,'cnv2 wo AE'
-c$$$     .          ,'cnv3 wo AE'
-c$$$     .          ,'cnv1 new  '
-c$$$     $          ,'cnv2 new  '
-c$$$     $          ,'cnv3 new  '
      $          ,'vcov1'
      .          ,'vcov2'
      .          ,'vcov3'/)
@@ -6962,8 +7281,10 @@ c$$$     $          ,'cnv3 new  '
      .        ,status='replace')
         endif
       endif
+      
+      !Covariant and contravariant components
+      call XformVector_mesh2(g_def,igr,a,'car','cov')
 
-      !Cartesian components
       call find_global(a,dummyg)
       if (my_rank == 0) then
         call contour(dummyg(0:nxd+1,0:nyd,1,1),nxd+2,nyd+1
@@ -6974,35 +7295,15 @@ c$$$     $          ,'cnv3 new  '
      .              ,0d0,xmax,0d0,ymax,1,110)
       endif
       
-      !Covariant and contravariant components
-      call XformVector_mesh2(g_def,igr,a,'car','cov')
-
-c$$$      if (my_rank == 0) then
-c$$$      call contour(a(0:nxd+1,0:nyd,1,1),nxd+2,nyd+1
-c$$$     .              ,0d0,xmax,0d0,ymax,1,110)
-c$$$      call contour(a(0:nxd+1,0:nyd,1,2),nxd+2,nyd+1
-c$$$     .              ,0d0,xmax,0d0,ymax,1,110)
-c$$$      call contour(a(0:nxd+1,0:nyd,1,3),nxd+2,nyd+1
-c$$$     .              ,0d0,xmax,0d0,ymax,1,110)
-c$$$      endif
-      
       a_cnv = Xformtocnv(g_def,igr,a)
 
       !Cnv Vlap
-      dummy = veclap(g_def,igr,a_cnv)
+      dummy = veclap(g_def,igr,a_cnv,clean=.true.)
       call plot_v(order,.false.)
-      
-c$$$      !Cnv Vlap new
-c$$$      dummy = veclap_cnv(g_def,igr,a_cnv)   
-c$$$      call plot_v(order,.false.)
 
       !Cov Vlap
-      dummy = veclap_cov(g_def,igr,a)   
+      dummy = veclap_cov(g_def,igr,a,clean=.true.)   
       call plot_v(order,.true.)
-
-c$$$      !Cov Vlap vertex
-c$$$      dummy = veclap_vrtx(g_def,igr,a,ret_cnv=.false.)
-c$$$      call plot_v(order)
 
       if (my_rank == 0) close(110)
 
@@ -7034,8 +7335,7 @@ c     ####################################################################
           do k = klom,khip
             do j = jlom,jhip
               do i = ilom,ihip
-                call find_polar_coords(g_def,igr,i,j,k,x1,y1,z1
-     .                            ,coords)
+                call find_polar_coords(g_def,igr,i,j,k,x1,y1,z1,coords)
 
                 dummy(i,j,k,1) = x1   *dummy(i,j,k,1)
                 dummy(i,j,k,2) = x1**2*dummy(i,j,k,2)
@@ -7046,8 +7346,7 @@ c     ####################################################################
           do k = klom,khip
             do j = jlom,jhip
               do i = ilom,ihip
-                call find_polar_coords(g_def,igr,i,j,k,x1,y1,z1
-     .                            ,coords)
+                call find_polar_coords(g_def,igr,i,j,k,x1,y1,z1,coords)
 
                 dummy(i,j,k,1) = x1**2*dummy(i,j,k,1)
                 dummy(i,j,k,2) = x1   *dummy(i,j,k,2)
@@ -7060,8 +7359,7 @@ c     ####################################################################
           do k = klom,khip
             do j = jlom,jhip
               do i = ilom,ihip
-                call find_polar_coords(g_def,igr,i,j,k,x1,y1,z1
-     .                            ,coords)
+                call find_polar_coords(g_def,igr,i,j,k,x1,y1,z1,coords)
 
                 dummy(i,j,k,1) =    dummy(i,j,k,1)
                 dummy(i,j,k,2) = x1*dummy(i,j,k,2)
@@ -7072,8 +7370,7 @@ c     ####################################################################
           do k = klom,khip
             do j = jlom,jhip
               do i = ilom,ihip
-                call find_polar_coords(g_def,igr,i,j,k,x1,y1,z1
-     .                            ,coords)
+                call find_polar_coords(g_def,igr,i,j,k,x1,y1,z1,coords)
 
                 dummy(i,j,k,1) = x1*dummy(i,j,k,1)
                 dummy(i,j,k,2) =    dummy(i,j,k,2)
