@@ -1221,7 +1221,7 @@ c     Time integration
 c     Output
 
       if (iiout > 0) then
-        write (*,'(a,e10.3,a,e10.3,a,e10.3,a,e10.3,a,3es12.3,a,l3)')
+        write (*,'(a,e10.3,a,e10.3,a,e10.3,a,e10.3,a,3es15.6,a,l3)')
      .         trim(solver)//'; Time=',time
      .        ,' ;  dt=',dt
      .        ,' ;  Arc length=',ss
