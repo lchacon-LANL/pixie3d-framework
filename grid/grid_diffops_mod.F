@@ -12280,8 +12280,8 @@ c     Z-flux computation
         kk =k
         tgz=IOR(min(kk-2,0),max(kk+2-nz,0))
         if (kk == 0) tgz = -2
-        zi=max(kk-2,0)-max(kk+2-(nz+1),0)
-        zf=min(kk+2,nz+1)+max(2-kk,0)
+        zi=max(kk-2,0)-max(kk+3-(nz+1),0)
+        zf=min(kk+3,nz+1)+max(2-kk,0)
         Flux(3)=Get_Flux(idz,tgz,F(i,j,zi:zf),tnsrd(i,j,zi:zf,6))
 
         if (ny > 1) then
