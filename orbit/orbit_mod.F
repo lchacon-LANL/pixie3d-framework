@@ -2552,8 +2552,9 @@ c     Begin program
 !$OMP END PARALLEL
 #endif
         if (my_rank==0) ierr =rm_files('ss*'//trim('_'//file))
+#ifdef petsc
         call MPI_Barrier(MPI_COMM_WORLD,mpierr)
-
+#endif
         ss_io = .true.   !Turn on SS XDRAW IO
   
         if (PRESENT(rz_ss)) then
