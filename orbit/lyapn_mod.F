@@ -17,6 +17,7 @@
         use OMP
 
         logical :: lssx,lssy,lssz,rzss=.false.,ss_io=.false.
+     $            ,carss=.false.
 
 !private variables
        logical :: lyap=.false.,connect=.false.,ridge=.false.
