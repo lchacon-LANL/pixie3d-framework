@@ -23,6 +23,7 @@ c #####################################################################
 #endif
         logical,private :: map_grid_pack=.false.
 
+        real(8),parameter :: LMIN_NEQONE=1d-3
       contains
 
 c     createGrid
@@ -973,9 +974,9 @@ cc        if (map_grid_pack) numerical_grid = .true.
         !Ensure ignorable directions are small for numerical computation
         !  of grid parameters
         if (numerical_grid .and. coords /= 'car') then
-          if    ((nxx == 1 .and. ((xmax-xmin)>1d-3))
-     .       .or.(nyy == 1 .and. ((ymax-ymin)>1d-3))
-     .       .or.(nzz == 1 .and. ((zmax-zmin)>1d-3))) then
+          if    ((nxx == 1 .and. ((xmax-xmin)>LMIN_NEQONE))
+     .       .or.(nyy == 1 .and. ((ymax-ymin)>LMIN_NEQONE))
+     .       .or.(nzz == 1 .and. ((zmax-zmin)>LMIN_NEQONE))) then
             write (*,*) nxx,nyy,nzz
             write (*,*) xmax,xmin,ymax,ymin,zmax,zmin
             call pstop('consistencyCheck'
