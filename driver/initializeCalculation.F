@@ -141,6 +141,25 @@ c Read PETSc runtime options
       call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-restart'
      .                         ,ts_restart,petsc_flg2,ierr)
 
+      call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-fpa',fpa
+     .                         ,petsc_flg,ierr)
+      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-fpa_it',fpa_it
+     .                       ,petsc_flg,ierr)
+
+      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-nwt_it',maxitnwt
+     .                       ,petsc_flg,ierr)
+      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-ksp_it',maxksp
+     .                       ,petsc_flg,ierr)
+      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-gm_it',maxitgm
+     .                       ,petsc_flg,ierr)
+
+      call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-rtol',rtol
+     .                        ,petsc_flg,ierr)
+      call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-atol',atol
+     .                        ,petsc_flg,ierr)
+      call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-stol',stol
+     .                        ,petsc_flg,ierr)
+      
       call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-trestart',trestart
      .                        ,petsc_flg,ierr)
       if (petsc_flg.and.(.not.petsc_flg2)) ts_restart = .true.

@@ -12285,12 +12285,12 @@ c     Z-flux computation
         Flux(3)=Get_Flux(idz,tgz,F(i,j,zi:zf),tnsrd(i,j,zi:zf,6))
 
         if (ny > 1) then
-          tgy=IOR(min(j-2,0),max(j+2-(ny+1),0))
+          tgy=IOR(min(j -2,0),max(j +2-(ny+1),0))
           tgz=IOR(min(kk-2,0),max(kk+2-(nz+1),0))
           if (kk == 0) tgz = -2
-          yi=max(j-2,0)-max(j+2-(ny+1),0)
-          yf=min(j+2,ny+1)+max(2-j,0)
+          yi=max(j -2,0)-max(j +2-(ny+1),0)
           zi=max(kk-2,0)-max(kk+2-(nz+1),0)
+          yf=min(j +2,ny+1)+max(2-j ,0)
           zf=min(kk+2,nz+1)+max(2-kk,0)
           Flux_cross(3)=Flux_cross(3)
      .        +Get_Flux_Cross(idy,tgz,tgy
@@ -12299,12 +12299,12 @@ c     Z-flux computation
         endif
 
         if (nx > 1) then
-          tgx=IOR(min(i-2,0),max(i+2-(nx+1),0))
+          tgx=IOR(min(i -2,0),max(i +2-(nx+1),0))
           tgz=IOR(min(kk-2,0),max(kk+2-(nz+1),0))
           if (kk == 0) tgz = -2
-          xi=max(i-2,0)-max(i+2-(nx+1),0)
-          xf=min(i+2,nx+1)+max(2-i,0)
+          xi=max(i -2,0)-max(i +2-(nx+1),0)
           zi=max(kk-2,0)-max(kk+2-(nz+1),0)
+          xf=min(i +2,nx+1)+max(2-i ,0)
           zf=min(kk+2,nz+1)+max(2-kk,0)
           Flux_cross(3)=Flux_cross(3)
      .        +Get_Flux_Cross(idx,tgz,tgx
