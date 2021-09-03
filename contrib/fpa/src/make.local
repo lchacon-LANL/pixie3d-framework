@@ -1,0 +1,20 @@
+#Define message
+
+MESSAGE = "Compiling f90 FPA modules"
+
+#Define subdirectories for common code
+
+COMMONDIR = 
+
+SUBDIRS = 
+
+#Dependencies
+
+fixed_point_accelerator.o: fpa_kinds.o
+fpa_kinds.o: f90_assert.o
+
+#Specific code
+
+CPPFLAGS += -DNDEBUG
+LIBNAME=libfpa.a
+LIB_PATH=../lib

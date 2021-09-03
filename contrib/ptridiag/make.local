@@ -1,0 +1,14 @@
+#Define library name
+
+LIBNAME = libptrid.a
+LIB_PATH = lib
+
+#Define message
+
+MESSAGE = "Compiling PARALLEL TRIDIAGONAL libraries"
+
+#Define subdirectories for common code
+
+COMMONDIR = ../..
+
+SUBDIRS = 

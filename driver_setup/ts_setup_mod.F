@@ -37,7 +37,8 @@ c ######################################################################
      .            ,preprocess=.false.  ! Whether to run solution preprocessing before time step
      .            ,eigen=.false.       ! Whether to run framework in eigensolver mode
      .            ,perturb_rstrt=.false.! Whether to apply perturbation after restart
-
+     .            ,ts_no_exact=.false. ! Whether we allow TS to exit on exact solution
+        
         logical, private :: early_restart !Whether restart has happened from intermediate time
         logical :: ts_ramp_up_dt = .false.       !Whether to ramp up dt initially
         real(8) :: ts_ramp_up_dt_fraction = 5d-1 !Fraction of initial timestep

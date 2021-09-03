@@ -1,0 +1,6 @@
+ &conv_tst
+   file_diag_old = 'pixie3d_pit_conv_coarse.txt'
+   file_diag_new = 'pixie3d_pit_conv_fine.txt'
+   file_conv_result = 'result.txt'
+   err_tol = 1d-5
+ /

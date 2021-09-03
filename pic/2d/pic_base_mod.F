@@ -15,16 +15,15 @@ c ######################################################################
 
       integer, parameter :: nsp_max=5,Npg=_Npg,dim=_Dim,dimt=_Dim+_Dimx
 
+      !Exactly 16*_Npg bytes in DP, which fits exactly in cache registers
       type :: particle
         SEQUENCE
-        real(_prec) :: x_np(_Npg,3)
-        real(_prec) :: v_np(_Npg,3)
-        real(_prec) :: x_n(_Npg,3)
-        real(_prec) :: v_n(_Npg,3)
-        integer :: ijk_np(_Npg), ijk_n(_Npg)
-#if _Npg == 4
-        integer :: inpdum(_Npg),indum(_Npg) !Padding in double prec
-#endif
+        real(_prec) :: x_np(_Npg,3)  !3*_Npg bytes
+        real(_prec) :: v_np(_Npg,3)  !3*_Npg bytes
+        real(_prec) :: x_n(_Npg,3)   !3*_Npg bytes
+        real(_prec) :: v_n(_Npg,3)   !3*_Npg bytes
+        integer :: ijk_np(_Npg), ijk_n(_Npg) !_Npg bytes
+        real(_prec) :: w_0(_Npg)     !_Npg bytes
         real(_prec) :: w_np(_Npg),w_n(_Npg)
       end type particle
 
@@ -5386,6 +5385,160 @@ c     End program
 
       end subroutine pcles_bc_offset
 
+c     cell_crossing_vavg (added a new tag only)
+c     ##################################################################
+      subroutine cell_crossing_vavg(dx,xnp,vh,inp,jnp,wp,ref_tag
+     $     ,hit_wall)
+
+      implicit none
+
+c     Call variables
+
+      real(_prec),intent(in)    :: dx(_Npg,3)
+      real(_prec),intent(inout) :: xnp(_Npg,3),vh(_Npg,3),wp(_Npg)
+      integer,intent(inout) :: inp(_Npg),jnp(_Npg)
+      real(_prec),optional,intent(inout) :: ref_tag(_Npg,3) !tag for indicating which boundary is hit
+      integer,intent(inout) :: hit_wall(_Npg)
+      
+c     Local variables
+
+      integer :: nsize(3),in0(size(inp),3),i,dim,nxg,nyg,nzg
+      real(8) :: hx,hy,hz,dh(3)
+
+c     Begin program
+      
+      call get_global_grid_size(nxg,nyg,nzg)
+      call get_h(hx,hy,hz)
+
+      dh = (/hx,hy,hz/)
+
+      nsize = (/nxg,nyg,nzg/)
+      in0(:,1)   = inp
+      in0(:,2)   = jnp
+      in0(:,3)   = 0
+
+c     Impose BCs
+
+      do dim=1,_Dimx
+        do i=1,_Npg
+          if(dx(i,dim)>0 .and. xnp(i,dim).ge.dh(dim)) then
+            do while(xnp(i,dim).ge.dh(dim))
+              in0(i,dim) = in0(i,dim)+1
+              xnp(i,dim) = xnp(i,dim) - dh(dim)
+            enddo
+            if(in0(i,dim)>nsize(dim)) !BC @ location=1
+     .         call pcles_bc_offset_vavg(dim,1,pbcond,nsize(dim)
+     .                                  ,xnp(i,:),vh(i,:),in0(i,:),wp(i)
+     .                                  ,ref_tag(i,dim),hit_wall(i))
+
+         else if(dx(i,dim)<0.and. xnp(i,dim).le.0) then
+            do while(xnp(i,dim).le.0d0)
+              in0(i,dim) = in0(i,dim)-1
+              xnp(i,dim) = xnp(i,dim) + dh(dim)
+            enddo
+            if(in0(i,dim)<1)        !BC @ location=0
+     .          call pcles_bc_offset_vavg(dim,0,pbcond,nsize(dim)
+     .                                  ,xnp(i,:),vh(i,:),in0(i,:),wp(i)
+     .                                  ,ref_tag(i,dim),hit_wall(i))
+         end if
+
+         
+        enddo
+      end do
+      
+c     Transfer location info
+
+      inp = in0(:,1)
+      jnp = in0(:,2)
+
+      end subroutine cell_crossing_vavg
+
+c     pcles_bc_offset_vavg (added a new tag only)
+c     ##################################################################
+      subroutine pcles_bc_offset_vavg(dim,loc,pbc,nn,xp,vp,ip,wp
+     $                               ,ref_tag,hit_wall)
+
+      implicit none
+
+c     ------------------------------------------------------------------
+c     Impose particle boundary conditions along dimension dim=(1,2,3)
+c     at location loc (0, left; 1, right). Same convention as framework.
+c     ------------------------------------------------------------------
+
+c     Call variables
+
+      integer,intent(in)   :: pbc(6),dim,loc,nn
+      real(8),intent(inout):: xp(3),vp(3),wp
+      integer,intent(inout):: ip(3)
+      real(_prec),optional,intent(inout) :: ref_tag !tag for indicating which boundary is hit; one particle at a time
+      integer,intent(inout) :: hit_wall
+      
+c     Local variables
+
+      integer :: ibc,dim1,dim2
+      real(8) :: hx,hy,hz,ihx,ihy,ihz,dh(3)
+      real(_prec) :: xlog(3),cov(3,3),vdn,inmag
+
+c     Begin program
+
+      ibc = (1+loc)+2*(dim-1)
+
+      call get_h(hx,hy,hz)
+      call get_inverse_h(ihx,ihy,ihz)
+      dh = (/hx,hy,hz/)
+
+      select case(dim)
+      case(1)
+        dim1 = 2 ; dim2 = 3
+      case(2)
+        dim1 = 1 ; dim2 = 3
+      case(3)
+        dim1 = 1 ; dim2 = 2
+      end select
+
+      select case(pbc(ibc))
+      case(pPER)
+!     periodic
+         if (loc == 0) ip(dim) = nn
+         if (loc == 1) ip(dim) = 1  
+      case(pREF,pSP)
+!     reflective, force it to be on the boundary, before which xp=(0:eps).
+         ref_tag = -ref_tag; !default 1, only flip the sign
+         hit_wall = 1; 
+cc         print *,"reflect",dim,ref_tag(dim)
+         if (loc == 0) ip(dim) = ip(dim) + 1
+         if (loc == 1) ip(dim) = ip(dim) - 1 
+         xp(dim) = loc*dh(dim)
+         if (no_map) then
+           vp(dim) =-vp(dim)
+         else
+           xlog(1) = xp(1)*ihx
+           xlog(2) = xp(2)*ihy
+           xlog(3) = xp(3)*ihz
+
+           call transf_vector_Bspl_scalar(ip(1),ip(2),xlog,cov)
+           inmag = 1d0/sum(cov(dim,:)*cov(dim,:))  ! |n|
+           vdn = dot_product(cov(dim,:),vp)        ! v.n
+cc           if (vdn*(-1)**loc < 0d0) vp = vp - 2d0*vdn*cov(dim,:)*inmag ! vp = vp - 2*(v.n)n/|n|^2
+           vp = vp - 2d0*vdn*cov(dim,:)*inmag ! vp = vp - 2*(v.n)n/|n|^2
+         endif
+      case(pOPN)
+         if (loc == 0) ip(dim) = ip(dim) + 1
+         if (loc == 1) ip(dim) = ip(dim) - 1 
+         xp(dim) = loc*dh(dim)
+         vp(dim) = 2d0*vinject(dim,ibc) - vp(dim) !assuming a symmetric distribution
+         vp(dim1) = -vp(dim1)
+         vp(dim2) = -vp(dim2)
+         if (opnbc_is_vacuum) wp = 0d0  !Pcle no longer contributes to moments
+      case default
+         print *, "Specify the particle BC, quit"
+         stop
+      end select
+
+c     End program
+
+      end subroutine pcles_bc_offset_vavg
+      
 c     pic_activate_pcle
 c     ##################################################################
       subroutine pic_activate_pcle(is,ijk,fresh)
@@ -5592,7 +5745,7 @@ c     End program
 
 c     plotPDF_xv
 c     ##################################################################
-      subroutine plotPDF_xv(nv,label,init,xdraw,v_min,v_max) 
+      subroutine plotPDF_xv(nv,label,init,xdraw,v_min,v_max,charge) 
 
 c     ------------------------------------------------------------------
 c     Accumulates particles on mesh, returning result in mesh array garr.
@@ -5609,6 +5762,7 @@ c     Call variables
       logical :: init,xdraw
 
       real(8),optional :: v_min,v_max
+      logical,optional :: charge
       
 c     Local variables
 
@@ -5619,14 +5773,26 @@ c     Local variables
 
       character(100) :: suffix
 
+      logical :: chrg
+
 c     Begin program
 
       call get_domain_limits(xmin,xmax,ymin,ymax,zmin,zmax)
 
       call get_global_grid_size(nxg,nyg,nzg)
 
+      if (PRESENT(charge)) then
+        chrg = charge
+      else
+        chrg = .false.
+      endif
+
       if (my_rank_pic == 0) then
-        write (*,*) 'Dumping PDFs...'
+        if (chrg) then
+          write (*,*) 'Dumping charge PDFs...'
+        else
+          write (*,*) 'Dumping particle PDFs...'
+        endif
       endif
 
 c     Gather 1d-1v PDF
@@ -5641,6 +5807,8 @@ c     Gather 1d-1v PDF
 
         if (ierr == 1) cycle
 
+        if (chrg) garr = garr*spcs(isp)%q
+        
         !Dump contour plots
         if (my_rank_pic == 0) then
           suffix = trim(label)//'-sp'//trim(int2char(isp))

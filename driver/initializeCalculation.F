@@ -94,7 +94,7 @@ c Read PETSc runtime options
 
       call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-dt',dt
      .                        ,petsc_flg,ierr)
-      
+
       call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-numtime',numtime
      .                       ,petsc_flg,ierr)
       if (petsc_flg) tmax = 0d0
@@ -401,7 +401,7 @@ c     Allocate intermediate variable
 
 c     Read equilibrium
 
-      if (my_rank == 0) write (*,*) ' Reading restart file(s)...'
+      if (my_rank == 0) write (*,'(a)') ' Reading restart file(s)...'
 
       ierr = readRecordFile(ufile,itime,time,dt,gammat,u_0)
 
@@ -426,7 +426,7 @@ c     Read files
 
         ierr = readRecordFile(ufile,itime,time,dt,gammat,vmed)
 
-        if(switch_dumpfile(itime_old,itime,ufile)) then
+        if(ierr==0.and.switch_dumpfile(itime_old,itime,ufile)) then
           ierr = readRecordFile(ufile,itime,time,dt,gammat,vmed)
         endif
 
@@ -453,7 +453,7 @@ c     Setup source
 
 c     Exit
 
-      if (my_rank == 0) write (*,*) ' Done!'
+      if (my_rank == 0) write (*,'(a)') ' Done!'
 
 #if defined(pit)
       dt = dtbase  !Reset time step with parallel-in-time
