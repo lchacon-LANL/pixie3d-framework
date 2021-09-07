@@ -12206,7 +12206,7 @@ c     X-flux computation
         if (ii == 0) tgx = -2
         xi=max(ii-2,0)-max(ii+3-(nx+1),0)
         xf=min(ii+3,nx+1)+max(2-ii,0)
-        Flux(1)=Get_Flux(idx,tgx,F(xi:xf,j,k),tnsrd(xi:xf,j,k,1))
+        Flux(1)=Get_Flux(idx,tgx,F(xi:xf,j,k),tnsrd(xi:xf,j,k,1),stncl)
 
         if (ny > 1) then
           tgx=IOR(min(ii-2,0),max(ii+2-(nx+1),0))
@@ -12244,7 +12244,7 @@ c     Y-flux computation
         if (jj == 0) tgy = -2
         yi=max(jj-2,0)-max(jj+3-(ny+1),0)
         yf=min(jj+3,ny+1)+max(2-jj,0)
-        Flux(2)=Get_Flux(idy,tgy,F(i,yi:yf,k),tnsrd(i,yi:yf,k,4))
+        Flux(2)=Get_Flux(idy,tgy,F(i,yi:yf,k),tnsrd(i,yi:yf,k,4),stncl)
 
         if (nx > 1) then
           tgx=IOR(min(i-2,0),max(i+2-(nx+1),0))
@@ -12282,7 +12282,7 @@ c     Z-flux computation
         if (kk == 0) tgz = -2
         zi=max(kk-2,0)-max(kk+3-(nz+1),0)
         zf=min(kk+3,nz+1)+max(2-kk,0)
-        Flux(3)=Get_Flux(idz,tgz,F(i,j,zi:zf),tnsrd(i,j,zi:zf,6))
+        Flux(3)=Get_Flux(idz,tgz,F(i,j,zi:zf),tnsrd(i,j,zi:zf,6),stncl)
 
         if (ny > 1) then
           tgy=IOR(min(j -2,0),max(j +2-(ny+1),0))
@@ -12411,7 +12411,7 @@ c     Begin program
       end function Get_Flux_Cross
 
 c     ################################################################
-      function Get_Flux(ih,tag,F,B2) result (val)
+      function Get_Flux(ih,tag,F,B2,stncl) result (val)
 c     ----------------------------------------------------------------
 c     Calculates the flux for d^2/dx^2 part of div.(BB.grad) operator 
 c     with 4th order accuracy at a point.
@@ -12422,7 +12422,7 @@ c     ----------------------------------------------------------------
 
 c     Call variables
 
-      integer  :: tag
+      integer  :: tag,stncl
       real(8)  :: F(6),B2(6),val,ih
 
 c     Local variables
@@ -12430,6 +12430,8 @@ c     Local variables
 c     Begin program
 
       select case(stncl)
+      case(2)
+        val = 0.5*(B2(4+tag)+B2(3+tag))*(F(4+tag)-F(3+tag))*ih
       case(5)
         select case(tag)
         case (-2)
