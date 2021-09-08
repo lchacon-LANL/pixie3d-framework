@@ -59,6 +59,7 @@ ifeq ($(findstring ifort,$(FC)),ifort)
   CPPFLAGS    += $(PREPROC)ifort
   FOPENMP      = -qopenmp 
   LABEL        = intel
+  LIBS         = -llapack -lblas
 endif
 
 # Flags for g95
@@ -94,6 +95,7 @@ ifeq ($(findstring gfortran,$(FC)),gfortran)
   FOPENMP      = -fopenmp
   LDFLAGS     += -lgfortran 
   LABEL        = gnu
+  LIBS         = -llapack -lblas
 endif
 
 ifeq ($(findstring vtf77,$(FC)),vtf77)

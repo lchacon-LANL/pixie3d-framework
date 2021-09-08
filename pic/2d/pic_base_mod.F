@@ -62,7 +62,7 @@ c     ##################################################################
 
       if(quiet_start) then
 !     group of Antithetic variables
-         pgroup = 8
+         pgroup = 1 !8
       else
          pgroup = 1
       end if
@@ -4991,7 +4991,6 @@ c     Find PIC physical quantities
 
          npc_avg(isp) = (nps(isp))/sum(Jns(1:nxg,1:nyg,isp))
          n0 = npc_avg(isp)/(hx*hy*hz)     !Add volume factor
-
          if (n0 <= 0) call pstop("setup_pic_2d"
      .            ,"Not enough particles for species "//int2char(isp))
 
@@ -5355,6 +5354,7 @@ c     Begin program
          if (loc == 0) ip(dim) = ip(dim) + 1
          if (loc == 1) ip(dim) = ip(dim) - 1 
          xp(dim) = loc*dh(dim)
+cc         xp(dim) = dh(dim)-xp(dim)
          if (no_map) then
            vp(dim) =-vp(dim)
          else
