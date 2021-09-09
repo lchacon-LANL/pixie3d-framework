@@ -36,9 +36,9 @@ contains
 
       step = n !start with 0
       do i = 1, dim_num
-         seed(i) = lrank+1
+         seed(i) = 1 !lrank
       end do
-      leap(1:dim_num) = lnproc
+      leap(1:dim_num) = 1 !lnproc
 
       do i = 1, dim_num
          base(i) = prime (i)
