@@ -908,6 +908,8 @@ c     Begin program
       file = 'record_it='//counter1//'.bin'
 #endif
 
+cc      if (my_rank == 0) write (*,*) "dumpfile=",trim(file)
+      
       end function new_dumpfile
       
 c     switch_dumpfile
@@ -918,7 +920,6 @@ c     -----------------------------------------------------------------
 c     Switches the dump file to bifurcated one due to restart
 c     -----------------------------------------------------------------
 
-      
       implicit none
 
 c     Call variables

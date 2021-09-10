@@ -140,6 +140,10 @@ c Read PETSc runtime options
 
       call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-restart'
      .                         ,ts_restart,petsc_flg2,ierr)
+      
+      call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-trestart',trestart
+     .                        ,petsc_flg,ierr)
+      if (petsc_flg.and.(.not.petsc_flg2)) ts_restart = .true.
 
       call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-fpa',fpa
      .                         ,petsc_flg,ierr)
@@ -159,10 +163,6 @@ c Read PETSc runtime options
      .                        ,petsc_flg,ierr)
       call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-stol',stol
      .                        ,petsc_flg,ierr)
-      
-      call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-trestart',trestart
-     .                        ,petsc_flg,ierr)
-      if (petsc_flg.and.(.not.petsc_flg2)) ts_restart = .true.
 
       call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-cpu_quota',quota
      .                        ,petsc_flg,ierr)
