@@ -112,7 +112,7 @@ c     Local variables
      .            ,aa,bb,major_r,mm,kk,eps,phi,gp(ngparams)
      .            ,xlog(3),period1,period2
         real(8) :: xmax,ymax,zmax,xmin,ymin,zmin,shftR,shftZ
-     .            ,kappa,delta,zeta,cs,sn,Z0,kappa_simag
+     .            ,kappa,delta,zeta,cs,sn,Z0,kappa_sp
 ! Daniele, 11/07/2017. Local variables needed for shaped toroidal coordinates
         integer :: i
         real(8) :: ai(10),bi(10)
@@ -248,12 +248,12 @@ c$$$          enddo
           kappa   = gp(4)  !Elongation
           delta   = gp(5)  !Triangularity
           zeta    = gp(6)  !Squareness
-          shftR   = gp(7)  !Origin shift in R
-          shftZ   = gp(8)  !Origin shift in Z
-          kappa_simag = gp(9) !Elongation at magnetic axis
+          kappa_sp= gp(7) !Elongation at magnetic axis
+          shftR   = gp(8)  !Origin shift in R
+          shftZ   = gp(9)  !Origin shift in Z
 
-          if (kappa_simag > 0d0) then
-            bb = aa*((1d0-xlog(1))*kappa_simag + xlog(1)*kappa)
+          if (kappa_sp > 0d0) then
+            bb = aa*((1d0-xlog(1))*kappa_sp + xlog(1)*kappa)
           else
             bb = aa*kappa
           endif
