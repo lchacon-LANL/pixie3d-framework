@@ -1201,20 +1201,6 @@ c     Evaluate dr=dx/dxi vectors
               enddo
             enddo
           enddo
-c$$$          write (*,*) "x_1",dr(10,:,1,1,1)
-c$$$          write (*,*) "y_1",dr(10,:,1,2,1)
-c$$$          write (*,*) "z_1",dr(10,:,1,3,1)
-c$$$          write (*,*) "x_2",dr(10,:,1,1,2)
-c$$$          write (*,*) "y_2",dr(10,:,1,2,2)
-c$$$          write (*,*) "z_2",dr(10,:,1,3,2)
-c$$$          write (*,*) "x_3",dr(10,:,1,1,3)
-c$$$          write (*,*) "y_3",dr(10,:,1,2,3)
-c$$$          write (*,*) "z_3",dr(10,:,1,3,3)
-c$$$          write (*,*) "jac", (triple_product(dr(10,j,1,:,1)
-c$$$     .                                      ,dr(10,j,1,:,2)
-c$$$     .                                      ,dr(10,j,1,:,3))
-c$$$     .                       ,j=0,33)
-c$$$          pause
         else                  !First order in coarser grids (to avoid negative jacobians)
           do k = kmin,kmax
             do j = jmin,jmax
