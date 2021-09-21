@@ -5,6 +5,8 @@ add_library(
 )
 # set dependencies
 target_link_libraries(polynomial dependencies)
+# set Fortran standard to allow modern compilers to build this
+target_compile_options(polynomial PRIVATE -std=legacy)
 
 # do standard actions on target
 init_target(polynomial)
