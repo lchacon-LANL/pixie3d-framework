@@ -114,6 +114,35 @@ c     End program
 
       end function is_file
 
+#if defined(ifort)
+c     is_dir
+c     ####################################################################
+      function is_dir(dir)
+
+c     --------------------------------------------------------------------
+c     Checks whether "file" exists.
+c     --------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      logical :: is_dir
+      character(*) :: dir
+
+c     Local variables
+
+      integer :: ierr
+
+c     Begin program
+
+      INQUIRE(DIRECTORY=trim(dir),exist=is_dir)
+
+c     End program
+
+      end function is_dir
+#endif
+      
 c     is_open_file
 c     ####################################################################
       function is_open_file(file)

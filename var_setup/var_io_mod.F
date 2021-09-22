@@ -938,8 +938,14 @@ c     Begin program
       
       do it=itime1,itime2
         file = new_dumpfile(it)
-#if defined(adios) || defined(ADIOS2)
-        switch = is_file(file)
+#if defined(adios)
+        switch = is_file(trim(file))
+#elif defined(ADIOS2)
+#if defined(ifort)
+        switch = is_dir(trim(file))
+#else
+        switch = is_file(trim(file))
+#endif
 #else
         switch = is_file(trim(file)//"_proc0")
 #endif
