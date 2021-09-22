@@ -218,11 +218,7 @@ c Initialize MK variables
      
 c Initialize computation
 
-      if (.not.ts_restart) then
-        call setInitialState
-      else
-        call readCurrentState(recordfile)
-      endif
+      call readSimulationState(recordfile)
 
 c Initialize record file
 
@@ -239,102 +235,104 @@ c End program
 
       end subroutine initializeCalculation
 
-c setInitialState
+c$$$c setInitialState
+c$$$c####################################################################
+c$$$      subroutine setInitialState
+c$$$
+c$$$c--------------------------------------------------------------------
+c$$$c     Set initial state for initial value calculation.
+c$$$c--------------------------------------------------------------------
+c$$$
+c$$$      use grid
+c$$$
+c$$$      use timeStepping
+c$$$
+c$$$      use var_io
+c$$$
+c$$$#if defined(MK)
+c$$$      use mk
+c$$$#endif
+c$$$
+c$$$      implicit none
+c$$$
+c$$$c Local variables
+c$$$
+c$$$      integer :: ieq,nx,ny,nz,igrid
+c$$$
+c$$$c Interfaces
+c$$$
+c$$$      INTERFACE
+c$$$        subroutine setEquilibrium(igx,varray)
+c$$$        use var_setup
+c$$$        integer :: igx
+c$$$        type(var_array),pointer :: varray
+c$$$        end subroutine setEquilibrium
+c$$$      END INTERFACE
+c$$$
+c$$$      INTERFACE
+c$$$        subroutine perturbEquilibrium(varray)
+c$$$        use var_setup
+c$$$        type(var_array),pointer :: varray
+c$$$        end subroutine perturbEquilibrium
+c$$$      END INTERFACE
+c$$$
+c$$$      INTERFACE
+c$$$        subroutine get_src(varray)
+c$$$        use var_setup
+c$$$        type(var_array),pointer :: varray
+c$$$        end subroutine get_src
+c$$$      END INTERFACE
+c$$$
+c$$$c Begin program
+c$$$
+c$$$      igrid = 1
+c$$$
+c$$$c Create equilibrium u_0
+c$$$
+c$$$      call setEquilibrium(igrid,u_0)  !External
+c$$$
+c$$$#if defined(MK)
+c$$$      if (mk_grid) then
+c$$$        u_0%array_var(neqd)%descr = 'MK phi'
+c$$$        u_0%array_var(neqd)%array = 0d0
+c$$$
+c$$$        call MK_initGrid(igrid,bcs=bcond)  !Change also in 3dplot.F
+c$$$      endif
+c$$$#endif
+c$$$
+c$$$      call equateDerivedType(u_n,u_0)
+c$$$
+c$$$      call equateDerivedType(u_np,u_n)
+c$$$
+c$$$c Set up source
+c$$$      
+c$$$      call get_src(u_n)  !This also imposes BCs
+c$$$
+c$$$      call mapStructureToVector(gv%gparams,x0,u_n)
+c$$$
+c$$$c Write geometry when applicable
+c$$$
+c$$$cc      if (coords == 'ext') call writeExtMap(gv%gparams)
+c$$$
+c$$$c Perturb equilibrium
+c$$$
+c$$$      if (.not.relax_init_grid) call perturbEquilibrium(u_np)
+c$$$
+c$$$c Impose BC (to initialize all auxiliary variables)
+c$$$
+c$$$      call applyBC(igrid,u_np,gv%aux,it=1)
+c$$$
+c$$$#if defined(MK)
+c$$$      if (mk_grid) call MK_applyBC(igrid,u_np%array_var(neqd)%array)
+c$$$#endif
+c$$$
+c$$$c End program
+c$$$
+c$$$      end subroutine setInitialState
+
+c readSimulationState
 c####################################################################
-      subroutine setInitialState
-
-c--------------------------------------------------------------------
-c     Set initial state for initial value calculation.
-c--------------------------------------------------------------------
-
-      use grid
-
-      use timeStepping
-
-      use var_io
-
-#if defined(MK)
-      use mk
-#endif
-
-      implicit none
-
-c Local variables
-
-      integer :: ieq,nx,ny,nz,igrid
-
-c Interfaces
-
-      INTERFACE
-        subroutine setEquilibrium(igx,varray)
-        use var_setup
-        integer :: igx
-        type(var_array),pointer :: varray
-        end subroutine setEquilibrium
-      END INTERFACE
-
-      INTERFACE
-        subroutine perturbEquilibrium(varray)
-        use var_setup
-        type(var_array),pointer :: varray
-        end subroutine perturbEquilibrium
-      END INTERFACE
-
-      INTERFACE
-        subroutine get_src(varray)
-        use var_setup
-        type(var_array),pointer :: varray
-        end subroutine get_src
-      END INTERFACE
-
-c Begin program
-
-      igrid = 1
-
-c Create equilibrium u_0
-
-      call setEquilibrium(igrid,u_0)  !External
-
-#if defined(MK)
-      if (mk_grid) then
-        u_0%array_var(neqd)%descr = 'MK phi'
-        u_0%array_var(neqd)%array = 0d0
-
-        call MK_initGrid(igrid,bcs=bcond)  !Change also in 3dplot.F
-      endif
-#endif
-
-      call equateDerivedType(u_n,u_0)
-
-      call get_src(u_n)  !This also imposes BCs
-
-      call mapStructureToVector(gv%gparams,x0,u_n)
-
-c Write geometry when applicable
-
-cc      if (coords == 'ext') call writeExtMap(gv%gparams)
-
-c Perturb equilibrium
-
-      call equateDerivedType(u_np,u_n)
-
-      if (.not.relax_init_grid) call perturbEquilibrium(u_np)
-
-c Impose BC (to initialize all auxiliary variables)
-
-      call applyBC(igrid,u_np,gv%aux,it=1)
-
-#if defined(MK)
-      if (mk_grid) call MK_applyBC(igrid,u_np%array_var(neqd)%array)
-#endif
-
-c End program
-
-      end subroutine setInitialState
-
-c readCurrentState
-c####################################################################
-      subroutine readCurrentState(file)
+      subroutine readSimulationState(file)
 
 c--------------------------------------------------------------------
 c     Read current state from restart file.
@@ -360,7 +358,17 @@ c Local variables
 
       integer :: ieq,igrid
 
+      type(var_array),pointer :: vmed => null()
+
 c Interfaces
+
+      INTERFACE
+        subroutine setEquilibrium(igx,varray)
+        use var_setup
+        integer :: igx
+        type(var_array),pointer :: varray
+        end subroutine setEquilibrium
+      END INTERFACE
 
       INTERFACE
         subroutine get_src(varray)
@@ -384,25 +392,33 @@ c Read geometry when applicable
 
 cc      if (coords == 'ext') call readExtMap(gv%gparams)
 
-c Read restart file
+c Read init data
 
-      call readRestartFile(itime,time)
+      if (.not.ts_restart) then
+        call readEquilibrium(itime,time)
+      else
+        call readRestartFile(itime,time)
+      endif
 
-#if defined(MK)
-      if(mk_grid) call MK_setup_grid(igrid,u_np%array_var(neqd)%array)
+c Set up source
 
-      if(mk_grid.and.mk_init_relax.and.itime==1) itime = 0
-#endif
+      call allocateDerivedType(vmed)
+
+      call equateDerivedType(vmed,u_0)
+      call get_src(vmed)
+
+      call deallocateDerivedType(vmed)
 
 c Introduce perturbation at restart
 
       inewtime = itime+1
 
-      if (perturb_rstrt) call perturbEquilibrium(u_np)
+      if ((perturb_rstrt).or.((.not.relax_init_grid).and.(itime==0)))
+     $     call perturbEquilibrium(u_np)
 
 c Impose BCs (to initialize all auxiliary variables)
 
-      call applyBC(igrid,u_np,gv%aux,it=itime)
+      call applyBC(igrid,u_np,gv%aux,it=max(itime,1))
 
 #if defined(MK)
       if (mk_grid) call MK_applyBC(igrid,u_np%array_var(neqd)%array)
@@ -412,6 +428,47 @@ c End program
 
       contains
 
+c     readEquilibrium
+c     #################################################################
+      subroutine readEquilibrium(itime,time)
+
+c     -----------------------------------------------------------------
+c     Reads restart file
+c     -----------------------------------------------------------------
+
+      use variables
+
+      implicit none
+
+c     Call variables
+
+      integer,intent(OUT) :: itime
+      real(8),intent(OUT) :: time
+
+c     Local variables
+
+c     Begin program
+
+      call setEquilibrium(igrid,u_0)  !External
+
+#if defined(MK)
+      if (mk_grid) then
+        u_0%array_var(neqd)%descr = 'MK phi'
+        u_0%array_var(neqd)%array = 0d0
+
+        call MK_initGrid(igrid,bcs=bcond)  !Change also in 3dplot.F
+      endif
+#endif
+
+      call equateDerivedType(u_n,u_0)
+
+      call equateDerivedType(u_np,u_n)
+
+      itime = 0
+      time  = 0d0
+      
+      end subroutine readEquilibrium
+      
 c     readRestartFile
 c     #################################################################
       subroutine readRestartFile(itime,time)
@@ -452,7 +509,7 @@ c     Read equilibrium
       ierr = readRecordFile(ufile,itime,time,dt,gammat,u_0)
 
       if (ierr /= 0) then
-        call pstop('readCurrentState','Unable to read u_0')
+        call pstop('readSimulationState','Unable to read u_0')
       endif
 
       call TS_update_preCounters(time,exclude_itime=.true.)
@@ -461,42 +518,43 @@ c     Read files
 
       ierr = readRecordFile(ufile,itime,time,dt,gammat,u_n)
 
-      if (ierr /= 0) then
-        call pstop('readCurrentState','Unable to read u_n')
-      endif
+      if (ierr /= 0) then  !Starting from file-based initial condition
 
-      call equateDerivedType(u_np,u_n)
+        call equateDerivedType(u_n ,u_0)
+        call equateDerivedType(u_np,u_n)
+cc        call pstop('readSimulationState','Unable to read u_n')
+cc        ts_restart = .false.
+      else
 
-      do
-        itime_old = itime + 1
+        call equateDerivedType(u_np,u_n)
 
-        ierr = readRecordFile(ufile,itime,time,dt,gammat,vmed)
+        do
+          itime_old = itime + 1
 
-        if(ierr==0.and.switch_dumpfile(itime_old,itime,ufile)) then
           ierr = readRecordFile(ufile,itime,time,dt,gammat,vmed)
-        endif
 
-        if (ierr /= 0) then !EOF: Rollback counters and exit
-          call TS_rollback_counters(exclude_itime=.true.)
-          exit
-        else
-          call TS_update_preCounters(time,exclude_itime=.true.)
-          call equateDerivedType(u_n ,u_np)
-          call equateDerivedType(u_np,vmed)
-          if (   (itime > nrestart.and.nrestart > 0)
-     .       .or.(time  > trestart.and.trestart > 0d0)) then
-            call setEarlyTimeRestartFlag(.true.)
-            exit
+          if(ierr==0.and.switch_dumpfile(itime_old,itime,ufile)) then
+            ierr = readRecordFile(ufile,itime,time,dt,gammat,vmed)
           endif
-        endif
 
-      enddo
+          if (ierr /= 0) then   !EOF: Rollback counters and exit
+            call TS_rollback_counters(exclude_itime=.true.)
+            exit
+          else
+            call TS_update_preCounters(time,exclude_itime=.true.)
+            call equateDerivedType(u_n ,u_np)
+            call equateDerivedType(u_np,vmed)
+            if (   (itime > nrestart.and.nrestart > 0)
+     .           .or.(time  > trestart.and.trestart > 0d0)) then
+              call setEarlyTimeRestartFlag(.true.)
+              exit
+            endif
+          endif
 
-c     Setup source
+        enddo
 
-      call equateDerivedType(vmed,u_0)
-      call get_src(vmed)
-
+      endif
+      
 c     Exit
 
       if (my_rank == 0) write (*,'(a)') ' Done!'
@@ -511,9 +569,15 @@ c     End
 
       call closeRestartFileForRead(ufile)
 
+#if defined(MK)
+      if(mk_grid) call MK_setup_grid(igrid,u_np%array_var(neqd)%array)
+
+      if(mk_grid.and.mk_init_relax.and.itime==1) itime = 0
+#endif
+
       end subroutine readRestartFile
 
-      end subroutine readCurrentState
+      end subroutine readSimulationState
 
 c initializeRecordFile
 c######################################################################
@@ -561,7 +625,7 @@ c Begin program
 c Open record file
 
       if (.not.no_graphics_io) then
-        if (.not.ts_restart) then
+        if ((.not.ts_restart).or.(ts_restart.and.(itime==0))) then
           !Dump initial data
           call writeRecordFile(file,0,0d0,dt,0d0,u_0)
           call writeRecordFile(file,0,0d0,dt,0d0,u_np)
@@ -662,8 +726,8 @@ cc        call dump_src
 
 c End program
 
-      contains
-
+c$$$      contains
+c$$$
 c$$$c     dump_src
 c$$$c     ###############################################################
 c$$$      subroutine dump_src
