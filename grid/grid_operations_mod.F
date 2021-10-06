@@ -1829,7 +1829,7 @@ c$$$     .            ,1,110)
 c$$$        close(110)
 c diag ****
 
-        end function XformToCov_vrtx_mesh
+      end function XformToCov_vrtx_mesh
 
 c     vectorNorm_ijk
 c     ################################################################

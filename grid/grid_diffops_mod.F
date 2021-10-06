@@ -2779,7 +2779,7 @@ c ######################################################################
         end INTERFACE
 
         INTERFACE curlcurl
-          module procedure curlcurl_ijk,curlcurl_mesh,curlcurl_mesh2
+          module procedure curlcurl_ijk,curlcurl_mesh!,curlcurl_mesh2
         end INTERFACE
 
         INTERFACE curlcurl_cov
@@ -7323,7 +7323,7 @@ c     End program
 
 c     curlcurl_mesh2
 c     ###############################################################
-      function curlcurl_mesh2(g_def,igrid,cnv,cov,iscnv) result(vec_out)
+      function curlcurl_mesh2(g_def,igrid,vec,iscnv) result(vec_out)
 
 c     ---------------------------------------------------------------
 c     Calculates curlcurl(A) in general non-orthogonal coordinates.
@@ -7339,22 +7339,35 @@ c     Call variables
 
       integer :: igrid
 
-      real(8) :: cnv(0:,0:,0:,:)
-     .          ,cov(0:,0:,0:,:)
-     .          ,vec_out(0:size(cnv,1)-1
-     $                  ,0:size(cnv,2)-1
-     $                  ,0:size(cnv,3)-1,3)
+      real(8),target :: vec(0:,0:,0:,:)
+     .                 ,vec_out(0:size(vec,1)-1
+     $                         ,0:size(vec,2)-1
+     $                         ,0:size(vec,3)-1,3)
 
       logical :: iscnv
 
 c     Local variables
 
+      real(8),pointer,dimension(:,:,:,:) :: cnv,cov
+
 c     Begin program
 
+      if (iscnv) then
+        cnv => vec
+        cov => vec_out
+        cov = XformToCov(g_def,igrid,cnv)
+      else
+        cov => vec
+        cnv => vec_out
+        cnv = XformToCnv(g_def,igrid,cov)
+      endif
+      
       vec_out =-veclap_cov(g_def,igrid,cov)
      .         +gradDiv   (g_def,igrid,cnv)
 
       if (iscnv) vec_out = XformToCnv(g_def,igrid,vec_out)
+
+      nullify(cnv,cov)
       
 c     End program
 
@@ -7819,7 +7832,7 @@ c$$$      curlcurl = dwa+dwb+dwc+dwd+dwe+dwf+dwg+dwh+dwi+dwj+dwk
 c$$$
 c$$$c     End program
 c$$$
-c$$$      end function curlcurl
+c$$$      end function curlcurl_cov_ijk
 
 c     veclap_stg_mesh
 c     ###############################################################

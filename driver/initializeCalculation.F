@@ -418,7 +418,9 @@ c Introduce perturbation at restart
 
 c Impose BCs (to initialize all auxiliary variables)
 
-      call applyBC(igrid,u_np,gv%aux,it=max(itime,1))
+      old_time_eval = .true.
+      call applyBC(igrid,u_np,gv%aux)
+      old_time_eval = .false.
 
 #if defined(MK)
       if (mk_grid) call MK_applyBC(igrid,u_np%array_var(neqd)%array)
@@ -545,7 +547,7 @@ cc        ts_restart = .false.
             call equateDerivedType(u_n ,u_np)
             call equateDerivedType(u_np,vmed)
             if (   (itime > nrestart.and.nrestart > 0)
-     .           .or.(time  > trestart.and.trestart > 0d0)) then
+     .         .or.(time  > trestart.and.trestart > 0d0)) then
               call setEarlyTimeRestartFlag(.true.)
               exit
             endif

@@ -30,7 +30,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: i,order,igrp,itm
+      integer :: i,order,igrp
 
 c     Interfaces
 
@@ -82,12 +82,6 @@ c     Interfaces
 
 c     Begin program
 
-      if (PRESENT(it)) then
-        itm = it
-      else
-        itm = 0
-      endif
-
       if (PRESENT(bc_order))  then
         var_bc_order = bc_order
       else
@@ -105,7 +99,7 @@ c     Set application BCs (external)
 
 c     Set BC schedule
 
-      call setBCsched(varray,vaux,itm)
+      call setBCsched(varray,vaux)
 
 c     Impose BCs
 
@@ -166,7 +160,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: i,order,igrp,itm
+      integer :: i,order,igrp
 
 c     Interfaces
 
@@ -199,12 +193,6 @@ c     Interfaces
 
 c     Begin program
 
-      if (PRESENT(it)) then
-        itm = it
-      else
-        itm = 0
-      endif
-
       if (PRESENT(bc_order))  then
         var_bc_order = bc_order
         order = bc_order
@@ -221,7 +209,7 @@ c     Set application BCs (external)
 
 c     Set BC schedule
 
-      call setBCsched(varray,vaux,itm)
+      call setBCsched(varray,vaux)
 
 c     Impose BCs
 
@@ -332,7 +320,7 @@ c     End program
 
 c     setBCsched
 c     ###################################################################
-      subroutine setBCsched(varray,vaux,it)
+      subroutine setBCsched(varray,vaux)
 
 c     -------------------------------------------------------------------
 c     Sets BC schedule for dependent and auxiliary variables, which
@@ -354,8 +342,6 @@ c     -------------------------------------------------------------------
 
 c     Call variables
 
-      integer :: it
-
       type(var_array),pointer :: varray
 
       type(aux_array),pointer :: vaux
@@ -366,7 +352,6 @@ c     Local variables
 
 c     Begin program
 
-cc      dump = (it==0).and.(my_rank==0)
       call create_bc_schedule(varray,vaux,gv%nbc_grp,gv%bc_grp
      .                       ,.false.,.false.,dump,.false.)
 
