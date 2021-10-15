@@ -111,8 +111,9 @@ cc      if (my_rank == 0) write (*,*) "Time counters",e_time, quota
 
       dump = dump.or.relax_init_grid
 
-      if (reset.and.dump.and.itime>init_grid_offset)
-     .     tmrst=tmrst-sign(1d0,dt)*dstep
+      if (reset.and.dump.and.itime>init_grid_offset) then
+        tmrst=tmrst-sign(1d0,dt)*dstep
+      endif
 
       if (PRESENT(etime)) etime = e_time
 
@@ -152,7 +153,7 @@ c     Begin program
       
       if ((TS_chk_dump(etime=exec_time,reset_counters=.true.).or.dump)
      .     .and.(.not.no_graphics_io)) then
-         call writeRecordFile(recordfile,itime,time,dt,gammat,varray)
+        call writeRecordFile(recordfile,itime,time,dt,gammat,varray)
       endif
 
 #if defined(MK)
@@ -263,7 +264,7 @@ c     Begin program
 
       dump = (nplot == ndplot.and.nplot > 0)
 cc     .   .or.((time-tmplot) >= dplot-0.9*dt .and. dplot > 0d0)
-     .   .or.(sign(1d0,dt)*(time-tmplot)>=dplot-.9*abs(dt).and.dplot>0.)
+     .   .or.(sign(1d0,dt)*(time-tmplot)>=dplot-.1*abs(dt).and.dplot>0.)
      .   .or.(sign(1d0,dt)*(tmax-time  )<=1d-10           .and.dplot>0.)
      .   .or.(time == 0d0)
 

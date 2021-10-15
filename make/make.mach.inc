@@ -1640,7 +1640,7 @@ ifeq ($(findstring sn,$(HOST)),sn)
       ADIOS_VER  = 1.10.0
 
       ADIOS2 = t
-      ADIOS2_METHOD = MPI
+      ADIOS2_METHOD = MPI_LUSTRE
       ADIOS2_HOME = /usr/projects/DPIC/Software/adios-2.5/lib/intel-19.0.4_openmpi-3.1.6
       ADIOS2_LIBS = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-libs)
       ADIOS2_MOD  = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-flags)

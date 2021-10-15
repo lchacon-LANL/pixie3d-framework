@@ -5,7 +5,7 @@ c     ##################################################################
       use gm_init
 
       INTEGER :: MAXSPLIT
-CTOP_OMP!$OMP THREADPRIVATE(MAXSPLIT)
+CGMM_OMP!$OMP THREADPRIVATE(MAXSPLIT)
 
 C     Constants that define array sizes at compilation time.
 
@@ -33,9 +33,6 @@ C     from the posterior probabilities W, into NG groups
 
       if (NIND == 0) return
 
-CBOTTOM_OMP!$OMP PARALLEL DEFAULT(SHARED) private(I,K,MAX,CKOUT)
-CBOTTOM_OMP!$OMP DO
-CBOTTOM_OMP!$OMP.reduction(+:XCC)
       DO I=1,NIND
         MAX=1
 
@@ -50,8 +47,6 @@ CBOTTOM_OMP!$OMP.reduction(+:XCC)
 
         IF (CKOUT.LT.0.0001) IDT(I)=0
       END DO
-CBOTTOM_OMP!$OMP END DO
-CBOTTOM_OMP!$OMP END PARALLEL
       
       END SUBROUTINE CAPART
       
@@ -142,8 +137,6 @@ c     Begin program
       
 c     Calculate multivariate density of each point for every group
 
-CBOTTOM_OMP!$OMP PARALLEL DEFAULT(SHARED) private(JJ,KK,p_ik)
-CBOTTOM_OMP!$OMP DO
       DO JJ=1,NIND              !particle
         DO KK=1,NG              !group
           !Calculate component density
@@ -156,8 +149,6 @@ CBOTTOM_OMP!$OMP DO
         END DO                  !group
         GUM(JJ) = sum(W(JJ,1:NG))
       END DO                    !particle
-CBOTTOM_OMP!$OMP END DO
-CBOTTOM_OMP!$OMP END PARALLEL
       
 C     MSTEP Compute new estimate of mixing proportion (T) for each group.
 C     Calculate sum of posterior probabilities in each group (=effective
@@ -246,7 +237,6 @@ c     Begin program
       NG_Killed = 0
       WSUM = 0d0
 
-
       ! Make a copy of Gaussians' proportions at the current
       ! iteration before updating it for merging purposes
       T_OLD(1:NG) = T(1:NG)
@@ -272,7 +262,6 @@ c     Begin program
 C	Mixing proportion calc. by Figuireido's 2002 paper
 
         T(K) = max(WSUM(K)-NPARBY2,0d0)/(WTOT-NG_OLD*NPARBY2)
-        T(1:NG) = T(1:NG)/SUM(T(1:NG)) ! Follow Figueiredo&Jain2002
 
 C	!Weed out too-small Gaussians and/or update moments
 C	!The following IF-statement is consistent with algorithm
@@ -289,7 +278,7 @@ C	!An easier condition for killing Gaussian:
           ! need to remove the probabilities of dead component from GUM
           ! (01/28/2020)
           DO JJ=1,NIND
-            GUM(JJ)=GUM(JJ)-AL(JJ,K)
+            GUM(JJ)=abs(GUM(JJ)-AL(JJ,K))+1d-14
           END DO
 
         else
@@ -302,7 +291,7 @@ C	!An easier condition for killing Gaussian:
             K_tmp = K
           end if
           
-cc          T(1:NG) = T(1:NG)/SUM(T(1:NG)) ! Follow Figueiredo&Jain2002
+          T(1:NG) = T(1:NG)/SUM(T(1:NG)) ! Follow Figueiredo&Jain2002
 
           call update_gaussian_moments(NIND,NATT,K,X,W(:,K),DV(K_tmp)
      .                                ,XMU(K_tmp,:),XVAR(K_tmp,:,:)

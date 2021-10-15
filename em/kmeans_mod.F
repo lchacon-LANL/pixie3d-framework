@@ -90,17 +90,12 @@ C     Implemented by David Peel May 1994
           DO J=1,NATT
            DO I=1,J
              XVAR_K(I,J)=0.0D0
-CBOTTOM_OMP!$OMP PARALLEL DEFAULT(SHARED) private(JJ)
-CBOTTOM_OMP!$OMP DO
-CBOTTOM_OMP!$OMP.reduction(+:XVAR_K)
              DO JJ=1,NIND
               IF ( IDT(JJ) .EQ. K ) THEN
                 XVAR_K(I,J)=XVAR_K(I,J)
      .             +(X(JJ,I)-XMU(K,I))*(X(JJ,J)-XMU(K,J))
               ENDIF
             END DO
-CBOTTOM_OMP!$OMP END DO
-CBOTTOM_OMP!$OMP END PARALLEL
             XVAR_K(J,I)=XVAR_K(I,J)
           END DO
          END DO

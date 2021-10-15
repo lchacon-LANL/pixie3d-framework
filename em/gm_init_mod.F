@@ -11,23 +11,24 @@ c     ##################################################################
       REAL(8)                              :: TS
       REAL(8), DIMENSION(:  ), ALLOCATABLE :: XMUS
       REAL(8), DIMENSION(:,:), ALLOCATABLE :: XVARS
-CTOP_OMP!$OMP THREADPRIVATE(TS,XMUS,XVARS)
+CGMM_OMP!$OMP THREADPRIVATE(TS,XMUS,XVARS)
+
+      INTEGER,PRIVATE :: NINDT  ! Global number of observations
+CGMM_OMP!$OMP THREADPRIVATE(NINDT)
 
       LOGICAL :: GMM_RANDOM_INIT=.false.           !Whether we use RANDOM GMM init (else GRP8)
      &          ,GMM_KMEANS_INIT=.false.           !Whether we use KMEANS GMM (on top of RND or GRP8)
      &          ,GMM_GS_KMEANS_MULTI_INIT=.false.  !Whether we use GS-MULTI-KMEANS GMM (on top of RND or GRP8)
-      INTEGER,PRIVATE :: NINDT         ! Global number of observations
-CTOP_OMP!$OMP THREADPRIVATE(NINDT)
 
-      INTEGER :: KM_RUNS = 10    ! number of K-means trials after optimal NG is obtained
-     &          ,KM_REF_SET = 3  ! number of ref. sets to be used in gap-statistics
-     &          ,KM_NG_MIN = 2   ! min # of Gaussians
-     &          ,KM_NG_MAX = 10  ! max # of Gaussians
-     &          ,KM_NG_ADJ = 2   ! to avoid underestimate # of Gaussians
+      INTEGER :: KM_RUNS    = 10  ! number of K-means trials after optimal NG is obtained
+     &          ,KM_REF_SET = 3   ! number of ref. sets to be used in gap-statistics
+     &          ,KM_NG_MIN  = 2   ! min # of Gaussians
+     &          ,KM_NG_MAX  = 10  ! max # of Gaussians
+     &          ,KM_NG_ADJ  = 2   ! to avoid underestimate # of Gaussians
 
-      namelist /gmm_init/ gmm_random_init,gmm_kmeans_init
-     .                   ,gmm_gs_kmeans_multi_init,km_runs,km_ref_set
-     .                   ,km_ng_min,km_ng_max,km_ng_adj
+c$$$      namelist /gmm_init/ gmm_random_init,gmm_kmeans_init
+c$$$     .                   ,gmm_gs_kmeans_multi_init,km_runs,km_ref_set
+c$$$     .                   ,km_ng_min,km_ng_max,km_ng_adj
 
       contains
 
@@ -105,19 +106,19 @@ c     Begin program
 
       if (GMM_RANDOM_INIT) then
 
-CTOP_OMP!$OMP MASTER
+CGMM_OMP!$OMP MASTER
         if (my_rank_gmm==0.and.std_io)
      .       PRINT*,"Performing RANDOM init"
-CTOP_OMP!$OMP END MASTER
+CGMM_OMP!$OMP END MASTER
 
         call GMM_INIT_RANDOM(NIND,NATT,NG,W,WSUM,X,XMU,XVAR,T)
 
       elseif (GMM_KMEANS_INIT) THEN
 
-CTOP_OMP!$OMP MASTER
+CGMM_OMP!$OMP MASTER
         if (my_rank_gmm==0.and.std_io)
      .       PRINT*,"Performing GS-Kmeans init"
-CTOP_OMP!$OMP END MASTER
+CGMM_OMP!$OMP END MASTER
 
 c      Perform KMEANS adaptive refinement
 c      Option to use GS--Multi-Kmeans initialization
@@ -151,9 +152,9 @@ c$$$     $          ,XVAR(1:NG,1:NATT,1:NATT),T(1:NG),WTOT,IDT)
 
       else
 
-CTOP_OMP!$OMP MASTER
+CGMM_OMP!$OMP MASTER
         if (my_rank_gmm==0.and.std_io) PRINT*,"Performing GRP8 init"
-CTOP_OMP!$OMP END MASTER
+CGMM_OMP!$OMP END MASTER
 
         !Default: group of eight init
         call GMM_INIT_GRP8  (NIND,NATT,NG,W,WSUM,X,XMU,XVAR,T)
@@ -330,9 +331,9 @@ c     Begin program
       end if
        
       if (my_rank_gmm == 0.and.std_io) then
-!$OMP CRITICAL
+CGMM_OMP!$OMP CRITICAL
         write (*,*) "Performing GR8 GMM initialization"
-!$OMP END CRITICAL
+CGMM_OMP!$OMP END CRITICAL
       endif
       
 c     Calculate initial Gaussian moments

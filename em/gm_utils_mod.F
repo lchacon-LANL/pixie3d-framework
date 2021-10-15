@@ -12,11 +12,11 @@ c     ##################################################################
 
       LOGICAL :: STD_IO=.true.                     !Whether we output to STD output
      &          ,DIAG_IO=.false.                   !Whether we output diagnostics to file
-CTOP_OMP!$OMP THREADPRIVATE(STD_IO,DIAG_IO)
+CGMM_OMP!$OMP THREADPRIVATE(STD_IO,DIAG_IO)
 
       INTEGER :: FYLENO                            !File id for GMM output file
      &          ,ML_IO                             !File id for ML output file
-CTOP_OMP!$OMP THREADPRIVATE(FYLENO,ML_IO)
+CGMM_OMP!$OMP THREADPRIVATE(FYLENO,ML_IO)
 
       contains
 
@@ -474,15 +474,10 @@ c     Local variables
 C     loop over all points
       SUM=0d0
       if (NIND > 0) then
-CBOTTOM_OMP!$OMP PARALLEL DEFAULT(SHARED) private(JJ,AL)
-CBOTTOM_OMP!$OMP DO
-CBOTTOM_OMP!$OMP.reduction(+:sum)
          DO JJ=1,NIND
             CALL Mahalanobis(NATT,X(JJ,:),XMU,V,AL)
             SUM=SUM+AL*AL*W(JJ) 
          END DO
-CBOTTOM_OMP!$OMP END DO
-CBOTTOM_OMP!$OMP END PARALLEL
       endif
 #if defined(petsc)
       LSUM = SUM
@@ -1067,14 +1062,9 @@ C     Compute new estimates of group means (XMU)
 
       SUM =0.0
       DO J=1,NATT
-CBOTTOM_OMP!$OMP PARALLEL DEFAULT(SHARED) private(JJ)
-CBOTTOM_OMP!$OMP DO
-CBOTTOM_OMP!$OMP.reduction(+:sum)
          DO JJ=1,NIND
             SUM(J)=SUM(J)+X(JJ,J)*W(JJ) 
          END DO
-CBOTTOM_OMP!$OMP END DO
-CBOTTOM_OMP!$OMP END PARALLEL
       END DO	
 #if defined(petsc)
       LSUM = SUM
@@ -1088,15 +1078,10 @@ C     Compute new estimate of covariance matrix for each group
       XVAR=0.0
       DO J=1,NATT
         DO I=1,J
-CBOTTOM_OMP!$OMP PARALLEL DEFAULT(SHARED) private(JJ)
-CBOTTOM_OMP!$OMP DO
-CBOTTOM_OMP!$OMP.reduction(+:XVAR)
           DO JJ=1,NIND
             XVAR(I,J)=XVAR(I,J)
      .               +(X(JJ,I)-XMU(I))*(X(JJ,J)-XMU(J))*W(JJ) 
           END DO
-CBOTTOM_OMP!$OMP END DO
-CBOTTOM_OMP!$OMP END PARALLEL
           XVAR(J,I)=XVAR(I,J)
         END DO
       END DO

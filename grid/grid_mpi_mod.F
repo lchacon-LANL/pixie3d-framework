@@ -1238,6 +1238,8 @@ c     Call variables
 
 c     Local variables
 
+        integer :: ierr
+        
 c     Begin program
 
 #if defined(samrai)
@@ -1252,8 +1254,21 @@ c     Call SAMRAI's error handler
         call pstop_samrai(trim(routine),trim(message))
 #else
 c     Call local error handler
-        
-        call sstop(my_rank,routine,message)
+
+c$$$      call sstop(my_rank,routine,message)
+
+        if (my_rank == 0) then
+          write (*,*)
+          write (*,*) trim(message)
+          write (*,*) 'Program stopped at routine ',trim(routine)
+        endif
+
+#if defined(petsc)
+        call PetscFinalize(ierr)
+#endif
+
+        call exit(FATAL)  !Fatal termination
+
 #endif
 
       end subroutine pstop

@@ -95,6 +95,30 @@ c Read PETSc runtime options
       call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-dt',dt
      .                        ,petsc_flg,ierr)
 
+      call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-bdf1'
+     .                         ,petsc_flg,petsc_flg2,ierr)
+      if (petsc_flg.and.petsc_flg2) then
+        cnfactor = 0d0 ; sm_flag = 0
+      endif
+
+      call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-bdf2'
+     .                         ,petsc_flg,petsc_flg2,ierr)
+      if (petsc_flg.and.petsc_flg2) then
+        cnfactor = 0d0 ; sm_flag = 2
+      endif
+
+      call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-cn'
+     .                         ,petsc_flg,petsc_flg2,ierr)
+      if (petsc_flg.and.petsc_flg2) then
+        cnfactor = 0.5d0 ; sm_flag = 0
+      endif
+
+      call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-rannacher'
+     .                         ,petsc_flg,petsc_flg2,ierr)
+      if (petsc_flg.and.petsc_flg2) then
+        sm_flag = 1
+      endif
+
       call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-numtime',numtime
      .                       ,petsc_flg,ierr)
       if (petsc_flg) tmax = 0d0
@@ -111,15 +135,37 @@ c Read PETSc runtime options
      .                        ,petsc_flg,ierr)
       if (petsc_flg) ndstep = 0
 
+      call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-chk_src'
+     .                         ,chk_src,petsc_flg,ierr)
+
       call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-adapt_dt'
      .                         ,ts_adapt_dt,petsc_flg,ierr)
 
       call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-restart'
      .                         ,ts_restart,petsc_flg2,ierr)
-
+      
       call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-trestart',trestart
      .                        ,petsc_flg,ierr)
       if (petsc_flg.and.(.not.petsc_flg2)) ts_restart = .true.
+
+      call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-fpa',fpa
+     .                         ,petsc_flg,ierr)
+      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-fpa_it',fpa_it
+     .                       ,petsc_flg,ierr)
+
+      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-nwt_it',maxitnwt
+     .                       ,petsc_flg,ierr)
+      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-ksp_it',maxksp
+     .                       ,petsc_flg,ierr)
+      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-gm_it',maxitgm
+     .                       ,petsc_flg,ierr)
+
+      call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-rtol',rtol
+     .                        ,petsc_flg,ierr)
+      call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-atol',atol
+     .                        ,petsc_flg,ierr)
+      call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-stol',stol
+     .                        ,petsc_flg,ierr)
 
       call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-cpu_quota',quota
      .                        ,petsc_flg,ierr)
@@ -401,7 +447,7 @@ c     Allocate intermediate variable
 
 c     Read equilibrium
 
-      if (my_rank == 0) write (*,*) ' Reading restart file(s)...'
+      if (my_rank == 0) write (*,'(a)') ' Reading restart file(s)...'
 
       ierr = readRecordFile(ufile,itime,time,dt,gammat,u_0)
 
@@ -453,7 +499,7 @@ c     Setup source
 
 c     Exit
 
-      if (my_rank == 0) write (*,*) ' Done!'
+      if (my_rank == 0) write (*,'(a)') ' Done!'
 
 #if defined(pit)
       dt = dtbase  !Reset time step with parallel-in-time
@@ -552,6 +598,7 @@ c--------------------------------------------------------------------
 #if defined(MK)
       use mk
 #endif
+      use mg_io
 
       implicit none
 
@@ -593,8 +640,11 @@ c Begin program
 #endif
 
       !Dump source
-      if (chk_src) call dump_src
-
+      if (chk_src) then
+cc        call dump_src
+        call vec_plot_gl(gv%gparams,neqd,fsrc,igr,'src','Source')
+      endif
+      
       if (.not.source) fsrc = 0d0
 
       source_eval = .false.
@@ -614,63 +664,63 @@ c End program
 
       contains
 
-c     dump_src
-c     ###############################################################
-      subroutine dump_src
-
-        use grid_debug,ONLY:C_contour,cont_conf,dbg,createDrawInCfile
-
-        integer :: ieq,nx,ny,nz,nunit
-
-        character(10) :: srcf
-        character(4)  :: dbg_desc(neqd)
-        character(3)  :: xlabel,ylabel
-
-        type(var_array),pointer :: u_graph => null()
-
-        if (my_rank == 0) then
-          write (*,*)
-          write (*,*) '>>>>>>>>>>>>>>>>>'
-          write (*,*) 'Dumping source...'
-          write (*,*) '>>>>>>>>>>>>>>>>>'
-        endif
-
-        nx = gv%gparams%nxv(1)
-        ny = gv%gparams%nyv(1)
-        nz = gv%gparams%nzv(1)
-
-        xlabel=cont_conf%label(1)
-        ylabel=cont_conf%label(2)
-
-        do ieq=1,neqd
-          dbg_desc(ieq) = 'dgb'//trim(int2char(ieq))
-        enddo
-
-        srcf='src_p'//trim(int2char(my_rank))//'.bin'
-
-        call createDrawInCfile(neqd,trim(srcf),'Source'
-     .        ,'t',trim(xlabel),trim(ylabel),dbg_desc,'-c -X0 -L57'
-     .        ,'drawsrc_p'//trim(int2char(my_rank))//'.in')
-
-        call mapVectorToStructure(gv%gparams,u_graph,fsrc)
-
-        nunit = 110
-
-        open(nunit,file=trim(srcf),form='unformatted'
-     .        ,status='replace')
-
-        do ieq=1,neqd
-          call C_contour(u_graph%array_var(ieq)%array(1:nx,1:ny,1:nz)
-     .                  ,gv%gparams%gxmin,gv%gparams%gxmax
-     .                  ,gv%gparams%gymin,gv%gparams%gymax
-     .                  ,gv%gparams%gzmin,gv%gparams%gzmax
-     .                  ,ieq-1,nunit)
-        enddo
-
-        close (nunit)
-
-        call deallocateDerivedType(u_graph)
-
-      end subroutine dump_src
+c$$$c     dump_src
+c$$$c     ###############################################################
+c$$$      subroutine dump_src
+c$$$
+c$$$        use grid_debug,ONLY:C_contour,cont_conf,dbg,createDrawInCfile
+c$$$
+c$$$        integer :: ieq,nx,ny,nz,nunit
+c$$$
+c$$$        character(10) :: srcf
+c$$$        character(4)  :: dbg_desc(neqd)
+c$$$        character(3)  :: xlabel,ylabel
+c$$$
+c$$$        type(var_array),pointer :: u_graph => null()
+c$$$
+c$$$        if (my_rank == 0) then
+c$$$          write (*,*)
+c$$$          write (*,*) '>>>>>>>>>>>>>>>>>'
+c$$$          write (*,*) 'Dumping source...'
+c$$$          write (*,*) '>>>>>>>>>>>>>>>>>'
+c$$$        endif
+c$$$        
+c$$$        nx = gv%gparams%nxv(1)
+c$$$        ny = gv%gparams%nyv(1)
+c$$$        nz = gv%gparams%nzv(1)
+c$$$
+c$$$        xlabel=cont_conf%label(1)
+c$$$        ylabel=cont_conf%label(2)
+c$$$
+c$$$        do ieq=1,neqd
+c$$$          dbg_desc(ieq) = 'dgb'//trim(int2char(ieq))
+c$$$        enddo
+c$$$
+c$$$        srcf='src_p'//trim(int2char(my_rank))//'.bin'
+c$$$
+c$$$        call createDrawInCfile(neqd,trim(srcf),'Source'
+c$$$     .        ,'t',trim(xlabel),trim(ylabel),dbg_desc,'-c -X0 -L57'
+c$$$     .        ,'drawsrc_p'//trim(int2char(my_rank))//'.in')
+c$$$
+c$$$        call mapVectorToStructure(gv%gparams,u_graph,fsrc)
+c$$$
+c$$$        nunit = 110
+c$$$
+c$$$        open(nunit,file=trim(srcf),form='unformatted'
+c$$$     .        ,status='replace')
+c$$$
+c$$$        do ieq=1,neqd
+c$$$          call C_contour(u_graph%array_var(ieq)%array(1:nx,1:ny,1:nz)
+c$$$     .                  ,gv%gparams%gxmin,gv%gparams%gxmax
+c$$$     .                  ,gv%gparams%gymin,gv%gparams%gymax
+c$$$     .                  ,gv%gparams%gzmin,gv%gparams%gzmax
+c$$$     .                  ,ieq-1,nunit)
+c$$$        enddo
+c$$$
+c$$$        close (nunit)
+c$$$
+c$$$        call deallocateDerivedType(u_graph)
+c$$$
+c$$$      end subroutine dump_src
 
       end subroutine get_src

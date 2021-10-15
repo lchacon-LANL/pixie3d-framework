@@ -8,9 +8,12 @@ COMMONDIR = ..
 
 SUBDIRS = $(COMMONDIR)/math\
 	  $(COMMONDIR)/io\
-	  $(COMMONDIR)/OMP\
-	  $(COMMONDIR)/pic/2d
-	  
+	  $(COMMONDIR)/OMP
+
+ifndef BOPT
+  override CPPFLAGS += $(PREPROC)CGMM_OMP=""
+endif
+
 #Define dependencies
 
 regularization_aa_mod.o: aamem_utilities_mod.o

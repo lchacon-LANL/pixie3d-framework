@@ -31,6 +31,32 @@ c ######################################################################
 
       contains
 
+c     init_IO
+c     #################################################################
+      subroutine init_IO
+
+c     -----------------------------------------------------------------
+c     Finalizes IO for write
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Global variables
+
+c     Local variables
+
+      integer :: ierr
+      
+#if defined(adios)
+      ierr = init_ADIOS_IO()
+#elif defined(ADIOS2)
+      ierr = init_ADIOS2_IO()
+#endif
+
+c     Begin program
+
+      end subroutine init_IO
+      
 c     finalize_IO
 c     #################################################################
       subroutine finalize_IO
@@ -208,19 +234,35 @@ c$$$      nz = khg-klg+1
       read (ufile) ny,jlg,jhg
       read (ufile) nz,klg,khg
 
-      if (associated(gv%gparams)) then
+      if (associated(gv)) then
+        if (associated(gv%gparams)) then
 cc      if (associated(gv)) then
 #if defined(petsc) 
-         if ((nx /= nxl .or. ny /= nyl .or. nz /= nzl).and.(np>1)) then
-           write (*,*) nx,nxl,ny,nyl,nz,nzl
+          if ((nx /= nxl .or. ny /= nyl .or. nz /= nzl).and.(np>1)) then
+            write (*,*) nx,nxl,ny,nyl,nz,nzl
 #else
-         if (nx /= nxd .or .ny /= nyd .or. nz /= nzd) then
-           write (*,*) nx,nxd,ny,nyd,nz,nzd
+          if (nx /= nxd .or .ny /= nyd .or. nz /= nzd) then
+            write (*,*) nx,nxd,ny,nyd,nz,nzd
 #endif
-           call pstop('openPOSIXRestartFileForRead'
+            call pstop('openPOSIXRestartFileForRead'
      $            ,'Grid meshes do not agree; cannot restart')
 
-         endif
+          endif
+        else
+          nxl = nx
+          nyl = ny
+          nzl = nz
+
+#if defined(petsc)
+          nxd = nx*npx
+          nyd = ny*npy
+          nzd = nz*npz
+#else
+          nxd = nx
+          nyd = ny
+          nzd = nz
+#endif
+        endif
       else
         nxl = nx
         nyl = ny
@@ -532,7 +574,7 @@ c     Begin program
       call writeADIOSRecordFile(file,itime,time,dt,gammat,varray
      .                         ,init=init)
 #elif defined(ADIOS2)
-      call writeADIOS2RecordFile(trim(recordfile),itime,time,dt,gammat
+      call writeADIOS2RecordFile(file,itime,time,dt,gammat
      .                         ,varray,init=init)
 #else
       call writePOSIXRecordFile(file,itime,time,dt,gammat,varray
@@ -866,6 +908,8 @@ c     Begin program
       file = 'record_it='//counter1//'.bin'
 #endif
 
+cc      if (my_rank == 0) write (*,*) "dumpfile=",trim(file)
+      
       end function new_dumpfile
       
 c     switch_dumpfile
@@ -876,7 +920,6 @@ c     -----------------------------------------------------------------
 c     Switches the dump file to bifurcated one due to restart
 c     -----------------------------------------------------------------
 
-      
       implicit none
 
 c     Call variables
