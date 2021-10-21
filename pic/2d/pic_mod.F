@@ -1352,7 +1352,7 @@ cc      call initialize_it(vh,dt_sub,dx)
 
 #if _prec == 8
 cc        if (dx_err < 1d-13 .or. it>500) exit
-        if(it>3) exit
+        if(it>3) exit  !LC: arbitrary convergence criterion
 #else
         if (dx_err < 1d-6  .or. it>500) exit
 #endif
@@ -1911,7 +1911,7 @@ c     Find dx
           end if
           xn_loc(i,:) = xnp_loc(i,:)
           dtp_nu(i) = dtp_nu(i) - dt_nu(i)
-          if(minval(ref_tag(i,:))<0) exit  !Code broken for Npg > 1
+          if(minval(ref_tag(i,:))<0) exit  !LC: code broken for Npg > 1
         end do
 cc           if(it_nu==2) exit
       end do
