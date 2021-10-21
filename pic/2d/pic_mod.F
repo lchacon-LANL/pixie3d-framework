@@ -1207,8 +1207,7 @@ c #####################################################################
 
       contains
 
-
-c     ACC_CN_incell_offset
+c     ACC_CN_incell_offset_dup
 c     ##################################################################
       subroutine ACC_CN_incell_offset_dup (isp,q_m,pcle_nu,dt,dtp
      $     ,dt_sub,DtA,B0,A,phi,dx,substeps,it)
@@ -1455,7 +1454,7 @@ c     Local variables
 
 c     Cell crossing and particle b.c.
       call cell_crossing_vavg(dx,xnp_loc,vh,inp_loc,jnp_loc
-     $          ,wp_loc,ref_tag,hit_wall)
+     $                       ,wp_loc,ref_tag,hit_wall=hit_wall)
 
 cc      call cell_crossing(dx,xnp_loc,vnp_loc,inp_loc,jnp_loc,wp_loc)
       in_loc = inp_loc
@@ -1815,112 +1814,111 @@ c     Find dx
 !     pcle sub-stepping 
       do while(maxval(dtp_nu)>0)      
 
-      if (no_map) then
-        vhcurv = vh
-      else
-        vhcurv = find_vcurv(in_loc,jn_loc,xn_loc,vh)
-      endif
+        if (no_map) then
+          vhcurv = vh
+        else
+          vhcurv = find_vcurv(in_loc,jn_loc,xn_loc,vh)
+        endif
 
-      vhcurv_inv = 1d0/(vhcurv + 1d-44)
+        vhcurv_inv = 1d0/(vhcurv + 1d-44)
 
-      dxl(:,1) =   -xn_loc(:,1)
-      dxr(:,1) = hx-xn_loc(:,1)
-            
-      dxl(:,2) =   -xn_loc(:,2)
-      dxr(:,2) = hy-xn_loc(:,2)
+        dxl(:,1) =   -xn_loc(:,1)
+        dxr(:,1) = hx-xn_loc(:,1)
+              
+        dxl(:,2) =   -xn_loc(:,2)
+        dxr(:,2) = hy-xn_loc(:,2)
 
-      dt_nu = min(dtp_nu
-     .            ,max((dxl(:,1)-eps2)*vhcurv_inv(:,1)
-     .                ,(dxr(:,1)+eps2)*vhcurv_inv(:,1))
-     .            ,max((dxl(:,2)-eps2)*vhcurv_inv(:,2)
-     .                ,(dxr(:,2)+eps2)*vhcurv_inv(:,2)))
+        dt_nu = min(dtp_nu
+     .              ,max((dxl(:,1)-eps2)*vhcurv_inv(:,1)
+     .                  ,(dxr(:,1)+eps2)*vhcurv_inv(:,1))
+     .              ,max((dxl(:,2)-eps2)*vhcurv_inv(:,2)
+     .                  ,(dxr(:,2)+eps2)*vhcurv_inv(:,2)))
 
-      dx(:,1) = vhcurv(:,1)*dt_nu
-      dx(:,2) = vhcurv(:,2)*dt_nu
-      dx(:,3) = vhcurv(:,3)*dt_nu
+        dx(:,1) = vhcurv(:,1)*dt_nu
+        dx(:,2) = vhcurv(:,2)*dt_nu
+        dx(:,3) = vhcurv(:,3)*dt_nu
 
-!     time at nu+1/2 from the center of the timestep
-      tau = dtau0+(dt_sub-dtp_nu)+0.5d0*dt_nu
-      if (no_map) then
-         call find_fields_nomap(xn_loc,tau,dx,A_1,A_2,A_3
-     $        ,dtA_1,dtA_2,dtA_3,Ep,Bp)
-      else
-         call find_fields_curv (xn_loc,tau,dx,A_1,A_2,A_3
-     $        ,dtA_1,dtA_2,dtA_3,Ep,Bp)
-      endif
+!       time at nu+1/2 from the center of the timestep
+        tau = dtau0+(dt_sub-dtp_nu)+0.5d0*dt_nu
+        if (no_map) then
+           call find_fields_nomap(xn_loc,tau,dx,A_1,A_2,A_3
+     $          ,dtA_1,dtA_2,dtA_3,Ep,Bp)
+        else
+           call find_fields_curv (xn_loc,tau,dx,A_1,A_2,A_3
+     $          ,dtA_1,dtA_2,dtA_3,Ep,Bp)
+        endif
 
         do dim=1,_Dimx
-           do i=1,_Npg
-              if(ref_tag(i,dim)<0) then
-                 Ep(i,dim) = -Ep(i,dim) !perpendicular
-                 Bp(i,:)   = -Bp(i,:)               
-                 Bp(i,dim) = -Bp(i,dim) !tangential
-              end if
-           end do
+          do i=1,_Npg
+            if(ref_tag(i,dim)<0) then
+              Ep(i,dim) = -Ep(i,dim) !perpendicular
+              Bp(i,:)   = -Bp(i,:)               
+              Bp(i,dim) = -Bp(i,dim) !tangential
+            end if
+          end do
         end do
 
-!     Accumulate fields
-           Ep_avg(:,1) = Ep_avg(:,1) + Ep(:,1)*dt_nu(:)
-           Ep_avg(:,2) = Ep_avg(:,2) + Ep(:,2)*dt_nu(:)
-           Ep_avg(:,3) = Ep_avg(:,3) + Ep(:,3)*dt_nu(:)
-           Bp_avg(:,1) = Bp_avg(:,1) + Bp(:,1)*dt_nu(:)
-           Bp_avg(:,2) = Bp_avg(:,2) + Bp(:,2)*dt_nu(:)
-           Bp_avg(:,3) = Bp_avg(:,3) + Bp(:,3)*dt_nu(:)
+!       Accumulate fields
+        Ep_avg(:,1) = Ep_avg(:,1) + Ep(:,1)*dt_nu(:)
+        Ep_avg(:,2) = Ep_avg(:,2) + Ep(:,2)*dt_nu(:)
+        Ep_avg(:,3) = Ep_avg(:,3) + Ep(:,3)*dt_nu(:)
+        Bp_avg(:,1) = Bp_avg(:,1) + Bp(:,1)*dt_nu(:)
+        Bp_avg(:,2) = Bp_avg(:,2) + Bp(:,2)*dt_nu(:)
+        Bp_avg(:,3) = Bp_avg(:,3) + Bp(:,3)*dt_nu(:)
 
-!     Update particle quantities (including cell crossing)
-           xnp_loc = xn_loc + dx
-           inp_loc = in_loc
-           jnp_loc = jn_loc
-           call cell_crossing_vavg(dx,xnp_loc,vh,inp_loc,jnp_loc
-     $          ,wp_loc,ref_tag,hit_wall)
+!       Update particle quantities (including cell crossing)
+        xnp_loc = xn_loc + dx
+        inp_loc = in_loc
+        jnp_loc = jn_loc
+        call cell_crossing_vavg(dx,xnp_loc,vh,inp_loc,jnp_loc
+     $                         ,wp_loc,ref_tag,hit_wall=hit_wall)
 
-!     update the field from the new cell
-           if(maxval(inp_loc-in_loc).ne.0 .or. maxval(jnp_loc
-     $          -jn_loc).ne.0) then
-              in_loc = inp_loc
-              jn_loc = jnp_loc
-      !VECTOR SIMD
-              do i=1,_Npg
-                 DtA_1(i,:,:) = DtA(in_loc(i)-1:in_loc(i)  , jn_loc(i)
-     $                -1:jn_loc(i)+1, 1)
-                 DtA_2(i,:,:) = DtA(in_loc(i)-1:in_loc(i)+1, jn_loc(i)
-     $                -1:jn_loc(i)  , 2)
-                 DtA_3(i,:,:) = DtA(in_loc(i)-1:in_loc(i)+1, jn_loc(i)
-     $                -1:jn_loc(i)+1, 3)
-                 
-                 A_1(i,:,:)   = A(in_loc(i)-1:in_loc(i)  , jn_loc(i)
-     $                -1:jn_loc(i)+1, 1)
-                 A_2(i,:,:)   = A(in_loc(i)-1:in_loc(i)+1, jn_loc(i)
-     $                -1:jn_loc(i)  , 2)
-                 A_3(i,:,:)   = A(in_loc(i)-1:in_loc(i)+1, jn_loc(i)
-     $                -1:jn_loc(i)+1, 3)
-                 
-                 phi_loc(i,:,:) = phi(in_loc(i)-1:in_loc(i)+1,jn_loc(i)
-     $                -1:jn_loc(i)+1)
-                 
-                 E_1(i,:,:) =-DtA_1(i,:,:)
-     .                -(phi_loc(i,2:3,:)-phi_loc(i,1:2,:))*ihx
-                 E_2(i,:,:) =-DtA_2(i,:,:)
-     .                -(phi_loc(i,:,2:3)-phi_loc(i,:,1:2))*ihy
-                 E_3(i,:,:) =-DtA_3(i,:,:)
-              end do
-           end if
-           xn_loc = xnp_loc
-           dtp_nu = dtp_nu - dt_nu
-           it_nu = it_nu+1           
-           if(minval(ref_tag)<0) exit
+!       update the field from the new cell
+        if (    maxval(inp_loc-in_loc).ne.0
+     $     .or. maxval(jnp_loc-jn_loc).ne.0) then
+          in_loc = inp_loc
+          jn_loc = jnp_loc
+          !VECTOR SIMD
+          do i=1,_Npg
+            DtA_1(i,:,:) = DtA(in_loc(i)-1:in_loc(i)  , jn_loc(i)
+     $                  -1:jn_loc(i)+1, 1)
+            DtA_2(i,:,:) = DtA(in_loc(i)-1:in_loc(i)+1, jn_loc(i)
+     $                  -1:jn_loc(i)  , 2)
+            DtA_3(i,:,:) = DtA(in_loc(i)-1:in_loc(i)+1, jn_loc(i)
+     $                  -1:jn_loc(i)+1, 3)
+                   
+            A_1(i,:,:)   = A(in_loc(i)-1:in_loc(i)  , jn_loc(i)
+     $                  -1:jn_loc(i)+1, 1)
+            A_2(i,:,:)   = A(in_loc(i)-1:in_loc(i)+1, jn_loc(i)
+     $                  -1:jn_loc(i)  , 2)
+            A_3(i,:,:)   = A(in_loc(i)-1:in_loc(i)+1, jn_loc(i)
+     $                  -1:jn_loc(i)+1, 3)
+                   
+            phi_loc(i,:,:) = phi(in_loc(i)-1:in_loc(i)+1,jn_loc(i)
+     $                  -1:jn_loc(i)+1)
+                   
+            E_1(i,:,:) =-DtA_1(i,:,:)
+     .                  -(phi_loc(i,2:3,:)-phi_loc(i,1:2,:))*ihx
+            E_2(i,:,:) =-DtA_2(i,:,:)
+     .                  -(phi_loc(i,:,2:3)-phi_loc(i,:,1:2))*ihy
+            E_3(i,:,:) =-DtA_3(i,:,:)
+          end do
+        end if
+        xn_loc = xnp_loc
+        dtp_nu = dtp_nu - dt_nu
+        it_nu = it_nu+1
+        if(minval(ref_tag)<0) exit
 cc           if(it_nu==2) exit
-        end do
+      end do
 
-        dt_sub = dt_sub-dtp_nu
+      dt_sub = dt_sub-dtp_nu
 
-        Ep_avg(:,1) = Ep_avg(:,1)/dt_sub(:)
-        Ep_avg(:,2) = Ep_avg(:,2)/dt_sub(:)
-        Ep_avg(:,3) = Ep_avg(:,3)/dt_sub(:)
-        Bp_avg(:,1) = Bp_avg(:,1)/dt_sub(:)
-        Bp_avg(:,2) = Bp_avg(:,2)/dt_sub(:)
-        Bp_avg(:,3) = Bp_avg(:,3)/dt_sub(:)
-        
+      Ep_avg(:,1) = Ep_avg(:,1)/dt_sub(:)
+      Ep_avg(:,2) = Ep_avg(:,2)/dt_sub(:)
+      Ep_avg(:,3) = Ep_avg(:,3)/dt_sub(:)
+      Bp_avg(:,1) = Bp_avg(:,1)/dt_sub(:)
+      Bp_avg(:,2) = Bp_avg(:,2)/dt_sub(:)
+      Bp_avg(:,3) = Bp_avg(:,3)/dt_sub(:)
 
       end subroutine find_field_avg
 
@@ -3620,7 +3618,7 @@ cc      type(particle), intent(inout) :: pcle
 
       real(_prec),intent(out) :: Ep(_Npg,3),Bp(_Npg,3)
 
-      real(_prec),optional,intent(inout) :: ref_tag(_Npg,3)
+      real(_prec),intent(inout) :: ref_tag(_Npg,3)
 
       integer, optional,intent(inout) :: hit_wall(_Npg)
       
@@ -3708,8 +3706,9 @@ c     Update particle quantities (including cell crossing)
             end if
         end do
       end do
+
       call cell_crossing_vavg(dx,xnp_loc,vh_loc,inp_loc,jnp_loc,wn_loc
-     $     ,ref_tag,hit_wall)
+     $                       ,ref_tag,hit_wall=hit_wall)
 
 c     Update particle registers (except new-time velocity)
 
