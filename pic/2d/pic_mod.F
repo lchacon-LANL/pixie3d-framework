@@ -1314,6 +1314,7 @@ c     Estimate sub-time-step
 cc      call estimate_dtp(dt_sub)
 
 c     Initialize Picard
+
       vh =  v0_loc
       
 cc      call initialize_it(vh,dt_sub,dx)
@@ -1328,21 +1329,20 @@ cc      call initialize_it(vh,dt_sub,dx)
         vh_k = vh
 
         substeps = substeps + _Npg
-!     update position
-        call find_field_avg(vh,dt_sub,dx,Ep_avg,Bp_avg) !This may change dt_sub
+        
+        !update position (this may change dt_sub)
+        call find_field_avg(vh,dt_sub,dx,Ep_avg,Bp_avg)
         
         !Perform Boris push
         call Boris_solve(v0_loc,vh,dt_sub,Ep_avg,Bp_avg)
 
-
         !Check convergence (very expensive!!!)
-        if (mod(it,2) /= 0) cycle  !Check everyother iteration
+        if (mod(it,2) /= 0) cycle  !Check every other iteration
 
 #if defined(L1_NORM)
         dx_err = 0d0
         do i=1,_Npg
-           dx_err = max(dx_err,
-     $                         abs(vh(i,1)-vh_k(i,1))
+           dx_err = max(dx_err, abs(vh(i,1)-vh_k(i,1))
      $                         +abs(vh(i,2)-vh_k(i,2))
      $                         +abs(vh(i,3)-vh_k(i,3)))
         enddo
@@ -1361,7 +1361,7 @@ cc        if (dx_err < 1d-13 .or. it>500) exit
       it = it*_Npg
 
       call deposit_current(vh,dt_sub,dx,isp,wp_loc
-     .     ,vnp_loc,xnp_loc,inp_loc,jnp_loc) !This may change dt_sub
+     .                    ,vnp_loc,xnp_loc,inp_loc,jnp_loc) !This may change dt_sub
 
 c     Update particle quantities
 
@@ -1388,21 +1388,24 @@ cc      call gather_orbit_avg_moments(isp,pcle_nu,dx,hit_wall)
 c     End program
 
       contains
+
 c     deposit_current
 c     ######################################################################
       subroutine deposit_current(vh,dts,dx,isp,wp_loc,vnp_loc,xnp_loc
-     $     ,inp_loc,jnp_loc)
+     $                          ,inp_loc,jnp_loc)
 
       implicit none
 
 c     Call variables
+      
       real(_prec) :: dts(_Npg),dx(_Npg,3),vh(_Npg,3)
      $     ,wp_loc(_Npg),vnp_loc(_Npg,3),xnp_loc(_Npg,3)
       integer :: isp,inp_loc(_Npg),jnp_loc(_Npg)
 
 c     Local variables
-      real(_prec) :: xn_loc(_Npg,3),dtp_nu(_Npg),dt_nu(_Npg),vhcurv(_Npg
-     $     ,3),vhcurv_inv(_Npg,3)
+      
+      real(_prec) :: xn_loc(_Npg,3),dtp_nu(_Npg),dt_nu(_Npg)
+     $              ,vhcurv(_Npg,3),vhcurv_inv(_Npg,3)
       real(_prec) :: ref_tag(_Npg,3)
       integer ::  hit_wall(_Npg) !TODO: remove
       integer :: it_nu,in_loc(_Npg),jn_loc(_Npg)
@@ -1410,7 +1413,7 @@ c     Local variables
 
       vnp_loc = v0_loc + 2d0*(vh - v0_loc) !2d0*vh - v0
 
-      ref_tag = 1              !default, flip sign when hitting a wall
+      ref_tag = 1               !default, flip sign when hitting a wall
       hit_wall = 0              !default is 0, if hit a wall, 1             
 
       xn_loc = x0_loc
@@ -1418,51 +1421,51 @@ c     Local variables
       jn_loc = j0
       dtp_nu = dt_sub
       it_nu = 0
-!     pcle sub-stepping 
+
+      !pcle sub-stepping 
       do while(maxval(dtp_nu)>0)      
 
-      if (no_map) then
-        vhcurv = vh
-      else
-        vhcurv = find_vcurv(i0,j0,xn_loc,vh)
-      endif
+        if (no_map) then
+          vhcurv = vh
+        else
+          vhcurv = find_vcurv(i0,j0,xn_loc,vh)
+        endif
 
-      vhcurv_inv = 1d0/(vhcurv + 1d-44)
+        vhcurv_inv = 1d0/(vhcurv + 1d-44)
 
-      dxl(:,1) =   -xn_loc(:,1)
-      dxr(:,1) = hx-xn_loc(:,1)
-            
-      dxl(:,2) =   -xn_loc(:,2)
-      dxr(:,2) = hy-xn_loc(:,2)
+        dxl(:,1) =   -xn_loc(:,1)
+        dxr(:,1) = hx-xn_loc(:,1)
+              
+        dxl(:,2) =   -xn_loc(:,2)
+        dxr(:,2) = hy-xn_loc(:,2)
 
-      dt_nu = min(dtp_nu
-     .            ,max((dxl(:,1)-eps2)*vhcurv_inv(:,1)
-     .                ,(dxr(:,1)+eps2)*vhcurv_inv(:,1))
-     .            ,max((dxl(:,2)-eps2)*vhcurv_inv(:,2)
-     .                ,(dxr(:,2)+eps2)*vhcurv_inv(:,2)))
+        dt_nu = min(dtp_nu
+     .              ,max((dxl(:,1)-eps2)*vhcurv_inv(:,1)
+     .                  ,(dxr(:,1)+eps2)*vhcurv_inv(:,1))
+     .              ,max((dxl(:,2)-eps2)*vhcurv_inv(:,2)
+     .                  ,(dxr(:,2)+eps2)*vhcurv_inv(:,2)))
 
-      dx(:,1) = vhcurv(:,1)*dt_nu
-      dx(:,2) = vhcurv(:,2)*dt_nu
-      dx(:,3) = vhcurv(:,3)*dt_nu
+        dx(:,1) = vhcurv(:,1)*dt_nu
+        dx(:,2) = vhcurv(:,2)*dt_nu
+        dx(:,3) = vhcurv(:,3)*dt_nu
 
+        call gather_orbit_moments(wp_loc,xn_loc,dx,isp,in_loc,jn_loc) !1st moments               
 
-      call gather_orbit_moments_dup(wp_loc,xn_loc,dx,isp,in_loc,jn_loc) !1st moments               
+        inp_loc = in_loc
+        jnp_loc = jn_loc
+        xnp_loc = xn_loc + dx
 
-      inp_loc = in_loc
-      jnp_loc = jn_loc
-      xnp_loc = xn_loc + dx
+        !Cell crossing and particle b.c.
+        call cell_crossing_vavg(dx,xnp_loc,vh,inp_loc,jnp_loc
+     $                         ,wp_loc,ref_tag,hit_wall=hit_wall)
 
-c     Cell crossing and particle b.c.
-      call cell_crossing_vavg(dx,xnp_loc,vh,inp_loc,jnp_loc
-     $                       ,wp_loc,ref_tag,hit_wall=hit_wall)
+cc        call cell_crossing(dx,xnp_loc,vnp_loc,inp_loc,jnp_loc,wp_loc)
+        in_loc = inp_loc
+        jn_loc = jnp_loc
+        xn_loc = xnp_loc
 
-cc      call cell_crossing(dx,xnp_loc,vnp_loc,inp_loc,jnp_loc,wp_loc)
-      in_loc = inp_loc
-      jn_loc = jnp_loc
-      xn_loc = xnp_loc
-
-      dtp_nu = dtp_nu - dt_nu
-      it_nu = it_nu+1
+        dtp_nu = dtp_nu - dt_nu
+        it_nu = it_nu+1
       end do
 
       vnp_loc(:,1) = vnp_loc(:,1)*ref_tag(:,1)
@@ -1471,9 +1474,9 @@ cc      call cell_crossing(dx,xnp_loc,vnp_loc,inp_loc,jnp_loc,wp_loc)
 
       end subroutine deposit_current
 
-c     gather_orbit_moments_dup
+c     gather_orbit_moments
 c     ######################################################################
-      subroutine gather_orbit_moments_dup(w_pcle,xn_pcle,dx,isp,i,j)
+      subroutine gather_orbit_moments(w_pcle,xn_pcle,dx,isp,i,j)
 
       implicit none
 
@@ -1581,7 +1584,7 @@ c     Begin progra
              
       end do
 
-      end subroutine gather_orbit_moments_dup
+      end subroutine gather_orbit_moments
 
 c     gather_orbit_avg_moments
 c     ######################################################################
@@ -1769,26 +1772,27 @@ c     Call variables
       real(_prec) :: dx(_Npg,3),vh(_Npg,3)
      .              ,Ep_avg(_Npg,3),Bp_avg(_Npg,3)
 
-cc     Local variables
+c     Local variables
 
       real(_prec) :: vhcurv(_Npg,3),vhcurv_inv(_Npg,3)
       real(_prec) :: dxl(_Npg,2),dxr(_Npg,2),xn_loc(_Npg,3),xnp_loc(_Npg
      $     ,3),Ep(_Npg,3),Bp(_Npg,3),dtp_nu(_Npg),dt_nu(_Npg)
       integer :: in_loc(_Npg),jn_loc(_Npg),inp_loc(_Npg),jnp_loc(_Npg)
-     $     ,it_nu,i,dim
+     $           ,i,dim
       real(_prec) :: ref_tag(_Npg,3),tau(_Npg)
       integer ::  hit_wall(_Npg) !TODO: remove
       
 c     Begin program
-      ref_tag = 1              !default, flip sign when hitting a wall
+
+      ref_tag = 1               !default, flip sign when hitting a wall
       hit_wall = 0              !default is 0, if hit a wall, 1             
 
 c     Find dx
+
       xn_loc = x0_loc
       in_loc = i0
       jn_loc = j0
       dtp_nu = dt_sub
-      it_nu = 0
       Ep_avg = 0d0
       Bp_avg = 0d0
 
@@ -1842,10 +1846,10 @@ c     Find dx
         tau = dtau0+(dt_sub-dtp_nu)+0.5d0*dt_nu
         if (no_map) then
            call find_fields_nomap(xn_loc,tau,dx,A_1,A_2,A_3
-     $          ,dtA_1,dtA_2,dtA_3,Ep,Bp)
+     $                           ,dtA_1,dtA_2,dtA_3,Ep,Bp)
         else
            call find_fields_curv (xn_loc,tau,dx,A_1,A_2,A_3
-     $          ,dtA_1,dtA_2,dtA_3,Ep,Bp)
+     $                           ,dtA_1,dtA_2,dtA_3,Ep,Bp)
         endif
 
         do dim=1,_Dimx
@@ -1867,6 +1871,7 @@ c     Find dx
         Bp_avg(:,3) = Bp_avg(:,3) + Bp(:,3)*dt_nu(:)
 
 !       Update particle quantities (including cell crossing)
+
         xnp_loc = xn_loc + dx
         inp_loc = in_loc
         jnp_loc = jn_loc
@@ -2716,7 +2721,6 @@ cc                   print *,hit_wall
            pcle_nu%v_n   = spcs(isp)%pcles(ipc)%v_n
            pcle_nu%w_n   = spcs(isp)%pcles(ipc)%w_n
 
-
            it = 0
 
            dtp = dtx
@@ -2764,7 +2768,7 @@ cc             end if
 cc           end if
 !******     
            call gather_new_time_moments(spcs(isp)%pcles(ipc),d_x,pml,cml
-     $          ,cmex)
+     $                                 ,cmex)
 cc             end if
 c$$$           end do !pit
 
@@ -2937,7 +2941,7 @@ c$$$      enddo
 
       do il=1,3
          do jl=1,3
-!VECTOR SIMD
+            !VECTOR SIMD
             do k=1,_Npg
                Mxy2(k,il,jl)= Mx2(k,il,1)*My2(k,1,jl)
                M_w_prod(k,il,jl) = Mxy2(k,il,jl)*w_pcle(k)
