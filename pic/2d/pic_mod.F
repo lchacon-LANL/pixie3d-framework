@@ -1879,12 +1879,13 @@ c     Find dx
      $                         ,wp_loc,ref_tag,hit_wall=hit_wall)
 
 !       update the field from the new cell
-        if (    maxval(inp_loc-in_loc).ne.0
-     $     .or. maxval(jnp_loc-jn_loc).ne.0) then
-          in_loc = inp_loc
-          jn_loc = jnp_loc
-          !VECTOR SIMD
-          do i=1,_Npg
+        !VECTOR SIMD
+        do i=1,_Npg
+          if (    inp_loc(i)-in_loc(i).ne.0
+     $       .or. jnp_loc(i)-jn_loc(i).ne.0) then
+            in_loc(i) = inp_loc(i)
+            jn_loc(i) = jnp_loc(i)
+
             DtA_1(i,:,:) = DtA(in_loc(i)-1:in_loc(i)  , jn_loc(i)
      $                  -1:jn_loc(i)+1, 1)
             DtA_2(i,:,:) = DtA(in_loc(i)-1:in_loc(i)+1, jn_loc(i)
@@ -1907,12 +1908,11 @@ c     Find dx
             E_2(i,:,:) =-DtA_2(i,:,:)
      .                  -(phi_loc(i,:,2:3)-phi_loc(i,:,1:2))*ihy
             E_3(i,:,:) =-DtA_3(i,:,:)
-          end do
-        end if
-        xn_loc = xnp_loc
-        dtp_nu = dtp_nu - dt_nu
-        it_nu = it_nu+1
-        if(minval(ref_tag)<0) exit
+          end if
+          xn_loc(i,:) = xnp_loc(i,:)
+          dtp_nu(i) = dtp_nu(i) - dt_nu(i)
+          if(minval(ref_tag(i,:))<0) exit  !Code broken for Npg > 1
+        end do
 cc           if(it_nu==2) exit
       end do
 
@@ -2230,7 +2230,6 @@ c     Begin program
      .                            + vdotB*Bp(:,2)))*iDenom
         vh(:,3) = (vhes(:,3)+qmdth*(vhes(:,1)*Bp(:,2)-vhes(:,2)*Bp(:,1) 
      .                            + vdotB*Bp(:,3)))*iDenom
-
 
 c     End program
 
@@ -2743,7 +2742,6 @@ cc                   print *,hit_wall
 
             !Scatter ORBIT AVERAGED v-moments 
 cc             call gather_orbit_avg_moments(pcle_nu,dx,hit_wall) !moments for particles that hit a wall
-             
 
              !Prepare for next substep
              pcle_nu%ijk_n = pcle_nu%ijk_np
@@ -2754,7 +2752,8 @@ cc             call gather_orbit_avg_moments(pcle_nu,dx,hit_wall) !moments for p
              dtp = dtp-dt_sub
              
           end do
-!     Update final pcle quantities (serial)
+
+          !Update final pcle quantities (serial)
           do k = 1, _Npg
 cc             if(hit_wall(k)==0)then
                 spcs(isp)%pcles(ipc)%v_np(k,1)   = pcle_nu%v_np(k,1)

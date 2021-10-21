@@ -5445,11 +5445,8 @@ c     Impose BCs
             if(in0(i,dim)<1)        !BC @ location=0
      .          call pcles_bc_offset_vavg(dim,0,pbcond,nsize(dim)
      .                                  ,xnp(i,:),vh(i,:),in0(i,:),wp(i)
-     .                                  ,ref_tag(i,dim)
-     $                                  ,hit_wall=hwall(i))
+     .                                  ,ref_tag(i,dim),hwall(i))
          end if
-
-         
         enddo
       end do
       
