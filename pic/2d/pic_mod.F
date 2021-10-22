@@ -1266,7 +1266,6 @@ c     Local variables
       real(_prec) :: x0p(_Npg),y0p(_Npg)
       real(_prec) :: Sx2_o(_Npg,3),Sy2_o(_Npg,3)
       real(_prec) :: dtau0(_Npg)
-      integer ::  hit_wall(_Npg) !TODO: remove      
 
 c     Begin program
 
@@ -1394,14 +1393,12 @@ c     Local variables
       real(_prec) :: xn_loc(_Npg,3),dtp_nu(_Npg),dt_nu(_Npg)
      $              ,vhcurv(_Npg,3),vhcurv_inv(_Npg,3)
       real(_prec) :: ref_tag(_Npg,3)
-      integer ::  hit_wall(_Npg) !TODO: remove
       integer :: it_nu,in_loc(_Npg),jn_loc(_Npg)
       real(_prec) :: dxl(_Npg,2),dxr(_Npg,2)
 
       vnp_loc = v0_loc + 2d0*(vh - v0_loc) !2d0*vh - v0
 
       ref_tag = 1               !default, flip sign when hitting a wall
-      hit_wall = 0              !default is 0, if hit a wall, 1             
 
       xn_loc = x0_loc
       in_loc = i0
@@ -1444,7 +1441,7 @@ c     Local variables
 
         !Cell crossing and particle b.c.
         call cell_crossing_vavg(dx,xnp_loc,vh,inp_loc,jnp_loc
-     $                         ,wp_loc,ref_tag,hit_wall=hit_wall)
+     $                         ,wp_loc,ref_tag)
 
         in_loc = inp_loc
         jn_loc = jnp_loc
@@ -1574,7 +1571,7 @@ c     Begin progra
 
 c     gather_orbit_avg_moments
 c     ######################################################################
-      subroutine gather_orbit_avg_moments(isp,pcle_nu,dx,hit_wall)
+      subroutine gather_orbit_avg_moments(isp,pcle_nu,dx)
 
       implicit none
 
@@ -1582,7 +1579,6 @@ c     Call variables
       integer,intent(in) :: isp
       type(particle) :: pcle_nu
       real(_prec) :: dx(_Npg,3)
-      integer,optional,intent(in) :: hit_wall(_Npg)
 
 c     Local variables
 
@@ -1649,9 +1645,6 @@ c$$$      end do
 
 !Do NOT vectorize: memory race issues
       do k=1, _Npg
-c$$$         if(hit_wall(k)==1) then 
-c$$$            cycle            !no scatter if hit a wall            
-c$$$         end if
 #ifdef __GNU
         Mxy2(k,1:3,1:3)= Mxy2(k,1:3,1:3)
      $                 +opt_vecvec_3(Mx2(k,:,:),My2(k,:,:))
@@ -1767,12 +1760,11 @@ c     Local variables
       integer :: in_loc(_Npg),jn_loc(_Npg),inp_loc(_Npg),jnp_loc(_Npg)
      $          ,i,dim
       real(_prec) :: ref_tag(_Npg,3),tau(_Npg)
-      integer ::  it_nu,hit_wall(_Npg) !TODO: remove
+      integer ::  it_nu
       
 c     Begin program
 
       ref_tag = 1               !default, flip sign when hitting a wall
-      hit_wall = 0              !default is 0, if hit a wall, 1             
 
 c     Find dx
 
@@ -1864,7 +1856,7 @@ c     Find dx
         inp_loc = in_loc
         jnp_loc = jn_loc
         call cell_crossing_vavg(dx,xnp_loc,vh,inp_loc,jnp_loc
-     $                         ,wp_loc,ref_tag,hit_wall=hit_wall)
+     $                         ,wp_loc,ref_tag)
 
         !Update the field at the new cell
         !VECTOR SIMD
@@ -2520,7 +2512,7 @@ c     Local variables
       
       type(particle) :: pcle_nu
       real(_prec) :: REF_SIGN(_Npg,3)
-      integer ::  hit_wall(_Npg),num_sub
+      integer ::  num_sub
       
 c     Begin program
 
@@ -2568,7 +2560,7 @@ c     Move particles
 !     note that there is some issue with valgrind and libgomp.
 !$omp parallel DEFAULT(SHARED) private(ipc,it,dtp,dt_sub,REF_SIGN
 !$omp.   ,v0,vh,d_x,dx,psts,pits,pcle_nu,Ep,Bp,Ep_avg,Bp_avg,pit
-!$omp.   ,hit_wall,k,num_sub)
+!$omp.   ,k,num_sub)
 !$         call set_omp_thread_id()
 !$omp DO SCHEDULE (DYNAMIC,4)
 !$omp.reduction(+:pml
@@ -2580,7 +2572,6 @@ c     Move particles
          do ipc=nip+1,numpcles
 
            pcle_nu%v_np  = spcs(isp)%pcles(ipc)%v_np
-           hit_wall = 0         !default is 0, if hit a wall, 1             
 
            pcle_nu%ijk_n = spcs(isp)%pcles(ipc)%ijk_n
            pcle_nu%x_n   = spcs(isp)%pcles(ipc)%x_n
@@ -2616,17 +2607,11 @@ c     Move particles
              dtp = dtp-dt_sub
           end do
 
-          !Update final pcle quantities (serial)
-          do k = 1, _Npg
-cc             if(hit_wall(k)==0)then
-                spcs(isp)%pcles(ipc)%v_np(k,1)   = pcle_nu%v_np(k,1)
-                spcs(isp)%pcles(ipc)%v_np(k,2)   = pcle_nu%v_np(k,2)
-                spcs(isp)%pcles(ipc)%v_np(k,3)   = pcle_nu%v_np(k,3)
-                spcs(isp)%pcles(ipc)%ijk_np(k)   = pcle_nu%ijk_np(k) 
-                spcs(isp)%pcles(ipc)%x_np(k,:)   = pcle_nu%x_np(k,:)
-                spcs(isp)%pcles(ipc)%w_np(k)     = pcle_nu%w_np(k)
-cc             end if
-          end do
+          !Update final pcle quantities
+          spcs(isp)%pcles(ipc)%v_np   = pcle_nu%v_np
+          spcs(isp)%pcles(ipc)%ijk_np = pcle_nu%ijk_np 
+          spcs(isp)%pcles(ipc)%x_np   = pcle_nu%x_np
+          spcs(isp)%pcles(ipc)%w_np   = pcle_nu%w_np
 
           call gather_new_time_moments(spcs(isp)%pcles(ipc),d_x,pml,cml
      $                                 ,cmex)
@@ -3451,7 +3436,7 @@ c     Begin program
 c     update_pcle_pos
 c     ##################################################################
       subroutine update_pcle_pos(pcle_nu,vh_loc,dt,dtp,dt_sub
-     $                          ,DtA,B0,A,phi,dx,Ep,Bp,ref_tag,hit_wall)
+     $                          ,DtA,B0,A,phi,dx,Ep,Bp,ref_tag)
 
       implicit none
       
@@ -3470,8 +3455,6 @@ cc      type(particle), intent(inout) :: pcle
 
       real(_prec),intent(inout) :: ref_tag(_Npg,3)
 
-      integer, optional,intent(inout) :: hit_wall(_Npg)
-      
 c     Local variables
 
       integer :: i,j,k,nxg,nyg,nzg,dim
@@ -3558,7 +3541,7 @@ c     Update particle quantities (including cell crossing)
       end do
 
       call cell_crossing_vavg(dx,xnp_loc,vh_loc,inp_loc,jnp_loc,wn_loc
-     $                       ,ref_tag,hit_wall=hit_wall)
+     $                       ,ref_tag)
 
 c     Update particle registers (except new-time velocity)
 
