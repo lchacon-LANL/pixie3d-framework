@@ -1896,22 +1896,30 @@ c     Find dx
      .                  -(phi_loc(i,:,2:3)-phi_loc(i,:,1:2))*ihy
             E_3(i,:,:) =-DtA_3(i,:,:)
           end if
-          xn_loc(i,:) = xnp_loc(i,:)
-          dtp_nu(i) = dtp_nu(i) - dt_nu(i)
-          if(minval(ref_tag(i,:))<0) exit  !LC: code broken for Npg > 1
         end do
-cc           if(it_nu==2) exit
+
+        xn_loc = xnp_loc
+        dtp_nu = dtp_nu - dt_nu
+
+        it_nu = it_nu + 1
+
+        !Cut orbit segment short if one particle in group hits bdry
+        if(minval(ref_tag)<0) exit
       end do
 
+      !Compute actual time interval integrated
       dt_sub = dt_sub-dtp_nu
 
-      Ep_avg(:,1) = Ep_avg(:,1)/dt_sub(:)
-      Ep_avg(:,2) = Ep_avg(:,2)/dt_sub(:)
-      Ep_avg(:,3) = Ep_avg(:,3)/dt_sub(:)
-      Bp_avg(:,1) = Bp_avg(:,1)/dt_sub(:)
-      Bp_avg(:,2) = Bp_avg(:,2)/dt_sub(:)
-      Bp_avg(:,3) = Bp_avg(:,3)/dt_sub(:)
-
+c$$$      write (*,*) it,it_nu,dt_sub,dtp_nu,(minval(ref_tag)<0)
+      where(dt_sub > 0d0)
+        Ep_avg(:,1) = Ep_avg(:,1)/dt_sub(:)
+        Ep_avg(:,2) = Ep_avg(:,2)/dt_sub(:)
+        Ep_avg(:,3) = Ep_avg(:,3)/dt_sub(:)
+        Bp_avg(:,1) = Bp_avg(:,1)/dt_sub(:)
+        Bp_avg(:,2) = Bp_avg(:,2)/dt_sub(:)
+        Bp_avg(:,3) = Bp_avg(:,3)/dt_sub(:)
+      end where
+      
       end subroutine find_field_avg
 
 c     initialize_it
