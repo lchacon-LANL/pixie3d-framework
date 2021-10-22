@@ -1761,10 +1761,11 @@ c     Call variables
 c     Local variables
 
       real(_prec) :: vhcurv(_Npg,3),vhcurv_inv(_Npg,3)
-      real(_prec) :: dxl(_Npg,2),dxr(_Npg,2),xn_loc(_Npg,3),xnp_loc(_Npg
-     $     ,3),Ep(_Npg,3),Bp(_Npg,3),dtp_nu(_Npg),dt_nu(_Npg)
+      real(_prec) :: dxl(_Npg,2),dxr(_Npg,2),xn_loc(_Npg,3)
+     $              ,xnp_loc(_Npg,3),Ep(_Npg,3),Bp(_Npg,3),dtp_nu(_Npg)
+     $              ,dt_nu(_Npg)
       integer :: in_loc(_Npg),jn_loc(_Npg),inp_loc(_Npg),jnp_loc(_Npg)
-     $           ,i,dim
+     $          ,i,dim
       real(_prec) :: ref_tag(_Npg,3),tau(_Npg)
       integer ::  it_nu,hit_wall(_Npg) !TODO: remove
       
@@ -2520,9 +2521,6 @@ c     Local variables
       type(particle) :: pcle_nu
       real(_prec) :: REF_SIGN(_Npg,3)
       integer ::  hit_wall(_Npg),num_sub
-      type(particle),dimension(:),allocatable :: pcle_tmp
-      real(_prec),dimension(:,:,:),allocatable :: dx_tmp
-      INTEGER, PARAMETER :: NUM_TMP = 100 !TODO: make it more adaptive
       
 c     Begin program
 
@@ -2557,8 +2555,6 @@ c     Move particles
       ntot_pcles = 0
 
       moms_g = 0d0
-      allocate(pcle_tmp(NUM_TMP));      
-      allocate(dx_tmp(_Npg,3,NUM_TMP));      
 
       do isp=1, numspcs
          numpcles = size(spcs(isp)%pcles)
@@ -2572,8 +2568,8 @@ c     Move particles
 !     note that there is some issue with valgrind and libgomp.
 !$omp parallel DEFAULT(SHARED) private(ipc,it,dtp,dt_sub,REF_SIGN
 !$omp.   ,v0,vh,d_x,dx,psts,pits,pcle_nu,Ep,Bp,Ep_avg,Bp_avg,pit
-!$omp.   ,hit_wall,k,pcle_tmp,dx_tmp,num_sub)
-!     $         call set_omp_thread_id()
+!$omp.   ,hit_wall,k,num_sub)
+!$         call set_omp_thread_id()
 !$omp DO SCHEDULE (DYNAMIC,4)
 !$omp.reduction(+:pml
 #if defined(PIC_CM_DIAG)        
@@ -2582,134 +2578,10 @@ c     Move particles
 !$omp.           ,pst_sum,psh_sum,pit_sum)
 !$omp.reduction(max:pstmax)
          do ipc=nip+1,numpcles
-cc            print *,isp,ipc
-            pcle_nu%v_np  = spcs(isp)%pcles(ipc)%v_np
-            hit_wall = 0        !default is 0, if hit a wall, 1             
-           !Picard iteration loop
-c$$$           do pit = 1, pitmax
-c$$$              if(ipc==3) then
-c$$$                 print *,pit
-c$$$                 print *, spcs(isp)%pcles(ipc)%v_n,
-c$$$     $                spcs(isp)%pcles(ipc)%v_np
-c$$$              end if
-c$$$             pcle_nu%ijk_n = spcs(isp)%pcles(ipc)%ijk_n
-c$$$             pcle_nu%x_n   = spcs(isp)%pcles(ipc)%x_n
-c$$$             pcle_nu%v_n   = spcs(isp)%pcles(ipc)%v_n
-c$$$             pcle_nu%w_n   = spcs(isp)%pcles(ipc)%w_n
-c$$$             
-c$$$             Ep_avg = 0d0
-c$$$             Bp_avg = 0d0
-c$$$             REF_SIGN = 1       !default, flip sign when hitting a wall
-c$$$             it = 0
-c$$$
-c$$$#if defined(PIC_CM_DIAG)
-c$$$             if(pit==pitmax) d_x = 0d0
-c$$$#endif
-c$$$             dtp = dtx
-c$$$             v0 = pcle_nu%v_n
-c$$$             vh = 0.5d0*(v0+pcle_nu%v_np)
-c$$$             !Pcle sub-stepping
-c$$$             do while(maxval(dtp)>0)
-c$$$               it = it+1
-c$$$               
-c$$$               !Find pcle position update w/ given velocity
-c$$$               call update_pcle_pos(pcle_nu,vh,dt,dtp,dt_sub ,DtA,B0,A
-c$$$     $              ,phi,dx,Ep,Bp,REF_SIGN,hit_wall)
-c$$$
-c$$$#if defined(PIC_CM_DIAG)
-c$$$               !accumulate particle displacement (for diagnose canonical mom conservation)
-c$$$               if(pit==pitmax) d_x = d_x + dx
-c$$$#endif
-c$$$               if(pit==pitmax) then
-c$$$               !Update pcle counters
-c$$$                  pst_sum = pst_sum + _Npg !Particle substep counter
-c$$$                  psh_sum = psh_sum + _Npg !Total number of particle pushes (including ALL picard iterations)
-c$$$               end if
-c$$$            
-c$$$               !Accumulate fields
-c$$$               Ep_avg(:,1) = Ep_avg(:,1) + Ep(:,1)*dt_sub(:)
-c$$$               Ep_avg(:,2) = Ep_avg(:,2) + Ep(:,2)*dt_sub(:)
-c$$$               Ep_avg(:,3) = Ep_avg(:,3) + Ep(:,3)*dt_sub(:)
-c$$$               Bp_avg(:,1) = Bp_avg(:,1) + Bp(:,1)*dt_sub(:)
-c$$$               Bp_avg(:,2) = Bp_avg(:,2) + Bp(:,2)*dt_sub(:)
-c$$$               Bp_avg(:,3) = Bp_avg(:,3) + Bp(:,3)*dt_sub(:)
-c$$$
-c$$$c$$$               !If reflective bc (flip signs for perpendicular E, and tangential B)
-c$$$c$$$               Ep_avg(:,1) = Ep_avg(:,1)*REF_SIGN(:,1)
-c$$$c$$$               Ep_avg(:,2) = Ep_avg(:,2)*REF_SIGN(:,2)
-c$$$c$$$               Ep_avg(:,3) = Ep_avg(:,3)*REF_SIGN(:,3)
-c$$$c$$$               Bp_avg(:,1) =-Bp_avg(:,1)*REF_SIGN(:,1)
-c$$$c$$$               Bp_avg(:,2) =-Bp_avg(:,2)*REF_SIGN(:,2)
-c$$$c$$$               Bp_avg(:,3) =-Bp_avg(:,3)*REF_SIGN(:,3)
-c$$$               
-c$$$               
-c$$$!Scatter ORBIT AVERAGED moments (only in last picard iteration)
-c$$$!no moments for particles that hit a wall, but finish the iterations anyway               
-c$$$c$$$               if(pit==pitmax.and. maxval(hit_wall).eq.0) call
-c$$$c$$$     $              gather_orbit_avg_moments(pcle_nu,dx,hit_wall)
-c$$$
-c$$$               if(pit==pitmax) then
-c$$$                  pcle_tmp(it) = pcle_nu
-c$$$                  dx_tmp(:,:,it) = dx
-c$$$               end if
-c$$$
-c$$$               !Prepare for next substep (except new-time velocity)
-c$$$               pcle_nu%ijk_n = pcle_nu%ijk_np
-c$$$               pcle_nu%x_n   = pcle_nu%x_np
-c$$$               pcle_nu%w_n   = pcle_nu%w_np
-c$$$
-c$$$               dtp = dtp-dt_sub
-c$$$
-c$$$             end do             !sub-stepping
-c$$$
-c$$$             !Find new-time pcle velocity w/ averaged fields
-c$$$             Ep_avg = Ep_avg*idtx
-c$$$             Bp_avg = Bp_avg*idtx
-c$$$             
-c$$$             call update_pcle_vel(q_m,v0,pcle_nu%v_np
-c$$$     .                           ,dt,Ep_avg,Bp_avg)
-c$$$
-c$$$             pcle_nu%v_np = v0 + 2d0*(pcle_nu%v_np-v0)
-c$$$
-c$$$             !Count total number of picard iterations
-c$$$             pit_sum = pit_sum + _Npg
-c$$$
-c$$$             !Maximum number of substeps per timestep
-c$$$             pstmax  = max(it,pstmax)
-c$$$             
-c$$$             !Compute NEW-TIME moments (only in last picard iteration)
-c$$$             if(pit==pitmax) then
-c$$$                spcs(isp)%pcles(ipc)%v_np(:,1)   = pcle_nu%v_np(:,1)
-c$$$                spcs(isp)%pcles(ipc)%v_np(:,2)   = pcle_nu%v_np(:,2)
-c$$$                spcs(isp)%pcles(ipc)%v_np(:,3)   = pcle_nu%v_np(:,3)
-c$$$                spcs(isp)%pcles(ipc)%ijk_np = pcle_nu%ijk_np 
-c$$$                spcs(isp)%pcles(ipc)%x_np   = pcle_nu%x_np   
-c$$$                spcs(isp)%pcles(ipc)%w_np   = pcle_nu%w_np
-c$$$                
-c$$$
-c$$$                if(it>NUM_TMP) then
-c$$$                   print *,"iteration=",it
-c$$$     $                  ,"> fixed pcle_tmp storage length",NUM_TMP
-c$$$                   print *,'stop'
-c$$$                   stop
-c$$$                end if
-c$$$                   num_sub=it
-c$$$                   do it = 1, num_sub
-c$$$                      pcle_nu = pcle_tmp(it)
-c$$$                      dx = dx_tmp(:,:,it)
-c$$$!                      call gather_orbit_avg_moments(pcle_nu,dx,hit_wall) !1st moments                       
-c$$$                   end do
-!******if some particles hit a wall, revert back to integrator 'sub'                   
-cc                else
-c$$$                   if(maxval(hit_wall)==1) then
-c$$$                   do k = 1, _Npg
-c$$$                      if(hit_wall(k).eq.1) then
-c$$$                         hit_wall(k) = 0
-c$$$                      else
-c$$$                         hit_wall(k) = 1
-c$$$                      end if
-c$$$                   end do
-cc                   print *,hit_wall
+
+           pcle_nu%v_np  = spcs(isp)%pcles(ipc)%v_np
+           hit_wall = 0         !default is 0, if hit a wall, 1             
+
            pcle_nu%ijk_n = spcs(isp)%pcles(ipc)%ijk_n
            pcle_nu%x_n   = spcs(isp)%pcles(ipc)%x_n
            pcle_nu%v_n   = spcs(isp)%pcles(ipc)%v_n
@@ -2720,7 +2592,7 @@ cc                   print *,hit_wall
            dtp = dtx
 
            do while(maxval(dtp)>0)
-              it = it+1
+             it = it+1
              !Perform pcle substep (the original mover is in the module pic_mover_sub, not sure how to call that one)
              call ACC_CN_incell_offset_dup(isp,spcs(isp)%q_m,pcle_nu
      $                                ,dt,dtp,dt_sub
@@ -2742,7 +2614,6 @@ cc                   print *,hit_wall
              pcle_nu%w_n   = pcle_nu%w_np
 
              dtp = dtp-dt_sub
-             
           end do
 
           !Update final pcle quantities (serial)
@@ -2756,23 +2627,9 @@ cc             if(hit_wall(k)==0)then
                 spcs(isp)%pcles(ipc)%w_np(k)     = pcle_nu%w_np(k)
 cc             end if
           end do
-cc           end if
-!******     
-           call gather_new_time_moments(spcs(isp)%pcles(ipc),d_x,pml,cml
-     $                                 ,cmex)
-cc             end if
-c$$$           end do !pit
 
-c$$$           !Update final pcle quantities
-c$$$           spcs(isp)%pcles(ipc)%v_np(:,1)   = pcle_nu%v_np(:,1)
-c$$$     $          *REF_SIGN(:,1)
-c$$$           spcs(isp)%pcles(ipc)%v_np(:,2)   = pcle_nu%v_np(:,2)
-c$$$     $          *REF_SIGN(:,2)
-c$$$           spcs(isp)%pcles(ipc)%v_np(:,3)   = pcle_nu%v_np(:,3)
-c$$$     $          *REF_SIGN(:,3)
-c$$$           spcs(isp)%pcles(ipc)%ijk_np = pcle_nu%ijk_np 
-c$$$           spcs(isp)%pcles(ipc)%x_np   = pcle_nu%x_np   
-c$$$           spcs(isp)%pcles(ipc)%w_np   = pcle_nu%w_np
+          call gather_new_time_moments(spcs(isp)%pcles(ipc),d_x,pml,cml
+     $                                 ,cmex)
 
          end do                 !particles
 !$omp end do 
@@ -2782,8 +2639,6 @@ c$$$           spcs(isp)%pcles(ipc)%w_np   = pcle_nu%w_np
          moms_g(:,:,1,isp,Ipx:Ipz) = moms_g(:,:,1,isp,Ipx:Ipz)*idtx
 
       end do                    !species
-
-      deallocate(pcle_tmp,dx_tmp)
 
 c     Particle pusher timing end - C. Mikida, 05/16
       
