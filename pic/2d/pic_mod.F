@@ -1306,7 +1306,7 @@ c     Also define some insets of arrays for later use (C. Mikida)
       end do
 
 c     Estimate sub-time-step 
-!     beginning of the substep (meansured from the center of dt)
+!     beginning of the substep (measured from the center of dt)
       dtau0 = (dt-dtp)- 0.5d0*dt
 
       dt_sub = dtp
@@ -1351,29 +1351,18 @@ cc      call initialize_it(vh,dt_sub,dx)
 #endif
 
 #if _prec == 8
-cc        if (dx_err < 1d-13 .or. it>500) exit
-        if(it>3) exit  !LC: arbitrary convergence criterion
+        if (dx_err < 1d-13 .or. it>500) exit
 #else
         if (dx_err < 1d-6  .or. it>500) exit
 #endif
       end do             
 
+cc      write (*,*) "--------------"
+        
       it = it*_Npg
 
       call deposit_current(vh,dt_sub,dx,isp,wp_loc
      .                    ,vnp_loc,xnp_loc,inp_loc,jnp_loc) !This may change dt_sub
-
-c     Update particle quantities
-
-c$$$      vnp_loc = v0_loc + 2d0*(vh - v0_loc) !2d0*vh - v0
-c$$$      xnp_loc = x0_loc + dx
-c$$$
-c$$$      inp_loc = i0
-c$$$      jnp_loc = j0
-c$$$
-c$$$c     Cell crossing and particle b.c.
-c$$$
-c$$$      call cell_crossing(dx,xnp_loc,vnp_loc,inp_loc,jnp_loc,wp_loc)
 
 c     Back to the global registers now:
 
@@ -1382,8 +1371,6 @@ c     Back to the global registers now:
       pcle_nu%v_np = vnp_loc
       pcle_nu%x_np = xnp_loc
       pcle_nu%w_np = wp_loc
-
-cc      call gather_orbit_avg_moments(isp,pcle_nu,dx,hit_wall)
 
 c     End program
 
@@ -1459,7 +1446,6 @@ c     Local variables
         call cell_crossing_vavg(dx,xnp_loc,vh,inp_loc,jnp_loc
      $                         ,wp_loc,ref_tag,hit_wall=hit_wall)
 
-cc        call cell_crossing(dx,xnp_loc,vnp_loc,inp_loc,jnp_loc,wp_loc)
         in_loc = inp_loc
         jn_loc = jnp_loc
         xn_loc = xnp_loc
@@ -1780,7 +1766,7 @@ c     Local variables
       integer :: in_loc(_Npg),jn_loc(_Npg),inp_loc(_Npg),jnp_loc(_Npg)
      $           ,i,dim
       real(_prec) :: ref_tag(_Npg,3),tau(_Npg)
-      integer ::  hit_wall(_Npg) !TODO: remove
+      integer ::  it_nu,hit_wall(_Npg) !TODO: remove
       
 c     Begin program
 
@@ -1815,7 +1801,8 @@ c     Find dx
          E_3(i,:,:) =-DtA_3(i,:,:)
       end do
 
-!     pcle sub-stepping 
+      !pcle sub-stepping
+      it_nu = 0
       do while(maxval(dtp_nu)>0)      
 
         if (no_map) then
@@ -1852,6 +1839,7 @@ c     Find dx
      $                           ,dtA_1,dtA_2,dtA_3,Ep,Bp)
         endif
 
+        !Flip fields if bdry is hit
         do dim=1,_Dimx
           do i=1,_Npg
             if(ref_tag(i,dim)<0) then
@@ -1862,7 +1850,7 @@ c     Find dx
           end do
         end do
 
-!       Accumulate fields
+        !Accumulate fields
         Ep_avg(:,1) = Ep_avg(:,1) + Ep(:,1)*dt_nu(:)
         Ep_avg(:,2) = Ep_avg(:,2) + Ep(:,2)*dt_nu(:)
         Ep_avg(:,3) = Ep_avg(:,3) + Ep(:,3)*dt_nu(:)
@@ -1870,15 +1858,14 @@ c     Find dx
         Bp_avg(:,2) = Bp_avg(:,2) + Bp(:,2)*dt_nu(:)
         Bp_avg(:,3) = Bp_avg(:,3) + Bp(:,3)*dt_nu(:)
 
-!       Update particle quantities (including cell crossing)
-
+        !Update particle quantities (including cell crossing)
         xnp_loc = xn_loc + dx
         inp_loc = in_loc
         jnp_loc = jn_loc
         call cell_crossing_vavg(dx,xnp_loc,vh,inp_loc,jnp_loc
      $                         ,wp_loc,ref_tag,hit_wall=hit_wall)
 
-!       update the field from the new cell
+        !Update the field at the new cell
         !VECTOR SIMD
         do i=1,_Npg
           if (    inp_loc(i)-in_loc(i).ne.0
@@ -2739,9 +2726,6 @@ cc                   print *,hit_wall
 
              pit_sum = pit_sum + pits     !Total number of picard iterations
              psh_sum = psh_sum + psts     !Total number of particle pushes (including ALL picard iterations)
-
-            !Scatter ORBIT AVERAGED v-moments 
-cc             call gather_orbit_avg_moments(pcle_nu,dx,hit_wall) !moments for particles that hit a wall
 
              !Prepare for next substep
              pcle_nu%ijk_n = pcle_nu%ijk_np
