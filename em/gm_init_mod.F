@@ -66,7 +66,7 @@ c    Local variables
 
       INTEGER :: I,J,K,KK,II,RANI
       real(8) :: r(NATT,NATT),sgn(3),NPARBY2
-      INTEGER :: info,IER,NULL
+      INTEGER :: info,IER
 
       ! Variables for GS-kmeans
       INTEGER :: OPT_NG,KMITER,GRP_COUNT(NG)
@@ -163,9 +163,9 @@ CGMM_OMP!$OMP END MASTER
 
 C    !Invert covariance matrices, returned by GS-KMeans init
 
-      IER = 0 ; NULL = 0
+      IER = 0
 
-      CALL GDET(NATT,NG,XVAR(1:NG,:,:),V(1:NG,:,:),DV(1:NG),IER,NULL)
+      CALL GDET(NATT,NG,XVAR(1:NG,:,:),V(1:NG,:,:),DV(1:NG),IER)
 
       IER=0
 
@@ -343,21 +343,9 @@ c     Calculate initial Gaussian moments
      .          ,XVAR(K,1:NATT,1:NATT))
 
       DO K = 2,NG
+        XMU(K,:) = XMU(1,:)
         XVAR(K,1:NATT,1:NATT) = XVAR(1,1:NATT,1:NATT)/8d0 !smaller initial variance may perform better.
       END DO
-
-      DO 450 K=1,1 !NG (ASK Gy)
-        IF (STD_IO) WRITE (*,445) K
-        IF (DIAG_IO) WRITE (FYLENO,445) K
- 445    FORMAT (/2X,'Global mean, covariance matrix  ',I2)
-        IF (STD_IO) WRITE (*,415) (XMU(K,J),J=1,NATT)
-        IF (DIAG_IO)WRITE (FYLENO,415) (XMU(K,J),J=1,NATT)
-        DO 450 J=1,NATT
-          IF (STD_IO) WRITE (*,415) (XVAR(K,I,J),I=1,J)
-          IF (DIAG_IO)WRITE (FYLENO,415) (XVAR(K,I,J),I=1,J)
- 450  CONTINUE
-
- 415  FORMAT (2X,5G30.12)
 
 c     Make copies of global prop, mean & covariance for conservation checks
       
@@ -393,9 +381,26 @@ cc          print *,"mean=",K,XMU(K,1:NATT)
         END DO
       endif
 
-c    Initialize Gaussian weights:
-      T(1:NG) = 1.0/DBLE(NG)
+c     Initialize Gaussian weights:
 
+      T(1:NG) = 1d0/DBLE(NG)
+
+c     IO
+
+      DO K=1,1 !NG
+        IF (STD_IO) WRITE (*,445) K
+        IF (DIAG_IO) WRITE (FYLENO,445) K
+        IF (STD_IO) WRITE (*,415) (XMU(K,J),J=1,NATT)
+        IF (DIAG_IO)WRITE (FYLENO,415) (XMU(K,J),J=1,NATT)
+        DO J=1,NATT
+          IF (STD_IO) WRITE (*,415) (XVAR(K,I,J),I=1,J)
+          IF (DIAG_IO)WRITE (FYLENO,415) (XVAR(K,I,J),I=1,J)
+        ENDDO
+      ENDDO
+
+ 445  FORMAT (/2X,'Global mean, covariance matrix  ',I2)
+ 415  FORMAT (2X,5G30.12)
+      
       END SUBROUTINE GMM_INIT_GRP8
 
       end module gm_init

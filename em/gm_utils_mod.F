@@ -444,7 +444,7 @@ c     compute Mahalanobis distance of XMUJ & XMUI under XVARJ
 c     EKURT
 c     ##################################################################
       FUNCTION EKURT(Np,Nd) result(EK)
-C     Compute expcted multivariate kurtosis of particles of one group K
+C     Compute expected multivariate kurtosis of particles of one group K
 
       IMPLICIT NONE
       real(8) :: Np,Nd
@@ -943,7 +943,7 @@ c     Begin program
 
 c     GDET
 c     ###################################################################
-      SUBROUTINE GDET(NATT,NG,XVAR,V,DV,IER,NULL)
+      SUBROUTINE GDET(NATT,NG,XVAR,V,DV,IER)
       IMPLICIT NONE
 C     This subroutine reads all covariance matrices, then calls
 C     SYMINV, which inverts a matrix and calculates its determinant,
@@ -951,13 +951,13 @@ C     for each covariance matrix in turn.
 
 C     Call variables
 
-      INTEGER :: NATT,NG,IER,NULL
+      INTEGER :: NATT,NG,IER
       
       REAL(8) :: XVAR(NG,NATT,NATT),V(NG,NATT,NATT),DV(NG)
 
 c     Local variables
       
-      INTEGER :: K,I
+      INTEGER :: K,I,NULL
 
 c     Begin program
       
@@ -1097,12 +1097,12 @@ C     Compute new estimate of covariance matrix for each group
 
 c     INVRT
 c     ########################################################################
-      SUBROUTINE INVRT(NATT,NCOV,NG,XVAR,V,DV,IER,NULL)
+      SUBROUTINE INVRT(NATT,NCOV,NG,XVAR,V,DV,IER)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       DIMENSION XVAR(NG,NATT,NATT),DV(NG),V(NG,NATT,NATT)
 
       IF (NCOV.EQ.1) THEN
-        CALL GDET(NATT,NG,XVAR,V,DV,IER,NULL)
+        CALL GDET(NATT,NG,XVAR,V,DV,IER)
         DO 4401 K=2,NG
           DV(K)=DV(1)
           DO 4401 J=1,NATT
@@ -1112,21 +1112,9 @@ c     ########################################################################
  4401       CONTINUE
 
       ELSE
-        CALL GDET(NATT,NG,XVAR,V,DV,IER,NULL)
+        CALL GDET(NATT,NG,XVAR,V,DV,IER)
       ENDIF
-      
-      IF (IER.NE.0.AND.DIAG_IO) THEN
-        WRITE (FYLENO,*) '  Problem in INVRT:'
-        WRITE (FYLENO,*) '    User defined covariance matrix'
-        WRITE (FYLENO,*) '    is singular.'
-      ENDIF
-      IF (IER.NE.0) THEN
-        WRITE (*,*) '  Problem in INVRT:'
-        WRITE (*,*) '    User defined covariance matrix'
-        WRITE (*,*) '    is singular. Aborting...'
-        stop
-      ENDIF
-      RETURN
+
       END SUBROUTINE INVRT
 
       end module gm_utils

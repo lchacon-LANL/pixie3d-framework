@@ -5,7 +5,6 @@
       PRIVATE    ! Make everything in module private by default 
       PUBLIC :: SETUP_MV_NORMAL,dinvnorm,multinormal_sample_rnd
      .         ,r8po_fa
-cc     .         ,multinormal_sample_rnd_gr8
 
       !Input parameters
       INTEGER :: m                 ! Number of dimensions

@@ -259,15 +259,28 @@ CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
 c     IO
 CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
       IF (STD_IO.and.IOUNT>2) then
-        print *,"Final # groups:", NG
-        print *,"Final iteration:",IOUNT-1
-        print *,"Relative Tolerance:",TOL
-        print *,"Initial LOG-LIKELIHOOD:",XLOGL(1)
-        print *,"Last two LOG-LIKELIHOOD:",XLOGL(IOUNT-1)
+        write (*,*) "Final # groups:", NG
+        write (*,*) "Final iteration:",IOUNT-1
+        write (*,*) "Relative Tolerance:",TOL
+        write (*,*) "Initial LOG-LIKELIHOOD:",XLOGL(1)
+        write (*,*) "Last two LOG-LIKELIHOOD:",XLOGL(IOUNT-1)
      .         ,XLOGL(IOUNT-2)
-        print *,"Initial Message-length:",MLENG(1)
-        print *,"Last two Message-length:",MLENG(IOUNT-1)
-     .         ,MLENG(IOUNT-2)
+        write (*,*) "Initial Message-length:",MLENG(1)
+        write (*,*) "Last two Message-length:",MLENG(IOUNT-1)
+     .       ,MLENG(IOUNT-2)
+
+        write (*,*)
+        write (*,*) "Mixture groups:"
+        write (*,*)
+        
+        DO K=1,NG
+          WRITE (*,*) "Weight=",T(K)
+          WRITE (*,*) "Mean  =",(XMU(K,J),J=1,NATT)
+          DO J=1,NATT
+            WRITE (*,*) "Variance=",(XVAR(K,I,J),I=1,J)
+          ENDDO
+          WRITE (*,*)
+        ENDDO
       ENDIF
 
       IF (DIAG_IO) THEN
