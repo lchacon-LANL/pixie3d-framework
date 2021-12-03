@@ -239,7 +239,7 @@
        INTEGER, INTENT(IN) :: N
        REAL(8), INTENT(IN) :: A(N,N)   ! input matrix for computing cholesky
        REAL(8), INTENT(OUT) :: L(N,N)  ! output lower-triangular matrix
-                                     ! BUT in the form of symmetric matrix
+                                       ! BUT in the form of symmetric matrix
 
        !       Local variables
        INTEGER :: I,J,K

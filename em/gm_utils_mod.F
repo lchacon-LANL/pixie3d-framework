@@ -1060,7 +1060,7 @@ c     Local variables
 
 C     Compute new estimates of group means (XMU)
 
-      SUM =0.0
+      SUM =0d0
       DO J=1,NATT
          DO JJ=1,NIND
             SUM(J)=SUM(J)+X(JJ,J)*W(JJ) 
@@ -1075,7 +1075,7 @@ C     Compute new estimates of group means (XMU)
 
 C     Compute new estimate of covariance matrix for each group
 
-      XVAR=0.0
+      XVAR=0d0
       DO J=1,NATT
         DO I=1,J
           DO JJ=1,NIND
@@ -1084,6 +1084,7 @@ C     Compute new estimate of covariance matrix for each group
           END DO
           XVAR(J,I)=XVAR(I,J)
         END DO
+cc        XVAR(J,J) = XVAR(J,J) + (1.11d-16) !To regularize
       END DO
 #if defined(petsc)
       lsumx = XVAR
@@ -1091,7 +1092,7 @@ C     Compute new estimate of covariance matrix for each group
      .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
 #endif
 
-      XVAR = XVAR/WSUM + (1.11d-16)
+      XVAR = XVAR/WSUM
 
       END SUBROUTINE LCALK
 

@@ -241,7 +241,7 @@ c     Make copies of global prop, mean & covariance for conservation check
 
 c     Initialize weights:
 
-      T(1:NG) = 1.0/DBLE(NG)
+      T(1:NG) = 1d0/DBLE(NG)
 
 c     Initialize variances according to global variance
 
@@ -344,7 +344,7 @@ c     Calculate initial Gaussian moments
 
       DO K = 2,NG
         XMU(K,:) = XMU(1,:)
-        XVAR(K,1:NATT,1:NATT) = XVAR(1,1:NATT,1:NATT)/8d0 !smaller initial variance may perform better.
+        XVAR(K,1:NATT,1:NATT) = XVAR(1,1:NATT,1:NATT)/16d0 !smaller initial variance may perform better.
       END DO
 
 c     Make copies of global prop, mean & covariance for conservation checks
@@ -359,7 +359,8 @@ c     Assign Gaussians in groups of 8 according to principal axes
         r(1:NATT,1:NATT) = XVAR(1,1:NATT,1:NATT)
       
         call r8po_fa( NATT, r, info)
-        sgn = -1
+
+        sgn = -1d0
         KK = 1
         do i=1,2
           sgn(1) = -sgn(1);
@@ -372,12 +373,10 @@ c     Assign Gaussians in groups of 8 according to principal axes
             end do
           end do
         end do
-cc        print *,"r=",r
         
         DO K = 1,NG
           XMU(K,1:NATT) = XMUS(1:NATT)
      .                  + matmul(XMU(K,1:NATT),r(1:NATT,1:NATT))
-cc          print *,"mean=",K,XMU(K,1:NATT)
         END DO
       endif
 
@@ -388,13 +387,13 @@ c     Initialize Gaussian weights:
 c     IO
 
       DO K=1,1 !NG
-        IF (STD_IO) WRITE (*,445) K
+        IF (STD_IO ) WRITE (*,445) K
         IF (DIAG_IO) WRITE (FYLENO,445) K
-        IF (STD_IO) WRITE (*,415) (XMU(K,J),J=1,NATT)
-        IF (DIAG_IO)WRITE (FYLENO,415) (XMU(K,J),J=1,NATT)
+        IF (STD_IO ) WRITE (*,415) (XMU(K,J),J=1,NATT)
+        IF (DIAG_IO) WRITE (FYLENO,415) (XMU(K,J),J=1,NATT)
         DO J=1,NATT
-          IF (STD_IO) WRITE (*,415) (XVAR(K,I,J),I=1,J)
-          IF (DIAG_IO)WRITE (FYLENO,415) (XVAR(K,I,J),I=1,J)
+          IF (STD_IO ) WRITE (*,415) (XVAR(K,I,J),I=1,J)
+          IF (DIAG_IO) WRITE (FYLENO,415) (XVAR(K,I,J),I=1,J)
         ENDDO
       ENDDO
 

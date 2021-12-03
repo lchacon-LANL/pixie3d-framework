@@ -788,11 +788,10 @@ c$$$         r(i) = (dble(i)-rn)/dble(n)
       do j = 1, n
 
          do k = 1, j - 1
-            a(k,j) = ( a(k,j) - sum ( a(1:k-1,k) * a(1:k-1,j) ) ) / a(k
-     $           ,k)
+            a(k,j) = ( a(k,j) - sum ( a(1:k-1,k) * a(1:k-1,j) ) )/a(k,k)
          end do
 
-         s = a(j,j) - sum ( a(1:j-1,j)**2 )
+         s = a(j,j) - sum ( a(1:j-1,j)*a(1:j-1,j) )
 
          if ( s <= 0.0D+00 ) then
             info = j

@@ -263,11 +263,9 @@ CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
         write (*,*) "Final iteration:",IOUNT-1
         write (*,*) "Relative Tolerance:",TOL
         write (*,*) "Initial LOG-LIKELIHOOD:",XLOGL(1)
-        write (*,*) "Last two LOG-LIKELIHOOD:",XLOGL(IOUNT-1)
-     .         ,XLOGL(IOUNT-2)
+        write (*,*) "Last two LOG-LIKELIHOOD:",XLOGL(IOUNT-1:IOUNT)
         write (*,*) "Initial Message-length:",MLENG(1)
-        write (*,*) "Last two Message-length:",MLENG(IOUNT-1)
-     .       ,MLENG(IOUNT-2)
+        write (*,*) "Last two Message-length:",MLENG(IOUNT-1:IOUNT)
 
         write (*,*)
         write (*,*) "Mixture groups:"
