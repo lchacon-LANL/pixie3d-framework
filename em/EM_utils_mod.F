@@ -36,9 +36,10 @@ C     from the posterior probabilities W, into NG groups
       DO I=1,NIND
         MAX=1
 
-        DO 1120 K=2,NG
-1120      IF (W(I,K).GT.W(I,MAX)) MAX=K
-
+        DO K=2,NG
+          IF (W(I,K).GT.W(I,MAX)) MAX=K
+        ENDDO
+        
         XCC(MAX)=XCC(MAX)+W(I,MAX)
 
         IDT(I)=MAX
