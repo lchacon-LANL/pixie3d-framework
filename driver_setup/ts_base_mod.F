@@ -24,7 +24,6 @@ c ######################################################################
         real(8) :: tmrst = 0d0   !Dump time for restart
      .            ,quota = 1d30  !Max CPU time (in seconds)
      .            ,dtexp = 0d0   !Explicit time accumulator
-     .            ,exec_time=0d0 !Execution time (in seconds)
 
 #if !defined(samrai)
 
@@ -189,16 +188,26 @@ c     Call variables
 
 c     Local variables
 
+      real(8) :: e_time
+      
 c     Begin program
+
+#if defined(petsc)
+      call PetscGetTime   (prof_time(3),prof_err)
+      e_time = prof_time(3)-prof_time(1)
+cc      if (my_rank == 0) write (*,*) "Time counters",e_time, quota
+#else
+      e_time = 0d0
+#endif
 
       exit_tloop= (tmax/=0d0.and.time>=(tmax-1d-13*itime*dt).and.dt>0d0)
      .        .or.(              time<=(tmax-1d-13*itime*dt).and.dt<0d0)
      .        .or.(numtime.ge.0.and.itime+1.ge.(numtime+inewtime))
-     .        .or.(exec_time > quota)
+     .        .or.(e_time > quota)
 
-      if (exit_tloop .and. exec_time <= quota) EXIT_STATUS = SUCCESS
+      if (exit_tloop .and. e_time <= quota) EXIT_STATUS = SUCCESS
 
-      if (exec_time > quota) EXIT_STATUS = NON_FATAL
+      if (e_time > quota) EXIT_STATUS = NON_FATAL
       
 c     End program
 

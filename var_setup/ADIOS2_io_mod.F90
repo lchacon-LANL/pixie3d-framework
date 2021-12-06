@@ -846,7 +846,7 @@
             " read vars n=",n," start= ", start," count= ",readcount
 
           do ieq=1,adios2_nvar
-             if (firstread) then
+!!$             if (firstread) then  !UNSAFE: Assumes u_0 is available
                 zero = 0
                 nlen = len(varray%array_var(1)%descr)
                 desc = "" ! repeat(char(0), len(desc)) !jyc: clean the buffer
@@ -857,7 +857,9 @@
                 if (adios2_debug) &
                      write (*,"(a,a,a,a,a,i0)") "read ",trim(vname), &
                      ": [",trim(desc),"]"
-             endif
+!!$             else
+!!$                varray%array_var(ieq)%descr = u_0%array_var(ieq)%descr
+!!$             endif
 
             ! read in data of Nth variable
             write (vvar,  '("/var/v",i0)')  ieq
@@ -880,7 +882,7 @@
               write (*,"(a,a,a,i0)") "read ",trim(vvar)
           enddo
 
-          if (firstread) then
+!!$          if (firstread) then  !UNSAFE: Assumes u_0 is available
              nlen = adios2_nvar*6
              n = adios2_nvar*6*4
              call adios2_get (engine, "bconds", bconds, adios2_mode_sync, ierr)
@@ -893,11 +895,11 @@
                 if (adios2_debug) &
                      write (*,"(a,6i3)") "read bcond=",bconds( (ieq-1)*6+1:ieq*6 )
              enddo
-          else
-             do ieq=1,adios2_nvar
-                varray%array_var(ieq)%bconds = u_0%array_var(ieq)%bconds
-             enddo
-          endif
+!!$          else
+!!$             do ieq=1,adios2_nvar
+!!$                varray%array_var(ieq)%bconds = u_0%array_var(ieq)%bconds
+!!$             enddo
+!!$          endif
 
 !     End program
 

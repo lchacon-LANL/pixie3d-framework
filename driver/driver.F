@@ -25,6 +25,7 @@ c Common variables
 c Local variables
 
       integer :: ierr=0
+      logical :: finish_t_loop
       
 c Interfaces
 
@@ -71,9 +72,11 @@ c Initial output
 
 c Time loop
 
+      finish_t_loop = TS_chk_end()
+
       do
 
-        if (TS_chk_end()) exit
+        if (finish_t_loop) exit
 
 c     Find new time step and update time counters
 
@@ -144,7 +147,9 @@ c     Output per time step
 
 c     Time level data dump
 
-        call TS_dump(u_np,dump_now=TS_chk_end())  !Force restart dump at end
+        finish_t_loop = TS_chk_end()
+        
+        call TS_dump(u_np,dump_now=finish_t_loop)  !Force restart dump at end
 
 c     Exit if eigenvalue computation
 

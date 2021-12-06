@@ -64,7 +64,7 @@ c     End program
 
 c     TS_chk_dump
 c     ###############################################################
-      function TS_chk_dump(etime,reset_counters) result(dump)
+      function TS_chk_dump(reset_counters) result(dump)
 
 c     ---------------------------------------------------------------
 c     Check for end of time loop
@@ -75,12 +75,10 @@ c     ---------------------------------------------------------------
 c     Call variables
 
       logical :: dump
-      real(8),optional,INTENT(OUT) :: etime
       logical,optional :: reset_counters
 
 c     Local variables
 
-      real(8) :: e_time
       logical :: reset
 
 c     Begin program
@@ -91,20 +89,10 @@ c     Begin program
         reset = .false.
       endif
 
-#if defined(petsc)
-      call PetscGetTime   (prof_time(3),prof_err)
-      e_time = prof_time(3)-prof_time(1)
-cc      if (my_rank == 0) write (*,*) "Time counters",e_time, quota
-#else
-      e_time = 0d0
-#endif
-
 #if defined(RFX)
-      dump = (nrst.eq.ndstep.or.tmrst.ge.dstep.or.e_time>quota)
+      dump = (nrst.eq.ndstep.or.tmrst.ge.dstep)
 #else
-      dump = (nrst.eq.ndstep)
-     .   .or.(sign(1d0,dt)*(tmrst-dstep)>=1d-10)
-     .   .or.(e_time>quota)
+      dump = (nrst.eq.ndstep).or.(sign(1d0,dt)*(tmrst-dstep)>=1d-10)
 #endif
 
       if (reset.and.dump) nrst = 0
@@ -114,8 +102,6 @@ cc      if (my_rank == 0) write (*,*) "Time counters",e_time, quota
       if (reset.and.dump.and.itime>init_grid_offset) then
         tmrst=tmrst-sign(1d0,dt)*dstep
       endif
-
-      if (PRESENT(etime)) etime = e_time
 
 c     End program
 
@@ -151,7 +137,7 @@ c     Begin program
         dump = .false.
       endif
       
-      if ((TS_chk_dump(etime=exec_time,reset_counters=.true.).or.dump)
+      if ((TS_chk_dump(reset_counters=.true.).or.dump)
      .     .and.(.not.no_graphics_io)) then
         call writeRecordFile(recordfile,itime,time,dt,gammat,varray)
       endif

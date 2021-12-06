@@ -283,14 +283,14 @@ c$$$            enddo
 c$$$          endif
 c$$$          stop
         case ('tsq')            !Square torus
-          major_r = gp(1)  !Major radius
-          aa      = gp(2)  !Horizontal dimension
-          bb      = gp(3)  !Vertical   dimension
+          rc = gp(1)  !Domain center R-coord
+          zc = gp(2)  !Domain center Z-coord
+          aa = gp(3)  !Horizontal thickness
+          bb = gp(4)  !Vertical   thickness
 
-          car(1) = (major_r + aa*(xlog(1)-0.5))*cos(-xlog(3))
-          car(2) = (major_r + aa*(xlog(1)-0.5))*sin(-xlog(3))
-          car(3) =            bb*(xlog(2)-0.5)
-
+          car(1) = (rc + aa*(xlog(1)-0.5))*cos(-xlog(3))
+          car(2) = (rc + aa*(xlog(1)-0.5))*sin(-xlog(3))
+          car(3) =  zc + bb*(xlog(2)-0.5)
         case ('sin')
           eps = gp(1)
 

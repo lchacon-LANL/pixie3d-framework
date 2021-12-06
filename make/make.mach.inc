@@ -472,27 +472,27 @@ ifeq ($(findstring pn2033419,$(HOST)),pn2033419)
     PETSC_DIR =$(HOME)/Software/petsc-3.0.0-p7
 
     ifeq ($(BOPT),O)
-      PETSC_ARCH = darwin_gcc9.3.0_openmpi3.1.5
+      PETSC_ARCH = darwin_gcc9.4.0_openmpi3.1.5
     else
-      PETSC_ARCH = darwin_gcc9.3.0_openmpi3.1.5_g
+      PETSC_ARCH = darwin_gcc9.4.0_openmpi3.1.5_g
     endif
 
     HDF5 = t
 
-    HDF5_HOME = $(HOME)/lib/hdf5-1.8.13/gcc-9.3.0-openmpi-3.1.5
+    HDF5_HOME = $(HOME)/lib/hdf5-1.8.13/gcc-9.4.0-openmpi-3.1.5
     HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
     HDF5_MOD  = $(HDF5_HOME)/include
     HDF5_INC  = $(HDF5_MOD)
 
     ADIOS2 = t
     ADIOS2_METHOD = MPI
-    ADIOS2_HOME = $(HOME)/lib/adios-2.5.0/gcc-9.3.0_openmpi-3.1.5
+    ADIOS2_HOME = $(HOME)/lib/adios-2.5.0/gcc-9.4.0_openmpi-3.1.5
     ADIOS2_LIBS = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-libs)
     ADIOS2_MOD  = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-flags)
     ADIOS2_VER  = 2.5.0
 
     SPRNG = t
-    SPRNG_HOME = $(HOME)/lib/sprng5/gcc-9.3.0_openmpi-3.1.5
+    SPRNG_HOME = $(HOME)/lib/sprng5/gcc-9.4.0_openmpi-3.1.5
     SPRNG_LIBS = $(SPRNG_HOME)/lib -lsprng -lstdc++ -lm
     SPRNG_INC  = $(SPRNG_HOME)/include
       
@@ -502,7 +502,7 @@ ifeq ($(findstring pn2033419,$(HOST)),pn2033419)
 
     HDF5 = t
 
-    HDF5_HOME = $(HOME)/lib/hdf5-1.8.13/gcc-9.3.0
+    HDF5_HOME = $(HOME)/lib/hdf5-1.8.13/gcc-9.4.0
     HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
     HDF5_MOD  = $(HDF5_HOME)/include
     HDF5_INC  = $(HDF5_MOD)
@@ -512,7 +512,7 @@ ifeq ($(findstring pn2033419,$(HOST)),pn2033419)
     ADIOS2 = f
 
     SPRNG = t
-    SPRNG_HOME = $(HOME)/lib/sprng5/gcc-9.3.0
+    SPRNG_HOME = $(HOME)/lib/sprng5/gcc-9.4.0
     SPRNG_LIBS = $(SPRNG_HOME)/lib -lsprng -lstdc++ -lm
     SPRNG_INC  = $(SPRNG_HOME)/include
 

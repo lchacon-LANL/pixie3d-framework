@@ -344,7 +344,7 @@ c     ###################################################################
         real(8) :: rk(ntot),dx(ntot)
         logical :: exit_lp,init
 
-c     Check Anderson convergence/failure
+c     Check convergence/failure
 
         fkp = ntgl*rms(rk)
 
@@ -772,11 +772,11 @@ c     Begin program
 
 c     Initialize parameters
 
-      damp = 1d0    !Damping
+      damp  = 1d0   !Damping
       etak0 = etak  !Inexact Newton forcing
 
-      sigma0 = 0.1  !Lower limit in damping parameter decrease
-      sigma1 = 0.5  !Damping parameter decrease for linesearch backtracking
+      sigma0= 0.1   !Lower limit in damping parameter decrease
+      sigma1= 0.5   !Damping parameter decrease for linesearch backtracking
 
       alpha = 1d-1  !Residual reduction parameter
 
@@ -851,7 +851,7 @@ c     ###################################################################
         real(8) :: rk(ntot),dx(ntot)
         logical :: exit_lp,init
 
-c     Check Anderson convergence/failure
+c     Check convergence/failure
 
         fkp = ntgl*rms(rk)
 
@@ -1072,7 +1072,7 @@ c     ###################################################################
         real(8) :: rk(ntot)
         logical :: exit_lp
 
-c     Check Anderson convergence/failure
+c     Check convergence/failure
 
         fkp = ntgl*rms(rk)
 
