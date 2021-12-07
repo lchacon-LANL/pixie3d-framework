@@ -1314,6 +1314,46 @@ c     Begin program
 
       end function psum
 
+c     ipsum
+c     ###################################################################
+      function ipsum(vec1,mpi_comm)
+
+c     -------------------------------------------------------------------
+c     Performs parallel sum of elements of a 1d-array using communicator
+c     mpi_comm. On input:
+c       * vec1: vector
+c       * mpi_comm: MPI communicator
+c     -------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer,optional :: mpi_comm
+      integer :: vec1(:),ipsum
+
+c     Local variables
+
+      integer    :: mpic,lsum
+
+c     Begin program
+
+#if defined(petsc)
+      if (PRESENT(mpi_comm)) then
+        mpic = mpi_comm
+      else
+        mpic = MPI_COMM_WORLD
+      endif
+
+      lsum = sum(vec1)
+      call MPI_Allreduce(lsum,ipsum,1,MPI_INT
+     .                  ,MPI_SUM,mpic,mpierr)
+#else
+      ipsum = sum(vec1)
+#endif
+
+      end function ipsum
+
 c     dot
 c     ###################################################################
       function dot1(ntot,vec1,vec2) result(dot)
@@ -2468,7 +2508,8 @@ c     Eliminate specified directions
           npx = max(npx,1) ; npy = max(npy,1) ; npz = max(npz,1)
           return
         else
-          messg = 'np /= npx*npy*npz ... Aborting'
+          messg = 'np='//trim(int2char(np))//' /= npx*npy*npz='
+     $           //trim(int2char(npx*npy*npz))//' ... Aborting'
           call pstop('processorAlloc',messg)
         endif
       endif
