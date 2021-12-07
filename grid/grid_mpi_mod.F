@@ -1587,6 +1587,41 @@ c     Begin program
 
       end function pmin
 
+c     ipmin
+c     ###################################################################
+      function ipmin(val,mpi_comm)
+
+c     -------------------------------------------------------------------
+c     Performs parallel maximum value.
+c     -------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: ipmin,val
+      integer,optional :: mpi_comm
+
+c     Local variables
+
+      integer :: mpicomm
+
+c     Begin program
+
+#if defined(petsc)
+      if (PRESENT(mpi_comm)) then
+        mpicomm = mpi_comm
+      else
+        mpicomm = MPI_COMM_WORLD
+      endif
+
+      call MPI_Allreduce(val,ipmin,1,MPI_INT,MPI_MIN,mpicomm,mpierr)
+#else
+      ipmin = val
+#endif
+
+      end function ipmin
+      
 c     isProc
 c     #################################################################
       function isProc(proc_id)
