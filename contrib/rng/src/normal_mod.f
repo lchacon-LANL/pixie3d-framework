@@ -294,16 +294,8 @@
 !     
       r(1:m,1:m) = a(1:m,1:m)
 
-      call r8po_fa ( m, r, info )
+      call r8po_fa (m,r)
 
-      if ( info /= 0 ) then
-         write ( *, '(a)' ) ' '
-         write ( *, '(a)' ) 'MULTINORMAL_SAMPLE - Fatal error!'
-         write ( *, '(a)' ) 
-     .    '  The variance-covariance matrix is not positive definite 
-     .       symmetric.'
-         stop
-      end if
 !     
 !     Get an MxN matrix of samples of the 1D normal distribution with mean 0
 !     and variance 1.  
@@ -712,7 +704,7 @@ c$$$         r(i) = (dble(i)-rn)/dble(n)
       return
       end function r8_uniform_01
 
-      subroutine r8po_fa ( n, a, info )
+      subroutine r8po_fa (n,a)
 
 !*****************************************************************************80
 !
@@ -769,22 +761,21 @@ c$$$         r(i) = (dble(i)-rn)/dble(n)
 !    On input, the matrix in R8PO storage.
 !    On output, the Cholesky factor R in R8GE storage.
 !
-!    Output, integer ( kind = 4 ) INFO, error flag.
-!    0, normal return.
-!    K, error condition.  The principal minor of order K is not
-!    positive definite, and the factorization was not completed.
-!
       implicit none
 
       integer ( kind = 4 ) n
 
-      real ( kind = 8 ) a(n,n)
+      real    ( kind = 8 ) a(n,n)
       integer ( kind = 4 ) i
       integer ( kind = 4 ) info
       integer ( kind = 4 ) j
       integer ( kind = 4 ) k
-      real ( kind = 8 ) s
+      real    ( kind = 8 ) s
 
+      info = 0
+
+      where (abs(a) < 1d-14) a = 0d0
+      
       do j = 1, n
 
          do k = 1, j - 1
@@ -795,14 +786,21 @@ c$$$         r(i) = (dble(i)-rn)/dble(n)
 
          if ( s <= 0.0D+00 ) then
             info = j
-            return
+            exit
          end if
 
          a(j,j) = sqrt ( s )
 
       end do
 
-      info = 0
+      if ( info /= 0 ) then
+         write ( *, '(a)' ) ' '
+         write ( *, '(a)' ) 'MULTINORMAL_SAMPLE - Fatal error!'
+         write ( *, '(a)' ) 
+     .    '  The variance-covariance matrix is not positive definite 
+     .       symmetric.'
+         stop
+      end if
 !     
 !     Since the Cholesky factor is stored in R8GE format, be sure to
 !     zero out the lower triangle.
@@ -813,10 +811,9 @@ c$$$         r(i) = (dble(i)-rn)/dble(n)
          end do
       end do
 
-      return
       end subroutine r8po_fa
 
-! normal inverse
+!     normal inverse
 !     ##################################################################
       real*8 function dinvnorm(p)
       real*8 p,p_low,p_high

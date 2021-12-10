@@ -901,7 +901,7 @@ c     Begin program
       ! Should use small tolerance:
       TOL=(TOL/NATT)*1.0D-10
       !TOL=(TOL/NATT)*1.0D-6    ! original TOL
-      CALL SYMINV (TRIANG,NATT,ATRIANG,TEMP,NULL,IER,RMAX,CMY,TOL)
+      CALL SYMINV (TRIANG,NATT,ATRIANG,TEMP,NULL,IER,RMAX,CMY,TOL=TOL)
       IF (IER.GT.0) GO TO 899
       IF (NULL.NE.0) THEN
         WRITE (*,815)  K, NULL

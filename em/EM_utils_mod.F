@@ -63,18 +63,20 @@ C     Output: Conserved quantities T,XMU,XVAR
       IMPLICIT NONE
 
 C     Call variables
+
       INTEGER, INTENT(IN) :: NG,NATT
       REAL(8), INTENT(IN) :: TS,XMUS(NATT),XVARS(NATT,NATT)
       REAL(8), INTENT(INOUT) ::T(NG),XMU(NG,NATT)
      $          ,XVAR(NG,NATT,NATT)
 
 C     Local variables
+
       REAL(8) :: XMU_D(NATT),XVAR_D(NATT,NATT)
       INTEGER :: I,J,K
       REAL(8) :: DIFF,TOL
 
-
 C     Conserve proportion (mass) - zeroth-order mom
+
       IF ( NG .EQ. 1 ) THEN
         T(NG) = 1D0
       ELSE
@@ -82,6 +84,7 @@ C     Conserve proportion (mass) - zeroth-order mom
       ENDIF
 
 C     Conserve momentum (mean) - first-order mom
+
       XMU_D(1:NATT) = XMUS(1:NATT)
       DO K=1,NG
         XMU_D(1:NATT) = XMU_D(1:NATT) - T(K)*XMU(K,1:NATT)
@@ -91,6 +94,7 @@ C     Conserve momentum (mean) - first-order mom
       END DO
       
 C     Conserve covar - second-order mom
+
       XVAR_D = XVARS
       DO K=1,NG
         DO J=1,NATT      
@@ -106,6 +110,7 @@ C     Conserve covar - second-order mom
           XVAR_D(J,I)=XVAR_D(I,J)
         END DO
       END DO
+
       DO K=1,NG
        XVAR(K,1:NATT,1:NATT)=XVAR(K,1:NATT,1:NATT)+XVAR_D(1:NATT,1:NATT)
       END DO
