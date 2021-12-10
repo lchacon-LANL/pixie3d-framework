@@ -1531,6 +1531,14 @@ c     -------------------------------------------------------------------------
 
       if (is_sprng_init) return
       is_sprng_init = .true.
+
+      !Available generators (gtype)
+      !   lfg     --- 0
+      !   lcg     --- 1
+      !   lcg64   --- 2
+      !   cmrg    --- 3
+      !   mlfg    --- 4
+      !   pmlcg   --- 5
       
       gtype = 1       !lcg
       if (PRESENT(seed)) then
