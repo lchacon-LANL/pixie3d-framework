@@ -2801,7 +2801,7 @@ c$$$        end INTERFACE
         end INTERFACE
 
         INTERFACE curlcurl
-          module procedure curlcurl_ijk,curlcurl_mesh,curlcurl_mesh2
+          module procedure curlcurl_ijk,curlcurl_mesh!,curlcurl_mesh2
         end INTERFACE
 
         INTERFACE curlcurl_cov
@@ -7669,7 +7669,7 @@ c     End program
 
 c     curlcurl_mesh2
 c     ###############################################################
-      function curlcurl_mesh2(g_def,igrid,cnv,cov,iscnv) result(vec_out)
+      function curlcurl_mesh2(g_def,igrid,vec,iscnv) result(vec_out)
 
 c     ---------------------------------------------------------------
 c     Calculates curlcurl(A) in general non-orthogonal coordinates.
@@ -7685,22 +7685,35 @@ c     Call variables
 
       integer :: igrid
 
-      real(8) :: cnv(0:,0:,0:,:)
-     .          ,cov(0:,0:,0:,:)
-     .          ,vec_out(0:size(cnv,1)-1
-     $                  ,0:size(cnv,2)-1
-     $                  ,0:size(cnv,3)-1,3)
+      real(8),target :: vec(0:,0:,0:,:)
+     .                 ,vec_out(0:size(vec,1)-1
+     $                         ,0:size(vec,2)-1
+     $                         ,0:size(vec,3)-1,3)
 
       logical :: iscnv
 
 c     Local variables
 
+      real(8),pointer,dimension(:,:,:,:) :: cnv,cov
+
 c     Begin program
 
+      if (iscnv) then
+        cnv => vec
+        cov => vec_out
+        cov = XformToCov(g_def,igrid,cnv)
+      else
+        cov => vec
+        cnv => vec_out
+        cnv = XformToCnv(g_def,igrid,cov)
+      endif
+      
       vec_out =-veclap_cov(g_def,igrid,cov)
      .         +gradDiv   (g_def,igrid,cnv)
 
       if (iscnv) vec_out = XformToCnv(g_def,igrid,vec_out)
+
+      nullify(cnv,cov)
       
 c     End program
 
@@ -8165,7 +8178,7 @@ c$$$      curlcurl = dwa+dwb+dwc+dwd+dwe+dwf+dwg+dwh+dwi+dwj+dwk
 c$$$
 c$$$c     End program
 c$$$
-c$$$      end function curlcurl
+c$$$      end function curlcurl_cov_ijk
 
 c     veclap_stg_mesh
 c     ###############################################################
@@ -9691,7 +9704,7 @@ c     Find advected quantity at faces
      .                   ,g_def%yy(jgp),arr(i,jp,k)
      .                   ,2*g_def%dyh(jg ),darr(i,j ,k)
      .                   ,2*g_def%dyh(jgp),darr(i,jp,k)
-     .                   ,vyp,method)
+     .                   ,vyp,meth)
 
       !Setup fluxes
       flxjp=vyp*qjp
@@ -9745,7 +9758,7 @@ c     Figure out advective method
      .      .or.(isBdry(g_def,k+1,igr,5).and.bcond(5)/=PER)
 
       if (at_bdry.and.method > ZIP) then
-        meth = ZIP !UPWD             !Revert to upwinding
+        meth = UPWD             !Revert to upwinding
       else
         meth = method
       endif
@@ -9756,7 +9769,7 @@ c     Find advected quantity at faces
      .                   ,g_def%zz(kgp),arr(i,j,kp)
      .                   ,2*g_def%dzh(kg ),darr(i,j,k )
      .                   ,2*g_def%dzh(kgp),darr(i,j,kp)
-     .                   ,vzp,method)
+     .                   ,vzp,meth)
 
       !Setup fluxes
       flxkp=vzp*qkp
@@ -11775,6 +11788,8 @@ c     Local variables
      .          ,d_xy_ipjp,d_xy_ipjm
      .          ,d_xz_ipkp,d_xz_ipkm
 
+      logical :: at_bdry
+
 c     Begin program
 
       flx = 0d0
@@ -11792,57 +11807,25 @@ c     Begin program
         kp = k+1
         km = k-1
 
-        d_xy_ipjp = 0d0
-        avgt = (arr (i ,j ,k)
-     .         +arr (ip,j ,k)
-     .         +arr (i ,jp,k)
-     .         +arr (ip,jp,k))
-        if (avgt > 0d0) then
-          d_xy_ipjp = (tnsr(i ,j ,k,2)
-     .                +tnsr(ip,j ,k,2)
-     .                +tnsr(i ,jp,k,2)
-     .                +tnsr(ip,jp,k,2))
-     .                /avgt
-        endif
+        d_xy_ipjp = .25*(tnsr(i ,j ,k,2)
+     .                  +tnsr(ip,j ,k,2)
+     .                  +tnsr(i ,jp,k,2)
+     .                  +tnsr(ip,jp,k,2))
 
-        d_xy_ipjm = 0d0
-        avgt = (arr (i ,j ,k)
-     .         +arr (ip,j ,k)
-     .         +arr (i ,jm,k)
-     .         +arr (ip,jm,k))
-        if (avgt > 0d0) then
-          d_xy_ipjm = (tnsr(i ,j ,k,2)
-     .                +tnsr(ip,j ,k,2)
-     .                +tnsr(i ,jm,k,2)
-     .                +tnsr(ip,jm,k,2))
-     .                /avgt
-        endif
+        d_xy_ipjm = .25*(tnsr(i ,j ,k,2)
+     .                  +tnsr(ip,j ,k,2)
+     .                  +tnsr(i ,jm,k,2)
+     .                  +tnsr(ip,jm,k,2))
 
-        d_xz_ipkp = 0d0
-        avgt = (arr (i ,j,k )
-     .         +arr (ip,j,k )
-     .         +arr (i ,j,kp)
-     .         +arr (ip,j,kp))
-        if (avgt > 0d0) then
-          d_xz_ipkp = (tnsr(i ,j,k ,3)
-     .                +tnsr(ip,j,k ,3)
-     .                +tnsr(i ,j,kp,3)
-     .                +tnsr(ip,j,kp,3))
-     .                /avgt
-        endif
+        d_xz_ipkp = .25*(tnsr(i ,j,k ,3)
+     .                  +tnsr(ip,j,k ,3)
+     .                  +tnsr(i ,j,kp,3)
+     .                  +tnsr(ip,j,kp,3))
 
-        d_xz_ipkm = 0d0
-        avgt = (arr (i ,j,k )
-     .         +arr (ip,j,k )
-     .         +arr (i ,j,km)
-     .         +arr (ip,j,km))
-        if (avgt > 0d0) then
-          d_xz_ipkm = (tnsr(i ,j,k ,3)
-     .                +tnsr(ip,j,k ,3)
-     .                +tnsr(i ,j,km,3)
-     .                +tnsr(ip,j,km,3))
-     .                /avgt
-        endif
+        d_xz_ipkm = .25*(tnsr(i ,j,k ,3)
+     .                  +tnsr(ip,j,k ,3)
+     .                  +tnsr(i ,j,km,3)
+     .                  +tnsr(ip,j,km,3))
 
         flx   = 
      .    +.25*(d_xy_ipjp*(arr(ip,jp,k)+arr(i,jp,k)               
@@ -11879,15 +11862,6 @@ c     Begin program
      .             +tnsr(i  ,jj+1,kk+1,3)
      .             +tnsr(i+1,jj+1,kk+1,3))
 
-            avgt = (arr(i  ,jj  ,kk  )
-     .             +arr(i+1,jj  ,kk  )
-     .             +arr(i  ,jj+1,kk  )
-     .             +arr(i+1,jj+1,kk  )
-     .             +arr(i  ,jj  ,kk+1)
-     .             +arr(i+1,jj  ,kk+1)
-     .             +arr(i  ,jj+1,kk+1)
-     .             +arr(i+1,jj+1,kk+1))
-
             dty =.25*(arr(i  ,jj+1,kk  )-arr(i  ,jj,kk  )
      .               +arr(i+1,jj+1,kk  )-arr(i+1,jj,kk  )
      .               +arr(i  ,jj+1,kk+1)-arr(i  ,jj,kk+1)
@@ -11899,11 +11873,9 @@ c     Begin program
      .               +arr(i+1,jj+1,kk+1)-arr(i+1,jj+1,kk))
      .               /g_def%dz(kg)
 
-            if (avgt > 0d0) flx = flx + (d_xy*dty + d_xz*dtz)/avgt
+            flx = flx + 0.125*(d_xy*dty + d_xz*dtz)
           enddo
         enddo
-
-        flx = 0.25*flx
 
       case default
 
@@ -11965,57 +11937,25 @@ c     Begin program
         kp = k+1
         km = k-1
 
-        d_xy_ipjp = 0d0
-        avgt = (arr (i ,j ,k)
-     .         +arr (ip,j ,k)
-     .         +arr (i ,jp,k)
-     .         +arr (ip,jp,k))
-        if (avgt > 0d0) then
-          d_xy_ipjp = (tnsr(i ,j ,k,2)
-     .                +tnsr(ip,j ,k,2)
-     .                +tnsr(i ,jp,k,2)
-     .                +tnsr(ip,jp,k,2))
-     .                /avgt
-        endif
+        d_xy_ipjp = .25*(tnsr(i ,j ,k,2)
+     .                  +tnsr(ip,j ,k,2)
+     .                  +tnsr(i ,jp,k,2)
+     .                  +tnsr(ip,jp,k,2))
 
-        d_xy_imjp = 0d0
-        avgt = (arr (i ,j ,k)
-     .         +arr (im,j ,k)
-     .         +arr (i ,jp,k)
-     .         +arr (im,jp,k))
-        if (avgt > 0d0) then
-          d_xy_imjp = (tnsr(i ,j ,k,2)
-     .                +tnsr(im,j ,k,2)
-     .                +tnsr(i ,jp,k,2)
-     .                +tnsr(im,jp,k,2))
-     .                /avgt
-        endif
+        d_xy_imjp = .25*(tnsr(i ,j ,k,2)
+     .                  +tnsr(im,j ,k,2)
+     .                  +tnsr(i ,jp,k,2)
+     .                  +tnsr(im,jp,k,2))
 
-        d_yz_jpkp = 0d0
-        avgt = (arr (i,j ,k )
-     .         +arr (i,jp,k )
-     .         +arr (i,j ,kp)
-     .         +arr (i,jp,kp))
-        if (avgt > 0d0) then
-          d_yz_jpkp = (tnsr(i,j ,k ,5)
-     .                +tnsr(i,jp,k ,5)
-     .                +tnsr(i,j ,kp,5)
-     .                +tnsr(i,jp,kp,5))
-     .               /avgt
-        endif
+        d_yz_jpkp = .25*(tnsr(i,j ,k ,5)
+     .                  +tnsr(i,jp,k ,5)
+     .                  +tnsr(i,j ,kp,5)
+     .                  +tnsr(i,jp,kp,5))
 
-        d_yz_jpkm = 0d0
-        avgt = (arr (i,j ,k )
-     .         +arr (i,jp,k )
-     .         +arr (i,j ,km)
-     .         +arr (i,jp,km))
-        if (avgt > 0d0) then
-          d_yz_jpkm = (tnsr(i,j ,k ,5)
-     .                +tnsr(i,jp,k ,5)
-     .                +tnsr(i,j ,km,5)
-     .                +tnsr(i,jp,km,5))
-     .                /avgt
-        endif
+        d_yz_jpkm = .25*(tnsr(i,j ,k ,5)
+     .                  +tnsr(i,jp,k ,5)
+     .                  +tnsr(i,j ,km,5)
+     .                  +tnsr(i,jp,km,5))
                                                                          
         flx =
      .    +.25*(d_xy_ipjp*(arr(ip,jp,k)+arr(ip,j,k)               
@@ -12056,15 +11996,6 @@ c     Begin program
      .             +tnsr(ii  ,jj+1,kk+1,5)
      .             +tnsr(ii+1,jj+1,kk+1,5))
 
-            avgt = (arr(ii  ,jj  ,kk  )
-     .             +arr(ii+1,jj  ,kk  )
-     .             +arr(ii  ,jj+1,kk  )
-     .             +arr(ii+1,jj+1,kk  )
-     .             +arr(ii  ,jj  ,kk+1)
-     .             +arr(ii+1,jj  ,kk+1)
-     .             +arr(ii  ,jj+1,kk+1)
-     .             +arr(ii+1,jj+1,kk+1))
-
             dtx =.25*(arr(ii+1,jj  ,kk  )-arr(ii,jj  ,kk  )
      .               +arr(ii+1,jj+1,kk  )-arr(ii,jj+1,kk  )
      .               +arr(ii+1,jj  ,kk+1)-arr(ii,jj  ,kk+1)
@@ -12077,11 +12008,9 @@ c     Begin program
      .               +arr(ii+1,jj+1,kk+1)-arr(ii+1,jj+1,kk))
      .               /g_def%dz(kg)
 
-            if (avgt > 0d0) flx = flx + (d_xy*dtx + d_yz*dtz)/avgt
+            flx = flx + 0.125*(d_xy*dtx + d_yz*dtz)
           enddo
         enddo
-
-        flx = 0.25*flx
 
       case default
 
@@ -12143,57 +12072,25 @@ c     Begin program
         kp = k+1
         km = k-1
 
-        d_xz_ipkp = 0d0
-        avgt = (arr (i ,j,k )
-     .         +arr (ip,j,k )
-     .         +arr (i ,j,kp)
-     .         +arr (ip,j,kp))
-        if (avgt > 0d0) then
-          d_xz_ipkp = (tnsr(i ,j,k ,3)
-     .                +tnsr(ip,j,k ,3)
-     .                +tnsr(i ,j,kp,3)
-     .                +tnsr(ip,j,kp,3))
-     .                /avgt
-        endif
+        d_xz_ipkp = .25*(tnsr(i ,j,k ,3)
+     .                  +tnsr(ip,j,k ,3)
+     .                  +tnsr(i ,j,kp,3)
+     .                  +tnsr(ip,j,kp,3))
 
-        d_xz_imkp = 0d0
-        avgt = (arr (i ,j,k )
-     .         +arr (im,j,k )
-     .         +arr (i ,j,kp)
-     .         +arr (im,j,kp))
-        if (avgt > 0d0) then
-          d_xz_imkp = (tnsr(i ,j,k ,3)
-     .                +tnsr(im,j,k ,3)
-     .                +tnsr(i ,j,kp,3)
-     .                +tnsr(im,j,kp,3))
-     .                /avgt
-        endif
+        d_xz_imkp = .25*(tnsr(i ,j,k ,3)
+     .                  +tnsr(im,j,k ,3)
+     .                  +tnsr(i ,j,kp,3)
+     .                  +tnsr(im,j,kp,3))
 
-        d_yz_jpkp = 0d0
-        avgt = (arr (i,j ,k )
-     .         +arr (i,jp,k )
-     .         +arr (i,j ,kp)
-     .         +arr (i,jp,kp))
-        if (avgt > 0d0) then
-          d_yz_jpkp = (tnsr(i,j ,k ,5)
-     .                +tnsr(i,jp,k ,5)
-     .                +tnsr(i,j ,kp,5)
-     .                +tnsr(i,jp,kp,5))
-     .               /avgt
-        endif
+        d_yz_jpkp = .25*(tnsr(i,j ,k ,5)
+     .                  +tnsr(i,jp,k ,5)
+     .                  +tnsr(i,j ,kp,5)
+     .                  +tnsr(i,jp,kp,5))
 
-        d_yz_jmkp = 0d0
-        avgt = (arr (i,j ,k )
-     .         +arr (i,jm,k )
-     .         +arr (i,j ,kp)
-     .         +arr (i,jm,kp))
-        if (avgt > 0d0) then
-          d_yz_jmkp = (tnsr(i,j ,k ,5)
-     .                +tnsr(i,jm,k ,5)
-     .                +tnsr(i,j ,kp,5)
-     .                +tnsr(i,jm,kp,5))
-     .                /avgt
-        endif
+        d_yz_jmkp = .25*(tnsr(i,j ,k ,5)
+     .                  +tnsr(i,jm,k ,5)
+     .                  +tnsr(i,j ,kp,5)
+     .                  +tnsr(i,jm,kp,5))
                         
         flx   =
      .    +.25*(d_xz_ipkp*(arr(ip,j,kp)+arr(ip,j,k)               
@@ -12235,15 +12132,6 @@ c     Begin program
      .             +tnsr(ii  ,jj+1,kk+1,5)
      .             +tnsr(ii+1,jj+1,kk+1,5))
 
-            avgt = (arr(ii  ,jj  ,kk  )
-     .             +arr(ii+1,jj  ,kk  )
-     .             +arr(ii  ,jj+1,kk  )
-     .             +arr(ii+1,jj+1,kk  )
-     .             +arr(ii  ,jj  ,kk+1)
-     .             +arr(ii+1,jj  ,kk+1)
-     .             +arr(ii  ,jj+1,kk+1)
-     .             +arr(ii+1,jj+1,kk+1))
-
             dtx =.25*(arr(ii+1,jj  ,kk  )-arr(ii,jj  ,kk  )
      .               +arr(ii+1,jj+1,kk  )-arr(ii,jj+1,kk  )
      .               +arr(ii+1,jj  ,kk+1)-arr(ii,jj  ,kk+1)
@@ -12255,11 +12143,9 @@ c     Begin program
      .               +arr(ii+1,jj+1,kk+1)-arr(ii+1,jj,kk+1))
      .               /g_def%dy(jg)
 
-            if (avgt > 0d0) flx = flx + (d_xz*dtx + d_yz*dty)/avgt
+            flx = flx + 0.125*(d_xz*dtx + d_yz*dty)
           enddo
         enddo
-
-        flx = 0.25*flx
 
       case default
 
@@ -12321,10 +12207,12 @@ c     Local variables
 
       real(8),dimension(:,:,:),pointer :: arr_0
 
-      real(8) :: vel
+      real(8) :: vel,avg,flsv
 
 c     Begin program
 
+      flsv = 1d-10
+      
       nx = size(arr,1)-2
       ny = size(arr,2)-2
       nz = size(arr,3)-2
@@ -12335,9 +12223,12 @@ c     Begin program
       flux = 0d0
       
       if (.not.limitd) then  !Symmetric
-        flux(1) = lap_tnsr_flx_x_ijk(gdef,i,j,k,igr,arr,tnsr)
-        flux(2) = lap_tnsr_flx_y_ijk(gdef,i,j,k,igr,arr,tnsr)
-        flux(3) = lap_tnsr_flx_z_ijk(gdef,i,j,k,igr,arr,tnsr)
+        if (j>0.and.k>0)
+     $       flux(1) = lap_tnsr_flx_x_ijk(gdef,i,j,k,igr,arr,tnsr)
+        if (i>0.and.k>0)
+     $       flux(2) = lap_tnsr_flx_y_ijk(gdef,i,j,k,igr,arr,tnsr)
+        if (i>0.and.j>0)
+     $       flux(3) = lap_tnsr_flx_z_ijk(gdef,i,j,k,igr,arr,tnsr)
       else
         select case(trim(meth))
         case("dutoit") !Du Toit, CPC 228 (2018)
@@ -12362,42 +12253,45 @@ c     Begin program
 
           !Compute flux velocities
           if (j>0.and.k>0)
-     $        flux(1)=lap_tnsr_cross_flx_x_ijk(gdef,i,j,k,igr,arr_0,tnsr
-     .                                         ,"symm_edge")
+     $      flux(1) = lap_tnsr_cross_flx_x_ijk(gdef,i,j,k,igr,arr_0,tnsr
+     .                                        ,"symm_edge")
           if (i>0.and.k>0)
-     $        flux(2)=lap_tnsr_cross_flx_y_ijk(gdef,i,j,k,igr,arr_0,tnsr
-     .                                         ,"symm_edge")
+     $      flux(2) = lap_tnsr_cross_flx_y_ijk(gdef,i,j,k,igr,arr_0,tnsr
+     .                                        ,"symm_edge")
           if (i>0.and.j>0)
-     $        flux(3)=lap_tnsr_cross_flx_z_ijk(gdef,i,j,k,igr,arr_0,tnsr
-     .                                         ,"symm_edge")
+     $      flux(3) = lap_tnsr_cross_flx_z_ijk(gdef,i,j,k,igr,arr_0,tnsr
+     .                                        ,"symm_edge")
 
           !Perform fake advection
-          if (j>0.and.k>0) then
-             vel = -flux(1)
-             flux(1) =-scl_nc_advc_flx_x_new(gdef,i,j,k,nx,ny,nz,igr
+          if (j>0.and.k>0.and.nx>1) then
+            avg = 0.5*abs(arr_0(i,j,k)+arr_0(ip,j,k))+flsv
+            vel = -flux(1)/avg
+            flux(1) =-scl_nc_advc_flx_x_new(gdef,i,j,k,nx,ny,nz,igr
      $                   ,vel,arr,darr(0:nx+1,0:ny+1,0:nz+1,1),advcmthd)
           endif
-          if (i>0.and.k>0) then
-             vel = -flux(2)
-             flux(2) =-scl_nc_advc_flx_y_new(gdef,i,j,k,nx,ny,nz,igr
+          if (i>0.and.k>0.and.ny>1) then
+            avg = 0.5*abs(arr_0(i,j,k)+arr_0(i,jp,k))+flsv
+            vel = -flux(2)/avg
+            flux(2) =-scl_nc_advc_flx_y_new(gdef,i,j,k,nx,ny,nz,igr
      $                   ,vel,arr,darr(0:nx+1,0:ny+1,0:nz+1,2),advcmthd)
           endif
-          if (i>0.and.j>0) then
-             vel = -flux(3)
-             flux(3) =-scl_nc_advc_flx_z_new(gdef,i,j,k,nx,ny,nz,igr
+          if (i>0.and.j>0.and.nz>1) then
+            avg = 0.5*abs(arr_0(i,j,k)+arr_0(i,j,kp))+flsv
+            vel = -flux(3)/avg
+            flux(3) =-scl_nc_advc_flx_z_new(gdef,i,j,k,nx,ny,nz,igr
      $                   ,vel,arr,darr(0:nx+1,0:ny+1,0:nz+1,3),advcmthd)
           endif
 
           !Co-derivative terms
-          if (j>0.and.k>0)
+          if (j>0.and.k>0.and.nx>1)
      $    flux(1) = flux(1) + 0.5*(tnsr(i ,j,k,1)
      .                            +tnsr(ip,j,k,1))
      .                       *(arr(ip,j,k)-arr(i,j,k))/gdef%dx(ig)
-          if (i>0.and.k>0)
+          if (i>0.and.k>0.and.ny>1)
      $    flux(2) = flux(2) + 0.5*(tnsr(i,j ,k,4)
      .                            +tnsr(i,jp,k,4))
      .                       *(arr(i,jp,k)-arr(i,j,k))/gdef%dy(jg)
-          if (i>0.and.j>0)
+          if (i>0.and.j>0.and.nz>1)
      $    flux(3) = flux(3) + 0.5*(tnsr(i,j,k ,6)
      .                            +tnsr(i,j,kp,6))
      .                       *(arr(i,j,kp)-arr(i,j,k))/gdef%dz(kg)
@@ -12451,6 +12345,14 @@ c$$$     .                 ,tmp,tmp_0)
         end select
       endif
 
+c$$$      if (isBC(gdef,ip,igr,1,NEU,bcnd=bcnd)
+c$$$     &.or.isBC(gdef,ip,igr,1,SP ,bcnd=bcnd)) Flux(1) = 0d0
+c$$$      if (isBC(gdef,i ,igr,2,NEU,bcnd=bcnd)) Flux(1) = 0d0
+c$$$      if (isBC(gdef,jp,igr,3,NEU,bcnd=bcnd)) Flux(2) = 0d0
+c$$$      if (isBC(gdef,j, igr,4,NEU,bcnd=bcnd)) Flux(2) = 0d0
+c$$$      if (isBC(gdef,kp,igr,5,NEU,bcnd=bcnd)) Flux(3) = 0d0
+c$$$      if (isBC(gdef,k ,igr,6,NEU,bcnd=bcnd)) Flux(3) = 0d0
+
 c     End program
 
       end function lap_tnsr_flx_2nd
@@ -12499,14 +12401,17 @@ c     Call variables
 c     Local variables
 
       real(8)  :: idx,idy,idz,avg,flxip,flxjp,flxkp,Flux_cross(3)
+     .           ,flsv
       integer  :: tgx,tgy,tgz,xi,xf,yi,yf,zi,zf,ig,jg,kg,ii,jj,kk
      .           ,stncl,nx,ny,nz,ip,jp,kp,advcmthd
-      logical  :: limitd
+      logical  :: limitd,at_bdry
 
       real(8),dimension(:,:,:),pointer :: F_0
 
 c     Begin program
 
+      flsv = 1d-10
+      
       nx = size(F,1)-2
       ny = size(F,2)-2
       nz = size(F,3)-2
@@ -12552,7 +12457,7 @@ c     X-flux computation
         if (ii == 0) tgx = -2
         xi=max(ii-2,0)-max(ii+3-(nx+1),0)
         xf=min(ii+3,nx+1)+max(2-ii,0)
-        Flux(1)=Get_Flux(idx,tgx,F(xi:xf,j,k),tnsrd(xi:xf,j,k,1))
+        Flux(1)=Get_Flux(idx,tgx,F(xi:xf,j,k),tnsrd(xi:xf,j,k,1),stncl)
 
         if (ny > 1) then
           tgx=IOR(min(ii-2,0),max(ii+2-(nx+1),0))
@@ -12590,7 +12495,7 @@ c     Y-flux computation
         if (jj == 0) tgy = -2
         yi=max(jj-2,0)-max(jj+3-(ny+1),0)
         yf=min(jj+3,ny+1)+max(2-jj,0)
-        Flux(2)=Get_Flux(idy,tgy,F(i,yi:yf,k),tnsrd(i,yi:yf,k,4))
+        Flux(2)=Get_Flux(idy,tgy,F(i,yi:yf,k),tnsrd(i,yi:yf,k,4),stncl)
 
         if (nx > 1) then
           tgx=IOR(min(i-2,0),max(i+2-(nx+1),0))
@@ -12626,17 +12531,17 @@ c     Z-flux computation
         kk =k
         tgz=IOR(min(kk-2,0),max(kk+2-nz,0))
         if (kk == 0) tgz = -2
-        zi=max(kk-2,0)-max(kk+2-(nz+1),0)
-        zf=min(kk+2,nz+1)+max(2-kk,0)
-        Flux(3)=Get_Flux(idz,tgz,F(i,j,zi:zf),tnsrd(i,j,zi:zf,6))
+        zi=max(kk-2,0)-max(kk+3-(nz+1),0)
+        zf=min(kk+3,nz+1)+max(2-kk,0)
+        Flux(3)=Get_Flux(idz,tgz,F(i,j,zi:zf),tnsrd(i,j,zi:zf,6),stncl)
 
         if (ny > 1) then
-          tgy=IOR(min(j-2,0),max(j+2-(ny+1),0))
+          tgy=IOR(min(j -2,0),max(j +2-(ny+1),0))
           tgz=IOR(min(kk-2,0),max(kk+2-(nz+1),0))
           if (kk == 0) tgz = -2
-          yi=max(j-2,0)-max(j+2-(ny+1),0)
-          yf=min(j+2,ny+1)+max(2-j,0)
+          yi=max(j -2,0)-max(j +2-(ny+1),0)
           zi=max(kk-2,0)-max(kk+2-(nz+1),0)
+          yf=min(j +2,ny+1)+max(2-j ,0)
           zf=min(kk+2,nz+1)+max(2-kk,0)
           Flux_cross(3)=Flux_cross(3)
      .        +Get_Flux_Cross(idy,tgz,tgy
@@ -12645,12 +12550,12 @@ c     Z-flux computation
         endif
 
         if (nx > 1) then
-          tgx=IOR(min(i-2,0),max(i+2-(nx+1),0))
+          tgx=IOR(min(i -2,0),max(i +2-(nx+1),0))
           tgz=IOR(min(kk-2,0),max(kk+2-(nz+1),0))
           if (kk == 0) tgz = -2
-          xi=max(i-2,0)-max(i+2-(nx+1),0)
-          xf=min(i+2,nx+1)+max(2-i,0)
+          xi=max(i -2,0)-max(i +2-(nx+1),0)
           zi=max(kk-2,0)-max(kk+2-(nz+1),0)
+          xf=min(i +2,nx+1)+max(2-i ,0)
           zf=min(kk+2,nz+1)+max(2-kk,0)
           Flux_cross(3)=Flux_cross(3)
      .        +Get_Flux_Cross(idx,tgz,tgx
@@ -12661,7 +12566,14 @@ c     Z-flux computation
 
 c     Limit cross fluxes
 
-      if (limitd) then
+      at_bdry = (isBdry(gdef,i+1,igr,1).and.bcnd(1)/=PER)
+     .      .or.(isBdry(gdef,i  ,igr,2).and.bcnd(2)/=PER)
+     .      .or.(isBdry(gdef,j+1,igr,3).and.bcnd(3)/=PER)
+     .      .or.(isBdry(gdef,j  ,igr,4).and.bcnd(4)/=PER)
+     .      .or.(isBdry(gdef,k+1,igr,5).and.bcnd(5)/=PER)
+     .      .or.(isBdry(gdef,k  ,igr,6).and.bcnd(6)/=PER)
+
+      if (limitd.and.(.not.at_bdry)) then
         if (PRESENT(limit_mthd)) then
           advcmthd = limit_mthd
         else
@@ -12675,21 +12587,21 @@ c     Limit cross fluxes
 
         !Perform fake advection
         if (j>0.and.k>0.and.nx>1) then
-          avg =  0.5*(F_0(i ,j,k)+F_0(ip,j,k))
+          avg = abs(0.5*(F_0(i ,j,k)+F_0(ip,j,k))) + flsv
           if (avg > 0d0) flxip=Flux_cross(1)/avg
           flxip =-scl_nc_advc_flx_x_new(gdef,i,j,k,nx,ny,nz,igr
      $                               ,-flxip,F,dF(:,:,:,1),advcmthd)
         endif
         
         if (i>0.and.k>0.and.ny>1) then
-          avg =  0.5*(F_0(i,j ,k)+F_0(i,jp,k))
+          avg = abs(0.5*(F_0(i,j ,k)+F_0(i,jp,k))) + flsv
           if (avg > 0d0) flxjp=Flux_cross(2)/avg
           flxjp =-scl_nc_advc_flx_y_new(gdef,i,j,k,nx,ny,nz,igr
      $                               ,-flxjp,F,dF(:,:,:,2),advcmthd)
         endif
         
         if (i>0.and.j>0.and.nz>1) then
-          avg =  0.5*(F_0(i,j,k )+F_0(i,j,kp))
+          avg = abs(0.5*(F_0(i,j,k )+F_0(i,j,kp))) + flsv
           if (avg > 0d0) flxkp=Flux_cross(3)/avg
           flxkp =-scl_nc_advc_flx_z_new(gdef,i,j,k,nx,ny,nz,igr
      $                               ,-flxkp,F,dF(:,:,:,3),advcmthd)
@@ -12757,7 +12669,7 @@ c     Begin program
       end function Get_Flux_Cross
 
 c     ################################################################
-      function Get_Flux(ih,tag,F,B2) result (val)
+      function Get_Flux(ih,tag,F,B2,stncl) result (val)
 c     ----------------------------------------------------------------
 c     Calculates the flux for d^2/dx^2 part of div.(BB.grad) operator 
 c     with 4th order accuracy at a point.
@@ -12768,7 +12680,7 @@ c     ----------------------------------------------------------------
 
 c     Call variables
 
-      integer  :: tag
+      integer  :: tag,stncl
       real(8)  :: F(6),B2(6),val,ih
 
 c     Local variables
@@ -12776,6 +12688,8 @@ c     Local variables
 c     Begin program
 
       select case(stncl)
+      case(2)
+        val = 0.5*(B2(4+tag)+B2(3+tag))*(F(4+tag)-F(3+tag))*ih
       case(5)
         select case(tag)
         case (-2)

@@ -1238,6 +1238,8 @@ c     Call variables
 
 c     Local variables
 
+        integer :: ierr
+        
 c     Begin program
 
 #if defined(samrai)
@@ -1252,8 +1254,21 @@ c     Call SAMRAI's error handler
         call pstop_samrai(trim(routine),trim(message))
 #else
 c     Call local error handler
-        
-        call sstop(my_rank,routine,message)
+
+c$$$      call sstop(my_rank,routine,message)
+
+        if (my_rank == 0) then
+          write (*,*)
+          write (*,*) trim(message)
+          write (*,*) 'Program stopped at routine ',trim(routine)
+        endif
+
+#if defined(petsc)
+        call PetscFinalize(ierr)
+#endif
+
+        call exit(FATAL)  !Fatal termination
+
 #endif
 
       end subroutine pstop
@@ -1298,6 +1313,46 @@ c     Begin program
 #endif
 
       end function psum
+
+c     ipsum
+c     ###################################################################
+      function ipsum(vec1,mpi_comm)
+
+c     -------------------------------------------------------------------
+c     Performs parallel sum of elements of a 1d-array using communicator
+c     mpi_comm. On input:
+c       * vec1: vector
+c       * mpi_comm: MPI communicator
+c     -------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer,optional :: mpi_comm
+      integer :: vec1(:),ipsum
+
+c     Local variables
+
+      integer    :: mpic,lsum
+
+c     Begin program
+
+#if defined(petsc)
+      if (PRESENT(mpi_comm)) then
+        mpic = mpi_comm
+      else
+        mpic = MPI_COMM_WORLD
+      endif
+
+      lsum = sum(vec1)
+      call MPI_Allreduce(lsum,ipsum,1,MPI_INT
+     .                  ,MPI_SUM,mpic,mpierr)
+#else
+      ipsum = sum(vec1)
+#endif
+
+      end function ipsum
 
 c     dot
 c     ###################################################################
@@ -1532,6 +1587,41 @@ c     Begin program
 
       end function pmin
 
+c     ipmin
+c     ###################################################################
+      function ipmin(val,mpi_comm)
+
+c     -------------------------------------------------------------------
+c     Performs parallel maximum value.
+c     -------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: ipmin,val
+      integer,optional :: mpi_comm
+
+c     Local variables
+
+      integer :: mpicomm
+
+c     Begin program
+
+#if defined(petsc)
+      if (PRESENT(mpi_comm)) then
+        mpicomm = mpi_comm
+      else
+        mpicomm = MPI_COMM_WORLD
+      endif
+
+      call MPI_Allreduce(val,ipmin,1,MPI_INT,MPI_MIN,mpicomm,mpierr)
+#else
+      ipmin = val
+#endif
+
+      end function ipmin
+      
 c     isProc
 c     #################################################################
       function isProc(proc_id)
@@ -2453,7 +2543,8 @@ c     Eliminate specified directions
           npx = max(npx,1) ; npy = max(npy,1) ; npz = max(npz,1)
           return
         else
-          messg = 'np /= npx*npy*npz ... Aborting'
+          messg = 'np='//trim(int2char(np))//' /= npx*npy*npz='
+     $           //trim(int2char(npx*npy*npz))//' ... Aborting'
           call pstop('processorAlloc',messg)
         endif
       endif

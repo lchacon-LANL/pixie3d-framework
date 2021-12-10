@@ -66,7 +66,7 @@ c    Local variables
 
       INTEGER :: I,J,K,KK,II,RANI
       real(8) :: r(NATT,NATT),sgn(3),NPARBY2
-      INTEGER :: info,IER,NULL
+      INTEGER :: info,IER
 
       ! Variables for GS-kmeans
       INTEGER :: OPT_NG,KMITER,GRP_COUNT(NG)
@@ -163,9 +163,9 @@ CGMM_OMP!$OMP END MASTER
 
 C    !Invert covariance matrices, returned by GS-KMeans init
 
-      IER = 0 ; NULL = 0
+      IER = 0
 
-      CALL GDET(NATT,NG,XVAR(1:NG,:,:),V(1:NG,:,:),DV(1:NG),IER,NULL)
+      CALL GDET(NATT,NG,XVAR(1:NG,:,:),V(1:NG,:,:),DV(1:NG),IER)
 
       IER=0
 
@@ -220,16 +220,17 @@ c     Compute initial single-Gaussian moments
       CALL LCALK(NIND,NATT,X,W(1:NIND,K),WSUM(K),XMU(K,1:NATT)
      .          ,XVAR(K,1:NATT,1:NATT))
 
-      DO 450 K=1,1 !NG (ASK Gy)
+      DO K=1,1 !NG (ASK Gy)
         IF (STD_IO) WRITE (*      ,445) K
         IF (DIAG_IO) WRITE (FYLENO,445) K
  445    FORMAT (/2X,'Global mean, covariance matrix  ',I2)
         IF (STD_IO) WRITE (*     ,415) 'XMU',(XMU(K,J),J=1,NATT)
         IF (DIAG_IO)WRITE (FYLENO,415) 'XMU',(XMU(K,J),J=1,NATT)
-        DO 450 J=1,NATT
+        DO J=1,NATT
           IF (STD_IO) WRITE (*     ,415) 'XVAR',(XVAR(K,I,J),I=1,J)
           IF (DIAG_IO)WRITE (FYLENO,415) 'XVAR',(XVAR(K,I,J),I=1,J)
- 450  CONTINUE
+        ENDDO
+      ENDDO
 
  415  FORMAT (2X,5G30.12)
 
@@ -241,7 +242,7 @@ c     Make copies of global prop, mean & covariance for conservation check
 
 c     Initialize weights:
 
-      T(1:NG) = 1.0/DBLE(NG)
+      T(1:NG) = 1d0/DBLE(NG)
 
 c     Initialize variances according to global variance
 
@@ -320,7 +321,7 @@ c     Call variables
 c     Local variables
 
       INTEGER :: K,KK,I,J
-      real(8) :: r(NATT,NATT),sgn(3)
+      real(8) :: r(NATT,NATT),sgn(3),C1,C2,C3
       integer  info
       
 c     Begin program
@@ -336,42 +337,24 @@ CGMM_OMP!$OMP CRITICAL
 CGMM_OMP!$OMP END CRITICAL
       endif
       
-c     Calculate initial Gaussian moments
-      
-      K = 1
-      CALL LCALK(NIND,NATT,X,W(1:NIND,K),WSUM(K),XMU(K,1:NATT)
-     .          ,XVAR(K,1:NATT,1:NATT))
+c     Calculate and store (to check conservation) initial Gaussian moments
 
-      DO K = 2,NG
-        XVAR(K,1:NATT,1:NATT) = XVAR(1,1:NATT,1:NATT)/8d0 !smaller initial variance may perform better.
-      END DO
-
-      DO 450 K=1,1 !NG (ASK Gy)
-        IF (STD_IO) WRITE (*,445) K
-        IF (DIAG_IO) WRITE (FYLENO,445) K
- 445    FORMAT (/2X,'Global mean, covariance matrix  ',I2)
-        IF (STD_IO) WRITE (*,415) (XMU(K,J),J=1,NATT)
-        IF (DIAG_IO)WRITE (FYLENO,415) (XMU(K,J),J=1,NATT)
-        DO 450 J=1,NATT
-          IF (STD_IO) WRITE (*,415) (XVAR(K,I,J),I=1,J)
-          IF (DIAG_IO)WRITE (FYLENO,415) (XVAR(K,I,J),I=1,J)
- 450  CONTINUE
-
- 415  FORMAT (2X,5G30.12)
-
-c     Make copies of global prop, mean & covariance for conservation checks
-      
       TS = 1D0
-      XMUS(1:NATT) = XMU(1,1:NATT)
-      XVARS(1:NATT,1:NATT) = XVAR(1,1:NATT,1:NATT)
+
+      K = 1
+      CALL LCALK(NIND,NATT,X,W(1:NIND,K),WSUM(K),XMUS,XVARS)
 
 c     Assign Gaussians in groups of 8 according to principal axes
-      
+
+      C1 = 1d0/8d0 !(1d0/NG)**(1d0/3)    !Apply N_mxwl^(1/3) scaling
+      C3 = 1d0 !dinvnorm(0.75d0)     !dinvnorm((0.5+1d0)*0.5)
+
       if (NIND > 0) then
-        r(1:NATT,1:NATT) = XVAR(1,1:NATT,1:NATT)
+        r = XVARS
       
-        call r8po_fa( NATT, r, info)
-        sgn = -1
+        call r8po_fa(NATT,r)
+
+        sgn = -1d0
         KK = 1
         do i=1,2
           sgn(1) = -sgn(1);
@@ -384,18 +367,36 @@ c     Assign Gaussians in groups of 8 according to principal axes
             end do
           end do
         end do
-cc        print *,"r=",r
         
         DO K = 1,NG
-          XMU(K,1:NATT) = XMUS(1:NATT)
-     .                  + matmul(XMU(K,1:NATT),r(1:NATT,1:NATT))
-cc          print *,"mean=",K,XMU(K,1:NATT)
+          C2 = C3*(1 + (K-1)/8)   !Push out excess Gaussians when K>8
+          XMU (K,:)   = XMUS + C2*matmul(XMU(K,:),r)
+          if (K == 1) then
+            XVAR(K,:,:) = XVARS
+          else
+            XVAR(K,:,:) = XVARS*C1
+          endif
         END DO
       endif
 
-c    Initialize Gaussian weights:
-      T(1:NG) = 1.0/DBLE(NG)
+      T(1:NG) = TS/DBLE(NG)
 
+c     IO
+
+      DO K=1,1 !NG
+        IF (STD_IO ) WRITE (*,445) K
+        IF (DIAG_IO) WRITE (FYLENO,445) K
+        IF (STD_IO ) WRITE (*,415) (XMU(K,J),J=1,NATT)
+        IF (DIAG_IO) WRITE (FYLENO,415) (XMU(K,J),J=1,NATT)
+        DO J=1,NATT
+          IF (STD_IO ) WRITE (*,415) (XVAR(K,I,J),I=1,J)
+          IF (DIAG_IO) WRITE (FYLENO,415) (XVAR(K,I,J),I=1,J)
+        ENDDO
+      ENDDO
+
+ 445  FORMAT (/2X,'Global mean, covariance matrix  ',I2)
+ 415  FORMAT (2X,5G30.12)
+      
       END SUBROUTINE GMM_INIT_GRP8
 
       end module gm_init

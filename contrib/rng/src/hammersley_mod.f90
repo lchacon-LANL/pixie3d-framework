@@ -4,42 +4,36 @@ contains
 
 ! Load Hammersley sequence for quiet start
 !#######################################################################      
-      subroutine HamSeq(nmax,r,dim_num,n,rank,nproc)
+      subroutine HamSeq(r,step)
       
       implicit none
       
 !     Call variables
-      integer(4), intent(in),optional :: rank,nproc
-      integer(4), intent(in) :: nmax,dim_num,n
-      real(8),    intent(out) :: r(dim_num,nmax)
+      real(8), intent(out) :: r(:,:)
+      integer,optional :: step
       
 !     Local variables      
-      integer ( kind = 4 ) base(dim_num)
-      integer ( kind = 4 ) i
-      integer ( kind = 4 ) leap(dim_num)
-      integer ( kind = 4 ) seed(dim_num)
-      integer ( kind = 4 ) step
-!      integer ( kind = 4 ), save :: ncall = 0
-      integer ( kind = 4 ) lrank,lnproc
+      integer(4) :: base(size(r,1))
+      integer(4) :: i,n,dim_num,hamstep
+      integer(4) :: leap(size(r,1))
+      integer(4) :: seed(size(r,1))
+!      integer ::, save :: ncall = 0
 
-      if(present(rank)) then
-         lrank = rank
+!     Begin program
+
+      dim_num = size(r,1)
+      n       = size(r,2)
+      
+      !Set defaults
+      seed = 1
+      leap = 1
+
+      if (PRESENT(step)) then
+         hamstep = step
       else
-         lrank = 0
-      end if
-
-      if(present(nproc)) then
-         lnproc= nproc
-      else
-         lnproc= 1
-      end if
-
-      step = n !start with 0
-      do i = 1, dim_num
-         seed(i) = lrank+1
-      end do
-      leap(1:dim_num) = lnproc
-
+         hamstep = 1
+      endif
+      
       do i = 1, dim_num
          base(i) = prime (i)
       end do
@@ -55,10 +49,8 @@ contains
 !!!         end do
 !!!      end if
 
-
-
-!      call i4_to_hammersley_sequence(dim_num,n,step,seed,leap,base,r)
-      call i4_to_hammersley_sequence(dim_num,nmax,step,seed,leap,base,r)
+      !Create sequence
+      call i4_to_hammersley_sequence(dim_num,n,hamstep,seed,leap,base,r)
 
 !!!      if(lrank==0)then
 !!!!!!

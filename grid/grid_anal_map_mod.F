@@ -111,14 +111,16 @@ c     Local variables
         real(8) :: xx,yy,zz,jac_mat(3,3),rhs(3),dx(3),rr,rr0,dd
      .            ,aa,bb,major_r,mm,kk,eps,phi,gp(ngparams)
      .            ,xlog(3),period1,period2
-        real(8) :: xmax,ymax,zmax,xmin,ymin,zmin
-     .            ,kappa,delta,zeta,cs,sn,Z0
+        real(8) :: xmax,ymax,zmax,xmin,ymin,zmin,shftR,shftZ
+     .            ,kappa,delta,zeta,cs,sn,Z0,kappa_sp
 ! Daniele, 11/07/2017. Local variables needed for shaped toroidal coordinates
         integer :: i
         real(8) :: ai(10),bi(10)
 ! Daniele, 11/08/2017. Local variables needed for stellarator (helias) coordinates
         real(8) :: nn,uu,vv,d10,d0,d20,d1m1,d2m1,d2m2,rc,zc
 
+c$$$        logical,save :: dump=.true.
+        
 c     Begin program
 
         xmin = gl_def%gxmin
@@ -235,10 +237,10 @@ c$$$          enddo
           car(3) = bb*xlog(1)
 
         case ('sh3')
-! Shaped toroidal coordinates system from X. Z. Tang (with extra r^2 factor to ensure circle at SP)
-! x = (R0 + r*a*cos(theta+asin(delta*r**2*sin(theta))))*cos(-phi)
-! y = (R0 + r*a*cos(theta+asin(delta*r**2*sin(theta))))*sin(-phi)
-! z =  Z0 + r*kappa*sin(theta + zeta*r**2*sin(2*theta))
+! Shaped toroidal coordinates system from X. Z. Tang
+! x = (R0 + r*a*(cos(theta+asin(delta*r**2*sin(theta)))-dR))*cos(-phi)
+! y = (R0 + r*a*(cos(theta+asin(delta*r**2*sin(theta)))-dR))*sin(-phi)
+! z =  Z0 + r*kappa*(sin(theta + zeta*r**2*sin(2*theta))-dZ)
 
           major_r = gp(1)  !R-coord of magnetic axis (major radius)
           Z0      = gp(2)  !Z-coord of magnetic axis
@@ -246,25 +248,49 @@ c$$$          enddo
           kappa   = gp(4)  !Elongation
           delta   = gp(5)  !Triangularity
           zeta    = gp(6)  !Squareness
+          kappa_sp= gp(7) !Elongation at magnetic axis
+          shftR   = gp(8)  !Origin shift in R
+          shftZ   = gp(9)  !Origin shift in Z
 
-          bb = aa*kappa
+          if (kappa_sp > 0d0) then
+            bb = aa*((1d0-xlog(1))*kappa_sp + xlog(1)*kappa)
+          else
+            bb = aa*kappa
+          endif
           
-          cs = cos(xlog(2)+asin(delta*xlog(1)**2*sin(xlog(2))))
-          sn = sin(xlog(2)+zeta*xlog(1)**2*sin(2*xlog(2)))
+          !Scale shift to account for ellipticity and to decay with r->0
+          shftR = shftR*xlog(1)/aa
+          shftZ = shftZ*xlog(1)/bb
+          
+          cs = cos(xlog(2)+asin(delta*xlog(1)**2*sin(xlog(2))))-shftR
+          sn = sin(xlog(2)+zeta*xlog(1)**2*sin(2*xlog(2)))     -shftZ
           
           car(1)=(major_r + aa*xlog(1)*cs)*cos(-xlog(3))
           car(2)=(major_r + aa*xlog(1)*cs)*sin(-xlog(3))
           car(3)= Z0      + bb*xlog(1)*sn
 
+c$$$          if (dump) then
+c$$$            dump = .false.
+c$$$            write (*,*) gp
+c$$$            write (*,*) "EFITdiag"
+c$$$            do i=1,100
+c$$$              xlog(2) = 2*pi/100*i
+c$$$              bb = aa*kappa
+c$$$              cs = cos(xlog(2)+asin(delta*sin(xlog(2))))-gp(7)/aa
+c$$$              sn = sin(xlog(2)+zeta*sin(2*xlog(2)))     -gp(8)/bb
+c$$$              write (*,*) "EFITdiag",(major_r + aa*cs),Z0+bb*sn
+c$$$            enddo
+c$$$          endif
+c$$$          stop
         case ('tsq')            !Square torus
-          major_r = gp(1)  !Major radius
-          aa      = gp(2)  !Horizontal dimension
-          bb      = gp(3)  !Vertical   dimension
+          rc = gp(1)  !Domain center R-coord
+          zc = gp(2)  !Domain center Z-coord
+          aa = gp(3)  !Horizontal thickness
+          bb = gp(4)  !Vertical   thickness
 
-          car(1) = (major_r + aa*(xlog(1)-0.5))*cos(-xlog(3))
-          car(2) = (major_r + aa*(xlog(1)-0.5))*sin(-xlog(3))
-          car(3) =            bb*(xlog(2)-0.5)
-
+          car(1) = (rc + aa*(xlog(1)-0.5))*cos(-xlog(3))
+          car(2) = (rc + aa*(xlog(1)-0.5))*sin(-xlog(3))
+          car(3) =  zc + bb*(xlog(2)-0.5)
         case ('sin')
           eps = gp(1)
 

@@ -261,7 +261,7 @@ c     Map solution to vnp (if no error)
       if (ierr == NOERR .or. ierr == CUTDT) then
         call mapVectorToStructure(gv%gparams,vnp,x)
 
-        call applyBC(1,vnp,gv%aux,it=itime)
+        call applyBC(1,vnp,gv%aux)
 
 #if defined(MK)
         if (mk_grid) call MK_applyBC(1,vnp%array_var(neqd)%array)

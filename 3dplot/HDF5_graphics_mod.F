@@ -403,7 +403,7 @@ c     Open HDF5 file
         !Open an existing file.
         call h5fopen_f(hdf5_fname,H5F_ACC_RDWR_F,file_id,hdferr
      $                ,access_prp = plist_id)
-      call h5pclose_f(plist_id,hdferr)
+        call h5pclose_f(plist_id,hdferr)
       else !SERIAL
         !Open an existing file.
         call h5fopen_f(hdf5_fname,H5F_ACC_RDWR_F,file_id,hdferr
@@ -578,7 +578,7 @@ c     ---------------------------------------------------------------------
      $                    array_dim,hdferr)
           endif
 #else
-c SERIAL
+          !SERIAL
           if (moving_mesh) then
             call h5dcreate_f(subgroup_id,coords_descr(icoords),
      $                       H5T_IEEE_F64BE,
@@ -593,7 +593,6 @@ c         Write data to the dataset
           call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE,
      $                    cell(ilo:ihi,jlo:jhi,klo:khi,icoords), !must specify index ranges
      $                    array_dim,hdferr)
-            
 #endif
           call h5dclose_f(dataset_id,hdferr)
         enddo
@@ -692,7 +691,7 @@ c     ---------------------------------------------------------------------
 
 c       Open an existing group of the specified file.
         if (hdf_debug)
-     .     write(*,'("HDF_mod:663: Open group ",i3," = ",a)') 
+     .     write(*,'("HDF_mod:696: Open group ",i3," = ",a)') 
      .         igrp,graph(igrp)%descr
         call h5gopen_f(group_id,graph(igrp)%descr,subgroup_id,hdferr)
 
@@ -705,7 +704,7 @@ c         Write "Attribute data": coordinates location
 
           attr_name = 'coords'
           if (hdf_debug)
-     .     write(*,'("HDF_mod:675: Create attribute ",a)') 
+     .     write(*,'("HDF_mod:709: Create attribute ",a)') 
      .         attr_name
           call h5acreate_f(subgroup_id,attr_name,attr_type_id,
      $                     dataspace_attr_id,attribute_id,
@@ -725,7 +724,7 @@ c         Write nodal data
           do ieq=1,nqty(igrp)
 
             if (hdf_debug)
-     .        write(*,'("HDF_mod:697: Create dataset",a)') 
+     .        write(*,'("HDF_mod:729: Create dataset",a)') 
      .           graph(igrp)%array_graph(ieq)%descr
 
 c           Create the dataset
@@ -765,7 +764,7 @@ c           Interpolate nodal values
      $                     ,node_array_dim,hdferr)
             endif
 #else
-c SERIAL
+            !SERIAL
             !Write data to the dataset
             call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE
      $                     ,node(ilo:ihip,jlo:jhip,klo:khip,1)

@@ -2628,6 +2628,8 @@ c     Begin program
         nyl = size(car,2)-2
         nzl = size(car,3)-2
 
+        curv = 0d0
+        
         do k = 0,nzl
           do j = 0,nyl
             do i = 0,nxl

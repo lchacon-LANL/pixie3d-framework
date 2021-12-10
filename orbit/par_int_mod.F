@@ -511,10 +511,9 @@ c #############################################################################
         use kernels
 
         !Configuration
-        logical :: bwgt,l2d,init_lag=.false.,ignorable_dir(3)
+        logical :: bwgt,l2d,init_lag=.false.
 
         !Field line accumulators
-cc        integer :: n_lag_ints=0        !Number of lagrangian integrals
         real(8) :: ieps
         real(8) :: temp_s,kernel_s,length_s,b0_s
 !$OMP THREADPRIVATE(ieps,temp_s,kernel_s,length_s,b0_s)
@@ -1554,9 +1553,9 @@ c     Begin program
         ny = g_def%nyv(igrid)
         nz = g_def%nzv(igrid)
 
-        ignorable_dir(1) = (g_def%nxgl(1) == 1)
-        ignorable_dir(2) = (g_def%nygl(1) == 1)
-        ignorable_dir(3) = (g_def%nzgl(1) == 1)
+c$$$        ignorable_dir(1) = (g_def%nxgl(1) == 1)
+c$$$        ignorable_dir(2) = (g_def%nygl(1) == 1)
+c$$$        ignorable_dir(3) = (g_def%nzgl(1) == 1)
 
         bwgt = B_wgt
 
@@ -3902,6 +3901,8 @@ c     Call variables
 c     Local variables
 
         integer :: iorder
+        real(8) :: xmin,xmax,ymin,ymax,zmin,zmax,lx,ly,lz
+        logical :: ignorable_dir(3)
 
 c     Begin program
 
@@ -3913,6 +3914,23 @@ c     Begin program
            iorder = 4
         endif
 
+        ignorable_dir(1) = (g_def_orbit%nxgl(1) == 1)
+        ignorable_dir(2) = (g_def_orbit%nygl(1) == 1)
+        ignorable_dir(3) = (g_def_orbit%nzgl(1) == 1)
+
+        xmin = g_def_orbit%gxmin
+        xmax = g_def_orbit%gxmax
+         
+        ymin = g_def_orbit%gymin
+        ymax = g_def_orbit%gymax
+         
+        zmin = g_def_orbit%gzmin
+        zmax = g_def_orbit%gzmax
+
+        lx = xmax - xmin
+        ly = ymax - ymin
+        lz = zmax - zmin
+        
 c     Save orbit origin
 
         x00 = x0
@@ -3921,20 +3939,25 @@ c     Save orbit origin
         
 c     Determine initial orbit updates
 
-        dx0 = x-x0 !Determines initial direction of orbit
-        dy0 = y-y0 !Determines initial direction of orbit
-        dz0 = z-z0 !Determines initial direction of orbit
+        dx0 = (x-x0)/lx !Determines initial direction of orbit
+        dy0 = (y-y0)/ly !Determines initial direction of orbit
+        dz0 = (z-z0)/lz !Determines initial direction of orbit
 
         !Exclude ignorable directions
-c$$$        if (g_def%nxgl(1) == 1) dx0 = 0d0
-c$$$        if (g_def%nygl(1) == 1) dy0 = 0d0
-c$$$        if (g_def%nzgl(1) == 1) dz0 = 0d0
         if (ignorable_dir(1)) dx0 = 0d0
         if (ignorable_dir(2)) dy0 = 0d0
         if (ignorable_dir(3)) dz0 = 0d0
 
-c     Select periodic direction based on largest displacement from surface
+c$$$c     Select periodic directions based on ignorable directions
+c$$$
+c$$$        x_per = .true. ; y_per = .true. ; z_per = .true.
+c$$$
+c$$$        if (dx0==0d0) x_per = .false.
+c$$$        if (dy0==0d0) y_per = .false.
+c$$$        if (dz0==0d0) z_per = .false.
 
+c     Select periodic direction based on largest displacement from surface
+        
 ccnew        x_per = (abs(dx0) > abs(dy0)) .and. (abs(dx0) > abs(dz0))
 ccnew        y_per = (abs(dy0) > abs(dx0)) .and. (abs(dy0) > abs(dz0))
 ccnew        z_per = (abs(dz0) > abs(dy0)) .and. (abs(dz0) > abs(dx0))
@@ -3945,9 +3968,11 @@ c$$$        x_per = (abs(dx0) >= abs(dy0)) .or. (abs(dx0) >= abs(dz0))
 c$$$        y_per = (abs(dy0) >  abs(dx0)) .or. (abs(dy0) >= abs(dz0))
 c$$$        z_per = (abs(dz0) >  abs(dy0)) .or. (abs(dz0) >  abs(dx0))
 
+c$$$        write (*,*) "Initializing periodic orbit:",x_per,y_per,z_per,dx0
+c$$$     $       ,dy0,dz0
+ 
 c     Set logic to compute lengths using surface of sections with high-order interpolation
-
-cc        call ss_init(4,x_per,x0,y_per,y0,z_per,z0)
+       
         call ss_init(iorder,x_per,x0,y_per,y0,z_per,z0)
 
       end subroutine per_orbit_init
@@ -3979,6 +4004,8 @@ c     Begin program
      .      .or.(y_per.and.(y-yo)*dy0 > 0d0)
      .      .or.(z_per.and.(z-zo)*dz0 > 0d0)) then
 
+cc          write (*,*) "Checking surface intersect..."
+          
           call sschk_ho(xs,ys,zs,ts)  !--> Returns ts <> 0 if intersects
 
           !Check if all coords are close (to avoid false positives)

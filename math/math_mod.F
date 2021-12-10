@@ -1531,6 +1531,14 @@ c     -------------------------------------------------------------------------
 
       if (is_sprng_init) return
       is_sprng_init = .true.
+
+      !Available generators (gtype)
+      !   lfg     --- 0
+      !   lcg     --- 1
+      !   lcg64   --- 2
+      !   cmrg    --- 3
+      !   mlfg    --- 4
+      !   pmlcg   --- 5
       
       gtype = 1       !lcg
       if (PRESENT(seed)) then
@@ -1660,7 +1668,7 @@ c     #######################################################################
       SUBROUTINE CALERF(ARG,RESULT,JINT)
 C------------------------------------------------------------------
 C
-C This packet evaluates  erf(x),  erfc(x),  and  exp(x*x)*erfc(x)
+C   This packet evaluates  erf(x),  erfc(x),  and  exp(x*x)*erfc(x)
 C   for a real argument  x.  It contains three FUNCTION type
 C   subprograms: ERF, ERFC, and ERFCX (or DERF, DERFC, and DERFCX),
 C   and one SUBROUTINE type subprogram, CALERF.  The calling
@@ -1775,7 +1783,7 @@ C  Latest modification: March 19, 1990
 C
 C------------------------------------------------------------------
       INTEGER I,JINT
-CS    REAL
+
       DOUBLE PRECISION
      1     A,ARG,B,C,D,DEL,FOUR,HALF,P,ONE,Q,RESULT,SIXTEN,SQRPI,
      2     TWO,THRESH,X,XBIG,XDEN,XHUGE,XINF,XMAX,XNEG,XNUM,XSMALL,
@@ -1784,27 +1792,17 @@ CS    REAL
 C------------------------------------------------------------------
 C  Mathematical constants
 C------------------------------------------------------------------
-CS    DATA FOUR,ONE,HALF,TWO,ZERO/4.0E0,1.0E0,0.5E0,2.0E0,0.0E0/,
-CS   1     SQRPI/5.6418958354775628695E-1/,THRESH/0.46875E0/,
-CS   2     SIXTEN/16.0E0/
       DATA FOUR,ONE,HALF,TWO,ZERO/4.0D0,1.0D0,0.5D0,2.0D0,0.0D0/,
      1     SQRPI/5.6418958354775628695D-1/,THRESH/0.46875D0/,
      2     SIXTEEN/16.0D0/,ISIXTEEN/0.0625D0/
 C------------------------------------------------------------------
 C  Machine-dependent constants
 C------------------------------------------------------------------
-CS    DATA XINF,XNEG,XSMALL/3.40E+38,-9.382E0,5.96E-8/,
-CS   1     XBIG,XHUGE,XMAX/9.194E0,2.90E3,4.79E37/
       DATA XINF,XNEG,XSMALL/1.79D308,-26.628D0,1.11D-16/,
      1     XBIG,XHUGE,XMAX/26.543D0,6.71D7,2.53D307/
 C------------------------------------------------------------------
 C  Coefficients for approximation to  erf  in first interval
 C------------------------------------------------------------------
-CS    DATA A/3.16112374387056560E00,1.13864154151050156E02,
-CS   1       3.77485237685302021E02,3.20937758913846947E03,
-CS   2       1.85777706184603153E-1/
-CS    DATA B/2.36012909523441209E01,2.44024637934444173E02,
-CS   1       1.28261652607737228E03,2.84423683343917062E03/
       DATA A/3.16112374387056560D00,1.13864154151050156D02,
      1       3.77485237685302021D02,3.20937758913846947D03,
      2       1.85777706184603153D-1/
@@ -1813,15 +1811,6 @@ CS   1       1.28261652607737228E03,2.84423683343917062E03/
 C------------------------------------------------------------------
 C  Coefficients for approximation to  erfc  in second interval
 C------------------------------------------------------------------
-CS    DATA C/5.64188496988670089E-1,8.88314979438837594E0,
-CS   1       6.61191906371416295E01,2.98635138197400131E02,
-CS   2       8.81952221241769090E02,1.71204761263407058E03,
-CS   3       2.05107837782607147E03,1.23033935479799725E03,
-CS   4       2.15311535474403846E-8/
-CS    DATA D/1.57449261107098347E01,1.17693950891312499E02,
-CS   1       5.37181101862009858E02,1.62138957456669019E03,
-CS   2       3.29079923573345963E03,4.36261909014324716E03,
-CS   3       3.43936767414372164E03,1.23033935480374942E03/
       DATA C/5.64188496988670089D-1,8.88314979438837594D0,
      1       6.61191906371416295D01,2.98635138197400131D02,
      2       8.81952221241769090D02,1.71204761263407058D03,
@@ -1834,12 +1823,6 @@ CS   3       3.43936767414372164E03,1.23033935480374942E03/
 C------------------------------------------------------------------
 C  Coefficients for approximation to  erfc  in third interval
 C------------------------------------------------------------------
-CS    DATA P/3.05326634961232344E-1,3.60344899949804439E-1,
-CS   1       1.25781726111229246E-1,1.60837851487422766E-2,
-CS   2       6.58749161529837803E-4,1.63153871373020978E-2/
-CS    DATA Q/2.56852019228982242E00,1.87295284992346047E00,
-CS   1       5.27905102951428412E-1,6.05183413124413191E-2,
-CS   2       2.33520497626869185E-3/
       DATA P/3.05326634961232344D-1,3.60344899949804439D-1,
      1       1.25781726111229246D-1,1.60837851487422766D-2,
      2       6.58749161529837803D-4,1.63153871373020978D-2/
@@ -1932,7 +1915,7 @@ C------------------------------------------------------------------
   800 RETURN
 C---------- Last card of CALERF ----------
       END
-CS    REAL FUNCTION ERF(X)
+
       DOUBLE PRECISION FUNCTION DERF(X)
 C--------------------------------------------------------------------
 C
@@ -1948,12 +1931,11 @@ CS    REAL             X, RESULT
 C------------------------------------------------------------------
       JINT = 0
       CALL CALERF(X,RESULT,JINT)
-CS    ERF = RESULT
       DERF = RESULT
       RETURN
 C---------- Last card of DERF ----------
       END
-CS    REAL FUNCTION ERFC(X)
+
       DOUBLE PRECISION FUNCTION DERFC(X)
 C--------------------------------------------------------------------
 C
@@ -1969,12 +1951,11 @@ CS    REAL             X, RESULT
 C------------------------------------------------------------------
       JINT = 1
       CALL CALERF(X,RESULT,JINT)
-CS    ERFC = RESULT
       DERFC = RESULT
       RETURN
 C---------- Last card of DERFC ----------
       END
-CS    REAL FUNCTION ERFCX(X)
+
       DOUBLE PRECISION FUNCTION DERFCX(X)
 C------------------------------------------------------------------
 C
@@ -1985,7 +1966,6 @@ C   Author/date: W. J. Cody, March 30, 1987
 C
 C------------------------------------------------------------------
       INTEGER JINT
-CS    REAL             X, RESULT
       DOUBLE PRECISION X, RESULT
 C------------------------------------------------------------------
       JINT = 2
@@ -2002,8 +1982,8 @@ C---------- Last card of DERFCX ----------
       FUNCTION GAMMLN(XX)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       DOUBLE PRECISION COF(6),STP,HALF,ONE,FPF,X,TMP,SER,XX
-!c      DATA COF,STP/76.18009173D0,-86.50532033D0,24.01409822D0,
-!c    *    -1.231739516D0,.120858003D-2,-.536382D-5,2.50662827465D0/
+c      DATA COF,STP/76.18009173D0,-86.50532033D0,24.01409822D0,
+c    *    -1.231739516D0,.120858003D-2,-.536382D-5,2.50662827465D0/
       DATA COF,STP/76.18009173,-86.50532033,24.01409822,
      *    -1.231739516,.120858003E-2,-.536382E-5,2.50662827465/
       DATA HALF,ONE,FPF/0.5,1.0,5.5/
@@ -2019,55 +1999,62 @@ C---------- Last card of DERFCX ----------
       RETURN
       END
 
-
-!c     SYMINV
-!c     ########################################################################
+c     SYMINV
+c     ########################################################################
       SUBROUTINE SYMINV(A,N,C,W,NULLTY,IFAULT,RMAX,CMY,TOL)
-!C
-!C       Algorithm AS7, Applied Statistics, Vol.17, 1968.
-!C
-!C       ARGUMENTS:-
-!C       A()     = input, the symmetric matrix to be inverted, stored in
-!C                 lower triangular form
-!C       N       = input, order of the matrix
-!C       C()     = output, the inverse of a (a generalized inverse if c is
-!C                 singular), also stored in lower triangular.
-!C                 c and a may occupy the same locations.
-!C       W()     = workspace, dimension at least n.
-!C       NULLTY  = output, the rank deficiency of a.
-!C       IFAULT  = output, error indicator
-!C                       = 1 if n < 1
-!C                       = 2 if a is not +ve semi-definite
-!C                       = 0 otherwise
-!C       RMAX    = output, approximate bound on the accuracy of the diagonal
-!C                 elements of c.  e.g. if rmax = 1.e-04 then the diagonal
-!C                 elements of c will be accurate to about 4 dec. digits.
-!C
-!C       Latest revision - 18 April 1981
+!*****************************************************************************
+c       Algorithm AS7, Applied Statistics, Vol.17, 1968.
+c
+c       ARGUMENTS:-
+c       A()     = input, the symmetric matrix to be inverted, stored in
+c                 lower triangular form
+c       N       = input, order of the matrix
+c       C()     = output, the inverse of a (a generalized inverse if c is
+c                 singular), also stored in lower triangular.
+c                 c and a may occupy the same locations.
+c       W()     = workspace, dimension at least n.
+c       NULLTY  = output, the rank deficiency of a.
+c       IFAULT  = output, error indicator
+c                       = 1 if n < 1
+c                       = 2 if a is not +ve semi-definite
+c                       = 0 otherwise
+c       RMAX    = output, approximate bound on the accuracy of the diagonal
+c                 elements of c.  e.g. if rmax = 1.e-04 then the diagonal
+c                 elements of c will be accurate to about 4 dec. digits.
+c
+c       Latest revision - 18 April 1981
+!*****************************************************************************
 
-!C        IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-       IMPLICIT NONE             ! GC 2016      
-!C     call variables
-       integer :: N,NULLTY,IFAULT
-       real(8) :: A(N*N),C(N*N),W(N),CMY(N*(N+1)/2),RMAX,TOL
+        IMPLICIT NONE
+      
+c     Call variables
 
-!C     local varialbe
-       integer :: NROW,NN,IMY,IROW,ICOL,JCOL,MDIAG,L,NDIAG,K,I,J
-       real(8) :: X
+        integer :: N,NULLTY,IFAULT
+        real(8) :: A(N*N),C(N*N),W(N),CMY(N*(N+1)/2),RMAX
+        real(8),optional :: TOL
 
+c     Local variables
+
+        integer :: NROW,NN,IMY,IROW,ICOL,JCOL,MDIAG,L,NDIAG,K,I,J
+        real(8) :: X
+
+c     Begin program
+      
         NROW=N
         IFAULT=1
         IF(NROW.LE.0) GO TO 100
         IFAULT=0
-!C       Cholesky factorization of A, result in C
-        CALL CHOLA(A,NROW,C,NULLTY,IFAULT,RMAX,W,TOL)
+c       Cholesky factorization of A, result in C
+        CALL CHOLA(A,NROW,C,NULLTY,IFAULT,RMAX,W,TOL=TOL)
         IF(IFAULT.NE.0) GO TO 100
-!C       Invert C & form the product (CINV)'*CINV, where CINV is the inverse
-!C       of C, row by row starting with the last row.
-!C       IROW = the row number, NDIAG = location of last element in the row.
+c       Invert C & form the product (CINV)'*CINV, where CINV is the inverse
+c       of C, row by row starting with the last row.
+c       IROW = the row number, NDIAG = location of last element in the row.
         NN=NROW*(NROW+1)/2
-        DO 200 IMY=1,NN
-200       CMY(IMY)=C(IMY)
+        DO IMY=1,NN
+          CMY(IMY)=C(IMY)
+        ENDDO
+        
         IROW=NROW
         NDIAG=NN
 10      IF(C(NDIAG).EQ.0.0) GO TO 60
@@ -2106,46 +2093,56 @@ C---------- Last card of DERFCX ----------
 100     RETURN
         END SUBROUTINE SYMINV
 
-!c     CHOLA
-!c     ########################################################################
-        SUBROUTINE CHOLA(A,N,U,NULLTY,IFAULT,RMAX,R,TOL)
-!C
-!C       Algorithm AS6, Applied Statistics, Vol.17, 1968, with
-!C       modifications by A.J.Miller
-!C
-!C       ARGUMENTS:-
-!C       A()     = input, a +ve definite matrix stored in lower-triangular
-!C                 form.
-!C       N       = input, the order of A
-!C       U()     = output, a lower triangular matrix such that U*U' = A.
-!C                 A & U may occupy the same locations.
-!C       NULLTY  = output, the rank deficiency of A.
-!C       IFAULT  = output, error indicator
-!C                       = 1 if N < 1
-!C                       = 2 if A is not +ve semi-definite
-!C                       = 0 otherwise
-!C       RMAX    = output, an estimate of the relative accuracy of the
-!C                 diagonal elements of U.
-!C       R()     = output, array containing bounds on the relative accuracy
-!C                 of each diagonal element of U.
-!C
-!C       Latest revision - 18 April 1981
-!C
-!C        IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-        IMPLICIT NONE ! GC 2016
-!C     call variables
-       integer :: N,NULLTY,IFAULT
-       real(8) :: A(N*N),U(N*N),R(N),RMAX,TOL
-       
-!C     Local variables
-       integer :: I,J,K,ICOL,IROW,L,M
-       real(8) :: ETA,W,RSQ
+c     CHOLA
+c     ########################################################################
+      SUBROUTINE CHOLA(A,N,U,NULLTY,IFAULT,RMAX,R,TOL)
+!*****************************************************************************
+C       Algorithm AS6, Applied Statistics, Vol.17, 1968, with
+C       modifications by A.J.Miller
+C
+C       ARGUMENTS:-
+C       A()     = input, a +ve definite matrix stored in lower-triangular
+C                 form.
+C       N       = input, the order of A
+C       U()     = output, a lower triangular matrix such that U*U' = A.
+C                 A & U may occupy the same locations.
+C       NULLTY  = output, the rank deficiency of A.
+C       IFAULT  = output, error indicator
+C                       = 1 if N < 1
+C                       = 2 if A is not +ve semi-definite
+C                       = 0 otherwise
+C       RMAX    = output, an estimate of the relative accuracy of the
+C                 diagonal elements of U, e.g. if rmax = 1.e-04 then the diagonal
+C                 elements of U will be accurate to about 4 dec. digits.
+C       R()     = output, array containing bounds on the relative accuracy
+C                 of each diagonal element of U.
+C
+C       Latest revision - 18 April 1981
+!*****************************************************************************
 
-!C       ETA should be set equal to the smallest +ve value such that
-!C       1.0 + eta is calculated as being greater than 1.0 in the accuracy
-!C       being used.
-!C        DATA ETA/1.e-07/
-        ETA=TOL
+        IMPLICIT NONE
+        
+c     call variables
+
+        integer :: N,NULLTY,IFAULT
+        real(8) :: A(N*N),U(N*N),R(N),RMAX
+        real(8),optional :: TOL
+       
+c     Local variables
+
+        integer :: I,J,K,ICOL,IROW,L,M
+        real(8) :: ETA,W,RSQ
+
+c     ETA should be set equal to the smallest +ve value such that
+c     1.0 + eta is calculated as being greater than 1.0 in the accuracy
+c     being used.
+
+        if (PRESENT(TOL)) then
+          ETA = TOL
+        else
+          ETA=2*findRoundOff()
+        endif
+        
         IFAULT=1
         IF(N.LE.0) GO TO 100
         IFAULT=2
@@ -2154,10 +2151,10 @@ C---------- Last card of DERFCX ----------
         R(1)=ETA
         J=1
         K=0
-!C       Factorize column by column, ICOL = Column No.
+c       Factorize column by column, ICOL = Column No.
         DO 80 ICOL=1,N
           L=0
-!C       IROW = row number within column ICOL
+c       IROW = row number within column ICOL
           DO 40 IROW=1,ICOL
             K=K+1
             W=A(K)
@@ -2177,7 +2174,7 @@ C---------- Last card of DERFCX ----------
 30          U(K)=0.0
             IF(ABS(W).GT.ABS(RMAX*A(K))) GO TO 100
 40        CONTINUE
-!C         End of row, estimate relative accuracy of diagonal element.
+c         End of row, estimate relative accuracy of diagonal element.
 50        RSQ=SQRT(RSQ)
           IF(ABS(W).LE.5.*RSQ) GO TO 60
           IF(W.LT.0.0) GO TO 100
@@ -2191,8 +2188,160 @@ C---------- Last card of DERFCX ----------
 80      CONTINUE
         IFAULT=0
 100     RETURN
-        END SUBROUTINE CHOLA
 
+      END SUBROUTINE CHOLA
+
+c     cholesky_lapack
+c     ########################################################################
+      subroutine cholesky_lapack(uplo,n,a)
+
+!*****************************************************************************
+!
+!    The positive definite symmetric matrix A has a Cholesky factorization
+!    of the form:
+!
+!      A = R' * R
+!
+!    where R is an upper triangular matrix with positive elements on
+!    its diagonal.  This routine overwrites the matrix A with its
+!    factor R.
+!
+!  Parameters:
+!
+!    Input, uplo="L","U" (lower/upper)
+!    Input, integer ( kind = 4 ) N, the order of the matrix.
+!
+!    Input/output, real ( kind = 8 ) A(N,N).
+!    On input, the matrix
+!    On output, the Cholesky factor R or R' (either upper or lower).
+!*****************************************************************************
+
+      implicit none
+
+      integer ( kind = 4 ) n
+
+      character(1) :: uplo
+      
+      real    ( kind = 8 ) a(n,n),trg(n*n)
+      integer ( kind = 4 ) i
+      integer ( kind = 4 ) info
+      integer ( kind = 4 ) j
+      integer ( kind = 4 ) k
+      real    ( kind = 8 ) s,RMAX,R(n)
+
+      where (abs(a) < 1d-14) a = 0d0
+
+      if (uplo=="U") then
+        do i = 1, n
+          do j = 1, i-1
+            a(i,j) = 0.0D+00
+          end do
+        end do
+      else
+        do i = 1, n
+          do j = i+1, n
+            a(i,j) = 0.0D+00
+          end do
+        end do
+      endif
+
+      call dpotrf(uplo,n,a,n,info)
+
+      call LAPACK_error("cholesky",info)
+
+      end subroutine cholesky_lapack
+
+c     cholesky_chola
+c     ########################################################################
+      subroutine cholesky_chola(uplo,n,a)
+
+!*****************************************************************************
+!
+!    The positive definite symmetric matrix A has a Cholesky factorization
+!    of the form:
+!
+!      A = R' * R
+!
+!    where R is an upper triangular matrix with positive elements on
+!    its diagonal.  This routine overwrites the matrix A with its
+!    factor R.
+!
+!  Parameters:
+!
+!    Input, uplo="L","U" (lower/upper)
+!    Input, integer ( kind = 4 ) N, the order of the matrix.
+!
+!    Input/output, real ( kind = 8 ) A(N,N).
+!    On input, the matrix
+!    On output, the Cholesky factor R or R' (either upper or lower).
+!*****************************************************************************
+
+      implicit none
+
+      integer ( kind = 4 ) n
+
+      character(1) :: uplo
+      
+      real    ( kind = 8 ) a(n,n),trg(n*n)
+      integer ( kind = 4 ) i
+      integer ( kind = 4 ) info
+      integer ( kind = 4 ) j
+      integer ( kind = 4 ) k
+      real    ( kind = 8 ) s,RMAX,R(n)
+
+!     Begin program
+      
+      where (abs(a) < 1d-14) a = 0d0
+
+      !Store lower triangular
+      K = 0
+      DO J=1,N
+        DO I=1,J
+          K=K+1
+          TRG(K)=a(J,I)
+        END DO
+      END DO
+
+      a = 0d0
+      
+      !Compute Cholesky factor (lower triangular)
+      CALL CHOLA(TRG,N,TRG,INFO,INFO,RMAX,R)
+
+      if ( info /= 0 ) then
+         write ( *, '(a)' ) ' '
+         write ( *, '(a)' ) 'CHOLESKY - Fatal error!'
+         write ( *, '(a)' ) 
+     .    '  The variance-covariance matrix is not positive definite 
+     .       symmetric.'
+         stop
+      end if
+
+c$$$      write (*,*) "# Cholesky accuracy=",RMAX
+
+      if (uplo=="U") then
+        !Store upper triangular
+        K = 0
+        DO J=1,N
+          DO I=1,J
+            K=K+1
+            a(I,J) = TRG(K)
+          END DO
+        END DO
+      else
+        !Store lower triangular
+        K = 0
+        DO J=1,N
+          DO I=1,J
+            K=K+1
+            a(J,I) = TRG(K)
+          END DO
+        END DO
+      endif
+
+      end subroutine cholesky_chola
+
+c     EIG_Jacobi
+c     ##################################################################
       subroutine EIG_Jacobi(a,x,abserr,n)
       !===========================================================
       ! Evaluate eigenvalues and eigenvectors
@@ -2216,7 +2365,7 @@ C---------- Last card of DERFCX ----------
       double precision beta, coeff, c, s, cs, sc
 
       ! initialize x(i,j)=0, x(i,i)=1
-      ! *** the array operation x=0.0 is specific for Fortran 90/95
+
       x = 0.0
       do i=1,n
         x(i,i) = 1.0
@@ -2267,7 +2416,7 @@ C---------- Last card of DERFCX ----------
         end do
       end do
       end do
-      return
+
       end subroutine EIG_Jacobi
 
 c     blockSolve
@@ -2310,7 +2459,7 @@ c     Begin program
 
         call dgesv(size,icol,mat2,size,ipiv,x,size,info) !LAPACK routine
 
-        call LAPACK_error(info)
+        call LAPACK_error("blockSolve",info)
 
       end subroutine blockSolve
 
@@ -2349,7 +2498,7 @@ c     Find LU decomposition
 
         call dgetrf(size,size,mat,size,ipiv,info) !LAPACK routine
 
-        call LAPACK_error(info)
+        call LAPACK_error("blockInv",info)
 
 c     Invert matrix
 
@@ -2366,13 +2515,13 @@ cc        lwork=size
         call dgetri(size,mat,size,ipiv,work,lwork,info) !LAPACK routine
         deallocate(work)
 
-        call LAPACK_error(info)
+        call LAPACK_error("blockInv",info)
 
       end subroutine blockInv
 
 c     LAPACK_error
 c     #################################################################
-      subroutine LAPACK_error(info)
+      subroutine LAPACK_error(routine,info)
 
 c     -----------------------------------------------------------------
 c     Error routine for LAPACK calls
@@ -2384,6 +2533,7 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
+        character(*) :: routine
         integer    :: info
 
 c     Local variables
@@ -2396,9 +2546,9 @@ c     Begin program
           if (info < 0) then
             messg = 'Problem in factorization in argument '
      .             //int2char(-info)
-            call sstop(0,'blockSolve',messg)
+            call sstop(0,trim(routine),messg)
           else
-            call sstop(0,'blockSolve','Matrix is singular')
+            call sstop(0,trim(routine),'Matrix is singular')
           endif
         endif
 
