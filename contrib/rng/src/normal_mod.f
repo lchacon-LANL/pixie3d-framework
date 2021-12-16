@@ -797,8 +797,8 @@ c$$$         r(i) = (dble(i)-rn)/dble(n)
          write ( *, '(a)' ) ' '
          write ( *, '(a)' ) 'MULTINORMAL_SAMPLE - Fatal error!'
          write ( *, '(a)' ) 
-     .    '  The variance-covariance matrix is not positive definite 
-     .       symmetric.'
+     .    '  The variance-covariance matrix is not positive definite'// 
+     .    ' symmetric.'
          stop
       end if
 !     
