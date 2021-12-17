@@ -9,7 +9,7 @@ c ######################################################################
         end INTERFACE
 
         INTERFACE gradDiv_vrtx
-          module procedure gradDiv_vrtx_ijk,gradDiv_vrtx_mesh
+          module procedure gradDiv_vrtx_mesh!,gradDiv_vrtx_ijk
         end INTERFACE
 
       contains
@@ -36,25 +36,21 @@ c     Call variables
 
 c     Local variables
 
-      integer :: ig,jg,kg,ip,i0,jp,j0,kp,k0,nx,ny,nz
+      integer :: ig,jg,kg,ip,i0,jp,j0,kp,k0
       real(8) :: idhx,idhy,idhz,fp,fm
 
 c     Begin program
 
       call getMGmap(g_def,i,j,k,igx,igy,igz,ig,jg,kg)
 
-      nx = g_def%nxgl(igx)
-      ny = g_def%nygl(igy)
-      nz = g_def%nzgl(igz)
-
       if (vrtx) then
-        idhx = 1./g_def%dx(ig)
-        idhy = 1./g_def%dy(jg)
-        idhz = 1./g_def%dz(kg)
+        idhx = 1d0/g_def%dx(ig)
+        idhy = 1d0/g_def%dy(jg)
+        idhz = 1d0/g_def%dz(kg)
       else
-        idhx = 1./g_def%dxh(ig)
-        idhy = 1./g_def%dyh(jg)
-        idhz = 1./g_def%dzh(kg)
+        idhx = 1d0/g_def%dxh(ig)
+        idhy = 1d0/g_def%dyh(jg)
+        idhz = 1d0/g_def%dzh(kg)
       endif
 
       ip = 2
@@ -134,7 +130,7 @@ c     End program
 
 c     curl_cell2vrtx_mesh
 c     ##################################################################
-      function curl_cell2vrtx_mesh(g_def,igrid,vv,tocov) result(vec)
+      function curl_cell2vrtx_mesh(g_def,igrid,vv) result(vec)
 
 c     ------------------------------------------------------------------
 c     Calculates curl of vv (covariant) at vertices from cell centers.
@@ -153,8 +149,6 @@ c     Call variables
       integer :: igrid
       real(8) :: vv(0:,0:,0:,1:)
      $          ,vec(0:size(vv,1)-1,0:size(vv,2)-1,0:size(vv,3)-1,3)
-
-      logical :: tocov
 
 c     Local variables
 
@@ -175,8 +169,6 @@ c     Begin program
         enddo
       enddo
 
-      if (tocov) vec = XformToCov_vrtx(g_def,igrid,vec)
-      
 c     End program
 
       end function curl_cell2vrtx_mesh
@@ -199,7 +191,7 @@ c     ------------------------------------------------------------------
 
 c     Call variables
 
-        type(grid_mg_def),pointer :: g_def
+      type(grid_mg_def),pointer :: g_def
 
       integer :: igrid
       real(8) :: vv(0:,0:,0:,1:)
@@ -343,72 +335,72 @@ c     End program
 
       end function div_vrtx
 
-c     graddiv_vrtx_ijk
-c     ###############################################################
-      function graddiv_vrtx_ijk(g_def,i,j,k,nx,ny,nz,igx,igy,igz,cnv,vol
-     .                         ,ret_cnv) result(gdiv)
-
-c     ---------------------------------------------------------------
-c     Calculates grad(div(A)) at cell centers in general non-orthogonal
-c     coordinates, preserving the self-adjoint property. The vector A
-c     is contravariant, and returns covariant components.
-c     ---------------------------------------------------------------
-
-      implicit none           !For safe fortran
-
-c     Call variables
-
-      type(grid_mg_def),pointer :: g_def
-
-      integer :: i,j,k,nx,ny,nz,igx,igy,igz
-
-      real(8) :: cnv(0:nx+1,0:ny+1,0:nz+1,3),gdiv(3)
-
-      logical,optional,intent(IN) :: vol,ret_cnv
-
-c     Local variables
-
-      integer :: il,jl,kl,ii,jj,kk
-
-      real(8) :: div(2,2,2)
-
-      logical :: vol_wgt,tocnv
-
-c     Begin program
-
-      vol_wgt = .false.
-      if (PRESENT(vol)) vol_wgt = vol
-
-      tocnv = .false.
-      if (PRESENT(ret_cnv)) tocnv = ret_cnv
-
-c     Divergence at vertices
-
-      do kl=1,2
-        do jl=1,2
-          do il=1,2
-            ii = i+il-2
-            jj = j+jl-2
-            kk = k+kl-2
-
-            div(il,jl,kl) = div_vrtx(g_def,ii,jj,kk,igx,igy,igz
-     .                         ,cnv(ii:ii+1,jj:jj+1,kk:kk+1,:)
-     .                         ,.true.)
-          enddo
-        enddo
-      enddo
-
-c     Gradient at cell centers
-
-      gdiv = grad_vrtx(g_def,i,j,k,igx,igy,igz,div,.false.)
-
-      if (vol_wgt) gdiv=gdiv*g_def%gmetric%grid(igx)%dvol(i,j,k)
-
-      if (tocnv) gdiv = XformToCnv(g_def,i,j,k,igx,gdiv)
-
-c     End program
-
-      end function graddiv_vrtx_ijk
+c$$$c     graddiv_vrtx_ijk
+c$$$c     ###############################################################
+c$$$      function graddiv_vrtx_ijk(g_def,i,j,k,nx,ny,nz,igx,igy,igz,cnv,vol
+c$$$     .                         ,ret_cnv) result(gdiv)
+c$$$
+c$$$c     ---------------------------------------------------------------
+c$$$c     Calculates grad(div(A)) at cell centers in general non-orthogonal
+c$$$c     coordinates, preserving the self-adjoint property. The vector A
+c$$$c     is contravariant, and returns covariant components.
+c$$$c     ---------------------------------------------------------------
+c$$$
+c$$$      implicit none           !For safe fortran
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$      type(grid_mg_def),pointer :: g_def
+c$$$
+c$$$      integer :: i,j,k,nx,ny,nz,igx,igy,igz
+c$$$
+c$$$      real(8) :: cnv(0:nx+1,0:ny+1,0:nz+1,3),gdiv(3)
+c$$$
+c$$$      logical,optional,intent(IN) :: vol,ret_cnv
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$      integer :: il,jl,kl,ii,jj,kk
+c$$$
+c$$$      real(8) :: div(2,2,2)
+c$$$
+c$$$      logical :: vol_wgt,tocnv
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$      vol_wgt = .false.
+c$$$      if (PRESENT(vol)) vol_wgt = vol
+c$$$
+c$$$      tocnv = .false.
+c$$$      if (PRESENT(ret_cnv)) tocnv = ret_cnv
+c$$$
+c$$$c     Divergence at vertices
+c$$$
+c$$$      do kl=1,2
+c$$$        do jl=1,2
+c$$$          do il=1,2
+c$$$            ii = i+il-2
+c$$$            jj = j+jl-2
+c$$$            kk = k+kl-2
+c$$$
+c$$$            div(il,jl,kl) = div_vrtx(g_def,ii,jj,kk,igx,igy,igz
+c$$$     .                         ,cnv(ii:ii+1,jj:jj+1,kk:kk+1,:)
+c$$$     .                         ,.true.)
+c$$$          enddo
+c$$$        enddo
+c$$$      enddo
+c$$$
+c$$$c     Gradient from vertex to cell centers
+c$$$
+c$$$      gdiv = grad_vrtx(g_def,i,j,k,igx,igy,igz,div,.false.)
+c$$$
+c$$$      if (vol_wgt) gdiv=gdiv*g_def%gmetric%grid(igx)%dvol(i,j,k)
+c$$$
+c$$$      if (tocnv) gdiv = XformToCnv(g_def,i,j,k,igx,gdiv)
+c$$$
+c$$$c     End program
+c$$$
+c$$$      end function graddiv_vrtx_ijk
 
 c     graddiv_vrtx_mesh
 c     ###############################################################
@@ -431,6 +423,9 @@ c     Call variables
 
       real(8) :: cnv(0:,0:,0:,:)
 
+      real(8) ::  div(0:size(cnv,1)-1
+     .               ,0:size(cnv,2)-1
+     .               ,0:size(cnv,3)-1)
       real(8) :: gdiv(0:size(cnv,1)-1
      .               ,0:size(cnv,2)-1
      .               ,0:size(cnv,3)-1
@@ -441,22 +436,47 @@ c     Call variables
 c     Local variables
 
       integer :: i,j,k,nx,ny,nz
-
+      logical :: vol_wgt,tocnv
+      
 c     Begin program
+
+      vol_wgt = .false.
+      if (PRESENT(vol)) vol_wgt = vol
+
+      tocnv = .false.
+      if (PRESENT(ret_cnv)) tocnv = ret_cnv
 
       nx = size(cnv,1)-2
       ny = size(cnv,2)-2
       nz = size(cnv,3)-2
 
-      do k=1,nz
-        do j=1,ny
-          do i=1,nx
-            gdiv(i,j,k,:) = gradDiv_vrtx_ijk(g_def,i,j,k,nx,ny,nz
-     .                                      ,igr,igr,igr,cnv
-     .                                      ,vol=vol,ret_cnv=ret_cnv)
+      do k=0,nz
+        do j=0,ny
+          do i=0,nx
+            div(i,j,k) = div_vrtx(g_def,i,j,k,igr,igr,igr
+     .                           ,cnv(i:i+1,j:j+1,k:k+1,:)
+     .                           ,.true.)
           enddo
         enddo
       enddo
+
+      do k=1,nz
+        do j=1,ny
+          do i=1,nx
+            gdiv(i,j,k,:) = grad_vrtx(g_def,i,j,k,igr,igr,igr
+     .                               ,div(i-1:i,j-1:j,k-1:k)
+     .                               ,.false.)
+          enddo
+        enddo
+      enddo
+
+      if (vol_wgt) then
+        gdiv(:,:,:,1)=gdiv(:,:,:,1)*g_def%gmetric%grid(igr)%dvol
+        gdiv(:,:,:,2)=gdiv(:,:,:,2)*g_def%gmetric%grid(igr)%dvol
+        gdiv(:,:,:,3)=gdiv(:,:,:,3)*g_def%gmetric%grid(igr)%dvol
+      endif
+      
+      if (tocnv) gdiv = XformToCnv(g_def,igr,gdiv)
 
 c     End program
 
@@ -667,8 +687,10 @@ c     Begin program
       endif
 
       !Compute covariant vertex curl
-      vec = curl_cell2vrtx_mesh(g_def,igrid,vv,.true.)
+      vec = curl_cell2vrtx_mesh(g_def,igrid,vv)
 
+      vec = XformToCov_vrtx(g_def,igrid,vec)
+      
       !Add transport coefficient (if provided)
       if (have_coef) then
         do ivar=1,3
@@ -2770,9 +2792,9 @@ c ######################################################################
           module procedure veclap_mesh,veclap_ijk
         end INTERFACE
         
-        INTERFACE veclap_cnv
-          module procedure veclap_cnv_mesh,veclap_cnv_ijk
-        end INTERFACE
+c$$$        INTERFACE veclap_cnv
+c$$$          module procedure veclap_cnv_mesh,veclap_cnv_ijk
+c$$$        end INTERFACE
 
         INTERFACE veclap_cov
           module procedure veclap_cov_mesh,veclap_cov_ijk
@@ -3377,7 +3399,7 @@ c     -------------------------------------------------------------
 c     Begin program
 
         hessian = g_def%gmetric%grid(igrid)%Gamma(i,j,k,:,:,:)
-        gsuper  =  g_def%gmetric%grid(igrid)%gsup(i,j,k,ic,:)
+        gsuper  = g_def%gmetric%grid(igrid)%gsup(i,j,k,ic,:)
 
         tensor(:,1) = matmul(vcnv(i,j,k,:),hessian(1,:,:))
         tensor(:,2) = matmul(vcnv(i,j,k,:),hessian(2,:,:))
@@ -5603,7 +5625,7 @@ c     End program
 
 c     veclap2_cov_mesh
 c     ###############################################################
-      function veclap2_cov_mesh(g_def,igrid,cov,diff) result(cov_out)
+      function veclap2_cov_mesh(g_def,igrid,cov) result(cov_out)
 
 c     ---------------------------------------------------------------
 c     Calculates curl(A) in general non-orthogonal coordinates. Is
@@ -5624,9 +5646,9 @@ c     Call variables
      $                  ,0:size(cov,2)-1
      $                  ,0:size(cov,3)-1,3)
 
-      real(8),optional :: diff(0:size(cov,1)-1
-     $                        ,0:size(cov,2)-1
-     $                        ,0:size(cov,3)-1)
+c$$$      real(8),optional :: diff(0:size(cov,1)-1
+c$$$     $                        ,0:size(cov,2)-1
+c$$$     $                        ,0:size(cov,3)-1)
 
 c     Local variables
 
@@ -5648,7 +5670,7 @@ c     End program
 
 c     veclap_mesh
 c     ###############################################################
-      function veclap_mesh(g_def,igrid,cnv,diff,alt_eom) result(cnv_out)
+      function veclap_mesh(g_def,igrid,cnv,diff,clean) result(cnv_out)
 
 c     ---------------------------------------------------------------
 c     Calculates curl(A) in general non-orthogonal coordinates. Is
@@ -5673,24 +5695,35 @@ c     Call variables
      $                        ,0:size(cnv,2)-1
      $                        ,0:size(cnv,3)-1)
 
-      logical,optional :: alt_eom
-
+      logical,optional :: clean
+      
 c     Local variables
 
       integer :: nx,ny,nz,i,j,k
 
+      logical :: project_kernel
+      
 c     Begin program
 
+      if(PRESENT(clean)) then
+        project_kernel = clean
+      else
+        project_kernel = .false.
+      endif
+      
       nx = g_def%nxv(igrid)
       ny = g_def%nyv(igrid)
       nz = g_def%nzv(igrid)
 
+      if (project_kernel)
+     $     call project_vlap_kernel(g_def,igrid,cnv,2,.true.)
+      
       do k=1,nz
         do j=1,ny
           do i=1,nx
             cnv_out(i,j,k,:)=veclap_ijk(g_def,i,j,k,nx,ny,nz
      .                                 ,igrid,igrid,igrid,cnv
-     .                                 ,diff=diff,alt_eom=alt_eom)
+     .                                 ,diff=diff)
           enddo
         enddo
       enddo
@@ -5702,7 +5735,7 @@ c     End program
 c     veclap_ijk
 c     ###############################################################
       function veclap_ijk(g_def,i,j,k,nx,ny,nz,igx,igy,igz,vfield
-     .                   ,diff,vol,alt_eom) result (vlap)
+     .                   ,diff,vol) result (vlap)
 
 c     ---------------------------------------------------------------
 c     Calculates dvol*div(diff grad(vector)) at cell centers in general
@@ -5723,32 +5756,23 @@ c     Call variables
 
       real(8) :: vlap(3)
 
-      logical,optional,intent(IN) :: vol,alt_eom
+      logical,optional,intent(IN) :: vol
 
 c     Local variables
 
       integer :: icomp
 
-      logical :: alteom
-
 c     Begin program
-
-      if (PRESENT(alt_eom)) then
-        alteom = alt_eom
-      else
-        alteom = alt__eom()
-      endif
 
       if (no_map) then
         do icomp=1,3
           vlap(icomp)=lap(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                   ,vfield(:,:,:,icomp),dff=diff
-     .                   ,vol=vol)
+     .                   ,vfield(:,:,:,icomp),dff=diff,vol=vol)
         enddo
       else
         vec  => vfield !Pointer passed to nabtensor routines
         if (PRESENT(diff)) coef => diff   !Pointer passed to nabtensor routines
-        vlap = div_tensor(g_def,i,j,k,nx,ny,nz,igx,igy,igz,alteom
+        vlap = div_tensor(g_def,i,j,k,nx,ny,nz,igx,igy,igz,bcSP()
      .                   ,nabtensor_x,nabtensor_y,nabtensor_z
      $                   ,vol=vol)
         if (PRESENT(diff)) nullify(coef)
@@ -5969,320 +5993,333 @@ c     End program
 
       end subroutine nabtensor_z
 
-c     veclap_cnv_mesh
-c     ###############################################################
-      function veclap_cnv_mesh(g_def,igrid,cnv,diff) result(cnv_out)
-
-c     ---------------------------------------------------------------
-c     Calculates veclap(A) in general non-orthogonal coordinates. The
-c     vector A is contravariant.
-c     ---------------------------------------------------------------
-
-      implicit none           !For safe fortran
-
-c     Call variables
-
-      type(grid_mg_def),pointer :: g_def
-
-      integer :: igrid
-
-      real(8) :: cnv(0:,0:,0:,:)
-     .          ,cnv_out(0:size(cnv,1)-1
-     $                  ,0:size(cnv,2)-1
-     $                  ,0:size(cnv,3)-1,3)
-
-      real(8),optional :: diff(0:size(cnv,1)-1
-     $                        ,0:size(cnv,2)-1
-     $                        ,0:size(cnv,3)-1)
-
-c     Local variables
-
-      integer :: nx,ny,nz,i,j,k
-
-c     Begin program
-
-      nx = g_def%nxv(igrid)
-      ny = g_def%nyv(igrid)
-      nz = g_def%nzv(igrid)
-
-      do k=1,nz
-        do j=1,ny
-          do i=1,nx
-            cnv_out(i,j,k,:)=veclap_cnv_ijk(g_def,i,j,k,nx,ny,nz
-     .                                     ,igrid,igrid,igrid,cnv
-     .                                     ,diff=diff)
-          enddo
-        enddo
-      enddo
-
-c     End program
-
-      end function veclap_cnv_mesh
-
-c     veclap_cnv_ijk
-c     ###############################################################
-      function veclap_cnv_ijk(g_def,i,j,k,nx,ny,nz,igx,igy,igz,vfield
-     .                      ,diff,vol) result (vlap)
-
-c     ---------------------------------------------------------------
-c     Calculates dvol*div(diff grad(vector)) at cell centers in general
-c     non-orthog.  coordinates. Vector is assumed in contravariant
-c     representation.
-c     ---------------------------------------------------------------
-
-      implicit none           !For safe fortran
-
-c     Call variables
-
-      type(grid_mg_def),pointer :: g_def
-
-      integer :: i,j,k,nx,ny,nz,igx,igy,igz
-
-      real(8),target :: vfield (0:nx+1,0:ny+1,0:nz+1,3)
-      real(8),target,optional :: diff(0:nx+1,0:ny+1,0:nz+1)
-
-      real(8) :: vlap(3)
-
-      logical,optional,intent(IN) :: vol
-
-c     Local variables
-
-      integer :: icomp
-
-      logical :: alt_eom
-
-c     Begin program
-
-      alt_eom = alt__eom()
-
-      if (no_map) then
-        do icomp=1,3
-          vlap(icomp)=lap(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                   ,vfield(:,:,:,icomp),dff=diff
-     .                   ,vol=vol)
-        enddo
-      else
-        vec  => vfield !Pointer passed to nabtensor routines
-        if (PRESENT(diff)) coef => diff   !Pointer passed to nabtensor routines
-        vlap = div_tensor(g_def,i,j,k,nx,ny,nz,igx,igy,igz,alt_eom
-     $                  ,nabtensor_cnv_x,nabtensor_cnv_y,nabtensor_cnv_z
-     $                  ,vol=vol)
-        if (PRESENT(diff)) nullify(coef)
-      endif
-
-c     End program
-
-      end function veclap_cnv_ijk
-
-c     nabtensor_cnv_x
-c     #############################################################
-      subroutine nabtensor_cnv_x(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                          ,alt_eom,t11,t12,t13,flag)
-c     -------------------------------------------------------------
-c     Calculates mixed representation tensor components t11-t13 for
-c     nabla(vec), nab(vec))^l_m, with vec in contravariant rep.
-c     -------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-        type(grid_mg_def),pointer :: g_def
-
-        integer :: i,j,k,flag,igx,igy,igz,nx,ny,nz
-        real(8) :: t11,t12,t13
-
-        logical :: alt_eom
-
-c     Local variables
-
-        integer    :: ig,jg,kg,ip,ic
-        real(8)    :: x,y,z,ijac,jac
-        real(8)    :: nabla_v(3),dd
-
-c     Begin program
-
-        ic = 1
-        
-        if (flag == 0) then
-          ip = i
-
-          jac = g_def%gmetric%grid(igx)%jac(i,j,k)
-
-          nabla_v = fnabla_v_cnv(g_def,i,j,k,igx,vec,ic,0)
-        else
-          ip = i+1
-          jac  = 0.5*(g_def%gmetric%grid(igx)%jac (ip,j,k)
-     .               +g_def%gmetric%grid(igx)%jac (i ,j,k))
-
-          nabla_v = fnabla_v_cnv(g_def,i,j,k,igx,vec,ic,ic)
-        endif
-
-        if (associated(coef)) then
-          dd = 2./(1./coef(ip,j,k) + 1./coef(i,j,k))
-        else
-          dd = 1d0
-        endif
-
-        t11 = dd*nabla_v(1)
-        t12 = dd*nabla_v(2)
-        t13 = dd*nabla_v(3)
-
-c       Postprocessing
-
-        if (flag /= 0) then
-          if (isSP2(g_def,i+1,igx)) then
-            ijac = 1d0/SP_flsv
-          else
-            ijac = 1d0/jac
-          endif
-
-          t11 = t11*ijac
-          if (.not.alt_eom) t12 = t12*ijac
-          t13 = t13*ijac
-        endif
-
-c     End program
-
-      end subroutine nabtensor_cnv_x
-
-c     nabtensor_cnv_y
-c     #############################################################
-      subroutine nabtensor_cnv_y(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                          ,alt_eom,t21,t22,t23,flag)
-c     -------------------------------------------------------------
-c     Calculates mixed representation tensor components t21-t23 for
-c     nabla(vec), [nab(vec))^l_m, with vec in contravariant rep.
-c     -------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-        type(grid_mg_def),pointer :: g_def
-
-        integer :: i,j,k,flag,igx,igy,igz,nx,ny,nz
-        real(8) :: t21,t22,t23
-
-        logical :: alt_eom
-
-c     Local variables
-
-        integer    :: ig,jg,kg,jp,ic
-        real(8)    :: x,y,z,ijac,jac
-        real(8)    :: nabla_v(3),dd
-
-c     Begin program
-
-        ic = 2
-        
-        if (flag == 0) then
-          jp = j
-          jac= g_def%gmetric%grid(igx)%jac(i,j,k)
-
-          nabla_v = fnabla_v_cnv(g_def,i,j,k,igx,vec,ic,0)
-        else
-          jp = j+1
-          jac  = 0.5*(g_def%gmetric%grid(igx)%jac (i,jp,k)
-     .               +g_def%gmetric%grid(igx)%jac (i,j ,k))
-
-          nabla_v = fnabla_v_cnv(g_def,i,j,k,igx,vec,ic,ic)
-        endif
-
-        if (associated(coef)) then
-          dd = 2./(1./coef(i,jp,k) + 1./coef(i,j,k))
-        else
-          dd = 1d0
-        endif
-
-        t21 = dd*nabla_v(1)
-        t22 = dd*nabla_v(2)
-        t23 = dd*nabla_v(3)
-
-c     Postprocessing
-
-        if (flag /= 0) then
-          ijac = 1d0/jac
-
-          t21 = t21*ijac
-          if (.not.alt_eom) t22 = t22*ijac
-          t23 = t23*ijac
-        endif
-
-c     End program
-
-      end subroutine nabtensor_cnv_y
-
-c     nabtensor_cnv_z
-c     #############################################################
-      subroutine nabtensor_cnv_z(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-     .                          ,alt_eom,t31,t32,t33,flag)
-c     -------------------------------------------------------------
-c     Calculates mixed representation tensor components t31-t33 for
-c     nabla(vec), [nab(vec))^l_m, with vec in contravariant rep.
-c     -------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-        type(grid_mg_def),pointer :: g_def
-
-        integer :: i,j,k,flag,igx,igy,igz,nx,ny,nz
-        real(8) :: t31,t32,t33
-
-        logical :: alt_eom
-
-c     Local variables
-
-        integer :: ig,jg,kg,kp,ic
-        real(8) :: x,y,z,ijac,jac
-        real(8) :: nabla_v(3),dd
-
-c     Begin program
-
-        ic = 3
-
-        if (flag == 0) then
-          kp = k
-          jac= g_def%gmetric%grid(igx)%jac(i,j,k)
-
-          nabla_v = fnabla_v_cnv(g_def,i,j,k,igx,vec,ic,0)
-        else
-          kp = k+1
-          jac  = 0.5*(g_def%gmetric%grid(igx)%jac (i,j,kp)
-     .               +g_def%gmetric%grid(igx)%jac (i,j,k ))
-
-          nabla_v = fnabla_v_cnv(g_def,i,j,k,igx,vec,ic,ic)
-        endif
-
-        if (associated(coef)) then
-          dd = 2./(1./coef(i,j,kp) + 1./coef(i,j,k))
-        else
-          dd = 1d0
-        endif
-
-        t31 = dd*nabla_v(1)
-        t32 = dd*nabla_v(2)
-        t33 = dd*nabla_v(3)
-
-c     Postprocessing
-
-        if (flag /= 0) then
-          ijac = 1d0/jac
-
-          t31 = t31*ijac
-          if (.not.alt_eom) t32 = t32*ijac
-          t33 = t33*ijac
-        endif
-
-c     End program
-
-      end subroutine nabtensor_cnv_z
+c$$$c     veclap_cnv_mesh
+c$$$c     ###############################################################
+c$$$      function veclap_cnv_mesh(g_def,igrid,cnv,diff) result(cnv_out)
+c$$$
+c$$$c     ---------------------------------------------------------------
+c$$$c     Calculates veclap(A) in general non-orthogonal coordinates. The
+c$$$c     vector A is contravariant.
+c$$$c     ---------------------------------------------------------------
+c$$$
+c$$$      implicit none           !For safe fortran
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$      type(grid_mg_def),pointer :: g_def
+c$$$
+c$$$      integer :: igrid
+c$$$
+c$$$      real(8) :: cnv(0:,0:,0:,:)
+c$$$     .          ,cnv_out(0:size(cnv,1)-1
+c$$$     $                  ,0:size(cnv,2)-1
+c$$$     $                  ,0:size(cnv,3)-1,3)
+c$$$
+c$$$      real(8),optional :: diff(0:size(cnv,1)-1
+c$$$     $                        ,0:size(cnv,2)-1
+c$$$     $                        ,0:size(cnv,3)-1)
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$      integer :: nx,ny,nz,i,j,k
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$      nx = g_def%nxv(igrid)
+c$$$      ny = g_def%nyv(igrid)
+c$$$      nz = g_def%nzv(igrid)
+c$$$
+c$$$      do k=1,nz
+c$$$        do j=1,ny
+c$$$          do i=1,nx
+c$$$            cnv_out(i,j,k,:)=veclap_cnv_ijk(g_def,i,j,k,nx,ny,nz
+c$$$     .                                     ,igrid,igrid,igrid,cnv
+c$$$     .                                     ,diff=diff)
+c$$$          enddo
+c$$$        enddo
+c$$$      enddo
+c$$$
+c$$$c     End program
+c$$$
+c$$$      end function veclap_cnv_mesh
+c$$$
+c$$$c     veclap_cnv_ijk
+c$$$c     ###############################################################
+c$$$      function veclap_cnv_ijk(g_def,i,j,k,nx,ny,nz,igx,igy,igz,vfield
+c$$$     .                      ,diff,vol) result (vlap)
+c$$$
+c$$$c     ---------------------------------------------------------------
+c$$$c     Calculates dvol*div(diff grad(vector)) at cell centers in general
+c$$$c     non-orthog.  coordinates. Vector is assumed in contravariant
+c$$$c     representation.
+c$$$c     ---------------------------------------------------------------
+c$$$
+c$$$      implicit none           !For safe fortran
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$      type(grid_mg_def),pointer :: g_def
+c$$$
+c$$$      integer :: i,j,k,nx,ny,nz,igx,igy,igz
+c$$$
+c$$$      real(8),target :: vfield (0:nx+1,0:ny+1,0:nz+1,3)
+c$$$      real(8),target,optional :: diff(0:nx+1,0:ny+1,0:nz+1)
+c$$$
+c$$$      real(8) :: vlap(3)
+c$$$
+c$$$      logical,optional,intent(IN) :: vol
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$      integer :: icomp
+c$$$
+c$$$      logical :: alt_eom
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$      alt_eom = alt__eom()
+c$$$
+c$$$      if (no_map) then
+c$$$        do icomp=1,3
+c$$$          vlap(icomp)=lap(g_def,i,j,k,nx,ny,nz,igx,igy,igz
+c$$$     .                   ,vfield(:,:,:,icomp),dff=diff
+c$$$     .                   ,vol=vol)
+c$$$        enddo
+c$$$      else
+c$$$        vec  => vfield !Pointer passed to nabtensor routines
+c$$$        if (PRESENT(diff)) coef => diff   !Pointer passed to nabtensor routines
+c$$$        vlap = div_tensor(g_def,i,j,k,nx,ny,nz,igx,igy,igz,alt_eom
+c$$$     $                  ,nabtensor_cnv_x,nabtensor_cnv_y,nabtensor_cnv_z
+c$$$     $                  ,vol=vol)
+c$$$        if (PRESENT(diff)) nullify(coef)
+c$$$      endif
+c$$$
+c$$$c     End program
+c$$$
+c$$$      end function veclap_cnv_ijk
+c$$$
+c$$$c     nabtensor_cnv_x
+c$$$c     #############################################################
+c$$$      subroutine nabtensor_cnv_x(g_def,i,j,k,nx,ny,nz,igx,igy,igz
+c$$$     .                          ,alt_eom,t11,t12,t13,flag)
+c$$$c     -------------------------------------------------------------
+c$$$c     Calculates mixed representation tensor components t11-t13 for
+c$$$c     nabla(vec), nab(vec))^l_m, with vec in contravariant rep.
+c$$$c     -------------------------------------------------------------
+c$$$
+c$$$        implicit none
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$        type(grid_mg_def),pointer :: g_def
+c$$$
+c$$$        integer :: i,j,k,flag,igx,igy,igz,nx,ny,nz
+c$$$        real(8) :: t11,t12,t13
+c$$$
+c$$$        logical :: alt_eom
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$        integer    :: ig,jg,kg,ip,ic
+c$$$        real(8)    :: x,y,z,ijac,jac
+c$$$        real(8)    :: nabla_v(3),dd
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$        ic = 1
+c$$$        
+c$$$        if (flag == 0) then
+c$$$          ip = i
+c$$$
+c$$$          jac = g_def%gmetric%grid(igx)%jac(i,j,k)
+c$$$
+c$$$          nabla_v = fnabla_v_cnv(g_def,i,j,k,igx,vec,ic,0)
+c$$$        else
+c$$$          ip = i+1
+c$$$          jac  = 0.5*(g_def%gmetric%grid(igx)%jac (ip,j,k)
+c$$$     .               +g_def%gmetric%grid(igx)%jac (i ,j,k))
+c$$$
+c$$$          nabla_v = fnabla_v_cnv(g_def,i,j,k,igx,vec,ic,ic)
+c$$$        endif
+c$$$
+c$$$        if (associated(coef)) then
+c$$$          if (coef(ip,j,k)*coef(i,j,k)>0d0) then
+c$$$            dd = 2./(1./coef(ip,j,k) + 1./coef(i,j,k))
+c$$$          else
+c$$$            dd = 0d0
+c$$$          endif
+c$$$        else
+c$$$          dd = 1d0
+c$$$        endif
+c$$$
+c$$$        t11 = dd*nabla_v(1)
+c$$$        t12 = dd*nabla_v(2)
+c$$$        t13 = dd*nabla_v(3)
+c$$$
+c$$$c       Postprocessing
+c$$$
+c$$$        if (flag /= 0) then
+c$$$          if (isSP2(g_def,i+1,igx)) then
+c$$$            ijac = 1d0/SP_flsv
+c$$$          else
+c$$$            ijac = 1d0/jac
+c$$$          endif
+c$$$
+c$$$          t11 = t11*ijac
+c$$$          if (.not.alt_eom) t12 = t12*ijac
+c$$$          t13 = t13*ijac
+c$$$        endif
+c$$$
+c$$$c     End program
+c$$$
+c$$$      end subroutine nabtensor_cnv_x
+c$$$
+c$$$c     nabtensor_cnv_y
+c$$$c     #############################################################
+c$$$      subroutine nabtensor_cnv_y(g_def,i,j,k,nx,ny,nz,igx,igy,igz
+c$$$     .                          ,alt_eom,t21,t22,t23,flag)
+c$$$c     -------------------------------------------------------------
+c$$$c     Calculates mixed representation tensor components t21-t23 for
+c$$$c     nabla(vec), [nab(vec))^l_m, with vec in contravariant rep.
+c$$$c     -------------------------------------------------------------
+c$$$
+c$$$        implicit none
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$        type(grid_mg_def),pointer :: g_def
+c$$$
+c$$$        integer :: i,j,k,flag,igx,igy,igz,nx,ny,nz
+c$$$        real(8) :: t21,t22,t23
+c$$$
+c$$$        logical :: alt_eom
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$        integer    :: ig,jg,kg,jp,ic
+c$$$        real(8)    :: x,y,z,ijac,jac
+c$$$        real(8)    :: nabla_v(3),dd
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$        ic = 2
+c$$$        
+c$$$        if (flag == 0) then
+c$$$          jp = j
+c$$$          jac= g_def%gmetric%grid(igx)%jac(i,j,k)
+c$$$
+c$$$          nabla_v = fnabla_v_cnv(g_def,i,j,k,igx,vec,ic,0)
+c$$$        else
+c$$$          jp = j+1
+c$$$          jac  = 0.5*(g_def%gmetric%grid(igx)%jac (i,jp,k)
+c$$$     .               +g_def%gmetric%grid(igx)%jac (i,j ,k))
+c$$$
+c$$$          nabla_v = fnabla_v_cnv(g_def,i,j,k,igx,vec,ic,ic)
+c$$$        endif
+c$$$
+c$$$        if (associated(coef)) then
+c$$$          if (coef(i,jp,k)*coef(i,j,k)>0d0) then
+c$$$            dd = 2./(1./coef(i,jp,k) + 1./coef(i,j ,k))
+c$$$          else
+c$$$            dd = 0d0
+c$$$          endif
+c$$$        else
+c$$$          dd = 1d0
+c$$$        endif
+c$$$
+c$$$        t21 = dd*nabla_v(1)
+c$$$        t22 = dd*nabla_v(2)
+c$$$        t23 = dd*nabla_v(3)
+c$$$
+c$$$c     Postprocessing
+c$$$
+c$$$        if (flag /= 0) then
+c$$$          ijac = 1d0/jac
+c$$$
+c$$$          t21 = t21*ijac
+c$$$          if (.not.alt_eom) t22 = t22*ijac
+c$$$          t23 = t23*ijac
+c$$$        endif
+c$$$
+c$$$c     End program
+c$$$
+c$$$      end subroutine nabtensor_cnv_y
+c$$$
+c$$$c     nabtensor_cnv_z
+c$$$c     #############################################################
+c$$$      subroutine nabtensor_cnv_z(g_def,i,j,k,nx,ny,nz,igx,igy,igz
+c$$$     .                          ,alt_eom,t31,t32,t33,flag)
+c$$$c     -------------------------------------------------------------
+c$$$c     Calculates mixed representation tensor components t31-t33 for
+c$$$c     nabla(vec), [nab(vec))^l_m, with vec in contravariant rep.
+c$$$c     -------------------------------------------------------------
+c$$$
+c$$$        implicit none
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$        type(grid_mg_def),pointer :: g_def
+c$$$
+c$$$        integer :: i,j,k,flag,igx,igy,igz,nx,ny,nz
+c$$$        real(8) :: t31,t32,t33
+c$$$
+c$$$        logical :: alt_eom
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$        integer :: ig,jg,kg,kp,ic
+c$$$        real(8) :: x,y,z,ijac,jac
+c$$$        real(8) :: nabla_v(3),dd
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$        ic = 3
+c$$$
+c$$$        if (flag == 0) then
+c$$$          kp = k
+c$$$          jac= g_def%gmetric%grid(igx)%jac(i,j,k)
+c$$$
+c$$$          nabla_v = fnabla_v_cnv(g_def,i,j,k,igx,vec,ic,0)
+c$$$        else
+c$$$          kp = k+1
+c$$$          jac  = 0.5*(g_def%gmetric%grid(igx)%jac (i,j,kp)
+c$$$     .               +g_def%gmetric%grid(igx)%jac (i,j,k ))
+c$$$
+c$$$          nabla_v = fnabla_v_cnv(g_def,i,j,k,igx,vec,ic,ic)
+c$$$        endif
+c$$$
+c$$$        if (associated(coef)) then
+c$$$          if (coef(i,j,kp)*coef(i,j,k)>0d0) then
+c$$$            dd = 2./(1./coef(i,j,kp) + 1./coef(i,j,k ))
+c$$$          else
+c$$$            dd = 0d0
+c$$$          endif
+c$$$        else
+c$$$          dd = 1d0
+c$$$        endif
+c$$$
+c$$$        t31 = dd*nabla_v(1)
+c$$$        t32 = dd*nabla_v(2)
+c$$$        t33 = dd*nabla_v(3)
+c$$$
+c$$$c     Postprocessing
+c$$$
+c$$$        if (flag /= 0) then
+c$$$          ijac = 1d0/jac
+c$$$
+c$$$          t31 = t31*ijac
+c$$$          if (.not.alt_eom) t32 = t32*ijac
+c$$$          t33 = t33*ijac
+c$$$        endif
+c$$$
+c$$$c     End program
+c$$$
+c$$$      end subroutine nabtensor_cnv_z
 
 c     veclap_cov_mesh
 c     ###############################################################
-      function veclap_cov_mesh(g_def,igrid,cov,diff) result(cov_out)
+      function veclap_cov_mesh(g_def,igrid,cov,diff,clean)
+     $         result(cov_out)
 
 c     ---------------------------------------------------------------
 c     Calculates covariant components of lap(vfield) at cell
@@ -6307,15 +6344,28 @@ c     Call variables
      $                        ,0:size(cov,2)-1
      $                        ,0:size(cov,3)-1)
 
+      logical,optional :: clean
+      
 c     Local variables
 
       integer :: nx,ny,nz,i,j,k
 
+      logical :: project_kernel
+      
 c     Begin program
+
+      if(PRESENT(clean)) then
+        project_kernel = clean
+      else
+        project_kernel = .false.
+      endif
 
       nx = size(cov,1)-2
       ny = size(cov,2)-2
       nz = size(cov,3)-2
+
+      if (project_kernel)
+     $     call project_vlap_kernel(g_def,igrid,cov,2,.false.)
 
       do k=1,nz
         do j=1,ny
@@ -6759,247 +6809,6 @@ c     End program
 
       end subroutine nabtensor_cov_reg_z
 
-c$$$c     nabtensor_cov_reg_x
-c$$$c     #############################################################
-c$$$      subroutine nabtensor_cov_reg_x(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-c$$$     .                          ,t11,t12,t13,flag)
-c$$$c     -------------------------------------------------------------
-c$$$c     Calculates mixed representation tensor components t11-t13 for
-c$$$c     nabla(vec), [nab(vec))^l_m.
-c$$$c     -------------------------------------------------------------
-c$$$
-c$$$        implicit none
-c$$$
-c$$$c     Call variables
-c$$$
-c$$$        type(grid_mg_def),pointer :: g_def
-c$$$
-c$$$        integer    :: i,j,k,flag,igx,igy,igz,nx,ny,nz
-c$$$        real(8)    :: t11,t12,t13
-c$$$
-c$$$c     Local variables
-c$$$
-c$$$        integer    :: ig,jg,kg,ip,igrid,ic
-c$$$        real(8)    :: x,y,z,jac,dd
-c$$$        real(8)    :: nabla_v_src(3),nabla_v_srcp(3)
-c$$$
-c$$$c     Begin program
-c$$$
-c$$$        ic = 1
-c$$$        
-c$$$        igrid = igx
-c$$$
-c$$$        ip = i+1
-c$$$
-c$$$c$$$        jac  = 0.5*(g_def%gmetric%grid(igrid)%jac (ip,j,k)
-c$$$c$$$     .             +g_def%gmetric%grid(igrid)%jac (i ,j,k))
-c$$$c$$$
-c$$$c$$$        gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(ip,j,k,ic,:)
-c$$$c$$$     .               +g_def%gmetric%grid(igrid)%gsup(i ,j,k,ic,:))
-c$$$c$$$
-c$$$c$$$        nabla_v = 0.5*(
-c$$$c$$$     .         nabla_v_cov_src(g_def,igrid,ip,j,k,vec(ip,j,k,:),ic)
-c$$$c$$$     .        +nabla_v_cov_src(g_def,igrid,i ,j,k,vec(i ,j,k,:),ic))
-c$$$c$$$
-c$$$c$$$        nabla_v_src = matmul(gsuper,nabla_v)
-c$$$c$$$        
-c$$$c$$$        if (isSP2(g_def,ip,igrid)) then
-c$$$c$$$          nabla_v_src(2) = 0d0
-c$$$c$$$        else
-c$$$c$$$          nabla_v_src(2) = nabla_v_src(2)/jac
-c$$$c$$$        endif
-c$$$
-c$$$        nabla_v_src
-c$$$     .       = nabla_v_cov_src(g_def,igrid,i ,j,k,vec(i ,j,k,:),ic)
-c$$$        nabla_v_srcp
-c$$$     .       = nabla_v_cov_src(g_def,igrid,ip,j,k,vec(ip,j,k,:),ic)
-c$$$
-c$$$        nabla_v_src (2) = nabla_v_src (2)
-c$$$     .                   /g_def%gmetric%grid(igrid)%jac(i ,j,k)  !Return T12/J
-c$$$        nabla_v_srcp(2) = nabla_v_srcp(2)
-c$$$     .                   /g_def%gmetric%grid(igrid)%jac(ip,j,k)  !Return T12/J
-c$$$
-c$$$        nabla_v_src = 0.5*(nabla_v_src + nabla_v_srcp)
-c$$$
-c$$$        t11 = lap_flx_x_ijk(g_def,i,j,k,igrid,vec(:,:,:,1),diff=coef
-c$$$     .                     ,vertex=.false.)
-c$$$        t12 = lap_flx_x_ijk(g_def,i,j,k,igrid,vec(:,:,:,2),diff=coef
-c$$$     .                     ,vertex=.false.,divbyJ=.true.)   !Return T12/J
-c$$$        t13 = lap_flx_x_ijk(g_def,i,j,k,igrid,vec(:,:,:,3),diff=coef
-c$$$     .                     ,vertex=.false.)
-c$$$
-c$$$        if (associated(coef)) then
-c$$$          dd = 2./(1./coef(ip,j,k) + 1./coef(i,j,k))
-c$$$        else
-c$$$          dd = 1d0
-c$$$        endif
-c$$$        
-c$$$        t11 = t11 + dd*nabla_v_src(1)
-c$$$        t12 = t12 + dd*nabla_v_src(2)  !Return T12/J
-c$$$        t13 = t13 + dd*nabla_v_src(3)
-c$$$       
-c$$$c     End program
-c$$$
-c$$$      end subroutine nabtensor_cov_reg_x
-c$$$
-c$$$c     nabtensor_cov_reg_y
-c$$$c     #############################################################
-c$$$      subroutine nabtensor_cov_reg_y(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-c$$$     .                          ,t21,t22,t23,flag)
-c$$$c     -------------------------------------------------------------
-c$$$c     Calculates mixed representation tensor components t21-t23 for
-c$$$c     nabla(vec), [nab(vec))^l_m.
-c$$$c     -------------------------------------------------------------
-c$$$
-c$$$        implicit none
-c$$$
-c$$$c     Call variables
-c$$$
-c$$$        type(grid_mg_def),pointer :: g_def
-c$$$
-c$$$        integer    :: i,j,k,flag,igx,igy,igz,nx,ny,nz
-c$$$        real(8)    :: t21,t22,t23
-c$$$
-c$$$c     Local variables
-c$$$
-c$$$        integer    :: ig,jg,kg,jp,igrid,ic
-c$$$        real(8)    :: x,y,z,jac,dd
-c$$$        real(8)    :: nabla_v_src(3),nabla_v_srcp(3)
-c$$$
-c$$$c     Begin program
-c$$$
-c$$$        ic = 2
-c$$$        
-c$$$        igrid = igx
-c$$$
-c$$$        jp = j+1
-c$$$        
-c$$$c$$$        jac = 0.5*(g_def%gmetric%grid(igrid)%jac (i,jp,k)
-c$$$c$$$     .            +g_def%gmetric%grid(igrid)%jac (i,j ,k))
-c$$$c$$$
-c$$$c$$$        gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,jp,k,ic,:)
-c$$$c$$$     .               +g_def%gmetric%grid(igrid)%gsup(i,j ,k,ic,:))
-c$$$c$$$
-c$$$c$$$        nabla_v= 0.5*(
-c$$$c$$$     .          nabla_v_cov_src(g_def,igrid,i,jp,k,vec(i,jp,k,:),ic)
-c$$$c$$$     .         +nabla_v_cov_src(g_def,igrid,i,j ,k,vec(i,j ,k,:),ic))
-c$$$c$$$
-c$$$c$$$        nabla_v_src = matmul(gsuper,nabla_v)
-c$$$c$$$
-c$$$c$$$        nabla_v_src(2) = nabla_v_src(2)/jac
-c$$$
-c$$$        nabla_v_src
-c$$$     .       = nabla_v_cov_src(g_def,igrid,i,j ,k,vec(i,j ,k,:),ic)
-c$$$        nabla_v_srcp
-c$$$     .       = nabla_v_cov_src(g_def,igrid,i,jp,k,vec(i,jp,k,:),ic)
-c$$$
-c$$$        nabla_v_src (2) = nabla_v_src (2)
-c$$$     .                   /g_def%gmetric%grid(igrid)%jac(i,j ,k)  !Return T22/J
-c$$$        nabla_v_srcp(2) = nabla_v_srcp(2)                   
-c$$$     .                   /g_def%gmetric%grid(igrid)%jac(i,jp,k)  !Return T22/J
-c$$$
-c$$$        nabla_v_src = 0.5*(nabla_v_src + nabla_v_srcp)
-c$$$
-c$$$        if (associated(coef)) then
-c$$$          dd = 2./(1./coef(i,jp,k) + 1./coef(i,j,k))
-c$$$        else
-c$$$          dd = 1d0
-c$$$        endif
-c$$$
-c$$$        t21 = lap_flx_y_ijk(g_def,i,j,k,igrid,vec(:,:,:,1),diff=coef
-c$$$     .                     ,vertex=.false.)
-c$$$        t22 = lap_flx_y_ijk(g_def,i,j,k,igrid,vec(:,:,:,2),diff=coef
-c$$$     .                     ,vertex=.false.,divbyJ=.true.)  !Return T22/J
-c$$$        t23 = lap_flx_y_ijk(g_def,i,j,k,igrid,vec(:,:,:,3),diff=coef
-c$$$     .                     ,vertex=.false.)
-c$$$
-c$$$        t21 = t21 + dd*nabla_v_src(1)
-c$$$        t22 = t22 + dd*nabla_v_src(2)  !Return T22/J
-c$$$        t23 = t23 + dd*nabla_v_src(3)
-c$$$ 
-c$$$c     End program
-c$$$
-c$$$      end subroutine nabtensor_cov_reg_y
-c$$$
-c$$$c     nabtensor_cov_reg_z
-c$$$c     #############################################################
-c$$$      subroutine nabtensor_cov_reg_z(g_def,i,j,k,nx,ny,nz,igx,igy,igz
-c$$$     .                          ,t31,t32,t33,flag)
-c$$$c     -------------------------------------------------------------
-c$$$c     Calculates mixed representation tensor components t31-t33 for
-c$$$c     nabla(vec), [nab(vec))^l_m.
-c$$$c     -------------------------------------------------------------
-c$$$
-c$$$        implicit none
-c$$$
-c$$$c     Call variables
-c$$$
-c$$$        type(grid_mg_def),pointer :: g_def
-c$$$
-c$$$        integer    :: i,j,k,flag,igx,igy,igz,nx,ny,nz
-c$$$        real(8)    :: t31,t32,t33
-c$$$
-c$$$c     Local variables
-c$$$
-c$$$        integer    :: ig,jg,kg,kp,igrid,ic
-c$$$        real(8)    :: x,y,z,jac,dd
-c$$$        real(8)    :: nabla_v_src(3),nabla_v_srcp(3)
-c$$$
-c$$$c     Begin program
-c$$$
-c$$$        ic = 3
-c$$$        
-c$$$        igrid = igx
-c$$$
-c$$$        kp = k+1
-c$$$
-c$$$c$$$        jac    = 0.5*(g_def%gmetric%grid(igrid)%jac (i,j,kp)
-c$$$c$$$     .               +g_def%gmetric%grid(igrid)%jac (i,j,k ))
-c$$$c$$$
-c$$$c$$$        gsuper = 0.5*(g_def%gmetric%grid(igrid)%gsup(i,j,kp,ic,:)
-c$$$c$$$     .               +g_def%gmetric%grid(igrid)%gsup(i,j,k ,ic,:))
-c$$$c$$$
-c$$$c$$$        nabla_v = 0.5*(
-c$$$c$$$     .          nabla_v_cov_src(g_def,igrid,i,j,kp,vec(i,j,kp,:),ic)
-c$$$c$$$     .         +nabla_v_cov_src(g_def,igrid,i,j,k ,vec(i,j,k ,:),ic))
-c$$$c$$$
-c$$$c$$$        nabla_v_src = matmul(gsuper,nabla_v)
-c$$$c$$$
-c$$$c$$$        nabla_v_src(2) = nabla_v_src(2)/jac
-c$$$
-c$$$        nabla_v_src
-c$$$     .       = nabla_v_cov_src(g_def,igrid,i,j,k ,vec(i,j,k ,:),ic)
-c$$$        nabla_v_srcp
-c$$$     .       = nabla_v_cov_src(g_def,igrid,i,j,kp,vec(i,j,kp,:),ic)
-c$$$
-c$$$        nabla_v_src (2) = nabla_v_src (2)
-c$$$     .                   /g_def%gmetric%grid(igrid)%jac(i,j,k )  !Return T32/J
-c$$$        nabla_v_srcp(2) = nabla_v_srcp(2)                     
-c$$$     .                   /g_def%gmetric%grid(igrid)%jac(i,j,kp)  !Return T22/J
-c$$$
-c$$$        nabla_v_src = 0.5*(nabla_v_src + nabla_v_srcp)
-c$$$
-c$$$        t31 = lap_flx_z_ijk(g_def,i,j,k,igrid,vec(:,:,:,1),diff=coef
-c$$$     .                     ,vertex=.false.)
-c$$$        t32 = lap_flx_z_ijk(g_def,i,j,k,igrid,vec(:,:,:,2),diff=coef
-c$$$     .                     ,vertex=.false.,divbyJ=.true.)  !Return T32/J
-c$$$        t33 = lap_flx_z_ijk(g_def,i,j,k,igrid,vec(:,:,:,3),diff=coef
-c$$$     .                     ,vertex=.false.)
-c$$$
-c$$$        if (associated(coef)) then
-c$$$          dd = 2./(1./coef(i,j,kp) + 1./coef(i,j,k))
-c$$$        else
-c$$$          dd = 1d0
-c$$$        endif
-c$$$
-c$$$        t31 = t31 + dd*nabla_v_src(1)
-c$$$        t32 = t32 + dd*nabla_v_src(2)  !Return T32/J
-c$$$        t33 = t33 + dd*nabla_v_src(3)
-c$$$
-c$$$c     End program
-c$$$
-c$$$      end subroutine nabtensor_cov_reg_z
-
 c     veclap_vrtx
 c     ###############################################################
       function veclap_vrtx(g_def,igrid,cov,ret_cnv) result(veclap)
@@ -7048,6 +6857,543 @@ cc     .        +gradDiv(g_def,igrid,cnv,ret_cnv=ret_cnv)
 c     End program
 
       end function veclap_vrtx
+
+c     project_vlap_kernel
+c     ################################################################
+      subroutine project_vlap_kernel(gl_def,igr,vec,order_avg,iscnv)
+
+      implicit none
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: gl_def
+
+      real(8) :: vec(0:,0:,0:,:)
+
+      integer :: igr,order_avg
+
+      logical :: iscnv
+
+c     Begin program
+
+      !Project constant vector
+      call project0SingularBC(gl_def,igr,vec,order_avg,iscnv)
+      !Project linear vector (in Cartesian space)
+      call project1SingularBC(gl_def,igr,vec,order_avg,iscnv)
+
+      end subroutine project_vlap_kernel
+      
+c     project0SingularBC
+c     ################################################################
+      subroutine project0SingularBC(gl_def,igr,vec,order_avg,iscnv)
+
+      implicit none
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: gl_def
+
+      real(8) :: vec(0:,0:,0:,:)
+
+      integer :: igr,order_avg
+
+      logical :: iscnv
+
+c     Local variables
+      
+      integer :: nx,ny,nz,neq,i,j,k,ig,jg,kg,ieq,one,two,thr
+     .          ,oavg,oext,icomp,ivar
+
+      real(8) :: curv(3),car(3),dv_sum
+
+      real(8),allocatable :: sp_sum(:),l_sum(:)
+     $                      ,avg_v(:,:,:)
+
+      real(8),pointer,dimension(:) :: xx
+
+c     Begin program
+
+      neq = size(vec,4)
+
+      nx = gl_def%nxv(igr)
+      ny = gl_def%nyv(igr)
+      nz = gl_def%nzv(igr)
+
+c     Prepare interpolations
+
+      oavg = min(order_avg,nx)
+
+      one = 1 ; two = 2; thr = 3
+
+      if (oavg <= 1) then
+        two = one
+        thr = one
+      elseif (oavg == 2) then
+        thr = two
+      endif
+
+      call getMGmap(gl_def,1,1,1,igr,igr,igr,ig,jg,kg)
+
+      xx => gl_def%xx
+
+c     Regularize innermost cell layer (closest to SP)
+
+      allocate(sp_sum(3),avg_v(0:ny+1,0:nz+1,3))
+
+      sp_sum = 0d0
+      
+      do ivar=1,neq/3
+        icomp = 3*(ivar-1)
+
+        !Transform to Cartesian
+        vec(:,:,:,icomp+1:icomp+3)
+     $    = XformToCar(gl_def,igr,vec(:,:,:,icomp+1:icomp+3),.not.iscnv)
+
+        !Compute weighed average around SP
+        do ieq=1,3
+          avg_v(:,:,ieq) =
+     .        quad_int(xx(ig),xx(ig+one),xx(ig+two),xx(ig+thr)
+     .                ,vec(1    ,:,:,icomp+ieq),vec(1+one,:,:,icomp+ieq)
+     .                ,vec(1+two,:,:,icomp+ieq),vec(1+thr,:,:,icomp+ieq)
+     .                ,0d0,oavg)
+
+          sp_sum(ieq)= sum(avg_v(1:ny,1:nz,ieq)
+     .                *gl_def%gmetric%grid(igr)%dvol(1,1:ny,1:nz))
+        enddo
+        dv_sum = sum(gl_def%gmetric%grid(igr)%dvol(1,1:ny,1:nz))
+
+#if defined(petsc)
+        allocate(l_sum(3))
+        
+        l_sum = sp_sum
+        call MPI_Allreduce(l_sum,sp_sum,3
+     .                    ,MPI_DOUBLE_PRECISION
+     .                    ,MPI_SUM,gl_def%MPI_COMM,mpierr)
+
+        l_sum(1) = dv_sum
+        call MPI_Allreduce(l_sum(1),dv_sum,1
+     .                    ,MPI_DOUBLE_PRECISION
+     .                    ,MPI_SUM,gl_def%MPI_COMM,mpierr)
+
+        deallocate(l_sum)
+#endif
+
+        !Subtract from main vector
+        do ieq=1,3
+          sp_sum(ieq) = sp_sum(ieq)/dv_sum
+c$$$          if (my_rank == 0)
+c$$$     .      write (*,*) "Cnst vec",ieq,chkRoundOff(.true.,sp_sum(ieq))
+
+          do i=0,nx+1
+            vec(i,:,:,icomp+ieq) = vec(i,:,:,icomp+ieq)-sp_sum(ieq)
+          enddo
+        enddo
+          
+        !Transform back to Curvilinear
+        vec(:,:,:,icomp+1:icomp+3)
+     $       = XformToCurv(gl_def,igr,vec(:,:,:,icomp+1:icomp+3),iscnv)
+
+      enddo
+
+      deallocate(sp_sum,avg_v)
+        
+c     End program
+
+      end subroutine project0SingularBC
+
+c     project1SingularBC
+c     ################################################################
+      subroutine project1SingularBC(gl_def,igr,vec,order_avg,iscnv)
+
+      implicit none
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: gl_def
+
+      real(8) :: vec(0:,0:,0:,:)
+
+      integer :: igr,order_avg
+
+      logical :: iscnv
+
+c     Local variables
+      
+      integer :: nx,ny,nz,neq,i,j,k,ig,jg,kg,one,two,thr
+     .          ,oavg,oext,icomp,ivar,m,l
+
+      real(8) :: curv(3),car(3),tnsr(3,3),tnsr_car(3,3),dv_sum,x1,y1,z1
+
+      real(8),allocatable :: sp_sum(:,:),l_sum(:,:)
+     $                      ,tensor(:,:,:,:,:)
+
+      real(8),pointer,dimension(:) :: xx
+
+c     Begin program
+
+      neq = size(vec,4)
+
+      nx = gl_def%nxv(igr)
+      ny = gl_def%nyv(igr)
+      nz = gl_def%nzv(igr)
+
+c     Prepare interpolations
+
+      oavg = min(order_avg,nx)
+
+      one = 1 ; two = 2; thr = 3
+
+      if (oavg <= 1) then
+        two = one
+        thr = one
+      elseif (oavg == 2) then
+        thr = two
+      endif
+
+      call getMGmap(gl_def,1,1,1,igr,igr,igr,ig,jg,kg)
+
+      xx => gl_def%xx
+
+c     Regularize innermost cell layer (closest to SP)
+
+      allocate(sp_sum(3,3))
+      allocate(tensor(0:nx+1,0:ny+1,0:nz+1,3,3))
+
+      sp_sum = 0d0
+      
+      do ivar=1,neq/3
+        icomp = 3*(ivar-1)
+
+        !Transform to covariant
+        if (iscnv) vec(:,:,:,icomp+1:icomp+3)
+     $             = XformToCov(gl_def,igr,vec(:,:,:,icomp+1:icomp+3))
+
+        !Find Cartesian nabla(vec) tensor
+        do k = 1,nz
+          do j = 1,ny
+            do i = 1,1+oavg
+              tnsr = fnabla_v_cov(gl_def,i,j,k,igr
+     $                           ,vec(:,:,:,icomp+1:icomp+3),0)
+
+              tnsr_car = 0d0
+              do m=1,3
+                do l=1,3
+                  tnsr_car = tnsr_car + tnsr(m,l)
+     $      *matmul(transpose(gl_def%gmetric%grid(igr)%cov(i,j,k,m:m,:))
+     $                       ,gl_def%gmetric%grid(igr)%cov(i,j,k,l:l,:))
+                enddo
+              enddo
+              tensor(i,j,k,:,:) = tnsr_car
+cc              write (*,*) i,j,k,tnsr_car
+            enddo
+          enddo
+        enddo
+
+        !Compute weighed average
+        do m=1,3
+          do l=1,3
+            tensor(0,1:ny,1:nz,m,l) =
+     .        quad_int(xx(ig),xx(ig+one),xx(ig+two),xx(ig+thr)
+     .                ,tensor(1    ,1:ny,1:nz,m,l)
+     $                ,tensor(1+one,1:ny,1:nz,m,l)
+     .                ,tensor(1+two,1:ny,1:nz,m,l)
+     $                ,tensor(1+thr,1:ny,1:nz,m,l)
+     .                ,0d0,oavg)
+
+            sp_sum(m,l)= sum(tensor(0,1:ny,1:nz,m,l)
+     .                  *gl_def%gmetric%grid(igr)%dvol(1,1:ny,1:nz))
+          enddo
+        enddo
+        dv_sum = sum(gl_def%gmetric%grid(igr)%dvol(1,1:ny,1:nz))
+
+#if defined(petsc)
+        allocate(l_sum(3,3))
+        l_sum = sp_sum
+        call MPI_Allreduce(l_sum,sp_sum,9
+     .                    ,MPI_DOUBLE_PRECISION
+     .                    ,MPI_SUM,gl_def%MPI_COMM,mpierr)
+
+        l_sum(1,1) = dv_sum
+        call MPI_Allreduce(l_sum(1,1),dv_sum,1
+     .                    ,MPI_DOUBLE_PRECISION
+     .                    ,MPI_SUM,gl_def%MPI_COMM,mpierr)
+
+        deallocate(l_sum)
+#endif
+
+        !Subtract from main vector
+        sp_sum = sp_sum/dv_sum
+c$$$        if (my_rank == 0) then
+c$$$          write(*,*) "Cnst tensor row 1",chkRoundOff(.true.,sp_sum(1,:))
+c$$$          write(*,*) "Cnst tensor row 2",chkRoundOff(.true.,sp_sum(2,:))
+c$$$          write(*,*) "Cnst tensor row 3",chkRoundOff(.true.,sp_sum(3,:))
+c$$$        endif
+        
+        do k = 0,nz+1
+          do j = 0,ny+1
+            do i = 0,nx+1
+              call getCartesianCoordinates(gl_def,i,j,k,igr,igr,igr
+     .                                    ,ig,jg,kg,x1,y1,z1)
+              curv = vec(i,j,k,icomp+1:icomp+3)
+              vec(i,j,k,icomp+1:icomp+3)
+     .             = XformToCar_ijk(gl_def,i,j,k,igr,curv,.true.)
+     .              -matmul((/x1,y1,z1/),sp_sum)
+            enddo
+          enddo
+        enddo
+          
+        !Transform back to curvilinear (input format)
+        vec(:,:,:,icomp+1:icomp+3)
+     $       = XformToCurv(gl_def,igr,vec(:,:,:,icomp+1:icomp+3),iscnv)
+
+      enddo
+
+      deallocate(sp_sum,tensor)
+        
+c     End program
+
+      end subroutine project1SingularBC
+      
+c     vlapchk
+c     ####################################################################
+      subroutine vlapchk(g_def,igr,order)
+
+c     --------------------------------------------------------------------
+c     Vector laplacian accuracy tests.
+c     --------------------------------------------------------------------
+
+      use xdraw_io
+      
+      implicit none
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
+
+      integer :: igr,order
+
+c     Local variables
+
+      integer :: ig,jg,kg,i,j,k,nx,ny,nz,nxd,nyd,nzd
+     .          ,ilom,ihip,jlom,jhip,klom,khip
+      real(8) :: x1,y1,z1,xmin,xmax,ymin,ymax,zmin,zmax
+
+      real(8),allocatable,dimension(:,:,:,:) :: dummyg,a,a_cnv,dummy
+
+      character(50) :: binfile,drawfile
+      
+c     Begin program
+
+      nx = g_def%nxv(igr)
+      ny = g_def%nyv(igr)
+      nz = g_def%nzv(igr)
+
+      nxd = g_def%nglx
+      nyd = g_def%ngly
+      nzd = g_def%nglz
+
+      ilom = 0 ; jlom = 0 ; klom = 0
+      ihip = nx+1 ; jhip = ny+1 ; khip = nz+1
+      
+      allocate(dummy(0:nx+1,0:ny+1,0:nz+1,3)
+     .        ,a    (0:nx+1,0:ny+1,0:nz+1,3)
+     .        ,a_cnv(0:nx+1,0:ny+1,0:nz+1,3))
+      allocate(dummyg(0:nxd+1,0:nyd+1,0:nzd+1,3))
+      
+      xmin = g_def%gxmin
+      xmax = g_def%gxmax
+      ymin = g_def%gymin
+      ymax = g_def%gymax
+      zmin = g_def%gzmin
+      zmax = g_def%gzmax
+
+      select case(order)
+      case(0)
+        do k = klom,khip
+          do j = jlom,jhip
+            do i = ilom,ihip
+              call getCartesianCoordinates(g_def,i,j,k,igr,igr,igr
+     .                                    ,ig,jg,kg,x1,y1,z1)
+
+              !Vector Laplacian is vector zero
+              a(i,j,k,1) = 1. 
+              a(i,j,k,2) = 2. 
+              a(i,j,k,3) = 3.            
+            enddo
+          enddo
+        enddo
+        binfile = 'vlap0.bin'
+        drawfile= 'drawvlap0.in'
+        if (my_rank == 0) write (*,*) " Zeroth order chk"
+      case(1)
+        do k = klom,khip
+          do j = jlom,jhip
+            do i = ilom,ihip
+              call getCartesianCoordinates(g_def,i,j,k,igr,igr,igr
+     .                                    ,ig,jg,kg,x1,y1,z1)
+
+              !Vector Laplacian is vector zero (no linear z dependence because it is periodic)
+              a(i,j,k,1) = 1 +   x1 + 2*y1
+              a(i,j,k,2) = 2 + 4*x1 + 3*y1 
+              a(i,j,k,3) = 3 
+            enddo
+          enddo
+        enddo
+        binfile = 'vlap1.bin'
+        drawfile= 'drawvlap1.in'
+        if (my_rank == 0) write (*,*) " First order chk"
+      case(2)
+        do k = klom,khip
+          do j = jlom,jhip
+            do i = ilom,ihip
+              call getCartesianCoordinates(g_def,i,j,k,igr,igr,igr
+     .                                  ,ig,jg,kg,x1,y1,z1)
+
+              !Vector Laplacian is vector (1,1,0) (no quadratic z dependence because it is periodic)
+              a(i,j,k,1) = 0.5*x1**2 
+              a(i,j,k,2) = 0.5*y1**2 
+              a(i,j,k,3) = 0
+            enddo
+          enddo
+        enddo
+        binfile = 'vlap2.bin'
+        drawfile= 'drawvlap2.in'
+        if (my_rank == 0) write (*,*) " Second order chk"
+      case default
+        call pstop("vlapchk","Order not implemented")
+      end select
+
+      if (my_rank == 0) then
+        call createDrawInCfile(9,binfile,'Veclap test','t','x','y'
+     $        ,(/'acov1'
+     .          ,'acov2'
+     .          ,'acov3'
+     .          ,'vcnv1'
+     .          ,'vcnv2'
+     .          ,'vcnv3'
+     $          ,'vcov1'
+     .          ,'vcov2'
+     .          ,'vcov3'/)
+     $        ,'-c -X0 -L57',drawfile)
+
+        if (my_rank == 0) then
+          open(unit=110,file=trim(binfile),form='unformatted'
+     .        ,status='replace')
+        endif
+      endif
+      
+      !Covariant and contravariant components
+      call XformVector_mesh2(g_def,igr,a,'car','cov')
+
+      call find_global(a,dummyg)
+      if (my_rank == 0) then
+        call contour(dummyg(0:nxd+1,0:nyd,1,1),nxd+2,nyd+1
+     .              ,0d0,xmax,0d0,ymax,0,110)
+        call contour(dummyg(0:nxd+1,0:nyd,1,2),nxd+2,nyd+1
+     .              ,0d0,xmax,0d0,ymax,1,110)
+        call contour(dummyg(0:nxd+1,0:nyd,1,3),nxd+2,nyd+1
+     .              ,0d0,xmax,0d0,ymax,1,110)
+      endif
+      
+      a_cnv = Xformtocnv(g_def,igr,a)
+
+      !Cnv Vlap
+      dummy = veclap(g_def,igr,a_cnv,clean=.true.)
+      call plot_v(order,.false.)
+
+      !Cov Vlap
+      dummy = veclap_cov(g_def,igr,a,clean=.true.)   
+      call plot_v(order,.true.)
+
+      if (my_rank == 0) close(110)
+
+      deallocate(dummyg,dummy,a,a_cnv)
+      
+      contains
+
+c     plot_v
+c     ####################################################################
+      subroutine plot_v(order,cov)
+
+      implicit none
+
+      logical :: cov
+      integer :: order,bcnd(6,3)
+      
+      bcnd(:,1) = bcond
+      bcnd(:,2) = bcond
+      bcnd(:,3) = bcond
+      where (bcnd == DEF) bcnd = EXT
+
+      call imposeBConVector_ez(g_def,igr,dummy,.not.cov,bcnd,2)
+
+      select case(order)
+      case(2)         !Result should be (1,1,1)
+        dummy = XformtoCar(g_def,igr,dummy,cov) - 1d0
+      case(0)         !Result should be (0,0,0)
+        if (.not.cov) then
+          do k = klom,khip
+            do j = jlom,jhip
+              do i = ilom,ihip
+                call find_polar_coords(g_def,igr,i,j,k,x1,y1,z1,coords)
+
+                dummy(i,j,k,1) = x1   *dummy(i,j,k,1)
+                dummy(i,j,k,2) = x1**2*dummy(i,j,k,2)
+              enddo
+            enddo
+          enddo
+        else
+          do k = klom,khip
+            do j = jlom,jhip
+              do i = ilom,ihip
+                call find_polar_coords(g_def,igr,i,j,k,x1,y1,z1,coords)
+
+                dummy(i,j,k,1) = x1**2*dummy(i,j,k,1)
+                dummy(i,j,k,2) = x1   *dummy(i,j,k,2)
+              enddo
+            enddo
+          enddo
+        endif
+      case(1)         !Result should be (0,0,0)
+        if (.not.cov) then
+          do k = klom,khip
+            do j = jlom,jhip
+              do i = ilom,ihip
+                call find_polar_coords(g_def,igr,i,j,k,x1,y1,z1,coords)
+
+                dummy(i,j,k,1) =    dummy(i,j,k,1)
+                dummy(i,j,k,2) = x1*dummy(i,j,k,2)
+              enddo
+            enddo
+          enddo
+        else
+          do k = klom,khip
+            do j = jlom,jhip
+              do i = ilom,ihip
+                call find_polar_coords(g_def,igr,i,j,k,x1,y1,z1,coords)
+
+                dummy(i,j,k,1) = x1*dummy(i,j,k,1)
+                dummy(i,j,k,2) =    dummy(i,j,k,2)
+              enddo
+            enddo
+          enddo
+        endif
+      end select
+
+      call find_global(dummy,dummyg)
+
+      if (my_rank == 0) then
+        call contour(dummyg(0:nxd+1,0:nyd,1,1),nxd+2,nyd+1
+     .              ,0d0,xmax,0d0,ymax,1,110)
+        call contour(dummyg(0:nxd+1,0:nyd,1,2),nxd+2,nyd+1
+     .              ,0d0,xmax,0d0,ymax,1,110)
+        call contour(dummyg(0:nxd+1,0:nyd,1,3),nxd+2,nyd+1
+     .              ,0d0,xmax,0d0,ymax,1,110)
+      endif
+      
+      end subroutine plot_v
+      
+      end subroutine vlapchk
 
 c     curlcurl_cov_mesh
 c     ###############################################################

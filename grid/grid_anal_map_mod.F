@@ -238,9 +238,9 @@ c$$$          enddo
 
         case ('sh3')
 ! Shaped toroidal coordinates system from X. Z. Tang
-! x = (R0 + r*a*(cos(theta+asin(delta*sin(theta)))-dR))*cos(-phi)
-! y = (R0 + r*a*(cos(theta+asin(delta*sin(theta)))-dR))*sin(-phi)
-! z =  Z0 + r*kappa*(sin(theta + zeta*sin(2*theta))-dZ)
+! x = (R0 + r*a*(cos(theta+asin(delta*r**2*sin(theta)))-dR))*cos(-phi)
+! y = (R0 + r*a*(cos(theta+asin(delta*r**2*sin(theta)))-dR))*sin(-phi)
+! z =  Z0 + r*kappa*(sin(theta + zeta*r**2*sin(2*theta))-dZ)
 
           major_r = gp(1)  !R-coord of magnetic axis (major radius)
           Z0      = gp(2)  !Z-coord of magnetic axis
