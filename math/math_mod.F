@@ -333,6 +333,22 @@ c     Begin program
 
       end function chkRoundOff_sp
 
+c     trace
+c     #################################################################
+      function trace(m,tensor)
+
+      real(8) :: tensor(m,m)
+
+      real(8) :: trace
+      integer :: i
+
+      trace = 0d0
+      do i=1,m
+        trace = trace + tensor(i,i)
+      enddo
+      
+      end function trace
+      
 c     determ3_dp
 c     #################################################################
       function determ3_dp(tensor)

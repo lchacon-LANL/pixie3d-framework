@@ -278,6 +278,8 @@ CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
           DO J=1,NATT
             WRITE (*,*) "Variance=",(XVAR(K,I,J),I=1,J)
           ENDDO
+          WRITE (*,*) "Det chk=",trace(NATT,XVAR(K,:,:))
+     $                         /(NATT*(det(XVAR(K,:,:)))**(1d0/NATT))
           WRITE (*,*)
         ENDDO
       ENDIF

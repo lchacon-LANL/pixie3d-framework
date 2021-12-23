@@ -221,11 +221,13 @@ c     Call variables
 c     Local variables
 
       real(8) :: NPARBY2
-      real(8) :: p_ik,T_OLD(NG),TK,ISQDV,CN,LWSUM
+      real(8) :: p_ik,T_OLD(NG),TK,ISQDV,CN,LWSUM,EIG_SPRD
       real(8) :: semiAL(NIND,NG),AL_JJ(NG),XMUK(NATT),VK(NATT,NATT)
 
       integer :: K,KK,JJ,NG_OLD,NG_Killed,K_tmp,NINDT
 
+      logical :: KILL_G
+      
 c     Begin program
 
 #if defined(petsc)
@@ -269,12 +271,22 @@ C	Mixing proportion calc. by Figuireido's 2002 paper
 
         T(K) = max(WSUM(K)-NPARBY2,0d0)/(WTOT-NG_OLD*NPARBY2)
 
-C	!Weed out too-small Gaussians and/or update moments
-C	!The following IF-statement is consistent with algorithm
-C	!listed in Figueiredo's 2002 paper
-c	if(T(K) .LT. 5D-3 .and. NG > 1) then	! kill grp K if T(K)==0
-C	!An easier condition for killing Gaussian: 
-        if((T(K)*NINDT) < 2**NATT .and. NG > 1) then	! kill grp K if .LT. 2**NATT pcles
+	!Weed out too-small Gaussians and/or update moments
+	!The following IF-statement is consistent with algorithm
+	!listed in Figueiredo's 2002 paper
+c$$$        KILL_G = (T(K) .LT. 5D-3)
+
+        !An easier condition for killing Gaussian:
+        !Kill if it cannot support at least 2*NATT pcles, or if too elongated
+        !(very inaccurate Cholesky factorization). Elongation is 
+        !estimated by ratio of arithmetic over geometric eigenvalue average.
+
+        EIG_SPRD = trace(NATT,XVAR(K,:,:))/NATT
+     $           /(det(XVAR(K,:,:)))**(1d0/NATT)
+        
+        KILL_G = (T(K)*NINDT < 2**NATT).or.(EIG_SPRD > 2d1)
+
+        if(KILL_G .and. NG > 1) then ! kill grp K 
 
           T(K) = 0D0
           XMU(K,1:NATT) = 0D0
@@ -585,8 +597,6 @@ C         !An easier condition for killing Gaussian:
       T(1:NG_ORG) = T(1:NG_ORG)/SUM(T(1:NG_ORG))
 
       end subroutine SIM_AEM_step_2
-
-
 
 c     update_gaussian_moments
 c     ###############################################################
