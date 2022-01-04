@@ -534,7 +534,7 @@
 
 !     openADIOS2RecordFileForRead
 !     #################################################################
-      subroutine openADIOS2RecordFileForRead(ierr,file,nvar,nx,ny,nz)
+      subroutine openADIOS2RecordFileForRead(ierr,file)!,nvar,nx,ny,nz)
 
         implicit none
 
@@ -542,7 +542,7 @@
 
         integer,intent(out) :: ierr
         character(*),optional :: file
-        integer,optional,intent(out) :: nvar,nx,ny,nz
+!        integer,optional,intent(out) :: nvar,nx,ny,nz
 
 !     Local variables
 
@@ -568,13 +568,13 @@
         !Open ADIOS file
         call adios2_declare_io(aio, adios2obj, 'record.read', ierr)
 
-        call adios2_logging('read open')
+        call adios2_logging('read-only open')
         call adios2_open(rengine, aio,trim(rfile), adios2_mode_read, adios2_world_comm, ierr)
-        call adios2_check_err(ierr, 'Problem in read open')
+        call adios2_check_err(ierr, 'Problem in read-only open')
         
         call adios2_get(rengine, 'time', tmp, ierr)
 
-!        call adios2_steps(adios2_ntsteps,rengine,ierr)
+!         call adios2_steps(adios2_ntsteps,rengine,ierr)
 
 !         !Inquire ADIOS file
 !         call adios_inq_file(adios_fh,vcnt,acnt,adios_tstart,adios2_ntsteps,gnamelist,ierr)
@@ -619,14 +619,14 @@
         !   endif
         ! endif
 
-        if (adios2_debug) then
-           print *, 'PRESENT(nvar)', PRESENT(nvar)
-           print *, 'PRESENT(nx)', PRESENT(nx), nx
-           print *, 'PRESENT(ny)', PRESENT(ny), ny
-           print *, 'PRESENT(nz)', PRESENT(nz), nz
-        endif
+!        if (adios2_debug) then
+!           print *, 'PRESENT(nvar)', PRESENT(nvar)
+!           print *, 'PRESENT(nx)', PRESENT(nx), nx
+!           print *, 'PRESENT(ny)', PRESENT(ny), ny
+!           print *, 'PRESENT(nz)', PRESENT(nz), nz
+!        endif
         !!jyc: is this critical?
-        if (PRESENT(nvar)) nvar = adios2_nvar
+        !if (PRESENT(nvar)) nvar = adios2_nvar
         !if (PRESENT(nx)) nx = adios_vardims(1)-2
         !if (PRESENT(ny)) ny = adios_vardims(2)-2
         !if (PRESENT(nz)) nz = adios_vardims(3)-2
@@ -681,7 +681,7 @@
       call adios2_init(adios2obj,'adios_config.xml',adios2_world_comm,.true.,ierr)
       call adios2_check_err(ierr, 'Problem in read init')
 
-      call openADIOS2RecordFileForRead(adios2_err,file=file,nx=nxd,ny=nyd,nz=nzd)
+      call openADIOS2RecordFileForRead(adios2_err,file=file)
       if (adios2_err /= 0) then
         call pstop('openRestartFileForRead','Error reading ADIOS restart file')
       endif
