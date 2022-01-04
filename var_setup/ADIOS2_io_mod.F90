@@ -33,7 +33,7 @@
         character(30), dimension(50) :: adios2_attrlist  ! list of all attributes 
         integer   :: adios2_nvar           ! number of /var/ variables in file (~8)
         character(30), dimension(50) :: adios2_varnames  ! list of /var/ vars 
-        integer   :: adios2_tstart, adios2_tend, adios2_ntsteps ! timesteps available
+        integer*8 :: adios2_tstart, adios2_tend, adios2_ntsteps ! timesteps available
         integer   :: adios2_tread          ! 0 ... ntsteps-1
         integer   :: adios2_err            ! error handler
         integer   :: adios2_attrtype,adios2_attrsize,adios2_vartype,adios2_ndim,adios2_tdim
@@ -90,8 +90,9 @@
       else
          call MPI_Comm_dup (MPI_COMM_WORLD,adios2_world_comm,ierr)
          if (.not.adios2obj%valid) then
-            call adios2_logging('ADIOS2 init')
+            call adios2_logging('init')
             call adios2_init(adios2obj,'adios_config.xml', adios2_world_comm,.true.,ierr)
+            call adios2_check_err(ierr, 'Problem in init')
          endif
       endif
 
@@ -111,13 +112,13 @@
 
       integer :: ierr
 
-      call adios2_logging('Terminating ADIOS2 IO')
+      call adios2_logging('Terminating IO')
 
       if (.not.isfirst) then
-         call adios2_logging('ADIOS2 write close')
+         call adios2_logging('write close')
          call adios2_close(engine, ierr)
-         call adios2_check_err(ierr, 'Problem in ADIOS2 write close')
-         call adios2_logging('ADIOS2 finalize')
+         call adios2_check_err(ierr, 'Problem in write close')
+         call adios2_logging('finalize')
          call adios2_finalize(adios2obj, ierr)
       endif
       call MPI_Comm_free(adios2_world_comm,ierr)
@@ -241,15 +242,15 @@
          call adios2_define_variable (var, aio, "gammat", adios2_type_dp, err)
          call defineDerivedTypeADIOS2 (aio, varray, addl_write)
 
-         call adios2_logging('ADIOS2 write access mode: '//trim(mode))
-         call adios2_logging('ADIOS2 write open')
+         call adios2_logging('write access mode: '//trim(mode))
+         call adios2_logging('write open')
          call adios2_open(engine,aio,file,adios2_mode,adios2_world_comm,err)
          call adios2_check_err(err,'Could not open ADIOS2 for writing')
       else
          call adios2_logging('Not first. No define vars.')
       endif
 
-      call adios2_logging('ADIOS2 begin write step')
+      call adios2_logging('begin write step')
       call adios2_begin_step(engine, adios2_step_mode_append, err)
       call adios2_check_err(err, 'Problem in ADIOS2 begin write step')
 
@@ -261,7 +262,7 @@
       call writeDerivedTypeADIOS2(engine, varray, addl_write)
       
       !End adios step
-      call adios2_logging('ADIOS2 end write step')
+      call adios2_logging('end write step')
       call adios2_end_step(engine, err)
       call adios2_check_err(err, 'Problem in ADIOS2 writing step end')
 
@@ -547,12 +548,12 @@
 
         integer :: gcnt, vcnt, acnt, nullidx, ts, lastts,i
         character (len=20), dimension(1)  :: gnamelist  ! list of groups (=1)
-        character(len=1024) :: rfile
+        character(len=len(recordfile)) :: rfile
         logical :: inq_adios_var
 
         type(adios2_variable) :: var
         type(adios2_attribute) :: attr
-        real*8 :: tmp
+        real(8) :: tmp
 
 !     Begin program
 
@@ -567,11 +568,13 @@
         !Open ADIOS file
         call adios2_declare_io(aio, adios2obj, 'record.read', ierr)
 
-        call adios2_logging('ADIOS2 read open')
+        call adios2_logging('read open')
         call adios2_open(rengine, aio,trim(rfile), adios2_mode_read, adios2_world_comm, ierr)
-        call adios2_check_err(ierr, 'Problem in ADIOS2 read open')
+        call adios2_check_err(ierr, 'Problem in read open')
         
         call adios2_get(rengine, 'time', tmp, ierr)
+
+!        call adios2_steps(adios2_ntsteps,rengine,ierr)
 
 !         !Inquire ADIOS file
 !         call adios_inq_file(adios_fh,vcnt,acnt,adios_tstart,adios2_ntsteps,gnamelist,ierr)
@@ -638,9 +641,9 @@
 
         integer :: ierr
 
-        call adios2_logging('ADIOS2 read close')
+        call adios2_logging('read close')
         call adios2_close(rengine, ierr)
-        call adios2_check_err(ierr, 'Problem in ADIOS2 read close')
+        call adios2_check_err(ierr, 'Problem in read close')
 
       end function closeADIOS2RecordFileForRead
 
@@ -674,8 +677,9 @@
       !call adios_set_max_buffer_size(ADIOS_BUFFER_MB,adios_err)
 
       call MPI_Comm_dup (MPI_COMM_WORLD,adios2_world_comm,ierr)
-      call adios2_logging('ADIOS2 read init')
+      call adios2_logging('read init')
       call adios2_init(adios2obj,'adios_config.xml',adios2_world_comm,.true.,ierr)
+      call adios2_check_err(ierr, 'Problem in read init')
 
       call openADIOS2RecordFileForRead(adios2_err,file=file,nx=nxd,ny=nyd,nz=nzd)
       if (adios2_err /= 0) then
@@ -721,9 +725,9 @@
          write (*,"(a,i5)") "INFO: ADIOS2 read time=", adios2_tread
       endif
 
-      call adios2_logging('ADIOS2 begin read step')
+      call adios2_logging('begin read step')
       call adios2_begin_step(rengine, adios2_step_mode_read, 0.0, istatus, ierr)
-      call adios2_check_err(ierr, 'Problem in ADIOS2 begin read step')
+      call adios2_check_err(ierr, 'Problem in begin read step')
       
       if ((istatus.eq.0).and.(ierr.eq.0)) then
          call adios2_get(rengine,"time",time,ierr)
@@ -733,7 +737,7 @@
          call adios2_get(rengine,"nvar",adios2_nvar,ierr)
          call readDerivedTypeADIOS2(rengine,varray,adios2_tread,firstread,ierr)
          call adios2_end_step(rengine, ierr)
-         call adios2_logging('ADIOS2 end read step')
+         call adios2_logging('end read step')
 
          varray%nvar = adios2_nvar
          adios2_tread = adios2_tread + 1
@@ -911,8 +915,11 @@
         character(*) :: msg
 
         if (errno.ne.0) then
-           write (*,*) 'ERROR: ',trim(msg),' (errno=',errno,', rank=',my_rank,')'
-           stop
+           write (*,'(a,a,a,i3,a,i4,a)') 'ADIOS2 ERROR: ',trim(msg),' (errno=',errno,', rank=',my_rank,')'
+        endif
+
+        if (pmax(dble(errno))/=0d0) then
+           call pstop("","")
         endif
       end subroutine adios2_check_err
 
@@ -921,7 +928,7 @@
         character(*) :: msg
 
         if (adios2_debug.and.(my_rank.eq.0)) then
-           write (*,*) 'INFO: ',trim(msg)
+           write (*,*) 'ADIOS2 INFO: ',trim(msg)
         endif
       end subroutine adios2_logging
 #endif
