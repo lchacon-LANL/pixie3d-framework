@@ -12,9 +12,9 @@
 
       real(8),parameter :: pi=acos(-1d0)
 
-      INTERFACE det
-        module procedure determ3_dp,determ3_sp
-      END INTERFACE
+c$$$      INTERFACE det
+c$$$        module procedure determ3_sp,determ3
+c$$$      END INTERFACE
 
       INTERFACE fmed
         module procedure fmed_scl,fmed_vec
@@ -348,40 +348,87 @@ c     #################################################################
       enddo
       
       end function trace
-      
-c     determ3_dp
+
+c     det
 c     #################################################################
-      function determ3_dp(tensor)
+      function det(tensor)
+
+      real(8) :: tensor(:,:)
+
+      real(8) :: det
+      integer :: d
+
+      d = size(tensor,1)
+      
+      select case(d)
+      case(1)
+        det = determ1(tensor)
+      case(2)
+        det = determ2(tensor)
+      case(3)
+        det = determ3(tensor)
+      end select
+      
+      end function det
+
+c     determ3
+c     #################################################################
+      function determ3(tensor)
 
       real(8) :: tensor(3,3)
 
-      real(8) :: determ3_dp
+      real(8) :: determ3
 
-      determ3_dp = tensor(1,1)*tensor(2,2)*tensor(3,3)
+      determ3 = tensor(1,1)*tensor(2,2)*tensor(3,3)
      .            +tensor(3,2)*tensor(2,1)*tensor(1,3)
      .            +tensor(1,2)*tensor(2,3)*tensor(3,1)
      .            -tensor(1,3)*tensor(2,2)*tensor(3,1)
      .            -tensor(1,1)*tensor(2,3)*tensor(3,2)
      .            -tensor(3,3)*tensor(1,2)*tensor(2,1)
 
-      end function determ3_dp
+      end function determ3
 
-c     determ3_sp
+c     determ2
 c     #################################################################
-      function determ3_sp(tensor)
+      function determ2(tensor)
 
-      real(4) :: tensor(3,3)
+      real(8) :: tensor(2,2)
 
-      real(4) :: determ3_sp
+      real(8) :: determ2
 
-      determ3_sp = tensor(1,1)*tensor(2,2)*tensor(3,3)
-     .            +tensor(3,2)*tensor(2,1)*tensor(1,3)
-     .            +tensor(1,2)*tensor(2,3)*tensor(3,1)
-     .            -tensor(1,3)*tensor(2,2)*tensor(3,1)
-     .            -tensor(1,1)*tensor(2,3)*tensor(3,2)
-     .            -tensor(3,3)*tensor(1,2)*tensor(2,1)
+      determ2 = tensor(1,1)*tensor(2,2)
+     .         -tensor(1,2)*tensor(2,1)
+      
+      end function determ2
 
-      end function determ3_sp
+c     determ1
+c     #################################################################
+      function determ1(tensor)
+
+      real(8) :: tensor(1,1)
+
+      real(8) :: determ1
+
+      determ1 = tensor(1,1)
+
+      end function determ1
+
+c$$$c     determ3_sp
+c$$$c     #################################################################
+c$$$      function determ3_sp(tensor)
+c$$$
+c$$$      real(4) :: tensor(3,3)
+c$$$
+c$$$      real(4) :: determ3_sp
+c$$$
+c$$$      determ3_sp = tensor(1,1)*tensor(2,2)*tensor(3,3)
+c$$$     .            +tensor(3,2)*tensor(2,1)*tensor(1,3)
+c$$$     .            +tensor(1,2)*tensor(2,3)*tensor(3,1)
+c$$$     .            -tensor(1,3)*tensor(2,2)*tensor(3,1)
+c$$$     .            -tensor(1,1)*tensor(2,3)*tensor(3,2)
+c$$$     .            -tensor(3,3)*tensor(1,2)*tensor(2,1)
+c$$$
+c$$$      end function determ3_sp
 
 c     atanh
 c     #################################################################
