@@ -63,18 +63,20 @@ C     Output: Conserved quantities T,XMU,XVAR
       IMPLICIT NONE
 
 C     Call variables
+
       INTEGER, INTENT(IN) :: NG,NATT
       REAL(8), INTENT(IN) :: TS,XMUS(NATT),XVARS(NATT,NATT)
       REAL(8), INTENT(INOUT) ::T(NG),XMU(NG,NATT)
      $          ,XVAR(NG,NATT,NATT)
 
 C     Local variables
+
       REAL(8) :: XMU_D(NATT),XVAR_D(NATT,NATT)
       INTEGER :: I,J,K
       REAL(8) :: DIFF,TOL
 
-
 C     Conserve proportion (mass) - zeroth-order mom
+
       IF ( NG .EQ. 1 ) THEN
         T(NG) = 1D0
       ELSE
@@ -82,6 +84,7 @@ C     Conserve proportion (mass) - zeroth-order mom
       ENDIF
 
 C     Conserve momentum (mean) - first-order mom
+
       XMU_D(1:NATT) = XMUS(1:NATT)
       DO K=1,NG
         XMU_D(1:NATT) = XMU_D(1:NATT) - T(K)*XMU(K,1:NATT)
@@ -91,6 +94,7 @@ C     Conserve momentum (mean) - first-order mom
       END DO
       
 C     Conserve covar - second-order mom
+
       XVAR_D = XVARS
       DO K=1,NG
         DO J=1,NATT      
@@ -106,6 +110,7 @@ C     Conserve covar - second-order mom
           XVAR_D(J,I)=XVAR_D(I,J)
         END DO
       END DO
+
       DO K=1,NG
        XVAR(K,1:NATT,1:NATT)=XVAR(K,1:NATT,1:NATT)+XVAR_D(1:NATT,1:NATT)
       END DO
@@ -216,11 +221,13 @@ c     Call variables
 c     Local variables
 
       real(8) :: NPARBY2
-      real(8) :: p_ik,T_OLD(NG),TK,ISQDV,CN,LWSUM
+      real(8) :: p_ik,T_OLD(NG),TK,ISQDV,CN,LWSUM,EIG_SPRD
       real(8) :: semiAL(NIND,NG),AL_JJ(NG),XMUK(NATT),VK(NATT,NATT)
 
       integer :: K,KK,JJ,NG_OLD,NG_Killed,K_tmp,NINDT
 
+      logical :: KILL_G
+      
 c     Begin program
 
 #if defined(petsc)
@@ -264,12 +271,22 @@ C	Mixing proportion calc. by Figuireido's 2002 paper
 
         T(K) = max(WSUM(K)-NPARBY2,0d0)/(WTOT-NG_OLD*NPARBY2)
 
-C	!Weed out too-small Gaussians and/or update moments
-C	!The following IF-statement is consistent with algorithm
-C	!listed in Figueiredo's 2002 paper
-c	if(T(K) .LT. 5D-3 .and. NG > 1) then	! kill grp K if T(K)==0
-C	!An easier condition for killing Gaussian: 
-        if((T(K)*NINDT) < 2**NATT .and. NG > 1) then	! kill grp K if .LT. 2**NATT pcles
+	!Weed out too-small Gaussians and/or update moments
+	!The following IF-statement is consistent with algorithm
+	!listed in Figueiredo's 2002 paper
+c$$$        KILL_G = (T(K) .LT. 5D-3)
+
+        !An easier condition for killing Gaussian:
+        !Kill if it cannot support at least 2*NATT pcles, or if too elongated
+        !(very inaccurate Cholesky factorization). Elongation is 
+        !estimated by ratio of arithmetic over geometric eigenvalue average.
+
+        EIG_SPRD = trace(NATT,XVAR(K,:,:))/NATT
+     $           /(det(XVAR(K,:,:)))**(1d0/NATT)
+        
+        KILL_G = (T(K)*NINDT < 2**NATT).or.(EIG_SPRD > 2d1)
+
+        if(KILL_G .and. NG > 1) then ! kill grp K 
 
           T(K) = 0D0
           XMU(K,1:NATT) = 0D0
@@ -580,8 +597,6 @@ C         !An easier condition for killing Gaussian:
       T(1:NG_ORG) = T(1:NG_ORG)/SUM(T(1:NG_ORG))
 
       end subroutine SIM_AEM_step_2
-
-
 
 c     update_gaussian_moments
 c     ###############################################################

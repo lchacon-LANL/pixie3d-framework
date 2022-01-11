@@ -1615,9 +1615,9 @@ c     Begin program
         mpicomm = MPI_COMM_WORLD
       endif
 
-      call MPI_Allreduce(val,pmin,1,MPI_INT,MPI_MIN,mpicomm,mpierr)
+      call MPI_Allreduce(val,ipmin,1,MPI_INT,MPI_MIN,mpicomm,mpierr)
 #else
-      pmin = val
+      ipmin = val
 #endif
 
       end function ipmin

@@ -341,10 +341,11 @@ c ######################################################################
 
         use bc_def
 
-        implicit none
-
 #if defined(petsc)
 
+        use mpi
+        
+#define PETSC_AVOID_MPIF_H
 #include "finclude/petsc.h"
 #include "finclude/petscvec.h"
 #include "finclude/petscda.h"

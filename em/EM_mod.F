@@ -251,9 +251,10 @@ c$$$      ENDIF
 
       CALL CAPART(NIND,NATT,NG,W,IDT,XCC)
 
-cC     Enforce conservation for moments
-c      CALL ENFORCE_MOMS_CONSERVATION(NG,NATT,TS,XMUS,XVARS
-c     $	,T(1:NG),XMU(1:NG,:),XVAR(1:NG,:,:))
+C     Enforce conservation for moments
+
+c$$$      CALL ENFORCE_MOMS_CONSERVATION(NG,NATT,TS,XMUS,XVARS
+c$$$     $	,T(1:NG),XMU(1:NG,:),XVAR(1:NG,:,:))
 
 CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
 c     IO
@@ -277,6 +278,8 @@ CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
           DO J=1,NATT
             WRITE (*,*) "Variance=",(XVAR(K,I,J),I=1,J)
           ENDDO
+          WRITE (*,*) "Det chk=",trace(NATT,XVAR(K,:,:))
+     $                         /(NATT*(det(XVAR(K,:,:)))**(1d0/NATT))
           WRITE (*,*)
         ENDDO
       ENDIF

@@ -352,7 +352,7 @@ c     Assign Gaussians in groups of 8 according to principal axes
       if (NIND > 0) then
         r = XVARS
       
-        call r8po_fa(NATT,r,info)
+        call r8po_fa(NATT,r)
 
         sgn = -1d0
         KK = 1
