@@ -899,8 +899,8 @@ c     Begin program
 
       ! TN: Some of the cov-matrices will have very small determinant
       ! Should use small tolerance:
-      TOL=(TOL/NATT)*1.0D-10
-      !TOL=(TOL/NATT)*1.0D-6    ! original TOL
+      !TOL=(TOL/NATT)*1.0D-10
+      TOL=(TOL/NATT)*1.0D-6    ! original TOL
       CALL SYMINV (TRIANG,NATT,ATRIANG,TEMP,NULL,IER,RMAX,CMY,TOL=TOL)
       IF (IER.GT.0) GO TO 899
       IF (NULL.NE.0) THEN
@@ -966,6 +966,13 @@ c     Begin program
      .            ,DV(K),IER,NULL)
         if (IER == 5) then
           write (*,*) "Determinant equal to zero in group",K
+          do I=1,NATT
+            write (*,*) xvar(K,I,:)
+          enddo
+          stop
+        endif
+        if (NULL /= 0) then
+          write (*,*) "Group",K," rank deficiency=",NULL
           do I=1,NATT
             write (*,*) xvar(K,I,:)
           enddo

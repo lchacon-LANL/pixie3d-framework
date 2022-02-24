@@ -14,7 +14,7 @@ CPPFLAGS += $(PREPROC)$(ARCH)
 # DEFAULTS #
 ############
 
-FC?=gfortran
+FC   ?= gfortran
 HDF5 ?= f
 ADIOS?= f
 
