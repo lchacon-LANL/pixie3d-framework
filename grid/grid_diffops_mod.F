@@ -5245,8 +5245,8 @@ c     End program
 
 c     dtnsr_flx_ijk_new
 c     ###############################################################
-      function dtnsr_flx_ijk_new(g_def,i,j,k,igr,flux
-     $                          ,v1,v2,s1,s2) result(flx)
+      function dtnsr_flx_ijk_new(g_def,i,j,k,igr,flux,v1,v2,s1,s2)
+     $         result(flx)
 c     ---------------------------------------------------------------
 c     Calculates fluxes for contravariant components of div(tensor) in
 c     general non-orthogonal coordinates at faces. The routine flux must
@@ -5269,11 +5269,13 @@ c     Call variables
       real(8),dimension(:,:,:,:),pointer,optional :: v1,v2
       
       INTERFACE
-        subroutine flux(g_def,i,j,k,igr,flx,flag)
+        subroutine flux(g_def,i,j,k,igr,flx,flag,v1,v2,s1,s2)
           use grid_def
           type(grid_mg_def),pointer :: g_def
           integer    :: i,j,k,flag,igr
           real(8)    :: flx(3)
+          real(8),dimension(:,:,:  ),pointer,optional :: s1,s2
+          real(8),dimension(:,:,:,:),pointer,optional :: v1,v2
         end subroutine flux
       END INTERFACE
 
@@ -5281,33 +5283,7 @@ c     Local variables
 
 c     Begin program
 
-      if (PRESENT(v1)) then
-        vec1 => v1
-      else
-        vec1 => null()
-      endif
-      
-      if (PRESENT(v2)) then
-        vec2 => v2
-      else
-        vec2 => null()
-      endif
-      
-      if (PRESENT(s1)) then
-        sc1 => s1
-      else
-        sc1 => null()
-      endif
-      
-      if (PRESENT(s2)) then
-        sc2 => s2
-      else
-        sc2 => null()
-      endif
-      
-      call flux(g_def,i,j,k,igr,flx,1)
-
-      nullify(vec1,vec2,sc1,sc2)
+      call flux(g_def,i,j,k,igr,flx,1,v1=v1,v2=v2,s1=s1,s2=s2)
       
 c     End program
 
@@ -5338,25 +5314,31 @@ c     Call variables
       real(8),dimension(:,:,:,:),pointer,optional :: v1,v2
       
       INTERFACE
-        subroutine flxx(g_def,i,j,k,igr,flx1,flag)
+        subroutine flxx(g_def,i,j,k,igr,flx1,flag,v1,v2,s1,s2)
           use grid_def
           type(grid_mg_def),pointer :: g_def
           integer    :: i,j,k,flag,igr
           real(8)    :: flx1(3)
+          real(8),dimension(:,:,:  ),pointer,optional :: s1,s2
+          real(8),dimension(:,:,:,:),pointer,optional :: v1,v2
         end subroutine flxx
 
-        subroutine flxy(g_def,i,j,k,igr,flx2,flag)
+        subroutine flxy(g_def,i,j,k,igr,flx2,flag,v1,v2,s1,s2)
           use grid_def
           type(grid_mg_def),pointer :: g_def
           integer    :: i,j,k,flag,igr
           real(8)    :: flx2(3)
+          real(8),dimension(:,:,:  ),pointer,optional :: s1,s2
+          real(8),dimension(:,:,:,:),pointer,optional :: v1,v2
         end subroutine flxy
 
-        subroutine flxz(g_def,i,j,k,igr,flx3,flag)
+        subroutine flxz(g_def,i,j,k,igr,flx3,flag,v1,v2,s1,s2)
           use grid_def
           type(grid_mg_def),pointer :: g_def
           integer    :: i,j,k,flag,igr
           real(8)    :: flx3(3)
+          real(8),dimension(:,:,:  ),pointer,optional :: s1,s2
+          real(8),dimension(:,:,:,:),pointer,optional :: v1,v2
         end subroutine flxz
       END INTERFACE
 
@@ -5366,39 +5348,15 @@ c     Local variables
 
 c     Begin program
 
-      if (PRESENT(v1)) then
-        vec1 => v1
-      else
-        vec1 => null()
-      endif
-      
-      if (PRESENT(v2)) then
-        vec2 => v2
-      else
-        vec2 => null()
-      endif
-      
-      if (PRESENT(s1)) then
-        sc1 => s1
-      else
-        sc1 => null()
-      endif
-      
-      if (PRESENT(s2)) then
-        sc2 => s2
-      else
-        sc2 => null()
-      endif
-      
       if (.not.no_map) then
         hess = g_def%gmetric%grid(igr)%Gamma(i,j,k,:,:,:)
 
         jac = g_def%gmetric%grid(igr)%jac(i,j,k)
         ijac = 1d0/jac
         
-        call flxx(g_def,i,j,k,igr,to(1,:),0)
-        call flxy(g_def,i,j,k,igr,to(2,:),0)
-        call flxz(g_def,i,j,k,igr,to(3,:),0)
+        call flxx(g_def,i,j,k,igr,to(1,:),0,v1=v1,v2=v2,s1=s1,s2=s2)
+        call flxy(g_def,i,j,k,igr,to(2,:),0,v1=v1,v2=v2,s1=s1,s2=s2)
+        call flxz(g_def,i,j,k,igr,to(3,:),0,v1=v1,v2=v2,s1=s1,s2=s2)
 
         src(1) = sum(to*hess(1,:,:))*ijac
 
@@ -5416,8 +5374,6 @@ c     Begin program
         src = 0d0
       endif
 
-      nullify(vec1,vec2,sc1,sc2)
-      
 c     End program
 
       end function dtnsr_src_ijk_new
@@ -5454,25 +5410,31 @@ c     Call variables
       real(8),dimension(:,:,:,:),pointer,optional :: v1,v2
       
       INTERFACE
-        subroutine flxx(g_def,i,j,k,igr,flx1,flag)
+        subroutine flxx(g_def,i,j,k,igr,flx1,flag,v1,v2,s1,s2)
           use grid_def
           type(grid_mg_def),pointer :: g_def
           integer    :: i,j,k,flag,igr
           real(8)    :: flx1(3)
+          real(8),dimension(:,:,:  ),pointer,optional :: s1,s2
+          real(8),dimension(:,:,:,:),pointer,optional :: v1,v2
         end subroutine flxx
 
-        subroutine flxy(g_def,i,j,k,igr,flx2,flag)
+        subroutine flxy(g_def,i,j,k,igr,flx2,flag,v1,v2,s1,s2)
           use grid_def
           type(grid_mg_def),pointer :: g_def
           integer    :: i,j,k,flag,igr
           real(8)    :: flx2(3)
+          real(8),dimension(:,:,:  ),pointer,optional :: s1,s2
+          real(8),dimension(:,:,:,:),pointer,optional :: v1,v2
         end subroutine flxy
 
-        subroutine flxz(g_def,i,j,k,igr,flx3,flag)
+        subroutine flxz(g_def,i,j,k,igr,flx3,flag,v1,v2,s1,s2)
           use grid_def
           type(grid_mg_def),pointer :: g_def
           integer    :: i,j,k,flag,igr
           real(8)    :: flx3(3)
+          real(8),dimension(:,:,:  ),pointer,optional :: s1,s2
+          real(8),dimension(:,:,:,:),pointer,optional :: v1,v2
         end subroutine flxz
       END INTERFACE
 
