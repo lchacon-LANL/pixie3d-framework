@@ -5243,6 +5243,267 @@ c     End program
 
       end function div_tensor
 
+c     dtnsr_flx_ijk_new
+c     ###############################################################
+      function dtnsr_flx_ijk_new(g_def,i,j,k,igr,flux,v1,v2,s1,s2)
+     $         result(flx)
+c     ---------------------------------------------------------------
+c     Calculates fluxes for contravariant components of div(tensor) in
+c     general non-orthogonal coordinates at faces. The routine flux must
+c     provide the contravariant tersor components T^lm/jac at faces
+c     (i+1/2,j,k),(i,j+1/2,k),(i,j,k+1/2) (which face is computed
+c     depends on which flux routine is called).
+c     ---------------------------------------------------------------
+
+      implicit none           !For safe fortran
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
+
+      real(8) :: flx(3)
+
+      integer :: i,j,k,igr
+
+      real(8),dimension(:,:,:  ),pointer,optional :: s1,s2
+      real(8),dimension(:,:,:,:),pointer,optional :: v1,v2
+      
+      INTERFACE
+        subroutine flux(g_def,i,j,k,igr,flx,flag,v1,v2,s1,s2)
+          use grid_def
+          type(grid_mg_def),pointer :: g_def
+          integer    :: i,j,k,flag,igr
+          real(8)    :: flx(3)
+          real(8),dimension(:,:,:  ),pointer,optional :: s1,s2
+          real(8),dimension(:,:,:,:),pointer,optional :: v1,v2
+        end subroutine flux
+      END INTERFACE
+
+c     Local variables
+
+c     Begin program
+
+      call flux(g_def,i,j,k,igr,flx,1,v1=v1,v2=v2,s1=s1,s2=s2)
+      
+c     End program
+
+      end function dtnsr_flx_ijk_new
+      
+c     dtnsr_src_ijk_new
+c     ###############################################################
+      function dtnsr_src_ijk_new(g_def,i,j,k,igr,flxx,flxy,flxz
+     $                          ,v1,v2,s1,s2) result(src)
+c     ---------------------------------------------------------------
+c     Calculates source for contravariant components of div(tensor) in
+c     general non-orthogonal coordinates at (i,j,k). The routines
+c     flxx,flxy,flxz must provide the contravariant tersor components
+c     T^lm (if flag /= 0, they actually provide T^lm/jac).
+c     ---------------------------------------------------------------
+
+      implicit none           !For safe fortran
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
+
+      real(8) :: src(3)
+
+      integer :: i,j,k,igr,nx,ny,nz
+
+      real(8),dimension(:,:,:  ),pointer,optional :: s1,s2
+      real(8),dimension(:,:,:,:),pointer,optional :: v1,v2
+      
+      INTERFACE
+        subroutine flxx(g_def,i,j,k,igr,flx1,flag,v1,v2,s1,s2)
+          use grid_def
+          type(grid_mg_def),pointer :: g_def
+          integer    :: i,j,k,flag,igr
+          real(8)    :: flx1(3)
+          real(8),dimension(:,:,:  ),pointer,optional :: s1,s2
+          real(8),dimension(:,:,:,:),pointer,optional :: v1,v2
+        end subroutine flxx
+
+        subroutine flxy(g_def,i,j,k,igr,flx2,flag,v1,v2,s1,s2)
+          use grid_def
+          type(grid_mg_def),pointer :: g_def
+          integer    :: i,j,k,flag,igr
+          real(8)    :: flx2(3)
+          real(8),dimension(:,:,:  ),pointer,optional :: s1,s2
+          real(8),dimension(:,:,:,:),pointer,optional :: v1,v2
+        end subroutine flxy
+
+        subroutine flxz(g_def,i,j,k,igr,flx3,flag,v1,v2,s1,s2)
+          use grid_def
+          type(grid_mg_def),pointer :: g_def
+          integer    :: i,j,k,flag,igr
+          real(8)    :: flx3(3)
+          real(8),dimension(:,:,:  ),pointer,optional :: s1,s2
+          real(8),dimension(:,:,:,:),pointer,optional :: v1,v2
+        end subroutine flxz
+      END INTERFACE
+
+c     Local variables
+
+      real(8) :: hess(3,3,3),to(3,3),jac,ijac
+
+c     Begin program
+
+      if (.not.no_map) then
+        hess = g_def%gmetric%grid(igr)%Gamma(i,j,k,:,:,:)
+
+        jac = g_def%gmetric%grid(igr)%jac(i,j,k)
+        ijac = 1d0/jac
+        
+        call flxx(g_def,i,j,k,igr,to(1,:),0,v1=v1,v2=v2,s1=s1,s2=s2)
+        call flxy(g_def,i,j,k,igr,to(2,:),0,v1=v1,v2=v2,s1=s1,s2=s2)
+        call flxz(g_def,i,j,k,igr,to(3,:),0,v1=v1,v2=v2,s1=s1,s2=s2)
+
+        src(1) = sum(to*hess(1,:,:))*ijac
+
+        if (alt__eom()) then
+          src(2) =(sum(to*hess(2,:,:))
+     .            -dot_product(to(:,2),hess(1,:,1))
+     .            -dot_product(to(:,2),hess(2,:,2))
+     .            -dot_product(to(:,2),hess(3,:,3)))
+        else
+          src(2)=sum(to*hess(2,:,:))*ijac
+        endif
+
+        src(3) = sum(to*hess(3,:,:))
+      else
+        src = 0d0
+      endif
+
+c     End program
+
+      end function dtnsr_src_ijk_new
+      
+c     div_tensor_new
+c     ###############################################################
+      function div_tensor_new(g_def,i,j,k,igr,flxx,flxy,flxz,vol
+     $                       ,v1,v2,s1,s2) result (divt)
+
+c     ---------------------------------------------------------------
+c     Calculates the contravariant components of div(tensor) at cell
+c     centers in general non-orthogonal coordinates, given by:
+c
+c         div(T)^i = partial_j(T^ji/jac) + T^lm/jac Gamma(i)_lm)
+c
+c     The routines flxx,flxy,flxz must provide the contravariant
+c     tensor fluxes and sources (if flag /= 0, they actually provide
+c     T^lm/jac; otherwise, T^lm).
+c     ---------------------------------------------------------------
+
+      implicit none           !For safe fortran
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
+
+      real(8) :: divt(3)
+
+      integer :: i,j,k,igr
+
+      logical,optional,intent(IN) :: vol
+
+      real(8),dimension(:,:,:  ),pointer,optional :: s1,s2
+      real(8),dimension(:,:,:,:),pointer,optional :: v1,v2
+      
+      INTERFACE
+        subroutine flxx(g_def,i,j,k,igr,flx1,flag,v1,v2,s1,s2)
+          use grid_def
+          type(grid_mg_def),pointer :: g_def
+          integer    :: i,j,k,flag,igr
+          real(8)    :: flx1(3)
+          real(8),dimension(:,:,:  ),pointer,optional :: s1,s2
+          real(8),dimension(:,:,:,:),pointer,optional :: v1,v2
+        end subroutine flxx
+
+        subroutine flxy(g_def,i,j,k,igr,flx2,flag,v1,v2,s1,s2)
+          use grid_def
+          type(grid_mg_def),pointer :: g_def
+          integer    :: i,j,k,flag,igr
+          real(8)    :: flx2(3)
+          real(8),dimension(:,:,:  ),pointer,optional :: s1,s2
+          real(8),dimension(:,:,:,:),pointer,optional :: v1,v2
+        end subroutine flxy
+
+        subroutine flxz(g_def,i,j,k,igr,flx3,flag,v1,v2,s1,s2)
+          use grid_def
+          type(grid_mg_def),pointer :: g_def
+          integer    :: i,j,k,flag,igr
+          real(8)    :: flx3(3)
+          real(8),dimension(:,:,:  ),pointer,optional :: s1,s2
+          real(8),dimension(:,:,:,:),pointer,optional :: v1,v2
+        end subroutine flxz
+      END INTERFACE
+
+c     Local variables
+
+      integer :: ig,jg,kg,im,jm,km,nx,ny,nz
+
+      real(8) :: dvol,dxx,dyy,dzz,jac,ijac
+
+      real(8) :: tp(3,3),tm(3,3),to(3,3)
+
+      real(8) :: msource(3)
+
+      logical :: vol_wgt
+
+c     Begin program
+
+      vol_wgt = .false.
+      if (PRESENT(vol)) vol_wgt = vol
+      
+      im = i-1
+      jm = j-1
+      km = k-1
+
+      call getMGmap(g_def,i,j,k,igr,igr,igr,ig,jg,kg)
+
+      dxx = g_def%dxh(ig)
+      dyy = g_def%dyh(jg)
+      dzz = g_def%dzh(kg)
+
+c     Fluxes
+
+      tp(1,:) = dtnsr_flx_ijk_new(g_def,i ,j,k,igr,flxx
+     $                           ,v1=v1,v2=v2,s1=s1,s2=s2)
+      tm(1,:) = dtnsr_flx_ijk_new(g_def,im,j,k,igr,flxx
+     $                           ,v1=v1,v2=v2,s1=s1,s2=s2)
+
+      tp(2,:) = dtnsr_flx_ijk_new(g_def,i,j ,k,igr,flxy
+     $                           ,v1=v1,v2=v2,s1=s1,s2=s2)
+      tm(2,:) = dtnsr_flx_ijk_new(g_def,i,jm,k,igr,flxy
+     $                           ,v1=v1,v2=v2,s1=s1,s2=s2)
+
+      tp(3,:) = dtnsr_flx_ijk_new(g_def,i,j,k ,igr,flxz
+     $                           ,v1=v1,v2=v2,s1=s1,s2=s2)
+      tm(3,:) = dtnsr_flx_ijk_new(g_def,i,j,km,igr,flxz
+     $                           ,v1=v1,v2=v2,s1=s1,s2=s2)
+
+c     Source
+
+      msource = dtnsr_src_ijk_new(g_def,i,j,k,igr,flxx,flxy,flxz
+     $                           ,v1=v1,v2=v2,s1=s1,s2=s2)
+
+c     Assemble divergence of tensor
+
+      divt = (tp(1,:)-tm(1,:))/dxx
+     .      +(tp(2,:)-tm(2,:))/dyy
+     .      +(tp(3,:)-tm(3,:))/dzz + msource
+
+      if (alt__eom()) then
+        divt(2) = divt(2)/g_def%gmetric%grid(igr)%jac(i,j,k)
+      endif
+
+      !Volume factor
+      if (vol_wgt) divt=divt*g_def%gmetric%grid(igr)%dlvol(i,j,k)  !Logical volume
+      
+c     End program
+
+      end function div_tensor_new
+      
 c     dtnsr_cov_flx_ijk
 c     ###############################################################
       function dtnsr_cov_flx_ijk(g_def,i,j,k,nx,ny,nz,igrid,flux)

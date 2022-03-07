@@ -38,7 +38,7 @@
         character(30), dimension(50) :: adios2_attrlist  ! list of all attributes 
         character(30), dimension(50) :: adios2_varnames  ! list of /var/ vars 
 
-        logical,private :: adios2_debug=.true.,adios2_append_recordfile=.false.
+        logical,private :: adios2_debug=.false.,adios2_append_recordfile=.false.
 
 #if !defined(ADIOS2_BUFFER_MB)
         !ADIOS2 IO buffer 

@@ -14,7 +14,7 @@ CPPFLAGS += $(PREPROC)$(ARCH)
 # DEFAULTS #
 ############
 
-FC?=gfortran
+FC   ?= gfortran
 HDF5 ?= f
 ADIOS?= f
 
@@ -1234,11 +1234,12 @@ ifeq ($(findstring ba,$(HOST)),ba)
 
       ADIOS2 = t
       ADIOS2_METHOD = MPI_LUSTRE
-#      ADIOS2_HOME = /turquoise/usr/projects/magreconn/soft/adios-2.5/lib/badger_intel-19.0.4_openmpi-3.1.6
-      ADIOS2_HOME = /turquoise/usr/projects/magreconn/soft/adios2-latest/lib/badger_intel-19.0.4_openmpi-3.1.6      ADIOS2_LIBS = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-libs)
+      ADIOS2_HOME = /turquoise/usr/projects/magreconn/soft/adios-2.5/lib/badger_intel-19.0.4_openmpi-3.1.6
+#      ADIOS2_HOME = /turquoise/usr/projects/magreconn/soft/adios2-latest/lib/badger_intel-19.0.4_openmpi-3.1.6
+      ADIOS2_LIBS = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-libs)
       ADIOS2_MOD  = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-flags) 
-#      ADIOS2_VER  = 2.5.0
-      ADIOS2_VER  = 2.7.1
+      ADIOS2_VER  = 2.5.0
+#      ADIOS2_VER  = 2.7.1
      
       SPRNG = t
 

@@ -2116,7 +2116,7 @@ c             Check zero-force property: g^lk G^i_lk + nabla_m(g^mi) = 0
                 gsupp=jacp*gdef%gmetric%grid(igrid)%gsup(i+1,j,k,:,:)
                 gsupm=jacm*gdef%gmetric%grid(igrid)%gsup(i-1,j,k,:,:)
 
-               summ = summ +(gsupp(1,ii)-gsupm(1,ii))/dh/jac
+                summ = summ +(gsupp(1,ii)-gsupm(1,ii))/dh/jac
 
                 dh = 2*gdef%dyh(jg)
                 if (alt_eom) then

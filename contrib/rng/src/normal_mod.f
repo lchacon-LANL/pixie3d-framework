@@ -771,7 +771,8 @@ c$$$         r(i) = (dble(i)-rn)/dble(n)
       integer ( kind = 4 ) j
       integer ( kind = 4 ) k
       real    ( kind = 8 ) s
-
+      logical :: failure
+      
       info = 0
 
       where (abs(a) < 1d-14) a = 0d0
@@ -786,20 +787,19 @@ c$$$         r(i) = (dble(i)-rn)/dble(n)
 
          if ( s <= 0.0D+00 ) then
             info = j
-            exit
+            failure = (s < 0d0).or.(n > 1)
+            if (failure) exit
          end if
 
          a(j,j) = sqrt ( s )
 
       end do
 
-      if ( info /= 0 ) then
-         write ( *, '(a)' ) ' '
-         write ( *, '(a)' ) 'MULTINORMAL_SAMPLE - Fatal error!'
-         write ( *, '(a)' ) 
-     .    '  The variance-covariance matrix is not positive definite'// 
-     .    ' symmetric.'
-         stop
+      if (info /= 0.and.failure) then
+        write ( *, '(a)' ) ' '
+        write ( *, '(a)' ) 'r8po_fa - Fatal error!'
+        write ( *, '(a)' ) 'The covariance matrix is not SPD'
+        call r8mat_print ( n, n, a, "Variance" )
       end if
 !     
 !     Since the Cholesky factor is stored in R8GE format, be sure to

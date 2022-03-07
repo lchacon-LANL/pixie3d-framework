@@ -91,7 +91,7 @@ ifeq ($(findstring gfortran,$(FC)),gfortran)
   ADDMODFLAG   = -I
   VERBOSE      = -v
   CPPFLAGS    += $(PREPROC)gfortran
-  FFLAGS      += #$(STATIC)
+  FFLAGS      += -std=legacy #$(STATIC)
   FOPENMP      = -fopenmp
   LDFLAGS     += -lgfortran 
   LABEL        = gnu
@@ -151,4 +151,4 @@ ifneq (,$(findstring om,$(OPT)))
 FFLAGS += $(FOPENMP)
 endif
 
-export FFLAGS MODFLAG ADDMODFLAG LDFLAGS PREPROC OPT LABEL
+export FFLAGS MODFLAG ADDMODFLAG LDFLAGS PREPROC OPT LABEL CPPFLAGS
