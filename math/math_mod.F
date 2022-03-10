@@ -1609,6 +1609,10 @@ c     -------------------------------------------------------------------------
       else
         sd = 985456376
       endif
+
+      !call random_seed()
+      !call random_number(rn)
+      !sd = int(rn*100000000)
       
       stream = init_sprng(gtype,streamnum,nstreams,sd,SPRNG_DEFAULT)   
 

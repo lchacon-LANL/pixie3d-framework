@@ -62,7 +62,7 @@ c    Local variables
       INTEGER :: G_DOF,NPARBY2,IOUNT
       INTEGER :: NG_ORG ! original starting # of Gaussians
       REAL(8) :: XLOGL(MITER),MLENG(MITER)
-     $     ,XCC(NG),W(NIND,NG)
+     $     ,XCC(NG),W(NIND,NG),p_ik
      $     ,ALIM,DIFF,GUM(NIND)
      $     ,WSUM(NG),WTOT,LWTOT,XLOGL_STAR
      $     ,AL(NIND,NG),RESP_SUM(NG)
@@ -217,7 +217,7 @@ c         write(ML_IO,*) "#SPLIT",ISPLIT
         !Calculate XLOGL & MLENG at iteration 1
         CALL COMPUTE_PLLH_VER2(ITER,NIND,G_DOF,NG_ORG,NG,NATT
      $         ,WX,X,THETA,XLOGL(IOUNT),MLENG(IOUNT),AL,GUM,ALIVE_GRP)
-        
+
         XLOGL_STAR = XLOGL(IOUNT)
         DIFF = 1.0D0
 
@@ -302,13 +302,17 @@ c$$$     $                               .OR. (AASTATE%MAA .EQ. 0) ) THEN
      .       ) THEN
             CALL COMPUTE_PLLH_VER2(IOUNT,NIND,G_DOF,NG_ORG,NG,NATT
      $               ,WX,X,THETA,XLOGL(IOUNT),MLENG(IOUNT),AL,GUM
-     $               ,ALIVE_GRP)
+     $               ,ALIVE_GRP(1:NG_ORG))
             SK0 = S_NEW
+c$$$            CALL EXTRACT_GPARAMS_VECTOR(G_DOF,NG_ORG,NATT,T(1:NG_ORG)
+c$$$     $         ,XMU(1:NG_ORG,1:NATT),XVAR(1:NG_ORG,1:NATT,1:NATT),THETA)
+c$$$            CALL compute_pllh(NATT,T,GUM,WX,ALIVE_GRP(1:NG_ORG)
+c$$$     $          ,XLOGL(IOUNT),MLENG(IOUNT))
           ELSE
 cc            !------------------------------------------------------------------------------
 cc            ! STEP (II): ANDERSON ACCELERATION W/ OR W/OUT (TIKKONOV) REGULARIZATION TERM
 cc            !------------------------------------------------------------------------------
-cc            !CALL APPLY_AA(AA_RELAX_FLAG)
+cc            CALL APPLY_AA(AA_RELAX_FLAG)
 
 
             !------------------------------------------------------------------------------
@@ -328,15 +332,14 @@ cc            !CALL APPLY_AA(AA_RELAX_FLAG)
 
           ! Update value of SK in AA state variable (bug-fixed 01/21/2021)
           AASTATE%RAA_VARS%SK = SK0
-          
-          !Check convergence
-          IF (IOUNT > 1) THEN
-            LAST = IOUNT-1
-            ALIM = TOL*XLOGL(LAST)
-            DIFF = XLOGL(IOUNT)-XLOGL(LAST)
-          END IF
 
-          if(ABS(DIFF) <= ABS(ALIM)) EXIT
+          !Standard convergence criteria      
+          IF (IOUNT .GT. 1) THEN
+            LAST = IOUNT-1
+            ALIM=TOL*XLOGL(LAST)
+            DIFF=XLOGL(IOUNT)-XLOGL(LAST)
+          END IF
+          if(ABS(DIFF).le.ABS(ALIM)) EXIT
           
           ITER = ITER + 1
 
@@ -414,6 +417,7 @@ C      enforce conservation
       ! Finish timing AMEM routine (without/with AA)
       call cpu_time(time_end)
       if (amem_diag) print*,'amem runtime =',time_end-time_start
+      print*,'amem runtime =',time_end-time_start
 
 c     Final work after convergence
       
@@ -685,15 +689,18 @@ c     .     (MOD(AASTATE%MAA,MVEC_AA).EQ.0).OR.AA_RELAX.OR.(.NOT.MON_CHK)
       CALL EXTRACT_GPARAMS_VECTOR(G_DOF,NG_ORG,NATT,T(1:NG_ORG)
      $      ,XMU(1:NG_ORG,1:NATT),XVAR(1:NG_ORG,1:NATT,1:NATT),THETA)
 
-      ! Perform AEM step
+c      ! Perform AEM step
 c      call SIM_AEM_step(NIND,NATT,NG,X,WX,W(:,1:NG),AL(:,1:NG),GUM
 c     .         ,DV(1:NG),T(1:NG),XMU(1:NG,:),XVAR(1:NG,:,:),V(1:NG,:,:)
 c     .         ,WSUM(1:NG),WTOT,ALIVE_GRP(1:NG))
+c      T(NG+1:)=0d0 ; XMU(NG+1:,:)=0d0 ; XVAR(NG+1:,:,:)=0d0
+c      WSUM(NG+1:)=0d0 ; ALIVE_GRP(NG+1:)=0
 
       call SIM_AEM_step_2(NIND,NATT,NG_ORG,NG,X,WX,W(:,1:NG_ORG)
      .         ,AL(:,1:NG_ORG),GUM,DV(1:NG_ORG),T(1:NG_ORG)
      .         ,XMU(1:NG_ORG,:),XVAR(1:NG_ORG,:,:),V(1:NG_ORG,:,:)
      .         ,WSUM(1:NG_ORG),WTOT,ALIVE_GRP(1:NG_ORG))
+
 
       ! Finally, use the updated params to form the output soln vector: GVAL = Picard_EM(THETA)
       CALL FORM_GPARAMS_VECTOR(G_DOF,NG_ORG,NATT,T(1:NG_ORG)
@@ -804,7 +811,7 @@ c     .         ,WSUM(1:NG),WTOT,ALIVE_GRP(1:NG))
       INTEGER, INTENT(IN) :: NIND,G_DOF,NG_ORG,NG,NATT,ITER
       INTEGER, INTENT(IN) :: ALIVE_GRP(NG_ORG)
       REAL(8), INTENT(IN) :: THETA(G_DOF*NG_ORG),X(NIND,NATT),WX(NIND)
-      REAL(8), INTENT(OUT) :: AL(NIND,NG_ORG),GUM(NIND),XLOGL_OUT
+      REAL(8), INTENT(INOUT) :: AL(NIND,NG_ORG),GUM(NIND),XLOGL_OUT
      $       ,MLENG_OUT
       !	Local variables
       INTEGER :: I,J,K,II,JJ,KK,IERR,NUL,NG_ALIVE
@@ -833,7 +840,6 @@ c     .         ,WSUM(1:NG),WTOT,ALIVE_GRP(1:NG))
           CALL GDETK(NATT,K,XVAR(K,1:NATT,1:NATT),V(K,1:NATT,1:NATT)
      $                  ,DV(K),IERR,NUL)
           !------------------------------------------------------
-
           XMUK = XMU(K,:)
           VK   = V(K,:,:)
           ISQDV= CN/SQRT(DV(K))
@@ -850,7 +856,6 @@ c     .         ,WSUM(1:NG),WTOT,ALIVE_GRP(1:NG))
 
       ! Compute penalized LLH (taking into account particles' weights)
       CALL compute_pllh(NATT,T,GUM,WX,ALIVE_GRP,XLOGL_OUT,MLENG_OUT)
-
       if (DIAG_IO) write(ML_IO,*) ITER,XLOGL_OUT,MLENG_OUT
      .                           ,MINVAL(T,mask=(ALIVE_GRP==1))
 

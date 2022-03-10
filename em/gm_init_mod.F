@@ -294,10 +294,10 @@ c     Initialize means randomly
 #else
         DO K = 1,NG
 c$$$          !Pick random particle locations (not parallel)
-c$$$          call unif_rng(RAN)  !Works in parallel
-c$$$          RANI = ceiling(NIND*RAN)
+          call unif_rng(RAN)  !Works in parallel
+          RANI = ceiling(NIND*RAN)
           !Pick specified particle locations (not parallel)
-          RANI = max(int(NIND*(dble(K))/dble(NG)),1)              
+c$$$          RANI = max(int(NIND*(dble(K))/dble(NG)),1)              
           XMU(K,1:NATT) = X(RANI,1:NATT)
         END DO
 #endif

@@ -89,6 +89,7 @@
         XMAX(I)=MAXVAL(X(:,I))
         XRANGE(I)=XMAX(I)-XMIN(I)
         XSTAN(:,I)=X(:,I)/XRANGE(I)
+cc        XSTAN(:,I)=X(:,I)
       END DO
 
       MIN_INERTIA = 1.0D8   ! initialize to be large
