@@ -23,6 +23,7 @@ c #####################################################################
 #endif
         logical,private :: map_grid_pack=.false.
 
+        real(8),parameter :: LMIN_NEQONE=1d-3
       contains
 
 c     createGrid
@@ -410,18 +411,18 @@ c     Cycle through grid hierarchies
 
           deallocate(xc)
 
-          gf_def => gc_def
-          gc_def => gf_def%g_crse_def
-
           !Check for negative Jac, and if so deallocate subsequent grid levels and exit
           if (ierr /= 0) then
             if (my_rank == 0) then
               write (*,*) ' >>> defineGridMetric error',ierr
               write (*,*) ' >>> Discarding leftover meshes due to jac<0'
             endif
-            call deallocateGridStructure(gc_def)
+            call deallocateGridStructure(gf_def%g_crse_def)
             exit                
           endif
+
+          gf_def => gc_def
+          gc_def => gf_def%g_crse_def
 
         enddo
 
@@ -604,8 +605,6 @@ c     Create MG grid hierarchy
         gdef%params = gparams
 
         map_grid_pack = setup_grid_packing(coords,gdef)
-
-cc        write (*,*) my_rank,'Grid config',gdef%g_pack(1)
 
         call createMGgrid(gdef)
 
@@ -936,7 +935,7 @@ c     Begin program
 
 c     Coordinate-specific checks
 
-        if (map_grid_pack) numerical_grid = .true.
+cc        if (map_grid_pack) numerical_grid = .true.
 
         select case (coords)
         case ('s3d','hsn')
@@ -950,14 +949,17 @@ c     Coordinate-specific checks
             write (*,*) 'Aborting...'
             stop
           endif
-        case ('tor','sha','sh2','stl')
+        case ('tor','sha','sh2','sh3','stl','tsq')
           if (xmin /= 0d0 .and. bcSP()) then
             write (*,*) 'Error in setup: xmin =/0 is not singular point'
             write (*,*) 'Aborting...'
             stop
           endif
 
-          if (coords=='sh2'.or.coords=='stl') numerical_grid = .true.
+          if (    coords=='sh2'
+     .        .or.coords=='sh3'
+     .        .or.coords=='stl'
+     .        .or.coords=='tsq') numerical_grid = .true.
 
           major_r = gdef%params(1)
 
@@ -972,9 +974,9 @@ c     Coordinate-specific checks
         !Ensure ignorable directions are small for numerical computation
         !  of grid parameters
         if (numerical_grid .and. coords /= 'car') then
-          if    ((nxx == 1 .and. ((xmax-xmin)>1d-3))
-     .       .or.(nyy == 1 .and. ((ymax-ymin)>1d-3))
-     .       .or.(nzz == 1 .and. ((zmax-zmin)>1d-3))) then
+          if    ((nxx == 1 .and. ((xmax-xmin)>LMIN_NEQONE))
+     .       .or.(nyy == 1 .and. ((ymax-ymin)>LMIN_NEQONE))
+     .       .or.(nzz == 1 .and. ((zmax-zmin)>LMIN_NEQONE))) then
             write (*,*) nxx,nyy,nzz
             write (*,*) xmax,xmin,ymax,ymin,zmax,zmin
             call pstop('consistencyCheck'
@@ -1172,81 +1174,81 @@ c     End program
 
       end subroutine MG_grid_info
 
-c     hessianCheck
-c     #################################################################
-      subroutine hessianCheck(igx,igy,igz,nxv,nyv,nzv,gdef)
-
-        implicit  none
-
-c     Call variables
-
-        integer    :: igx,igy,igz,nxv(*),nyv(*),nzv(*)
-
-        type(grid_mg_def),pointer :: gdef
-
-c     Local variables
-
-        integer    :: i,j,k,i1,j1,k1,ig,jg,kg,ih
-        real(8)    :: x1,y1,z1
-        real(8)    :: hess(3,3,3),hess_cnv(3,3,3),table(3,3,3)
-
-c     Begin program
-
-        write (funit,*) 
-        write (funit,*) '*************************'
-        write (funit,*) '     Hessian check'
-        write (funit,*) '*************************'
-        write (funit,*)
-
-        do i = 2,nxv(igx)   !Start at 2 to avoid singular points
-          do j = 1,nyv(igy)
-            do k = 1,nzv(igz)
-
-              call getMGmap(gdef,i,j,k,igx,igy,igz,ig,jg,kg)
-
-              x1 = gdef%xx(ig)
-              y1 = gdef%yy(jg)
-              z1 = gdef%zz(kg)
-
-              hess = -christ_2knd(gdef,i,j,k,igx,igy,igz)
-
-              hess_cnv(1,:,:) = hessian_cnv(gdef,1,x1,y1,z1)
-              hess_cnv(2,:,:) = hessian_cnv(gdef,2,x1,y1,z1)
-              hess_cnv(3,:,:) = hessian_cnv(gdef,3,x1,y1,z1)
-
-              do i1=1,3
-                do j1=1,3
-                  do k1=1,3
-                    table(i1,j1,k1) = hess_cnv(i1,j1,k1)
-     .                               -delta(i1,k1)*(hess(1,j1,1)
-     .                                             +hess(2,j1,2)
-     .                                             +hess(3,j1,3))
-     .                               +hess(k1,i1,j1)
-                  enddo
-                enddo
-              enddo
-
-              write (funit,5) 'Grid point: (',x1,',',y1,',',z1,')'
- 5            format (/,a,f7.3,a,f7.3,a,f7.3,a)
-
-              write (funit,*) 
-              write (funit,*) 'Hessian relation'
-
-              do ih=1,3
-                write (funit,*) 
-                write (funit,10) table(ih,1,1:3)
-                write (funit,10) table(ih,2,1:3)
-                write (funit,10) table(ih,3,1:3)
- 10             format (3f10.3)
-              enddo
-
-            enddo
-          enddo
-        enddo
-
-c     End program
-
-      end subroutine hessianCheck
+c$$$c     hessianCheck
+c$$$c     #################################################################
+c$$$      subroutine hessianCheck(igx,igy,igz,nxv,nyv,nzv,gdef)
+c$$$
+c$$$        implicit  none
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$        integer    :: igx,igy,igz,nxv(*),nyv(*),nzv(*)
+c$$$
+c$$$        type(grid_mg_def),pointer :: gdef
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$        integer    :: i,j,k,i1,j1,k1,ig,jg,kg,ih
+c$$$        real(8)    :: x1,y1,z1
+c$$$        real(8)    :: hess(3,3,3),hess_cnv(3,3,3),table(3,3,3)
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$        write (funit,*) 
+c$$$        write (funit,*) '*************************'
+c$$$        write (funit,*) '     Hessian check'
+c$$$        write (funit,*) '*************************'
+c$$$        write (funit,*)
+c$$$
+c$$$        do i = 2,nxv(igx)   !Start at 2 to avoid singular points
+c$$$          do j = 1,nyv(igy)
+c$$$            do k = 1,nzv(igz)
+c$$$
+c$$$              call getMGmap(gdef,i,j,k,igx,igy,igz,ig,jg,kg)
+c$$$
+c$$$              x1 = gdef%xx(ig)
+c$$$              y1 = gdef%yy(jg)
+c$$$              z1 = gdef%zz(kg)
+c$$$
+c$$$              hess = -christ_2knd(gdef,i,j,k,igx,igy,igz)
+c$$$
+c$$$              hess_cnv(1,:,:) = hessian_cnv(gdef,1,x1,y1,z1)
+c$$$              hess_cnv(2,:,:) = hessian_cnv(gdef,2,x1,y1,z1)
+c$$$              hess_cnv(3,:,:) = hessian_cnv(gdef,3,x1,y1,z1)
+c$$$
+c$$$              do i1=1,3
+c$$$                do j1=1,3
+c$$$                  do k1=1,3
+c$$$                    table(i1,j1,k1) = hess_cnv(i1,j1,k1)
+c$$$     .                               -delta(i1,k1)*(hess(1,j1,1)
+c$$$     .                                             +hess(2,j1,2)
+c$$$     .                                             +hess(3,j1,3))
+c$$$     .                               +hess(k1,i1,j1)
+c$$$                  enddo
+c$$$                enddo
+c$$$              enddo
+c$$$
+c$$$              write (funit,5) 'Grid point: (',x1,',',y1,',',z1,')'
+c$$$ 5            format (/,a,f7.3,a,f7.3,a,f7.3,a)
+c$$$
+c$$$              write (funit,*) 
+c$$$              write (funit,*) 'Hessian relation'
+c$$$
+c$$$              do ih=1,3
+c$$$                write (funit,*) 
+c$$$                write (funit,10) table(ih,1,1:3)
+c$$$                write (funit,10) table(ih,2,1:3)
+c$$$                write (funit,10) table(ih,3,1:3)
+c$$$ 10             format (3f10.3)
+c$$$              enddo
+c$$$
+c$$$            enddo
+c$$$          enddo
+c$$$        enddo
+c$$$
+c$$$c     End program
+c$$$
+c$$$      end subroutine hessianCheck
 
 c     metricTensorCheck
 c     #################################################################
@@ -1450,15 +1452,17 @@ c     -----------------------------------------------------------------
       implicit none
 
       integer    :: nx,ny,nz,i,j,k,l,m,n,igrid,ivar
-     .             ,nxg,nyg,nzg
+     .             ,nxg,nyg,nzg,ig,jg,kg
       real(8)    :: tensor(3,3,3),vec(3)
 
-      integer   ,parameter :: nvar=50
+      integer   ,parameter :: nvar=100
       character(30) :: descr(nvar),drawfile,debugfile
 
       logical :: dump_diff
 
       real(8),allocatable,dimension(:,:,:) :: dbl
+      real(8),pointer,dimension(:,:,:) :: jac
+      real(8),pointer,dimension(:,:,:,:,:) :: cov,cnv
 
 c     Begin program
 
@@ -1474,8 +1478,8 @@ c     Output
         write(*  ,*)
       endif
 
-      dump_diff = anal_map.and.numerical_grid.and.(.not.map_grid_pack)
-cc      dump_diff = .false.
+cc      dump_diff = anal_map.and.numerical_grid.and.(.not.map_grid_pack)
+      dump_diff = .false.
 
       if (dump_diff) then
         if (my_rank == 0)
@@ -1500,6 +1504,10 @@ cc      dump_diff = .false.
 c     Dump quantities
 
       do igrid=1,gdef%ngrid
+
+        jac => gdef%gmetric%grid(igrid)%jac
+        cov => gdef%gmetric%grid(igrid)%cov
+        cnv => gdef%gmetric%grid(igrid)%cov
 
         nx = gdef%nxv(igrid)
         ny = gdef%nyv(igrid)
@@ -1612,6 +1620,33 @@ cc     .              *gdef%gmetric%grid(igrid)%jac_v(i,j,k)
             call dumpGlobalField(gdef,debugfile,nx,ny,nz,nxg,nyg,nzg,dbl
      .                          ,1)
           enddo
+        enddo
+
+        !Fundamental property: div(J.cov)=0
+        dbl = 0d0
+        do l=1,3
+          write(funit,*) '   Dumping div(J.cov)',l
+          ivar = ivar+1
+          descr(ivar)='div(J.cov('//trim(int2char(l))//'))'
+
+          if (k /= 0 .and. k /= nz+1) then
+            do j=1,ny
+              do i=1,nx
+                call getMGmap(gdef,i,j,k,igrid,igrid,igrid,ig,jg,kg)
+
+                dbl(i,j,1) =
+     .                (jac(i+1,j,k)*cov(i+1,j,k,1,l)
+     .                -jac(i-1,j,k)*cov(i-1,j,k,1,l))/(2*gdef%dxh(ig))
+     .               +(jac(i,j+1,k)*cov(i,j+1,k,2,l)
+     .                -jac(i,j-1,k)*cov(i,j-1,k,2,l))/(2*gdef%dyh(jg))
+     .               +(jac(i,j,k+1)*cov(i,j,k+1,3,l)
+     .                -jac(i,j,k-1)*cov(i,j,k-1,3,l))/(2*gdef%dzh(kg))
+              enddo
+            enddo
+          endif
+
+          call dumpGlobalField(gdef,debugfile,nx,ny,nz,nxg,nyg,nzg,dbl
+     $                      ,1)
         enddo
 
         !Cnv vectors
@@ -1760,8 +1795,8 @@ c     Output
         write(*  ,*)
       endif
 
-      dump_diff = anal_map.and.numerical_grid.and.(.not.map_grid_pack)
-cc      dump_diff = .false.
+cc      dump_diff = anal_map.and.numerical_grid.and.(.not.map_grid_pack)
+      dump_diff = .false.
 
       if (dump_diff) then
         if (my_rank == 0)
@@ -1895,6 +1930,33 @@ c     Dump quantities
                 if (dump_diff) then
                   vec =
      .               contravariantVector(gdef,l,i,j,k,igrid,igrid,igrid
+     .                                  ,vertex=.true.)
+     .             *jacobian(gdef,i,j,k,igrid,igrid,igrid,vertex=.true.)
+                  dbl(i,j,1) = dbl(i,j,1)-vec(m)
+                endif
+              enddo
+            enddo
+            call dumpGlobalField(gdef,debugfile,nx,ny,nz,nxg,nyg,nzg,dbl
+     .                          ,1,no_bc=.true.)
+          enddo
+        enddo
+
+        !Cov vectors
+        do l=1,3
+          do m=1,3
+            write(funit,*) '   Dumping Cov vector',l,' component',m
+            ivar = ivar+1
+            descr(ivar)='Cov_'//trim(int2char(l))//'('
+     .                        //trim(int2char(m))//')'
+
+            do j=0,ny+1
+              do i=0,nx+1
+                dbl(i,j,1) =
+     .               gdef%gmetric%grid(igrid)%cov_v(i,j,k,l,m)
+     .              *gdef%gmetric%grid(igrid)%jac_v(i,j,k)
+                if (dump_diff) then
+                  vec =
+     .               covariantVector(gdef,l,i,j,k,igrid,igrid,igrid
      .                                  ,vertex=.true.)
      .             *jacobian(gdef,i,j,k,igrid,igrid,igrid,vertex=.true.)
                   dbl(i,j,1) = dbl(i,j,1)-vec(m)
@@ -2054,7 +2116,7 @@ c             Check zero-force property: g^lk G^i_lk + nabla_m(g^mi) = 0
                 gsupp=jacp*gdef%gmetric%grid(igrid)%gsup(i+1,j,k,:,:)
                 gsupm=jacm*gdef%gmetric%grid(igrid)%gsup(i-1,j,k,:,:)
 
-               summ = summ +(gsupp(1,ii)-gsupm(1,ii))/dh/jac
+                summ = summ +(gsupp(1,ii)-gsupm(1,ii))/dh/jac
 
                 dh = 2*gdef%dyh(jg)
                 if (alt_eom) then

@@ -140,7 +140,7 @@ c     Create VISIT expressions (to identify vectors)
 
         !Create dataset
         call h5dcreate_f(file_id,'/visit_expressions',datatype_id
-     .                  ,dataspace_id,dataset_id,hdferr,H5P_DEFAULT_F)
+     .                  ,dataspace_id,dataset_id,hdferr)
 
         !Write to dataset
         call h5dwrite_f(dataset_id,datatype_id,trim(vexp),vexp_dim
@@ -160,16 +160,15 @@ c     Create VISIT expressions (to identify vectors)
 c     Create groups for coordinate data
 
       if (.not.moving_mesh) then
-ccnorb        write(*,'("3dplot.F:165: Create HDF5 groups ",a," and ",a)') 
-ccnorb     .        cell_coords_gname, node_coords_gname
+        if (hdf_debug) write(*,'
+     .("HDF5_graphics_mod.F:165: Create HDF5 groups ",a
+     .," and ",a)') cell_coords_gname, node_coords_gname
         !Cell center positions
-        call h5gcreate_f(file_id,cell_coords_gname,group_id,hdferr
-     .                  ,izero)
+        call h5gcreate_f(file_id,cell_coords_gname,group_id,hdferr)
         call h5gclose_f(group_id,hdferr)
 
         !Node positions
-        call h5gcreate_f(file_id,node_coords_gname,group_id,hdferr
-     .                  ,izero)
+        call h5gcreate_f(file_id,node_coords_gname,group_id,hdferr)
         call h5gclose_f(group_id,hdferr)
       endif
 
@@ -274,32 +273,33 @@ c     Open .h5 file using default properties.
 
 c     Create groups for computation data
 
-ccnorb      write(*,'("3dplot.F:272: Create HDF5 group ",a') groupname
-      call h5gcreate_f(file_id,groupname,group_id,hdferr, izero)
+      if (hdf_debug) write(*,'
+     .("HDF5_graphics_mod.F:281: Create HDF5 group ",a)') groupname
+      call h5gcreate_f(file_id,groupname,group_id,hdferr)
 
       do igrp=1,ngroups
-ccnorb        write(*,'("3dplot.F:276: Create HDF5 group ",a,"/",a') 
-ccnorb     .       groupname,graph(igrp)%descr
-        call h5gcreate_f(group_id,graph(igrp)%descr,subgroup_id,
-     $                  hdferr,izero)
+        if (hdf_debug) write(*,'
+     .("HDF5_graphics_mod.F:276: Create HDF5 group ",a,"
+     ./",a)') groupname,graph(igrp)%descr
+        call h5gcreate_f(group_id,graph(igrp)%descr,subgroup_id,hdferr)
         call h5gclose_f(subgroup_id, hdferr)
       enddo
 
 c     Create a group for coordinates data
 
       if (moving_mesh) then
-ccnorb        write(*,'("3dplot.F:286: Create HDF5 groups ",a,"/",a') 
-ccnorb     .         groupname,cell_coords_gname
+        if (hdf_debug) write(*,'
+     .("HDF5_graphics_mod.F:298: Create HDF5 groups ",a
+     .,"/",a)') groupname,cell_coords_gname
         !Cell center positions
-        call h5gcreate_f(group_id,cell_coords_gname,subgroup_id,hdferr
-     .                  ,izero)
+        call h5gcreate_f(group_id,cell_coords_gname,subgroup_id,hdferr)
         call h5gclose_f(subgroup_id,hdferr)
 
-ccnorb        write(*,'("3dplot.F:293: Create HDF5 groups ",a,"/",a') 
-ccnorb     .         groupname,node_coords_gname
+        if (hdf_debug) write(*,'
+     .("HDF5_graphics_mod.F:293: Create HDF5 groups ",a
+     .,"/",a)') groupname,node_coords_gname
         !Node positions
-        call h5gcreate_f(group_id,node_coords_gname,subgroup_id,hdferr
-     .                  ,izero)
+        call h5gcreate_f(group_id,node_coords_gname,subgroup_id,hdferr)
         call h5gclose_f(subgroup_id,hdferr)
       endif
 
@@ -394,16 +394,22 @@ c     Initialize FORTRAN interface
 c     Open HDF5 file
 
 #if defined(petsc)
-c PARALLEL
-c     Set up file access property list with parallel I/O access
-      call h5pcreate_f(H5P_FILE_ACCESS_F,plist_id,hdferr)
-      call h5pset_fapl_mpio_f(plist_id,MPI_COMM_WORLD,MPI_INFO_NULL,
-     $                        hdferr)
+      if (np > 1) then !PARALLEL
+        !Set up file access property list with parallel I/O access
+        call h5pcreate_f(H5P_FILE_ACCESS_F,plist_id,hdferr)
+        call h5pset_fapl_mpio_f(plist_id,MPI_COMM_WORLD,MPI_INFO_NULL
+     $                         ,hdferr)
 
-c     Open an existing file.
-      call h5fopen_f(hdf5_fname,H5F_ACC_RDWR_F,file_id,hdferr,
-     $               access_prp = plist_id)
-      call h5pclose_f(plist_id,hdferr)
+        !Open an existing file.
+        call h5fopen_f(hdf5_fname,H5F_ACC_RDWR_F,file_id,hdferr
+     $                ,access_prp = plist_id)
+        call h5pclose_f(plist_id,hdferr)
+      else !SERIAL
+        !Open an existing file.
+        call h5fopen_f(hdf5_fname,H5F_ACC_RDWR_F,file_id,hdferr
+     $                ,H5P_DEFAULT_F)
+
+      endif
 #else
 c SERIAL
 c     Open an existing file.
@@ -426,9 +432,9 @@ c     Create the dataspace of actual data and its attributes
      $                       ,hdferr)
 
 #if defined(petsc)
-c PARALLEL
-c     Each process defines dataset in memory and writes it to the hyperslab
-c     in the file.
+      if (np > 1) then !PARALLEL
+      !Each process defines dataset in memory and writes it to the hyperslab
+      !in the file.
 
       offset(1) = ilomg
       offset(2) = jlomg
@@ -449,9 +455,11 @@ c     in the file.
       call h5screate_simple_f(ARRAY_RANK,node_count,p_node_dataspace_id
      .                       ,hdferr)
 
-c     Create property list for collective dataset write.
+      !Create property list for collective dataset write.
       call h5pcreate_f(H5P_DATASET_XFER_F,plist_id,hdferr)
       call h5pset_dxpl_mpio_f(plist_id,H5FD_MPIO_COLLECTIVE_F,hdferr)
+
+      endif
 #endif
 
 c     Write the coordinate data
@@ -467,10 +475,12 @@ c     Release resources
       call h5gclose_f(group_id, hdferr)
 
 #if defined(petsc)
-c PARALLEL
-      call h5sclose_f(p_dataspace_id,hdferr)
-      call h5sclose_f(p_node_dataspace_id,hdferr)
-      call h5pclose_f(plist_id,hdferr)
+c     PARALLEL
+      if (np > 1) then
+        call h5sclose_f(p_dataspace_id,hdferr)
+        call h5sclose_f(p_node_dataspace_id,hdferr)
+        call h5pclose_f(plist_id,hdferr)
+      endif
 #endif
 
       call h5sclose_f(dataspace_id,hdferr)
@@ -525,33 +535,50 @@ c     ---------------------------------------------------------------------
         do icoords=1,ARRAY_RANK
 
 #if defined(petsc)
-c PARALLEL
-          if (moving_mesh) then
-            call h5dcreate_f(subgroup_id,coords_descr(icoords),
+          if (np > 1) then  !PARALLEL
+            if (moving_mesh) then
+              call h5dcreate_f(subgroup_id,coords_descr(icoords),
+     $                         H5T_IEEE_F64BE,
+     $                         dataspace_id,dataset_id,hdferr)
+            else
+              call h5dcreate_f(   group_id,coords_descr(icoords),
+     $                         H5T_IEEE_F64BE,
+     $                         dataspace_id,dataset_id,hdferr)
+            endif
+
+            !Select hyperslab in the file.
+            call h5dget_space_f(dataset_id,hs_dataspace_id,hdferr)
+            call h5sselect_hyperslab_f(hs_dataspace_id,H5S_SELECT_SET_F,
+     $                                   offset,count,hdferr)    
+
+            !Write data to the dataset
+            call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE,
+     $                     cell(ilo:ihi,jlo:jhi,klo:khi,icoords),
+     $                     array_dim_i,
+     $                     hdferr,file_space_id = hs_dataspace_id,
+     $                     mem_space_id = p_dataspace_id,
+     $                     xfer_prp = plist_id)
+
+            call h5sclose_f(hs_dataspace_id,hdferr)
+
+          else                  !SERIAL
+            if (moving_mesh) then
+              call h5dcreate_f(subgroup_id,coords_descr(icoords),
      $                       H5T_IEEE_F64BE,
      $                       dataspace_id,dataset_id,hdferr)
-          else
-            call h5dcreate_f(   group_id,coords_descr(icoords),
+            else
+              call h5dcreate_f(   group_id,coords_descr(icoords),
      $                       H5T_IEEE_F64BE,
      $                       dataspace_id,dataset_id,hdferr)
+            endif
+
+            !Write data to the dataset
+            call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE,
+     $                    cell(ilo:ihi,jlo:jhi,klo:khi,icoords), !must specify index ranges
+     $                    array_dim,hdferr)
           endif
-
-c         Select hyperslab in the file.
-          call h5dget_space_f(dataset_id,hs_dataspace_id,hdferr)
-          call h5sselect_hyperslab_f(hs_dataspace_id,H5S_SELECT_SET_F,
-     $                                 offset,count,hdferr)    
-
-c         Write data to the dataset
-          call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE,
-     $                   cell(ilo:ihi,jlo:jhi,klo:khi,icoords),
-     $                   array_dim_i,
-     $                   hdferr,file_space_id = hs_dataspace_id,
-     $                   mem_space_id = p_dataspace_id,
-     $                   xfer_prp = plist_id)
-
-          call h5sclose_f(hs_dataspace_id,hdferr)
 #else
-c SERIAL
+          !SERIAL
           if (moving_mesh) then
             call h5dcreate_f(subgroup_id,coords_descr(icoords),
      $                       H5T_IEEE_F64BE,
@@ -566,7 +593,6 @@ c         Write data to the dataset
           call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE,
      $                    cell(ilo:ihi,jlo:jhi,klo:khi,icoords), !must specify index ranges
      $                    array_dim,hdferr)
-            
 #endif
           call h5dclose_f(dataset_id,hdferr)
         enddo
@@ -599,25 +625,32 @@ c         Write data to the dataset
           endif
 
 #if defined(petsc)
-c PARALLEL
-c         Select hyperslab in the file.
-          call h5dget_space_f(dataset_id,hs_dataspace_id,hdferr)
-          call h5sselect_hyperslab_f(hs_dataspace_id,H5S_SELECT_SET_F,
-     $                               offset,node_count,hdferr)    
+          if (np > 1) then !PARALLEL
+            !Select hyperslab in the file.
+            call h5dget_space_f(dataset_id,hs_dataspace_id,hdferr)
+            call h5sselect_hyperslab_f(hs_dataspace_id,H5S_SELECT_SET_F,
+     $                                 offset,node_count,hdferr)    
 
-c         Write data to the dataset
-          call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE,
-     $                 node(ilo:ihip,jlo:jhip,klo:khip,icoords),
-     $                 array_dim_i,
-     $                 hdferr,
-     .                 file_space_id = hs_dataspace_id,
-     $                 mem_space_id = p_node_dataspace_id,
-     $                 xfer_prp = plist_id)
+            !Write data to the dataset
+            call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE,
+     $                   node(ilo:ihip,jlo:jhip,klo:khip,icoords),
+     $                   array_dim_i,
+     $                   hdferr,
+     .                   file_space_id = hs_dataspace_id,
+     $                   mem_space_id = p_node_dataspace_id,
+     $                   xfer_prp = plist_id)
 
-          call h5sclose_f(hs_dataspace_id,hdferr)
+            call h5sclose_f(hs_dataspace_id,hdferr)
+          else !SERIAL
+            !Write data to the dataset
+            call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE,
+     $                    node(ilo:ihip,jlo:jhip,klo:khip,icoords),
+     $                    node_array_dim,hdferr)
+
+          endif
 #else
 c SERIAL
-c         Write data to the dataset
+          !Write data to the dataset
           call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE,
      $                    node(ilo:ihip,jlo:jhip,klo:khip,icoords),
      $                    node_array_dim,hdferr)
@@ -657,6 +690,9 @@ c     ---------------------------------------------------------------------
       do igrp=1,ngroups
 
 c       Open an existing group of the specified file.
+        if (hdf_debug)
+     .     write(*,'("HDF_mod:696: Open group ",i3," = ",a)') 
+     .         igrp,graph(igrp)%descr
         call h5gopen_f(group_id,graph(igrp)%descr,subgroup_id,hdferr)
 
         if (graph(igrp)%cartesian) then
@@ -667,6 +703,9 @@ c         Write "Attribute data": coordinates location
           call h5tset_size_f(attr_type_id,strlength,hdferr)
 
           attr_name = 'coords'
+          if (hdf_debug)
+     .     write(*,'("HDF_mod:709: Create attribute ",a)') 
+     .         attr_name
           call h5acreate_f(subgroup_id,attr_name,attr_type_id,
      $                     dataspace_attr_id,attribute_id,
      $                     hdferr)
@@ -684,6 +723,10 @@ c         Write nodal data
 
           do ieq=1,nqty(igrp)
 
+            if (hdf_debug)
+     .        write(*,'("HDF_mod:729: Create dataset",a)') 
+     .           graph(igrp)%array_graph(ieq)%descr
+
 c           Create the dataset
             call h5dcreate_f(subgroup_id
      $                      ,graph(igrp)%array_graph(ieq)%descr
@@ -697,26 +740,32 @@ c           Interpolate nodal values
             call interpolateNodalData
 
 #if defined(petsc)
-c PARALLEL
-c           Select hyperslab in the file.
-            call h5dget_space_f(dataset_id,hs_dataspace_id,hdferr)
-            call h5sselect_hyperslab_f(hs_dataspace_id,H5S_SELECT_SET_F
-     $                                ,offset,node_count,hdferr)    
+            if (np > 1) then !PARALLEL
+              !Select hyperslab in the file.
+              call h5dget_space_f(dataset_id,hs_dataspace_id,hdferr)
+              call h5sselect_hyperslab_f(hs_dataspace_id
+     $             ,H5S_SELECT_SET_F,offset,node_count,hdferr)    
 
-c           Write data to the dataset
-            call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE
+              !Write data to the dataset
+              call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE
+     $                       ,node(ilo:ihip,jlo:jhip,klo:khip,1)
+     $                       ,array_dim_i
+     $                       ,hdferr
+     $                       ,file_space_id = hs_dataspace_id
+     $                       ,mem_space_id = p_node_dataspace_id
+     $                       ,xfer_prp = plist_id)
+
+!             Release resources
+              call h5sclose_f(hs_dataspace_id,hdferr)
+            else !SERIAL
+              !Write data to the dataset
+              call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE
      $                     ,node(ilo:ihip,jlo:jhip,klo:khip,1)
-     $                     ,array_dim_i
-     $                     ,hdferr
-     $                     ,file_space_id = hs_dataspace_id
-     $                     ,mem_space_id = p_node_dataspace_id
-     $                     ,xfer_prp = plist_id)
-
-c           Release resources
-            call h5sclose_f(hs_dataspace_id,hdferr)
+     $                     ,node_array_dim,hdferr)
+            endif
 #else
-c SERIAL
-c           Write data to the dataset
+            !SERIAL
+            !Write data to the dataset
             call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE
      $                     ,node(ilo:ihip,jlo:jhip,klo:khip,1)
      $                     ,node_array_dim,hdferr)
@@ -737,37 +786,47 @@ c         Write cell-centered data
           do ieq=1,nqty(igrp)
 
 c           Create the dataset
+            if (hdf_debug)
+     .           write(*,'("HDF_mod:752: Create dataset ",a)') 
+     .           graph(igrp)%array_graph(ieq)%descr
+
             call h5dcreate_f(subgroup_id
      $                      ,graph(igrp)%array_graph(ieq)%descr
      $                      ,H5T_IEEE_F64BE
      $                      ,dataspace_id,dataset_id,hdferr)
 
 #if defined(petsc)
-c PARALLEL
-c           Select hyperslab in the file.
-            call h5dget_space_f(dataset_id,hs_dataspace_id,hdferr)
-            call h5sselect_hyperslab_f(hs_dataspace_id,H5S_SELECT_SET_F
-     $                                ,offset,count,hdferr)    
+            if (np > 1) then !PARALLEL
+              !Select hyperslab in the file.
+              call h5dget_space_f(dataset_id,hs_dataspace_id,hdferr)
+              call h5sselect_hyperslab_f(hs_dataspace_id
+     $                         ,H5S_SELECT_SET_F,offset,count,hdferr)    
 
-c           Write data to the dataset
-            call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE
+              !Write data to the dataset
+              call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE
+     $                       ,graph(igrp)%array_graph(ieq)
+     $                           %array(ilo:ihi,jlo:jhi,klo:khi)
+     $                       ,array_dim_i
+     $                       ,hdferr,file_space_id = hs_dataspace_id
+     $                       ,mem_space_id = p_dataspace_id
+     $                       ,xfer_prp = plist_id)
+
+              !Release resources
+              call h5sclose_f(hs_dataspace_id,hdferr)
+            else !SERIAL
+              !Write data to the dataset
+              call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE
      $                     ,graph(igrp)%array_graph(ieq)
-     $                         %array(ilo:ihi,jlo:jhi,klo:khi)
-     $                     ,array_dim_i
-     $                     ,hdferr,file_space_id = hs_dataspace_id
-     $                     ,mem_space_id = p_dataspace_id
-     $                     ,xfer_prp = plist_id)
-
-c           Release resources
-            call h5sclose_f(hs_dataspace_id,hdferr)
+     $                                 %array(ilo:ihi,jlo:jhi,klo:khi) !must specify index ranges
+     $                     ,array_dim,hdferr)
+            endif
 #else
 c SERIAL
-c           Write data to the dataset
+            !Write data to the dataset
             call h5dwrite_f(dataset_id,H5T_NATIVE_DOUBLE
      $                     ,graph(igrp)%array_graph(ieq)
      $                                 %array(ilo:ihi,jlo:jhi,klo:khi) !must specify index ranges
      $                     ,array_dim,hdferr)
-
 #endif
 
 c         Release resources

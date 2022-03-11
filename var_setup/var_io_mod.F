@@ -11,6 +11,8 @@ c ######################################################################
 
 #if defined(adios)
         use ADIOS_io
+#elif defined(ADIOS2)
+        use ADIOS2_mod
 #else
         character*(1024) :: recordfile='record.bin'
 #endif
@@ -29,6 +31,32 @@ c ######################################################################
 
       contains
 
+c     init_IO
+c     #################################################################
+      subroutine init_IO
+
+c     -----------------------------------------------------------------
+c     Finalizes IO for write
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Global variables
+
+c     Local variables
+
+      integer :: ierr
+      
+#if defined(adios)
+      ierr = init_ADIOS_IO()
+#elif defined(ADIOS2)
+      ierr = init_ADIOS2_IO()
+#endif
+
+c     Begin program
+
+      end subroutine init_IO
+      
 c     finalize_IO
 c     #################################################################
       subroutine finalize_IO
@@ -43,8 +71,12 @@ c     Global variables
 
 c     Local variables
 
+      integer :: ierr
+      
 #if defined(adios)
-      call ADIOS_finalize(my_rank, adios_err)
+      ierr = destroy_ADIOS_IO()
+#elif defined(ADIOS2)
+      ierr = destroy_ADIOS2_IO()
 #endif
 
 c     Begin program
@@ -65,20 +97,17 @@ c     Global variables
 
       integer :: ufile
       character(*),optional :: file
-cc      integer,optional,intent(out) :: lneq
 
 c     Local variables
 
-      integer :: nx,ny,nz,ierr,neq,ndepvl,ndepsl,nauxvl,nauxsl
-     .          ,ilg,ihg,jlg,jhg,klg,khg
-      character(len=1024) :: rfile
-
 c     Begin program
 
-#if !defined(adios)
-      ufile = openPOSIXRestartFileForRead(file=file)
-#else
+#if defined(adios)
       ufile = openADIOSRestartFileForRead(file=file)
+#elif defined(ADIOS2)
+      ufile = openADIOS2RestartFileForRead(file=file)
+#else
+      ufile = openPOSIXRestartFileForRead(file=file)
 #endif
 
       end function openRestartFileForRead
@@ -102,12 +131,19 @@ c     Local variables
 c     Begin program
 
 #if defined(adios)
-      call closeADIOSRecordFileForRead(adios_err)
-
+      adios_err = closeADIOSRecordFileForRead()
       if (adios_err /= 0) then
         call pstop('closeRestartFileForRead'
      $            ,'Error closing ADIOS restart file')
       endif
+      adios_err = destroy_ADIOS_IO()
+#elif defined(ADIOS2)
+      adios2_err = closeADIOS2RecordFileForRead()
+      if (adios2_err /= 0) then
+        call pstop('closeRestartFileForRead'
+     $            ,'Error closing ADIOS restart file')
+      endif
+      adios2_err = destroy_ADIOS2_IO()
 #else
       close(ufile)
 #endif
@@ -198,18 +234,35 @@ c$$$      nz = khg-klg+1
       read (ufile) ny,jlg,jhg
       read (ufile) nz,klg,khg
 
-cc      if (associated(gv%gparams)) then
       if (associated(gv)) then
+        if (associated(gv%gparams)) then
+cc      if (associated(gv)) then
 #if defined(petsc) 
-         if (nx /= nxl .or. ny /= nyl .or. nz /= nzl) then
+          if ((nx /= nxl .or. ny /= nyl .or. nz /= nzl).and.(np>1)) then
+            write (*,*) nx,nxl,ny,nyl,nz,nzl
 #else
-         if (nx /= nxd .or .ny /= nyd .or. nz /= nzd) then
+          if (nx /= nxd .or .ny /= nyd .or. nz /= nzd) then
+            write (*,*) nx,nxd,ny,nyd,nz,nzd
 #endif
-           write (*,*) nx,nxd,ny,nyd,nz,nzd
-           call pstop('openPOSIXRestartFileForRead'
+            call pstop('openPOSIXRestartFileForRead'
      $            ,'Grid meshes do not agree; cannot restart')
 
-         endif
+          endif
+        else
+          nxl = nx
+          nyl = ny
+          nzl = nz
+
+#if defined(petsc)
+          nxd = nx*npx
+          nyd = ny*npy
+          nzd = nz*npz
+#else
+          nxd = nx
+          nyd = ny
+          nzd = nz
+#endif
+        endif
       else
         nxl = nx
         nyl = ny
@@ -333,10 +386,11 @@ c       Local variables
 
 #if defined(adios)
         call setADIOSAppendIOMode()      !Set ADIOS recordfile to append
+#elif defined(ADIOS2)
+        call setADIOS2AppendIOMode()     !Set ADIOS2 recordfile to append
 #else
         posix_append_recordfile = .true. !Set POSIX recordfile to append
 #endif
-
       end subroutine setAppendIOMode
 
 c     readPOSIXRecordFile
@@ -428,6 +482,8 @@ c     Begin program
 
 #if defined(adios)
       ierr = readADIOSRecordFile(unit,itime,time,dt,gammat,varray)
+#elif defined(ADIOS2)
+      ierr = readADIOS2RecordFile(unit,itime,time,dt,gammat,varray)
 #else
       ierr = readPOSIXRecordFile(unit,itime,time,dt,gammat,varray)
 #endif
@@ -517,6 +573,9 @@ c     Begin program
 #if defined(adios)
       call writeADIOSRecordFile(file,itime,time,dt,gammat,varray
      .                         ,init=init)
+#elif defined(ADIOS2)
+      call writeADIOS2RecordFile(file,itime,time,dt,gammat
+     .                         ,varray,init=init)
 #else
       call writePOSIXRecordFile(file,itime,time,dt,gammat,varray
      .                         ,init=init)
@@ -532,7 +591,8 @@ c     #################################################################
      .                          ,ilg,ihg,jlg,jhg,klg,khg)
 
 c     -----------------------------------------------------------------
-c     Opens input binary files.
+c     Opens multiple input binary files for serial postprocessing of
+c     parallel run.
 c     -----------------------------------------------------------------
 
       implicit none
@@ -735,9 +795,43 @@ cc     .               ,maxval(khg_)-minval(klg_)+1
 
       end subroutine openRecordFiles
 
-c     closeRecordFiles
+c     openGraphicsFiles
 c     #################################################################
-      subroutine closeRecordFiles
+      function openGraphicsFiles(file) result(ufile)
+
+c     -----------------------------------------------------------------
+c     Open record files
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: ufile
+      character(*) :: file
+
+c     Local variables
+
+c     Begin program
+
+#if defined(adios)
+      ufile = openADIOSRestartFileForRead(file=file)
+#elif defined(ADIOS2)
+      ufile = openADIOS2RestartFileForRead(file=file)
+#else
+      if (np > 1) then
+        ufile = openPOSIXRestartFileForRead(file=file)
+      else
+        ufile = 1000
+        call openRecordFiles(ufile,file,ilog,ihig,jlog,jhig,klog,khig)
+      endif
+#endif
+
+      end function openGraphicsFiles
+
+c     closeGraphicsFiles
+c     #################################################################
+      subroutine closeGraphicsFiles
 
 c     -----------------------------------------------------------------
 c     Close record files
@@ -752,16 +846,125 @@ c     Local variables
 c     Begin program
 
 #if defined(adios)
-      call closeADIOSRecordFileForRead(adios_err)
-      call adios_finalize(my_rank,adios_err)
+      adios_err = closeADIOSRecordFileForRead()
+      if (adios_err /= 0) then
+        call pstop('closeRestartFileForRead'
+     $            ,'Error closing ADIOS restart file')
+      endif
+      adios_err = destroy_ADIOS_IO()
+#elif defined(ADIOS2)
+      adios2_err = closeADIOS2RecordFileForRead()
+      if (adios2_err /= 0) then
+        call pstop('closeRestartFileForRead'
+     $            ,'Error closing ADIOS restart file')
+      endif
+      adios2_err = destroy_ADIOS2_IO()
 #else
-      call closeFiles(murecord)
+      if (associated(murecord)) then
+        call closeFiles(murecord)
+      else
+        close(urecord)
+      endif
 #endif
 
 c     End programs
 
-      end subroutine closeRecordFiles
+      end subroutine closeGraphicsFiles
 
+c     new_dumpfile
+c     #################################################################
+      function new_dumpfile(itime) result(file)
+
+c     -----------------------------------------------------------------
+c     Switches the dump file to bifurcated one due to restart
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: itime
+      character(1024) :: file
+
+c     Local variables
+
+      integer :: length
+      character(10) :: counter1
+
+c     Begin program
+
+      counter1 = "0000000000"
+      length = len(trim(int2char(itime)))
+      counter1 = counter1(1:len(counter1)-length)
+     .         //trim(int2char(itime))
+
+#if defined(adios)
+      file = ADIOS_FILE
+      file = file(1:index(file,'.bp')-1)//'_it='//counter1//'.bp'
+#elif defined(ADIOS2)
+      file = ADIOS2_FILE
+      file = file(1:index(file,'.bp')-1)//'_it='//counter1//'.bp'
+#else
+      file = 'record_it='//counter1//'.bin'
+#endif
+
+cc      if (my_rank == 0) write (*,*) "dumpfile=",trim(file)
+      
+      end function new_dumpfile
+      
+c     switch_dumpfile
+c     #################################################################
+      function switch_dumpfile(itime1,itime2,ufile) result(switch)
+
+c     -----------------------------------------------------------------
+c     Switches the dump file to bifurcated one due to restart
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      logical :: switch
+      integer :: itime1,itime2,ufile
+
+c     Local variables
+
+      integer :: it
+      character(1024) :: file
+
+c     Begin program
+
+      switch = .false.
+      
+      do it=itime1,itime2
+        file = new_dumpfile(it)
+#if defined(adios)
+        switch = is_file(trim(file))
+#elif defined(ADIOS2)
+#if defined(ifort)
+        switch = is_dir(trim(file))
+#else
+        switch = is_file(trim(file))
+#endif
+#else
+        switch = is_file(trim(file)//"_proc0")
+#endif
+        if (switch) exit
+      end do
+      
+      if (switch) then
+        if (my_rank == 0) then
+cc          write (*,*) itime1,itime2
+          write (*,*) ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+          write (*,*) "Switching dump file to ",trim(file)
+          write (*,*) ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+        endif
+        call closeGraphicsFiles
+        ufile = openGraphicsFiles(file)
+      endif
+
+      end function switch_dumpfile
+      
 c     writeDerivedType
 c     #################################################################
       subroutine writeDerivedType(varray,unit,frmt)
@@ -1141,15 +1344,16 @@ c     Fill GLOBAL map
 
         call closeFiles(mumap)
 
-c     Fill LOCAL map and related metrics
+c     Fill LOCAL map and related metrics at ALL grid levels
 
-        call defineGridMetric(g_def,igr=igrid
-     .           ,xcar=ext_map(ilomg:ihipg,jlomg:jhipg,klomg:khipg,:))
+        call defineGridMetric(g_def
+     .           ,xcar=ext_map(ilomg:ihipg,jlomg:jhipg,klomg:khipg,:)
+     .           ,ierr=ierr)
 
         deallocate(ext_map)
 
-cc        gmetric => g_def%gmetric
-
+        if (ierr == 0) call createMGMetricHierarchy(g_def)
+        
       end subroutine readExtMap
 
 c     writeExtMap

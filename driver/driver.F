@@ -25,6 +25,7 @@ c Common variables
 c Local variables
 
       integer :: ierr=0
+      logical :: finish_t_loop
       
 c Interfaces
 
@@ -71,9 +72,11 @@ c Initial output
 
 c Time loop
 
+      finish_t_loop = TS_chk_end()
+
       do
 
-        if (TS_chk_end()) exit
+        if (finish_t_loop) exit
 
 c     Find new time step and update time counters
 
@@ -92,6 +95,8 @@ c     Time update
 
         ierr = TS_update(u_np,ilevel)
 
+        if (ts_no_exact.and.ierr==EXACT) ierr = NOERR
+        
 c     Check for error in time stepping
 
         select case(ierr)
@@ -142,7 +147,9 @@ c     Output per time step
 
 c     Time level data dump
 
-        call TS_dump(u_np)
+        finish_t_loop = TS_chk_end()
+        
+        call TS_dump(u_np,dump_now=finish_t_loop)  !Force restart dump at end
 
 c     Exit if eigenvalue computation
 
@@ -186,15 +193,20 @@ c Call variables
 
 c Local variables
 
-      integer :: ierr
+      integer :: ierr,provided
 
 c Begin program
 
 c Initialize PETSc and MPI (parallel version)
 
 #if defined(petsc)
-      call PetscInitialize(PETSC_NULL_CHARACTER,ierr)
+CGMM_OMP      call MPI_init_thread(MPI_THREAD_MULTIPLE,provided,ierr)
+CGMM_OMP      if (provided < MPI_THREAD_MULTIPLE) then
+CGMM_OMP        call pstop("DR_init","Cannot provide MPI threading requested")
+CGMM_OMP      endif
 
+      call PetscInitialize(PETSC_NULL_CHARACTER,ierr)
+      
       !Setup profiling
       call init_petsc_profile
 

@@ -12,9 +12,9 @@
 
       real(8),parameter :: pi=acos(-1d0)
 
-      INTERFACE det
-        module procedure determ3
-      END INTERFACE
+c$$$      INTERFACE det
+c$$$        module procedure determ3_sp,determ3
+c$$$      END INTERFACE
 
       INTERFACE fmed
         module procedure fmed_scl,fmed_vec
@@ -30,17 +30,70 @@
 
       INTERFACE chkRoundOff
         module procedure chkRoundOff_dp,chkRoundOff_sp
+     $                  ,chkRoundOff_dp_vec
       END INTERFACE
 
 #ifdef _SPRNG
 #include "sprng_f.h"
-
-        integer ::junk
-        SPRNG_POINTER stream
+      SPRNG_POINTER stream
+      logical :: is_sprng_init=.false.
+!$OMP THREADPRIVATE(is_sprng_init,stream)
 #endif
+
+      logical :: is_lcg_init=.false.
+!$OMP THREADPRIVATE(is_lcg_init)
+
+      integer :: lcg_seed = 123456789
+!$OMP THREADPRIVATE(lcg_seed)
 
       contains
 
+c     is_NAN
+c     #################################################################
+      function is_NAN(a)
+
+c     -----------------------------------------------------------------
+c     Detects whether number a is NaN
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        logical :: is_NAN
+        real(8) :: a
+
+c     Local variables
+
+c     Begin program
+
+        is_NAN = (a /= a)
+
+      end function is_NAN
+
+c     is_INF
+c     #################################################################
+      function is_INF(a)
+
+c     -----------------------------------------------------------------
+c     Detects whether number a is INF
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Input variables
+
+        logical :: is_INF
+        real(8) :: a
+
+c     Local variables
+
+c     Begin program
+
+        is_INF = (abs(a) > HUGE(a))
+
+      end function is_INF
+      
 c     cross_product
 c     #################################################################
       function cross_product(vec1,vec2) result(vec3)
@@ -190,6 +243,36 @@ c     Local variables
 
       end function findRoundOff
 
+c     chkRoundOff_dp_vec
+c     ###############################################################
+      function chkRoundOff_dp_vec(test,var) result(eps)
+
+      implicit none
+
+c     ---------------------------------------------------------------
+c     Finds machine round-off constant epsmac
+c     ---------------------------------------------------------------
+
+c     Call variables
+
+      logical :: test
+      real(8) :: var(:),eps(size(var))
+
+c     Local variables
+
+      real(8),save :: roundoff=0d0
+
+c     Begin program
+
+      eps = var
+      if (.not.test) return
+      
+      if (roundoff == 0d0) roundoff=findRoundOff()
+
+      where (abs(var) < 1000*roundoff) eps = 0d0
+
+      end function chkRoundOff_dp_vec
+
 c     chkRoundOff_dp
 c     ###############################################################
       function chkRoundOff_dp(test,var) result(eps)
@@ -250,6 +333,44 @@ c     Begin program
 
       end function chkRoundOff_sp
 
+c     trace
+c     #################################################################
+      function trace(m,tensor)
+
+      real(8) :: tensor(m,m)
+
+      real(8) :: trace
+      integer :: i
+
+      trace = 0d0
+      do i=1,m
+        trace = trace + tensor(i,i)
+      enddo
+      
+      end function trace
+
+c     det
+c     #################################################################
+      function det(tensor)
+
+      real(8) :: tensor(:,:)
+
+      real(8) :: det
+      integer :: d
+
+      d = size(tensor,1)
+      
+      select case(d)
+      case(1)
+        det = determ1(tensor)
+      case(2)
+        det = determ2(tensor)
+      case(3)
+        det = determ3(tensor)
+      end select
+      
+      end function det
+
 c     determ3
 c     #################################################################
       function determ3(tensor)
@@ -259,13 +380,55 @@ c     #################################################################
       real(8) :: determ3
 
       determ3 = tensor(1,1)*tensor(2,2)*tensor(3,3)
-     .         +tensor(3,2)*tensor(2,1)*tensor(1,3)
-     .         +tensor(1,2)*tensor(2,3)*tensor(3,1)
-     .         -tensor(1,3)*tensor(2,2)*tensor(3,1)
-     .         -tensor(1,1)*tensor(2,3)*tensor(3,2)
-     .         -tensor(3,3)*tensor(1,2)*tensor(2,1)
+     .            +tensor(3,2)*tensor(2,1)*tensor(1,3)
+     .            +tensor(1,2)*tensor(2,3)*tensor(3,1)
+     .            -tensor(1,3)*tensor(2,2)*tensor(3,1)
+     .            -tensor(1,1)*tensor(2,3)*tensor(3,2)
+     .            -tensor(3,3)*tensor(1,2)*tensor(2,1)
 
       end function determ3
+
+c     determ2
+c     #################################################################
+      function determ2(tensor)
+
+      real(8) :: tensor(2,2)
+
+      real(8) :: determ2
+
+      determ2 = tensor(1,1)*tensor(2,2)
+     .         -tensor(1,2)*tensor(2,1)
+      
+      end function determ2
+
+c     determ1
+c     #################################################################
+      function determ1(tensor)
+
+      real(8) :: tensor(1,1)
+
+      real(8) :: determ1
+
+      determ1 = tensor(1,1)
+
+      end function determ1
+
+c$$$c     determ3_sp
+c$$$c     #################################################################
+c$$$      function determ3_sp(tensor)
+c$$$
+c$$$      real(4) :: tensor(3,3)
+c$$$
+c$$$      real(4) :: determ3_sp
+c$$$
+c$$$      determ3_sp = tensor(1,1)*tensor(2,2)*tensor(3,3)
+c$$$     .            +tensor(3,2)*tensor(2,1)*tensor(1,3)
+c$$$     .            +tensor(1,2)*tensor(2,3)*tensor(3,1)
+c$$$     .            -tensor(1,3)*tensor(2,2)*tensor(3,1)
+c$$$     .            -tensor(1,1)*tensor(2,3)*tensor(3,2)
+c$$$     .            -tensor(3,3)*tensor(1,2)*tensor(2,1)
+c$$$
+c$$$      end function determ3_sp
 
 c     atanh
 c     #################################################################
@@ -959,6 +1122,41 @@ c     End
 
       end function fmed_vec
 
+c     minmod
+c     #################################################################
+      function minmod(a,b)
+
+      real(8) :: a,b,minmod
+
+      if (a*b <= 0d0) then
+        minmod = 0d0
+        return
+      endif
+
+      if (a > 0d0) then
+        minmod = min(a,b)
+      else
+        minmod = max(a,b)
+      endif
+
+      end function minmod
+
+c     mc
+c     #################################################################
+      function mc(a,b,chk)
+
+      real(8) :: a,b,mc,ho_flx
+
+      logical,optional :: chk
+
+      ho_flx = 0.5*(a+b)
+
+      mc = minmod(2*minmod(a,b),ho_flx)
+
+      if (PRESENT(chk)) chk = (mc /= ho_flx)
+
+      end function mc
+
 c     ellipticK_vec
 c     ####################################################################
       function ellipticK_vec(eta,pole) result(ellK)
@@ -1281,40 +1479,21 @@ c     arguments
 c     local variables
 
       real(8) :: x1,x2,w,r
-      integer, save :: seed = 1 !careful
 
 c     Begin program
 
-#ifdef _SPRNG
-      r = sprng(stream)         
-#else
-      CALL RANDOM_NUMBER(r)
-cc      r = randlcg(seed)         !careful
-#endif
+      call unif_rng(r)
       x1 = 2d0*r - 1d0      
-#ifdef _SPRNG
-      r = sprng(stream)         
-#else
-      CALL RANDOM_NUMBER(r)
-cc      r = randlcg(seed)         !careful
-#endif
+
+      call unif_rng(r)
       x2 = 2d0*r - 1d0
       w = x1*x1 + x2*x2
 
       do while(w>1d0)
-#ifdef _SPRNG
-        r = sprng(stream)         
-#else
-        CALL RANDOM_NUMBER(r)
-cc        r = randlcg(seed)       !careful
-#endif
+        call unif_rng(r)
         x1 = 2d0*r - 1d0
-#ifdef _SPRNG
-        r = sprng(stream)         
-#else
-        CALL RANDOM_NUMBER(r) 
-cc        r = randlcg(seed)
-#endif
+
+        call unif_rng(r)
         x2 = 2d0*r - 1d0
         w = x1*x1 + x2*x2
       end do
@@ -1342,11 +1521,16 @@ c     local variables
 c     Begin program
 
 #ifdef _SPRNG
-      r = sprng(stream)         
+      if (is_sprng_init) then
+        r = sprng(stream)
+      elseif(is_lcg_init) then
 #else
-cc      r = randlcg(seed)         !careful
-      call random_number(r)
+      if(is_lcg_init) then
 #endif
+        r = randlcg(lcg_seed)   !careful
+      else
+        call random_number(r)
+      endif
 
 c     End program
       
@@ -1361,64 +1545,137 @@ c     ##################################################################
       integer :: seed
       real(8) :: randlcg
 
-      seed = int(mod(16807d0*dble(seed), 2147483647d0))
-      randlcg = dble(seed)/2147483647d0      
+      seed = int(mod(16807d0*dble(seed),2147483647d0))
+      randlcg = dble(seed)/2147483647d0
 
       end function randlcg
 
 c     init_random_seed
 c     #########################################################################
-      SUBROUTINE init_random_seed(nproc,streamnum,output,seed)
+      SUBROUTINE init_random_seed(nstreams,streamnum,output,seed)
 
 c     -------------------------------------------------------------------------
-c     Initializes random seed for stream number "streamnum" of "nproc" #
-c     of processors
+c     Initializes random seed for stream number "streamnum" of "nstreams"
 c     -------------------------------------------------------------------------
-      
+
         implicit none
-        integer,INTENT(IN) :: streamnum,nproc
+        integer,INTENT(IN) :: streamnum,nstreams
         logical,INTENT(IN) :: output
         integer,INTENT(IN),optional :: seed
 
 #ifdef _SPRNG
-        integer :: nstreams, junk,sd
-        integer :: gtype
-        real(8) :: rn
-
-        gtype = 1       !lcg
-        if (PRESENT(seed)) then
-          sd = 985456376 + 37*seed
-        else
-          sd = 985456376
-        endif
-        nstreams = nproc
-        
-        stream = init_sprng(gtype,streamnum,nstreams,sd,SPRNG_DEFAULT)   
-
-        if (output) junk = print_sprng(stream)
+        call init_random_seed_sprng(nstreams,streamnum,output,seed=seed)
 #else
-        INTEGER :: i, n, clock, sd
-        INTEGER, DIMENSION(:), ALLOCATABLE :: sd2
-
-        CALL RANDOM_SEED(size = n)
-        ALLOCATE(sd2(n))
-
-        if (PRESENT(seed)) then
-          sd = seed
-        else
-          sd = streamnum
-        endif
-          
-c$$$        CALL SYSTEM_CLOCK(COUNT=clock)
-c$$$          
-c$$$        seed = clock + 37 * (/ (i - 1, i = 1, n) /)
-        sd2 = sd + 37 * (/ (i - 1, i = 1, n) /)
-        CALL RANDOM_SEED(PUT = sd2)
-          
-        DEALLOCATE(sd2)
+#ifdef _OPENMP
+        call init_random_seed_lcg(streamnum,seed=seed)
+#else
+        call init_random_seed_f90(streamnum,seed=seed)
 #endif
-        end subroutine init_random_seed
-  
+#endif
+      end subroutine init_random_seed
+
+#ifdef _SPRNG
+c     init_random_seed_sprng
+c     #########################################################################
+      SUBROUTINE init_random_seed_sprng(nstreams,streamnum,output,seed)
+
+c     -------------------------------------------------------------------------
+c     Initializes random seed for stream number "streamnum" of "nstreams"
+c     -------------------------------------------------------------------------
+
+      implicit none
+      integer,INTENT(IN) :: streamnum,nstreams
+      logical,INTENT(IN) :: output
+      integer,INTENT(IN),optional :: seed
+
+      integer :: junk,sd
+      integer :: gtype
+      real(8) :: rn
+
+      if (is_sprng_init) return
+      is_sprng_init = .true.
+
+      !Available generators (gtype)
+      !   lfg     --- 0
+      !   lcg     --- 1
+      !   lcg64   --- 2
+      !   cmrg    --- 3
+      !   mlfg    --- 4
+      !   pmlcg   --- 5
+      
+      gtype = 1       !lcg
+      if (PRESENT(seed)) then
+        sd = 985456376 + 37*seed
+      else
+        sd = 985456376
+      endif
+      
+      stream = init_sprng(gtype,streamnum,nstreams,sd,SPRNG_DEFAULT)   
+
+      if (output) junk = print_sprng(stream)
+
+      end subroutine init_random_seed_sprng
+#endif
+      
+c     init_random_seed_f90
+c     #########################################################################
+      SUBROUTINE init_random_seed_f90(streamnum,seed)
+
+c     -------------------------------------------------------------------------
+c     Initializes random seed for stream number "streamnum" of "nstreams"
+c     -------------------------------------------------------------------------
+
+      implicit none
+      
+      integer,INTENT(IN) :: streamnum
+      integer,INTENT(IN),optional :: seed
+
+      INTEGER :: i, n, clock, sd
+      INTEGER, DIMENSION(:), ALLOCATABLE :: sd2
+
+      CALL RANDOM_SEED(size = n)
+      ALLOCATE(sd2(n))
+
+      if (PRESENT(seed)) then
+        sd = seed
+      else
+        sd = streamnum
+      endif
+        
+c$$$      CALL SYSTEM_CLOCK(COUNT=clock)
+c$$$        
+c$$$      seed = clock + 37 * (/ (i - 1, i = 1, n) /)
+      sd2 = sd + 37 * (/ (i - 1, i = 1, n) /)
+      CALL RANDOM_SEED(PUT = sd2)
+        
+      DEALLOCATE(sd2)
+        
+      end subroutine init_random_seed_f90
+
+c     init_random_seed_lcg
+c     #########################################################################
+      SUBROUTINE init_random_seed_lcg(streamnum,seed)
+
+c     -------------------------------------------------------------------------
+c     Initializes random seed for stream number "streamnum" of "nstreams"
+c     -------------------------------------------------------------------------
+
+      implicit none
+      
+      integer,INTENT(IN) :: streamnum
+      integer,INTENT(IN),optional :: seed
+
+      if (is_lcg_init) return
+      is_lcg_init = .true.
+
+      if (PRESENT(seed)) then
+        lcg_seed = 985456376 + seed + streamnum*37
+      else
+        lcg_seed = 985456376        + streamnum*37
+      endif
+
+      end subroutine init_random_seed_lcg
+
 c     free_random_seed
 c     #########################################################################
       SUBROUTINE free_random_seed()
@@ -1426,9 +1683,12 @@ c     #########################################################################
         implicit none
 
 #ifdef _SPRNG
-        integer ::junk
+        integer :: junk
 
-        junk = free_sprng(stream)
+        if (is_sprng_init) then
+          junk = free_sprng(stream)
+          is_sprng_init = .false.
+        endif
 #endif
 
       END SUBROUTINE free_random_seed
@@ -1452,7 +1712,7 @@ c     Local variables
 
       REAL(8) :: t,z
 
-c     Begin progra
+c     Begin program
 
       z=abs(x)
 
@@ -1471,7 +1731,7 @@ c     #######################################################################
       SUBROUTINE CALERF(ARG,RESULT,JINT)
 C------------------------------------------------------------------
 C
-C This packet evaluates  erf(x),  erfc(x),  and  exp(x*x)*erfc(x)
+C   This packet evaluates  erf(x),  erfc(x),  and  exp(x*x)*erfc(x)
 C   for a real argument  x.  It contains three FUNCTION type
 C   subprograms: ERF, ERFC, and ERFCX (or DERF, DERFC, and DERFCX),
 C   and one SUBROUTINE type subprogram, CALERF.  The calling
@@ -1586,7 +1846,7 @@ C  Latest modification: March 19, 1990
 C
 C------------------------------------------------------------------
       INTEGER I,JINT
-CS    REAL
+
       DOUBLE PRECISION
      1     A,ARG,B,C,D,DEL,FOUR,HALF,P,ONE,Q,RESULT,SIXTEN,SQRPI,
      2     TWO,THRESH,X,XBIG,XDEN,XHUGE,XINF,XMAX,XNEG,XNUM,XSMALL,
@@ -1595,27 +1855,17 @@ CS    REAL
 C------------------------------------------------------------------
 C  Mathematical constants
 C------------------------------------------------------------------
-CS    DATA FOUR,ONE,HALF,TWO,ZERO/4.0E0,1.0E0,0.5E0,2.0E0,0.0E0/,
-CS   1     SQRPI/5.6418958354775628695E-1/,THRESH/0.46875E0/,
-CS   2     SIXTEN/16.0E0/
       DATA FOUR,ONE,HALF,TWO,ZERO/4.0D0,1.0D0,0.5D0,2.0D0,0.0D0/,
      1     SQRPI/5.6418958354775628695D-1/,THRESH/0.46875D0/,
      2     SIXTEEN/16.0D0/,ISIXTEEN/0.0625D0/
 C------------------------------------------------------------------
 C  Machine-dependent constants
 C------------------------------------------------------------------
-CS    DATA XINF,XNEG,XSMALL/3.40E+38,-9.382E0,5.96E-8/,
-CS   1     XBIG,XHUGE,XMAX/9.194E0,2.90E3,4.79E37/
       DATA XINF,XNEG,XSMALL/1.79D308,-26.628D0,1.11D-16/,
      1     XBIG,XHUGE,XMAX/26.543D0,6.71D7,2.53D307/
 C------------------------------------------------------------------
 C  Coefficients for approximation to  erf  in first interval
 C------------------------------------------------------------------
-CS    DATA A/3.16112374387056560E00,1.13864154151050156E02,
-CS   1       3.77485237685302021E02,3.20937758913846947E03,
-CS   2       1.85777706184603153E-1/
-CS    DATA B/2.36012909523441209E01,2.44024637934444173E02,
-CS   1       1.28261652607737228E03,2.84423683343917062E03/
       DATA A/3.16112374387056560D00,1.13864154151050156D02,
      1       3.77485237685302021D02,3.20937758913846947D03,
      2       1.85777706184603153D-1/
@@ -1624,15 +1874,6 @@ CS   1       1.28261652607737228E03,2.84423683343917062E03/
 C------------------------------------------------------------------
 C  Coefficients for approximation to  erfc  in second interval
 C------------------------------------------------------------------
-CS    DATA C/5.64188496988670089E-1,8.88314979438837594E0,
-CS   1       6.61191906371416295E01,2.98635138197400131E02,
-CS   2       8.81952221241769090E02,1.71204761263407058E03,
-CS   3       2.05107837782607147E03,1.23033935479799725E03,
-CS   4       2.15311535474403846E-8/
-CS    DATA D/1.57449261107098347E01,1.17693950891312499E02,
-CS   1       5.37181101862009858E02,1.62138957456669019E03,
-CS   2       3.29079923573345963E03,4.36261909014324716E03,
-CS   3       3.43936767414372164E03,1.23033935480374942E03/
       DATA C/5.64188496988670089D-1,8.88314979438837594D0,
      1       6.61191906371416295D01,2.98635138197400131D02,
      2       8.81952221241769090D02,1.71204761263407058D03,
@@ -1645,12 +1886,6 @@ CS   3       3.43936767414372164E03,1.23033935480374942E03/
 C------------------------------------------------------------------
 C  Coefficients for approximation to  erfc  in third interval
 C------------------------------------------------------------------
-CS    DATA P/3.05326634961232344E-1,3.60344899949804439E-1,
-CS   1       1.25781726111229246E-1,1.60837851487422766E-2,
-CS   2       6.58749161529837803E-4,1.63153871373020978E-2/
-CS    DATA Q/2.56852019228982242E00,1.87295284992346047E00,
-CS   1       5.27905102951428412E-1,6.05183413124413191E-2,
-CS   2       2.33520497626869185E-3/
       DATA P/3.05326634961232344D-1,3.60344899949804439D-1,
      1       1.25781726111229246D-1,1.60837851487422766D-2,
      2       6.58749161529837803D-4,1.63153871373020978D-2/
@@ -1660,7 +1895,7 @@ CS   2       2.33520497626869185E-3/
 C------------------------------------------------------------------
       X = ARG
       Y = ABS(X)
-      IY = ONE/Y
+      if (Y > 0d0) IY = ONE/Y
 
       IF (Y .LE. THRESH) THEN
 C------------------------------------------------------------------
@@ -1681,7 +1916,7 @@ C------------------------------------------------------------------
 C------------------------------------------------------------------
 C  Evaluate  erfc  for 0.46875 <= |X| <= 4.0
 C------------------------------------------------------------------
-         ELSE IF (Y .LE. FOUR) THEN
+      ELSE IF (Y .LE. FOUR) THEN
             XNUM = C(9)*Y
             XDEN = Y
             DO 120 I = 1, 7
@@ -1697,7 +1932,7 @@ C------------------------------------------------------------------
 C------------------------------------------------------------------
 C  Evaluate  erfc  for |X| > 4.0
 C------------------------------------------------------------------
-         ELSE
+      ELSE
             RESULT = ZERO
             IF (Y .GE. XBIG) THEN
                IF ((JINT .NE. 2) .OR. (Y .GE. XMAX)) GO TO 300
@@ -1743,7 +1978,7 @@ C------------------------------------------------------------------
   800 RETURN
 C---------- Last card of CALERF ----------
       END
-CS    REAL FUNCTION ERF(X)
+
       DOUBLE PRECISION FUNCTION DERF(X)
 C--------------------------------------------------------------------
 C
@@ -1759,12 +1994,11 @@ CS    REAL             X, RESULT
 C------------------------------------------------------------------
       JINT = 0
       CALL CALERF(X,RESULT,JINT)
-CS    ERF = RESULT
       DERF = RESULT
       RETURN
 C---------- Last card of DERF ----------
       END
-CS    REAL FUNCTION ERFC(X)
+
       DOUBLE PRECISION FUNCTION DERFC(X)
 C--------------------------------------------------------------------
 C
@@ -1780,12 +2014,11 @@ CS    REAL             X, RESULT
 C------------------------------------------------------------------
       JINT = 1
       CALL CALERF(X,RESULT,JINT)
-CS    ERFC = RESULT
       DERFC = RESULT
       RETURN
 C---------- Last card of DERFC ----------
       END
-CS    REAL FUNCTION ERFCX(X)
+
       DOUBLE PRECISION FUNCTION DERFCX(X)
 C------------------------------------------------------------------
 C
@@ -1796,7 +2029,6 @@ C   Author/date: W. J. Cody, March 30, 1987
 C
 C------------------------------------------------------------------
       INTEGER JINT
-CS    REAL             X, RESULT
       DOUBLE PRECISION X, RESULT
 C------------------------------------------------------------------
       JINT = 2
@@ -1806,6 +2038,449 @@ CS    ERFCX = RESULT
       RETURN
 C---------- Last card of DERFCX ----------
       END
+      
+!**********************************************************************************
+!  Copyright (C) 1985 Numerical Recipes Software -- GAMMLN
+!**********************************************************************************
+      FUNCTION GAMMLN(XX)
+      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+      DOUBLE PRECISION COF(6),STP,HALF,ONE,FPF,X,TMP,SER,XX
+c      DATA COF,STP/76.18009173D0,-86.50532033D0,24.01409822D0,
+c    *    -1.231739516D0,.120858003D-2,-.536382D-5,2.50662827465D0/
+      DATA COF,STP/76.18009173,-86.50532033,24.01409822,
+     *    -1.231739516,.120858003E-2,-.536382E-5,2.50662827465/
+      DATA HALF,ONE,FPF/0.5,1.0,5.5/
+      X=XX-ONE
+      TMP=X+FPF
+      TMP=(X+HALF)*LOG(TMP)-TMP
+      SER=ONE
+      DO 11 J=1,6
+        X=X+ONE
+        SER=SER+COF(J)/X
+11    CONTINUE
+      GAMMLN=TMP+LOG(STP*SER)
+      RETURN
+      END
+
+c     SYMINV
+c     ########################################################################
+      SUBROUTINE SYMINV(A,N,C,W,NULLTY,IFAULT,RMAX,CMY,TOL)
+!*****************************************************************************
+c       Algorithm AS7, Applied Statistics, Vol.17, 1968.
+c
+c       ARGUMENTS:-
+c       A()     = input, the symmetric matrix to be inverted, stored in
+c                 lower triangular form
+c       N       = input, order of the matrix
+c       C()     = output, the inverse of a (a generalized inverse if c is
+c                 singular), also stored in lower triangular.
+c                 c and a may occupy the same locations.
+c       W()     = workspace, dimension at least n.
+c       NULLTY  = output, the rank deficiency of a.
+c       IFAULT  = output, error indicator
+c                       = 1 if n < 1
+c                       = 2 if a is not +ve semi-definite
+c                       = 0 otherwise
+c       RMAX    = output, approximate bound on the accuracy of the diagonal
+c                 elements of c.  e.g. if rmax = 1.e-04 then the diagonal
+c                 elements of c will be accurate to about 4 dec. digits.
+c
+c       Latest revision - 18 April 1981
+!*****************************************************************************
+
+        IMPLICIT NONE
+      
+c     Call variables
+
+        integer :: N,NULLTY,IFAULT
+        real(8) :: A(N*N),C(N*N),W(N),CMY(N*(N+1)/2),RMAX
+        real(8),optional :: TOL
+
+c     Local variables
+
+        integer :: NROW,NN,IMY,IROW,ICOL,JCOL,MDIAG,L,NDIAG,K,I,J
+        real(8) :: X
+
+c     Begin program
+      
+        NROW=N
+        IFAULT=1
+        IF(NROW.LE.0) GO TO 100
+        IFAULT=0
+c       Cholesky factorization of A, result in C
+        CALL CHOLA(A,NROW,C,NULLTY,IFAULT,RMAX,W,TOL=TOL)
+        IF(IFAULT.NE.0) GO TO 100
+c       Invert C & form the product (CINV)'*CINV, where CINV is the inverse
+c       of C, row by row starting with the last row.
+c       IROW = the row number, NDIAG = location of last element in the row.
+        NN=NROW*(NROW+1)/2
+        DO IMY=1,NN
+          CMY(IMY)=C(IMY)
+        ENDDO
+        
+        IROW=NROW
+        NDIAG=NN
+10      IF(C(NDIAG).EQ.0.0) GO TO 60
+        L=NDIAG
+        DO 20 I=IROW,NROW
+          W(I)=C(L)
+          L=L+I
+20      CONTINUE
+        ICOL=NROW
+        JCOL=NN
+        MDIAG=NN
+30      L=JCOL
+        X=0.0
+        IF(ICOL.EQ.IROW) X=1.0/W(IROW)
+        K=NROW
+40      IF(K.EQ.IROW) GO TO 50
+        X=X-W(K)*C(L)
+        K=K-1
+        L=L-1
+        IF(L.GT.MDIAG) L=L-K+1
+        GO TO 40
+50      C(L)=X/W(IROW)
+        IF(ICOL.EQ.IROW) GO TO 80
+        MDIAG=MDIAG-ICOL
+        ICOL=ICOL-1
+        JCOL=JCOL-1
+        GO TO 30
+60      L=NDIAG
+        DO 70 J=IROW,NROW
+          C(L)=0.0
+          L=L+J
+70      CONTINUE
+80      NDIAG=NDIAG-IROW
+        IROW=IROW-1
+        IF(IROW.NE.0) GO TO 10
+100     RETURN
+        END SUBROUTINE SYMINV
+
+c     CHOLA
+c     ########################################################################
+      SUBROUTINE CHOLA(A,N,U,NULLTY,IFAULT,RMAX,R,TOL)
+!*****************************************************************************
+C       Algorithm AS6, Applied Statistics, Vol.17, 1968, with
+C       modifications by A.J.Miller
+C
+C       ARGUMENTS:-
+C       A()     = input, a +ve definite matrix stored in lower-triangular
+C                 form.
+C       N       = input, the order of A
+C       U()     = output, a lower triangular matrix such that U*U' = A.
+C                 A & U may occupy the same locations.
+C       NULLTY  = output, the rank deficiency of A.
+C       IFAULT  = output, error indicator
+C                       = 1 if N < 1
+C                       = 2 if A is not +ve semi-definite
+C                       = 0 otherwise
+C       RMAX    = output, an estimate of the relative accuracy of the
+C                 diagonal elements of U, e.g. if rmax = 1.e-04 then the diagonal
+C                 elements of U will be accurate to about 4 dec. digits.
+C       R()     = output, array containing bounds on the relative accuracy
+C                 of each diagonal element of U.
+C
+C       Latest revision - 18 April 1981
+!*****************************************************************************
+
+        IMPLICIT NONE
+        
+c     call variables
+
+        integer :: N,NULLTY,IFAULT
+        real(8) :: A(N*N),U(N*N),R(N),RMAX
+        real(8),optional :: TOL
+       
+c     Local variables
+
+        integer :: I,J,K,ICOL,IROW,L,M
+        real(8) :: ETA,W,RSQ
+
+c     ETA should be set equal to the smallest +ve value such that
+c     1.0 + eta is calculated as being greater than 1.0 in the accuracy
+c     being used.
+
+        if (PRESENT(TOL)) then
+          ETA = TOL
+        else
+          ETA=2*findRoundOff()
+        endif
+        
+        IFAULT=1
+        IF(N.LE.0) GO TO 100
+        IFAULT=2
+        NULLTY=0
+        RMAX=ETA
+        R(1)=ETA
+        J=1
+        K=0
+c       Factorize column by column, ICOL = Column No.
+        DO 80 ICOL=1,N
+          L=0
+c       IROW = row number within column ICOL
+          DO 40 IROW=1,ICOL
+            K=K+1
+            W=A(K)
+            IF(IROW.EQ.ICOL) RSQ=(W*ETA)**2
+            M=J
+            DO 10 I=1,IROW
+              L=L+1
+              IF(I.EQ.IROW) GO TO 20
+              W=W-U(L)*U(M)
+              IF(IROW.EQ.ICOL) RSQ=RSQ+(U(L)**2*R(I))**2
+              M=M+1
+10          CONTINUE
+20          IF(IROW.EQ.ICOL) GO TO 50
+            IF(U(L).EQ.0.0) GO TO 30
+            U(K)=W/U(L)
+            GO TO 40
+30          U(K)=0.0
+            IF(ABS(W).GT.ABS(RMAX*A(K))) GO TO 100
+40        CONTINUE
+c         End of row, estimate relative accuracy of diagonal element.
+50        RSQ=SQRT(RSQ)
+          IF(ABS(W).LE.5.*RSQ) GO TO 60
+          IF(W.LT.0.0) GO TO 100
+          U(K)=SQRT(W)
+          R(I)=RSQ/W
+          IF(R(I).GT.RMAX) RMAX=R(I)
+          GO TO 70
+60        U(K)=0.0
+          NULLTY=NULLTY+1
+70        J=J+ICOL
+80      CONTINUE
+        IFAULT=0
+100     RETURN
+
+      END SUBROUTINE CHOLA
+
+c     cholesky_lapack
+c     ########################################################################
+      subroutine cholesky_lapack(uplo,n,a)
+
+!*****************************************************************************
+!
+!    The positive definite symmetric matrix A has a Cholesky factorization
+!    of the form:
+!
+!      A = R' * R
+!
+!    where R is an upper triangular matrix with positive elements on
+!    its diagonal.  This routine overwrites the matrix A with its
+!    factor R.
+!
+!  Parameters:
+!
+!    Input, uplo="L","U" (lower/upper)
+!    Input, integer ( kind = 4 ) N, the order of the matrix.
+!
+!    Input/output, real ( kind = 8 ) A(N,N).
+!    On input, the matrix
+!    On output, the Cholesky factor R or R' (either upper or lower).
+!*****************************************************************************
+
+      implicit none
+
+      integer ( kind = 4 ) n
+
+      character(1) :: uplo
+      
+      real    ( kind = 8 ) a(n,n),trg(n*n)
+      integer ( kind = 4 ) i
+      integer ( kind = 4 ) info
+      integer ( kind = 4 ) j
+      integer ( kind = 4 ) k
+      real    ( kind = 8 ) s,RMAX,R(n)
+
+      where (abs(a) < 1d-14) a = 0d0
+
+      if (uplo=="U") then
+        do i = 1, n
+          do j = 1, i-1
+            a(i,j) = 0.0D+00
+          end do
+        end do
+      else
+        do i = 1, n
+          do j = i+1, n
+            a(i,j) = 0.0D+00
+          end do
+        end do
+      endif
+
+      call dpotrf(uplo,n,a,n,info)
+
+      call LAPACK_error("cholesky",info)
+
+      end subroutine cholesky_lapack
+
+c     cholesky_chola
+c     ########################################################################
+      subroutine cholesky_chola(uplo,n,a)
+
+!*****************************************************************************
+!
+!    The positive definite symmetric matrix A has a Cholesky factorization
+!    of the form:
+!
+!      A = R' * R
+!
+!    where R is an upper triangular matrix with positive elements on
+!    its diagonal.  This routine overwrites the matrix A with its
+!    factor R.
+!
+!  Parameters:
+!
+!    Input, uplo="L","U" (lower/upper)
+!    Input, integer ( kind = 4 ) N, the order of the matrix.
+!
+!    Input/output, real ( kind = 8 ) A(N,N).
+!    On input, the matrix
+!    On output, the Cholesky factor R or R' (either upper or lower).
+!*****************************************************************************
+
+      implicit none
+
+      integer ( kind = 4 ) n
+
+      character(1) :: uplo
+      
+      real    ( kind = 8 ) a(n,n),trg(n*n)
+      integer ( kind = 4 ) i
+      integer ( kind = 4 ) info
+      integer ( kind = 4 ) j
+      integer ( kind = 4 ) k
+      real    ( kind = 8 ) s,RMAX,R(n)
+
+!     Begin program
+      
+      where (abs(a) < 1d-14) a = 0d0
+
+      !Store lower triangular
+      K = 0
+      DO J=1,N
+        DO I=1,J
+          K=K+1
+          TRG(K)=a(J,I)
+        END DO
+      END DO
+
+      a = 0d0
+      
+      !Compute Cholesky factor (lower triangular)
+      CALL CHOLA(TRG,N,TRG,INFO,INFO,RMAX,R)
+
+      if ( info /= 0 ) then
+         write ( *, '(a)' ) ' '
+         write ( *, '(a)' ) 'CHOLESKY - Fatal error!'
+         write ( *, '(a)' ) 
+     .    '  The variance-covariance matrix is not positive definite 
+     .       symmetric.'
+         stop
+      end if
+
+c$$$      write (*,*) "# Cholesky accuracy=",RMAX
+
+      if (uplo=="U") then
+        !Store upper triangular
+        K = 0
+        DO J=1,N
+          DO I=1,J
+            K=K+1
+            a(I,J) = TRG(K)
+          END DO
+        END DO
+      else
+        !Store lower triangular
+        K = 0
+        DO J=1,N
+          DO I=1,J
+            K=K+1
+            a(J,I) = TRG(K)
+          END DO
+        END DO
+      endif
+
+      end subroutine cholesky_chola
+
+c     EIG_Jacobi
+c     ##################################################################
+      subroutine EIG_Jacobi(a,x,abserr,n)
+      !===========================================================
+      ! Evaluate eigenvalues and eigenvectors
+      ! of a real symmetric matrix a(n,n): a*x = lambda*x 
+      ! method: Jacoby method for symmetric matrices 
+      ! Alex G. (December 2009)
+      !-----------------------------------------------------------
+      ! input ...
+      ! a(n,n) - array of coefficients for matrix A
+      ! n      - number of equations
+      ! abserr - abs tolerance [sum of (off-diagonal elements)^2]
+      ! output ...
+      ! a(i,i) - eigenvalues
+      ! x(i,j) - eigenvectors
+      ! comments ...
+      !===========================================================
+      implicit none
+      integer i, j, k, n
+      double precision a(n,n),x(n,n)
+      double precision abserr, b2, bar
+      double precision beta, coeff, c, s, cs, sc
+
+      ! initialize x(i,j)=0, x(i,i)=1
+
+      x = 0.0
+      do i=1,n
+        x(i,i) = 1.0
+      end do
+
+      ! find the sum of all off-diagonal elements (squared)
+      b2 = 0.0
+      do i=1,n
+        do j=1,n
+          if (i.ne.j) b2 = b2 + a(i,j)**2
+        end do
+      end do
+
+      if (b2 <= abserr) return
+
+      ! average for off-diagonal elements /2
+      bar = 0.5*b2/float(n*n)
+
+      do while (b2.gt.abserr)
+      do i=1,n-1
+        do j=i+1,n
+          if (a(j,i)**2 <= bar) cycle  ! do not touch small elements
+          b2 = b2 - 2.0*a(j,i)**2
+          bar = 0.5*b2/float(n*n)
+          ! calculate coefficient c and s for Givens matrix
+          beta = (a(j,j)-a(i,i))/(2.0*a(j,i))
+          coeff = 0.5*beta/sqrt(1.0+beta**2)
+          s = sqrt(max(0.5+coeff,0.0))
+          c = sqrt(max(0.5-coeff,0.0))
+          ! recalculate rows i and j
+          do k=1,n
+            cs =  c*a(i,k)+s*a(j,k)
+            sc = -s*a(i,k)+c*a(j,k)
+            a(i,k) = cs
+            a(j,k) = sc
+          end do
+          ! new matrix a_{k+1} from a_{k}, and eigenvectors 
+          do k=1,n
+            cs =  c*a(k,i)+s*a(k,j)
+            sc = -s*a(k,i)+c*a(k,j)
+            a(k,i) = cs
+            a(k,j) = sc
+            cs =  c*x(k,i)+s*x(k,j)
+            sc = -s*x(k,i)+c*x(k,j)
+            x(k,i) = cs
+            x(k,j) = sc
+          end do
+        end do
+      end do
+      end do
+
+      end subroutine EIG_Jacobi
 
 c     blockSolve
 c     #################################################################
@@ -1847,7 +2522,7 @@ c     Begin program
 
         call dgesv(size,icol,mat2,size,ipiv,x,size,info) !LAPACK routine
 
-        call LAPACK_error(info)
+        call LAPACK_error("blockSolve",info)
 
       end subroutine blockSolve
 
@@ -1886,7 +2561,7 @@ c     Find LU decomposition
 
         call dgetrf(size,size,mat,size,ipiv,info) !LAPACK routine
 
-        call LAPACK_error(info)
+        call LAPACK_error("blockInv",info)
 
 c     Invert matrix
 
@@ -1903,13 +2578,13 @@ cc        lwork=size
         call dgetri(size,mat,size,ipiv,work,lwork,info) !LAPACK routine
         deallocate(work)
 
-        call LAPACK_error(info)
+        call LAPACK_error("blockInv",info)
 
       end subroutine blockInv
 
 c     LAPACK_error
 c     #################################################################
-      subroutine LAPACK_error(info)
+      subroutine LAPACK_error(routine,info)
 
 c     -----------------------------------------------------------------
 c     Error routine for LAPACK calls
@@ -1921,6 +2596,7 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
+        character(*) :: routine
         integer    :: info
 
 c     Local variables
@@ -1933,9 +2609,9 @@ c     Begin program
           if (info < 0) then
             messg = 'Problem in factorization in argument '
      .             //int2char(-info)
-            call sstop(0,'blockSolve',messg)
+            call sstop(0,trim(routine),messg)
           else
-            call sstop(0,'blockSolve','Matrix is singular')
+            call sstop(0,trim(routine),'Matrix is singular')
           endif
         endif
 

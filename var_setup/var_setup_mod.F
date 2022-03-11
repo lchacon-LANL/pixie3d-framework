@@ -949,64 +949,6 @@ c     Begin program
 
       end subroutine scaleVector_by_vol2
 
-ccc     scaleVector_by_vol
-ccc     ###################################################################
-cc      function scaleVector_by_vol(igr,neq,vec1,op) result(vec2)
-cc
-ccc     -------------------------------------------------------------------
-ccc     Scales vec1 by volume ( vec2=vec1/vol on the mesh. In call:
-ccc       * igr: grid level
-ccc       * neq: number of variables contained in vectors.
-ccc       * vec1: input vector
-ccc       * op: operation ('mul','div')
-ccc       * vec2: return vector
-ccc     -------------------------------------------------------------------
-cc
-cc      implicit none
-cc
-ccc     Call variables
-cc
-cc      integer :: igr,neq
-cc      real(8) :: vec1(:),vec2(size(vec1))
-cc      character(3) :: op
-cc
-ccc     Local variables
-cc
-cc      integer :: i,j,k,iii,ieq,nnx,nny,nnz
-cc
-ccc     Begin program
-cc
-cc      nnx = g_def%nxv(igr)
-cc      nny = g_def%nyv(igr)
-cc      nnz = g_def%nzv(igr)
-cc
-cc      select case(op)
-cc      case('mul')
-cc        do k=1,nnz
-cc          do j=1,nny
-cc            do i=1,nnx
-cc              do ieq=1,neq
-cc                iii= neq*(i-1 + nnx*(j-1) + nnx*nny*(k-1)) + ieq
-cc                vec2(iii) = vec1(iii)*g_def%gmetric%grid(igr)%dlvol(i,j,k)
-cc              enddo
-cc            enddo
-cc          enddo
-cc        enddo
-cc      case('div')
-cc        do k=1,nnz
-cc          do j=1,nny
-cc            do i=1,nnx
-cc              do ieq=1,neq
-cc                iii= neq*(i-1 + nnx*(j-1) + nnx*nny*(k-1)) + ieq
-cc                vec2(iii) = vec1(iii)/g_def%gmetric%grid(igr)%dlvol(i,j,k)
-cc              enddo
-cc            enddo
-cc          enddo
-cc        enddo
-cc      end select
-cc
-cc      end function scaleVector_by_vol
-
 c     allocateStructures
 c     #################################################################
       subroutine allocateStructures

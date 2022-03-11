@@ -60,7 +60,7 @@ c     Call variables
 c     Local variables
 
       integer        :: i,j,k,ig,jg,kg,nx,ny,nz,ivar
-      integer        :: ierr,system,nplot,igx,igy,igz
+      integer        :: ierr,system,igx,igy,igz
 
       real(8)        :: mag,mag0,jac,tref,tsol,lmax
       real(8),allocatable,dimension(:,:,:,:) :: pos 
@@ -100,7 +100,7 @@ c     Begin program
 
 c     Close current record files
 
-      call closeRecordFiles
+      call closeGraphicsFiles
 
 c     Read reference grid info
 
@@ -138,7 +138,7 @@ c Spline reference solution
       ny = jhig-jlog+1
       nz = khig-klog+1
 
-      order = 2  !Order of interpolation of ref solution
+      order = 3  !Order of interpolation of ref solution
 
       nxs = nx+2
       nys = ny+2
@@ -239,17 +239,17 @@ c Calculate difference
         enddo
 
 c diag ****
-        write (*,*) 'DIAG -- dumping error file'
-        debugfile = 'debug_var='//trim(int2char(ivar))//'.bin'
-        open(unit=110,file=debugfile,form='unformatted'
-     .      ,status='replace')
-
-        call contour(array(1:nx,1:ny,1),nx,ny
-     .              ,0d0,1d0,0d0,1d0,0,110)
-        call contour(log10(array(1:nx,1:ny,1)),nx,ny
-     .              ,0d0,1d0,0d0,1d0,1,110)
-
-        close(110)
+c$$$        write (*,*) 'DIAG -- dumping error file'
+c$$$        debugfile = 'debug_var='//trim(int2char(ivar))//'.bin'
+c$$$        open(unit=110,file=debugfile,form='unformatted'
+c$$$     .      ,status='replace')
+c$$$
+c$$$        call contour(array(1:nx,1:ny,1),nx,ny
+c$$$     .              ,0d0,1d0,0d0,1d0,0,110)
+c$$$        call contour(log10(array(1:nx,1:ny,1)),nx,ny
+c$$$     .              ,0d0,1d0,0d0,1d0,1,110)
+c$$$
+c$$$        close(110)
 c diag ****
 
         !L1 norm
@@ -314,7 +314,7 @@ c     Call variables
 c     Local variables
 
       integer :: i,j,k,ig,jg,kg,nx,ny,nz,ivar,nxs,nys,nzs
-      integer :: ierr,system,nplot,igx,igy,igz,ufile
+      integer :: ierr,system,igx,igy,igz,ufile
 
       real(8) :: mag,mag0,jac,tref,tsol,lmax
       real(8),allocatable,dimension(:,:,:,:) :: pos 
@@ -343,7 +343,7 @@ c     Begin program
       nys = nyd
       nzs = nzd
 
-      call closeRecordFiles
+      call closeGraphicsFiles
 
       time = 0d0
 
@@ -418,8 +418,9 @@ cc      endif
 
       if (abs(tref-tsol)>1d-10) then
         if (my_rank == 0) write (*,*) 'T_ref-T_sol=',tref-tsol
-        call pstop('acc_test_time'
-     .            ,'Reference and solution are not at same time')
+        write (*,*) 'Error in acc_test_time'
+        write (*,*) 'Reference and solution are not at same time'
+        return
       endif
 
 c     Calculate solution differences
@@ -441,8 +442,8 @@ c     Calculate solution differences
 
 c diag ****
 cc        write (*,*) 'DIAG -- acc_test_time'
-cc        debugfile = 'debug_var='//trim(int2char(ivar))//'.bin'
-cc        open(unit=110,file=debugfile,form='unformatted'
+cc        debugfile = 'dt_error_var'//trim(int2char(ivar))//'.bin'
+cc        open(unit=110,file=trim(debugfile),form='unformatted'
 cc     .      ,status='replace')
 cc
 cc        call contour(asol(1:nx,1:ny,1),nx,ny
@@ -458,7 +459,7 @@ c diag ****
      .    write (*,10) ' L1-norm time error, component:',ivar,'=',mag
 
         !L2 norm
-        mag = integral(gv%gparams,igx,asol**2,average=.true.)
+        mag = integral(gv%gparams,igx,asol*asol,average=.true.)
         mag = sqrt(mag)
 
         if (my_rank == 0)

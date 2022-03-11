@@ -1,7 +1,7 @@
       program plot3d
 
 c##########################################################################
-c     Postprocess output information from 3DMHD and creates graphics
+c     Postprocess output information from driver and creates graphics
 c     in various formats.
 c##########################################################################
 
@@ -28,7 +28,7 @@ c##########################################################################
 c Local variables
 
       integer        :: i,j,k,ig,jg,kg
-      integer        :: ierr,gierr,nplot
+      integer        :: ierr,gierr,itime_old
       character*(40) :: command
       logical        :: exitloop,petsc_flg
 
@@ -57,10 +57,18 @@ c     Update counters
 
         call TS_update_preCounters(time)
 
-c     Read next record
+c     Read next record 
 
+        itime_old = itime
+        
         call readTimeStep(urecord,itime,time,dt,gammat,u_np,ierr)
 
+c     Check for alternate restart files and read again if present
+        
+        if(switch_dumpfile(itime_old,itime,urecord)) then
+          call readTimeStep(urecord,itime,time,dt,gammat,u_np,ierr)
+        endif
+        
 c     Gather error info
 
 #if defined(petsc)
@@ -104,7 +112,7 @@ cc          endif
 
 c     Output per time step
 
-        call output(nplot)
+        call output
 
 c     Store previous record (for time derivatives in diagnostics)
 
@@ -112,8 +120,6 @@ c     Store previous record (for time derivatives in diagnostics)
 
 c     Check for tmax
 
-cc        if ((tmax > 0d0 .and. time.ge.tmax*0.99999)
-cc     .      .or. (tmax < 0d0 .and. itime == numtime))  exit
         if ((tmax > 0d0 .and. time.ge.tmax))  exit
 
       enddo       !End of time loop
@@ -129,7 +135,7 @@ c Finalize graphics
 
       call finalizeDiagnostics
 
-      call closeRecordFiles
+      call closeGraphicsFiles
 
       call fortranDestroy
 
@@ -139,17 +145,17 @@ c Finalize graphics
 
 c End program
 
-      end
+      end program
 
 c output
 c######################################################################
-      subroutine output(nplot)
+      subroutine output
 
 c----------------------------------------------------------------------
 c     Writes program output to standard output
 c----------------------------------------------------------------------
 
-      use ts_setup
+      use ts_io
 
       use variables
 
@@ -158,8 +164,6 @@ c----------------------------------------------------------------------
       implicit none
 
 c Call variables
-
-      integer :: nplot
 
 c Local variables
 
@@ -178,14 +182,12 @@ c Interfaces
 
 c Begin program
 
-      plot = ( nplot        == ndplot       .and. nplot > 0)
-     .   .or.((time-tmplot) >= dplot-0.9*dt .and. dplot > 0d0)
-     .   .or.(time         == 0d0)
-
 c Post-process solution for diagnostics and dump plots
 
       if (.not.skip_diag)
      .       call evaluateDiagnostics(u_np,1,1,1,.false.)
+
+      plot = TS_chk_plot_dump(.true.)
 
       if (plot) then
 
@@ -193,8 +195,6 @@ c Post-process solution for diagnostics and dump plots
      .       call evaluateDiagnostics(u_np,1,1,1,.false.)
 
         !Dump time step plots
-        nplot = 0
-        if (itime.gt.0) tmplot = time
         call dumpTimeStepPlots
 
       endif
@@ -259,7 +259,7 @@ c Call variables
 
 c Local variables
 
-      integer :: ierr,igx,igy,igz,nplot
+      integer :: ierr,igx,igy,igz
       logical :: petsc_flg
 
 c Interfaces
@@ -311,6 +311,14 @@ c Runtime initializations
 
       call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-dplot',dplot
      .                        ,petsc_flg,ierr)
+
+      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-numtime',numtime
+     .                       ,petsc_flg,ierr)
+      if (petsc_flg) tmax = 0d0
+
+      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-ndstep',ndstep
+     .                       ,petsc_flg,ierr)
+      if (petsc_flg) dstep = 0d0
 #endif
 
 c Allocate global variable
@@ -319,16 +327,11 @@ c Allocate global variable
 
 c Open graphics files
 
-#if defined(petsc)
-      urecord = openRestartFileForRead()
-#else
-      call openRecordFiles(urecord,recordfile
-     .                    ,ilog,ihig,jlog,jhig,klog,khig)
-#endif
+      urecord = openGraphicsFiles(recordfile)
 
 c Read geometry (if appropriate)
 
-      if (coords == 'ext') call readExtMap(gv%gparams)
+cc      if (coords == 'ext') call readExtMap(gv%gparams)
 
 c Read equilibrium u_0 (Do NOT postprocess for BC)
 
@@ -386,9 +389,6 @@ c Initialize diagnostics and related variables
 c Initialize graphics
 
       call initializeGraphics
-
-c$$$      nplot = 0
-c$$$      call output(nplot)
 
 c End program
 

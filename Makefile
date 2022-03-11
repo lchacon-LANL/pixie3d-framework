@@ -73,7 +73,7 @@ $(SUBDIRS):
 #Cleaning targets
 
 clean: ;
-	-@rm -f *.o *.mod *.a
+	-@rm -f *.o *.*mod *.a || true
 
 distclean: clean
 	-@for subdir in $(SUBDIRS) ; do \
@@ -81,15 +81,20 @@ distclean: clean
 
 #Main setup targets
 
-setup: contrib_setup
+setup:
 	-@for subdir in `find . -name "make.inc" -exec dirname {} \;` ; do \
 		rm $$subdir/makefile 2>/dev/null ; \
-		ln -s -f $(PWD)/Makefile $$subdir/makefile 2>/dev/null ; \
+		ln -sf $(PWD)/Makefile $$subdir/makefile 2>/dev/null ; \
 		$(MAKE) -C $$subdir setup_lnk; done
 
 setup_lnk: ;
+ifdef ADIOS_CONFIG
+ifeq (var_setup,$(notdir $(CURDIR)))
+	-@ln -sf $(ADIOS_CONFIG) adios_config.xml 2>/dev/null ;
+endif
+endif
 	-@for file in $(LNK_FILES) ; do \
-		ln -s $$file 2>/dev/null ; done
+		ln -sf $$file 2>/dev/null ; done
 
 #Library setup
 
@@ -106,49 +111,27 @@ endif
 contrib: ;
 	$(MAKE) --no-print-directory -e -C contrib/lsode lib
 	$(MAKE) --no-print-directory -e -C contrib/slatec lib
-ifeq ($(ARPACK),t)
-	$(MAKE) --no-print-directory -e -C contrib/arpack PLAT=$(FC) home=$(PWD)/contrib/arpack lib
-ifdef BOPT
-	$(MAKE) --no-print-directory -e -C contrib/arpack PLAT=$(FC) home=$(PWD)/contrib/arpack plib
-endif
-endif
 	$(MAKE) --no-print-directory -e -C contrib/fpa/src lib
 	$(MAKE) --no-print-directory -e -C contrib/sdc/src lib
 	$(MAKE) --no-print-directory -e -C contrib/rng/src lib
 	$(MAKE) --no-print-directory -e -C contrib/btridiag lib
-ifeq ($(PIT),t)
-	$(MAKE) --no-print-directory -e -C contrib/parareal all	
-endif
-ifeq ($(PTRID),t)
 ifdef BOPT
 	$(MAKE) --no-print-directory -e -C contrib/ptridiag lib
-endif
 endif
 
 contrib_clean: ;
 	@$(MAKE) -e -C contrib/lsode clean
 	@$(MAKE) -e -C contrib/slatec distclean
-ifeq ($(ARPACK),t)
-	@$(MAKE) -e -C contrib/arpack PLAT=$(FC) home=$(PWD)/contrib/arpack clean
-endif
 	@$(MAKE) -e -C contrib/fpa/src distclean
 	@$(MAKE) -e -C contrib/sdc/src distclean
-	@$(MAKE) -e -C contrib/parareal clean	
 	@$(MAKE) -e -C contrib/rng/src clean
 	@$(MAKE) -e -C contrib/btridiag clean
 	@$(MAKE) -e -C contrib/ptridiag clean
 
-contrib_setup: ;
-	-@rm -r contrib
-	-@tar xzf common_contrib.tgz
-
-contrib_pack: ;
-	-@rm -f common_contrib.tgz > /dev/null
-	-@tar czf common_contrib.tgz contrib
-
 #Define dependencies
 
-$(OBJS) : $(MODS) $(COMMON_MODS)
+$(MODS): make.inc
+$(OBJS): $(MODS) $(COMMON_MODS)
 
 #Define patterns
 

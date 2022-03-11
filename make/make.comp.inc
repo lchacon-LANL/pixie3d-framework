@@ -49,7 +49,8 @@ endif
 ifeq ($(findstring ifort,$(FC)),ifort)
   OPTIMIZATION ?= -O3 -g -ip -qopenmp-simd  -align all -march=$(M_ARCH) -fma
 #  DEBUG        = -g -check bounds -traceback
-  DEBUG        = -g -check noarg_temp_created,bounds,format,pointers,stack -traceback
+  DEBUG        = -g -check noarg_temp_created,bounds,format,pointers,stack -traceback -fpe0 #-warn interfaces
+#For threading debugging  DEBUG        = -g -check none -shared-intel #-warn interfaces
   PROFILE      = -O2 -g -p
   STATIC       =
   MODFLAG      = -I
@@ -58,6 +59,7 @@ ifeq ($(findstring ifort,$(FC)),ifort)
   CPPFLAGS    += $(PREPROC)ifort
   FOPENMP      = -qopenmp 
   LABEL        = intel
+  LIBS         = -llapack -lblas
 endif
 
 # Flags for g95
@@ -77,21 +79,23 @@ endif
 # Flags for gfortran
 ifeq ($(findstring gfortran,$(FC)),gfortran)
   ifeq ($(ARCH),Darwin)
-    OPTIMIZATION ?= -Wa,-q -O3 -g -march=$(M_ARCH) -fopenmp-simd #-fopt-info -ffast-math 
+    OPTIMIZATION ?= -Wa,-q -Wa,-Wno-unused-command-line-argument -O3 -g -march=$(M_ARCH) -fopenmp-simd #-fopt-info -ffast-math 
   else
-    OPTIMIZATION ?= -O3 -g -march=$(M_ARCH) #Only for gcc > 4.9... -ffast-math -fopenmp-simd -fopt-info 
+    OPTIMIZATION ?= -O3 -g -march=$(M_ARCH) -fopenmp-simd -no-pie #-fopt-info  -ffast-math 
   endif
   DEBUG        = -g -fbounds-check -fbacktrace -ffpe-trap=invalid,zero -ftrapv #-finit-real=snan #-finit-local-zero #-ggdb3
+#  DEBUG        = -g -fbounds-check -fbacktrace -ffpe-trap=invalid,zero,denormal -ftrapv #-finit-real=snan #-finit-local-zero #-ggdb3
   PROFILE      = -O2 -pg -g
   STATIC       = -fno-automatic
   MODFLAG      = -I
   ADDMODFLAG   = -I
   VERBOSE      = -v
   CPPFLAGS    += $(PREPROC)gfortran
-  FFLAGS      += #$(STATIC)
+  FFLAGS      += -std=legacy #$(STATIC)
   FOPENMP      = -fopenmp
   LDFLAGS     += -lgfortran 
   LABEL        = gnu
+  LIBS         = -llapack -lblas
 endif
 
 ifeq ($(findstring vtf77,$(FC)),vtf77)
@@ -146,3 +150,5 @@ endif
 ifneq (,$(findstring om,$(OPT)))
 FFLAGS += $(FOPENMP)
 endif
+
+export FFLAGS MODFLAG ADDMODFLAG LDFLAGS PREPROC OPT LABEL CPPFLAGS

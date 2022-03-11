@@ -21,12 +21,12 @@ c #####################################################################
         integer, parameter :: ORB_OK=0,ORB_ADJ_DT=-1,ORB_CAR_ST=-2  !Non fatal
      .                       ,ORB_SML_DT=1,ORB_OUT_DOM=2,ORB_NEG_J=4!Fatal
      .                       ,ORB_MAP_INV=5,ORB_SP_ERR=6            !Fatal
-     
 
         !Private variables
         integer,private :: nx,ny,nz,ag,sbcnd(6)
 
         real(8),private :: xsmin,xsmax,ysmin,ysmax,zsmin,zsmax
+     .                    ,ihx,ihy,ihz,hx,hy,hz
         integer,private :: kx,ky,kz,dim,dime,flg
         real(8),private,dimension(:),allocatable :: tx,ty,tz,work
      .                                             ,xs,ys,zs,worke
@@ -42,16 +42,71 @@ c #####################################################################
      .                                               ,bcarcoef => null()
 
         logical, private :: x_is_log,y_is_log,z_is_log
+     .                     ,local_spline=.true.
 
         INTERFACE setupSplines
           module procedure setupSplines_gst,setupSplines_nogst
         END INTERFACE
 
+        private :: shape2_offset
+
       contains
+        
+c     set_local_spline
+c     ##################################################################
+      subroutine set_local_spline(spline)
+
+c     ------------------------------------------------------------------
+c     Set splining domain limits (including ghost cells, except for
+c     periodic BCs), according to dimension vector x and boundary
+c     condition bc.
+c     ------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        logical :: spline
+
+c     Local Variables
+
+c     Begin program
+
+        local_spline = spline
+        
+c     End program
+
+      end subroutine set_local_spline
+
+c     is_spline_local
+c     ##################################################################
+      function is_spline_local() result(spline)
+
+c     ------------------------------------------------------------------
+c     Set splining domain limits (including ghost cells, except for
+c     periodic BCs), according to dimension vector x and boundary
+c     condition bc.
+c     ------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        logical :: spline
+
+c     Local Variables
+
+c     Begin program
+
+        spline = local_spline
+        
+c     End program
+
+      end function is_spline_local
 
 c     set_sp_domain_limits
 c     ##################################################################
-      subroutine set_sp_domain_limits(x,bc,xmin,xmax)
+      subroutine set_sp_domain_limits(x,bc,xmin,xmax,dh)
 
 c     ------------------------------------------------------------------
 c     Set splining domain limits (including ghost cells, except for
@@ -64,7 +119,7 @@ c     ------------------------------------------------------------------
 c     Call variables
 
         integer :: bc
-        real(8) :: x(:),xmin,xmax
+        real(8) :: x(:),xmin,xmax,dh
 
 c     Local Variables
 
@@ -74,50 +129,54 @@ c     Begin program
 
         nn = size(x)
 
-        if (bc == PER) then  !Ghost cell is at x(1)
-cc          xmin = 5d-1*(x(1)+x(2))
-cc          xmax = 5d-1*(x(nn-1)+x(nn))
-          x = x - x(2)  !Set angle = 0 at x(2)
-          xmin = x(2)
-          xmax = x(nn)
-        else
+        if (bc == PER) then   !Compute face positions for periodic
+          if (nn == 3) then
+            xmin = x(1)
+            xmax = x(nn-1)
+          else
+            xmin = 5d-1*(x(1)   +x(2))
+            xmax = 5d-1*(x(nn-1)+x(nn))
+          endif
+          dh = (xmax-xmin)/(nn-2)
+        else                  !Include ghost cells for interpolation
           xmin = x(1)
           xmax = x(nn)
+          dh = (xmax-xmin)/(nn-1)
         endif
 
 c     End program
 
       end subroutine set_sp_domain_limits
 
-c     get_sp_domain_limits
-c     ##################################################################
-      subroutine get_sp_domain_limits(xmin,xmax,ymin,ymax,zmin,zmax)
-
-c     ------------------------------------------------------------------
-c     Get spline domain limits.
-c     ------------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-        real(8) :: xmin,xmax,ymin,ymax,zmin,zmax
-
-c     Local Variables
-
-c     Begin program
-
-        xmin = xsmin
-        ymin = ysmin
-        zmin = zsmin
-
-        xmax = xsmax
-        ymax = ysmax
-        zmax = zsmax
-
-c     End program
-
-      end subroutine get_sp_domain_limits
+c$$$c     get_sp_domain_limits
+c$$$c     ##################################################################
+c$$$      subroutine get_sp_domain_limits(xmin,xmax,ymin,ymax,zmin,zmax)
+c$$$
+c$$$c     ------------------------------------------------------------------
+c$$$c     Get spline domain limits.
+c$$$c     ------------------------------------------------------------------
+c$$$
+c$$$        implicit none
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$        real(8) :: xmin,xmax,ymin,ymax,zmin,zmax
+c$$$
+c$$$c     Local Variables
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$        xmin = xsmin
+c$$$        ymin = ysmin
+c$$$        zmin = zsmin
+c$$$
+c$$$        xmax = xsmax
+c$$$        ymax = ysmax
+c$$$        zmax = zsmax
+c$$$
+c$$$c     End program
+c$$$
+c$$$      end subroutine get_sp_domain_limits
 
 c     chk_pos
 c     ##################################################################
@@ -278,19 +337,12 @@ c     Initialize spline domain arrays
 
 c     Define domain limits
 
-        call set_sp_domain_limits(xs,sbcnd(1),xsmin,xsmax)
-        call set_sp_domain_limits(ys,sbcnd(3),ysmin,ysmax)
-        call set_sp_domain_limits(zs,sbcnd(5),zsmin,zsmax)
+        call set_sp_domain_limits(xs,sbcnd(1),xsmin,xsmax,hx)
+        call set_sp_domain_limits(ys,sbcnd(3),ysmin,ysmax,hy)
+        call set_sp_domain_limits(zs,sbcnd(5),zsmin,zsmax,hz)
 
-c$$$        xsmin = g_def%gxmin
-c$$$        xsmax = g_def%gxmax
-c$$$          
-c$$$        ysmin = g_def%gymin
-c$$$        ysmax = g_def%gymax
-c$$$          
-c$$$        zsmin = g_def%gzmin
-c$$$        zsmax = g_def%gzmax
-
+        ihx = 1d0/hx ; ihy = 1d0/hy ; ihz = 1d0/hz
+        
 c     Prepare 3d spline interpolation
 
         flg = 0 !Let spline routine find interpolation knots
@@ -356,10 +408,12 @@ c     Initialize spline domain arrays
 
 c     Define spline domain limits
 
-        call set_sp_domain_limits(xs,sbcnd(1),xsmin,xsmax)
-        call set_sp_domain_limits(ys,sbcnd(3),ysmin,ysmax)
-        call set_sp_domain_limits(zs,sbcnd(5),zsmin,zsmax)
+        call set_sp_domain_limits(xs,sbcnd(1),xsmin,xsmax,hx)
+        call set_sp_domain_limits(ys,sbcnd(3),ysmin,ysmax,hy)
+        call set_sp_domain_limits(zs,sbcnd(5),zsmin,zsmax,hz)
 
+        ihx = 1d0/hx ; ihy = 1d0/hy ; ihz = 1d0/hz
+        
 c     Prepare 3d spline interpolation
 
         flg = 0  !Let spline routine find interpolation knots
@@ -582,36 +636,36 @@ c       Quadrant-based code
       end select
 
 c diag ****
-cc      write (*,*) 'DIAG -- getA_on_mesh',nx,ny,nz
-cc      open(unit=110,file='vecpot.bin',form='unformatted'
-cc     .      ,status='replace')
-cc      call contour(a(1:nxl+1,2,1:nzl+1,1)
-cc     .            ,nx-1,nz-1,0d0,xmax,0d0,zmax,0,110)
-cc      call contour(a(1:nxl+1,2,1:nzl+1,2)
-cc     .            ,nx-1,nz-1,0d0,xmax,0d0,zmax,1,110)
-cc      call contour(a(1:nxl+1,2,1:nzl+1,3)
-cc     .            ,nx-1,nz-1,0d0,xmax,0d0,zmax,1,110)
-cc
-cccc      call contour(a(1:nxl+1,1:nyl+1,1,1)
-cccc     .            ,nx-1,ny-1,0d0,xmax,0d0,ymax,0,110)
-cccc      call contour(a(1:nxl+1,1:nyl+1,1,2)
-cccc     .            ,nx-1,ny-1,0d0,xmax,0d0,ymax,1,110)
-cccc      call contour(a(1:nxl+1,1:nyl+1,1,3)
-cccc     .            ,nx-1,ny-1,0d0,xmax,0d0,ymax,1,110)
-cc      close(110)
-cccc      stop
+c$$$      write (*,*) 'DIAG -- getA_on_mesh',nx,ny,nz
+c$$$      open(unit=110,file='vecpot.bin',form='unformatted'
+c$$$     .      ,status='replace')
+c$$$cc      call contour(a(1:nxl+1,2,1:nzl+1,1)
+c$$$cc     .            ,nx-1,nz-1,0d0,xsmax,0d0,zsmax,0,110)
+c$$$cc      call contour(a(1:nxl+1,2,1:nzl+1,2)
+c$$$cc     .            ,nx-1,nz-1,0d0,xsmax,0d0,zsmax,1,110)
+c$$$cc      call contour(a(1:nxl+1,2,1:nzl+1,3)
+c$$$cc     .            ,nx-1,nz-1,0d0,xsmax,0d0,zsmax,1,110)
+c$$$
+c$$$      call contour(a(1:nxl,1:nyl,1,1)
+c$$$     .            ,nxl,nyl,0d0,xsmax,0d0,ysmax,0,110)
+c$$$      call contour(a(1:nxl,1:nyl,1,2)
+c$$$     .            ,nxl,nyl,0d0,xsmax,0d0,ysmax,1,110)
+c$$$      call contour(a(1:nxl,1:nyl,1,3)
+c$$$     .            ,nxl,nyl,0d0,xsmax,0d0,ysmax,1,110)
+c$$$      close(110)
+c$$$      stop
 c diag ****
 
-c     Take care of collapsed dimensions (no motion along those)
-
-      if (nxl == 1) a(:,:,:,2:3) = 0d0
-
-      if (nyl == 1) then
-        a(:,:,:,1) = 0d0
-        a(:,:,:,3) = 0d0
-      endif
-
-      if (nzl == 1) a(:,:,:,1:2) = 0d0
+c$$$c     Take care of collapsed dimensions (no motion along those)
+c$$$
+c$$$      if (nxl == 1) a(:,:,:,2:3) = 0d0
+c$$$
+c$$$      if (nyl == 1) then
+c$$$        a(:,:,:,1) = 0d0
+c$$$        a(:,:,:,3) = 0d0
+c$$$      endif
+c$$$
+c$$$      if (nzl == 1) a(:,:,:,1:2) = 0d0
 
 c     Return A components
 
@@ -1059,17 +1113,17 @@ c     Begin program
         ax = 0d0
         ay = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
      .             ,kx,ky,kz,acoefy
-     .             ,worke(1+thr_num*dime:(thr_num+1)*dime))
+     .             ,worke(1+thr_id*dime:(thr_id+1)*dime))
       case(2)
         ax = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
      .             ,kx,ky,kz,acoefx
-     .             ,worke(1+thr_num*dime:(thr_num+1)*dime))
+     .             ,worke(1+thr_id*dime:(thr_id+1)*dime))
         ay = 0d0
       end select
 
       az = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
      .           ,kx,ky,kz,acoefz
-     .           ,worke(1+thr_num*dime:(thr_num+1)*dime))
+     .           ,worke(1+thr_id*dime:(thr_id+1)*dime))
 
       end subroutine evalA
 
@@ -1145,47 +1199,47 @@ c     Calculate derivatives
         case(0)
           ay_x = db3val(x1,x2,x3,1+iidx,iidy,iidz,tx,ty,tz,nx,ny,nz
      .               ,kx,ky,kz,acoefy
-     .               ,worke(1+thr_num*dime:(thr_num+1)*dime))
-!     .               ,work(1+thr_num*dim:(thr_num+1)*dim))
+     .               ,worke(1+thr_id*dime:(thr_id+1)*dime))
+!     .               ,work(1+thr_id*dim:(thr_id+1)*dim))
 
           ay_z = db3val(x1,x2,x3,iidx,iidy,1+iidz,tx,ty,tz,nx,ny,nz
      .               ,kx,ky,kz,acoefy
-     .               ,worke(1+thr_num*dime:(thr_num+1)*dime))
-!     .               ,work(1+thr_num*dim:(thr_num+1)*dim))
+     .               ,worke(1+thr_id*dime:(thr_id+1)*dime))
+!     .               ,work(1+thr_id*dim:(thr_id+1)*dim))
 
           az_x = db3val(x1,x2,x3,1+iidx,iidy,iidz,tx,ty,tz,nx,ny,nz
      .               ,kx,ky,kz,acoefz
-     .               ,worke(1+thr_num*dime:(thr_num+1)*dime))
-!     .               ,work(1+thr_num*dim:(thr_num+1)*dim))
+     .               ,worke(1+thr_id*dime:(thr_id+1)*dime))
+!     .               ,work(1+thr_id*dim:(thr_id+1)*dim))
 
           az_y = db3val(x1,x2,x3,iidx,1+iidy,iidz,tx,ty,tz,nx,ny,nz
      .               ,kx,ky,kz,acoefz
-     .               ,worke(1+thr_num*dime:(thr_num+1)*dime))
-!     .               ,work(1+thr_num*dim:(thr_num+1)*dim))
+     .               ,worke(1+thr_id*dime:(thr_id+1)*dime))
+!     .               ,work(1+thr_id*dim:(thr_id+1)*dim))
         case(1)
           az_x = 0d0
           az_y = 0d0
           ay_x = db3val(x1,x2,x3,1+iidx,iidy,iidz,tx,ty,tz,nx,ny,nz
      .               ,kx,ky,kz,acoefy
-     .               ,worke(1+thr_num*dime:(thr_num+1)*dime))
-!     .               ,work(1+thr_num*dim:(thr_num+1)*dim))
+     .               ,worke(1+thr_id*dime:(thr_id+1)*dime))
+!     .               ,work(1+thr_id*dim:(thr_id+1)*dim))
 
           ay_z = db3val(x1,x2,x3,iidx,iidy,1+iidz,tx,ty,tz,nx,ny,nz
      .               ,kx,ky,kz,acoefy
-     .               ,worke(1+thr_num*dime:(thr_num+1)*dime))
-!     .               ,work(1+thr_num*dim:(thr_num+1)*dim))
+     .               ,worke(1+thr_id*dime:(thr_id+1)*dime))
+!     .               ,work(1+thr_id*dim:(thr_id+1)*dim))
         case(2)
           ay_x = 0d0
           ay_z = 0d0
           az_x = db3val(x1,x2,x3,1+iidx,iidy,iidz,tx,ty,tz,nx,ny,nz
      .               ,kx,ky,kz,acoefz
-     .               ,worke(1+thr_num*dime:(thr_num+1)*dime))
-!     .               ,work(1+thr_num*dim:(thr_num+1)*dim))
+     .               ,worke(1+thr_id*dime:(thr_id+1)*dime))
+!     .               ,work(1+thr_id*dim:(thr_id+1)*dim))
 
           az_y = db3val(x1,x2,x3,iidx,1+iidy,iidz,tx,ty,tz,nx,ny,nz
      .               ,kx,ky,kz,acoefz
-     .               ,worke(1+thr_num*dime:(thr_num+1)*dime))
-!     .               ,work(1+thr_num*dim:(thr_num+1)*dim))
+     .               ,worke(1+thr_id*dime:(thr_id+1)*dime))
+!     .               ,work(1+thr_id*dim:(thr_id+1)*dim))
         case default
 
           write (*,*) 'Flag ',flg,' not implemented in evalCurlA'
@@ -1202,47 +1256,47 @@ c     Calculate derivatives
         case(0)
           ax_y = db3val(x1,x2,x3,0,1,0,tx,ty,tz,nx,ny,nz
      .               ,kx,ky,kz,acoefx
-     .               ,worke(1+thr_num*dime:(thr_num+1)*dime))
-!     .               ,work(1+thr_num*dim:(thr_num+1)*dim))
+     .               ,worke(1+thr_id*dime:(thr_id+1)*dime))
+!     .               ,work(1+thr_id*dim:(thr_id+1)*dim))
 
           ax_z = db3val(x1,x2,x3,0,0,1,tx,ty,tz,nx,ny,nz
      .               ,kx,ky,kz,acoefx
-     .               ,worke(1+thr_num*dime:(thr_num+1)*dime))
-!     .               ,work(1+thr_num*dim:(thr_num+1)*dim))
+     .               ,worke(1+thr_id*dime:(thr_id+1)*dime))
+!     .               ,work(1+thr_id*dim:(thr_id+1)*dim))
 
           az_x = db3val(x1,x2,x3,1,0,0,tx,ty,tz,nx,ny,nz
      .               ,kx,ky,kz,acoefz
-     .               ,worke(1+thr_num*dime:(thr_num+1)*dime))
-!     .               ,work(1+thr_num*dim:(thr_num+1)*dim))
+     .               ,worke(1+thr_id*dime:(thr_id+1)*dime))
+!     .               ,work(1+thr_id*dim:(thr_id+1)*dim))
 
           az_y = db3val(x1,x2,x3,0,1,0,tx,ty,tz,nx,ny,nz
      .               ,kx,ky,kz,acoefz
-     .               ,worke(1+thr_num*dime:(thr_num+1)*dime))
-!     .               ,work(1+thr_num*dim:(thr_num+1)*dim))
+     .               ,worke(1+thr_id*dime:(thr_id+1)*dime))
+!     .               ,work(1+thr_id*dim:(thr_id+1)*dim))
         case(1)
           az_x = 0d0
           az_y = 0d0
           ax_y = db3val(x1,x2,x3,0,1,0,tx,ty,tz,nx,ny,nz
      .               ,kx,ky,kz,acoefx
-     .               ,worke(1+thr_num*dime:(thr_num+1)*dime))
-!     .               ,work(1+thr_num*dim:(thr_num+1)*dim))
+     .               ,worke(1+thr_id*dime:(thr_id+1)*dime))
+!     .               ,work(1+thr_id*dim:(thr_id+1)*dim))
 
           ax_z = db3val(x1,x2,x3,0,0,1,tx,ty,tz,nx,ny,nz
      .               ,kx,ky,kz,acoefx
-     .               ,worke(1+thr_num*dime:(thr_num+1)*dime))
-!     .               ,work(1+thr_num*dim:(thr_num+1)*dim))
+     .               ,worke(1+thr_id*dime:(thr_id+1)*dime))
+!     .               ,work(1+thr_id*dim:(thr_id+1)*dim))
         case(2)
           ax_y = 0d0
           ax_z = 0d0
           az_x = db3val(x1,x2,x3,1,0,0,tx,ty,tz,nx,ny,nz
      .               ,kx,ky,kz,acoefz
-     .               ,worke(1+thr_num*dime:(thr_num+1)*dime))
-!     .               ,work(1+thr_num*dim:(thr_num+1)*dim))
+     .               ,worke(1+thr_id*dime:(thr_id+1)*dime))
+!     .               ,work(1+thr_id*dim:(thr_id+1)*dim))
 
           az_y = db3val(x1,x2,x3,0,1,0,tx,ty,tz,nx,ny,nz
      .               ,kx,ky,kz,acoefz
-     .               ,worke(1+thr_num*dime:(thr_num+1)*dime))
-!     .               ,work(1+thr_num*dim:(thr_num+1)*dim))
+     .               ,worke(1+thr_id*dime:(thr_id+1)*dime))
+!     .               ,work(1+thr_id*dim:(thr_id+1)*dim))
         case default
 
           write (*,*) 'Flag not implemented in evalCurlA'
@@ -1285,16 +1339,16 @@ c     Begin program
 
       bx = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
      .           ,kx,ky,kz,bcoef(:,:,:,1)
-     .           ,worke(1+thr_num*dime:(thr_num+1)*dime))
-!     .           ,work(1+thr_num*dim:(thr_num+1)*dim))
+     .           ,worke(1+thr_id*dime:(thr_id+1)*dime))
+!     .           ,work(1+thr_id*dim:(thr_id+1)*dim))
       by = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
      .           ,kx,ky,kz,bcoef(:,:,:,2)
-     .           ,worke(1+thr_num*dime:(thr_num+1)*dime))
-!     .           ,work(1+thr_num*dim:(thr_num+1)*dim))
+     .           ,worke(1+thr_id*dime:(thr_id+1)*dime))
+!     .           ,work(1+thr_id*dim:(thr_id+1)*dim))
       bz = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
      .           ,kx,ky,kz,bcoef(:,:,:,3)
-     .           ,worke(1+thr_num*dime:(thr_num+1)*dime))
-!     .           ,work(1+thr_num*dim:(thr_num+1)*dim))
+     .           ,worke(1+thr_id*dime:(thr_id+1)*dime))
+!     .           ,work(1+thr_id*dim:(thr_id+1)*dim))
 
       end subroutine evalB
 
@@ -1323,18 +1377,18 @@ c     Begin program
 
       bx = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
      .            ,kx,ky,kz,bcarcoef(:,:,:,1)
-     .            ,worke(1+thr_num*dime:(thr_num+1)*dime))
-!     .            ,work(1+thr_num*dim:(thr_num+1)*dim))
+     .            ,worke(1+thr_id*dime:(thr_id+1)*dime))
+!     .            ,work(1+thr_id*dim:(thr_id+1)*dim))
 
       by = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
      .            ,kx,ky,kz,bcarcoef(:,:,:,2)
-     .            ,worke(1+thr_num*dime:(thr_num+1)*dime))
-!     .            ,work(1+thr_num*dim:(thr_num+1)*dim))
+     .            ,worke(1+thr_id*dime:(thr_id+1)*dime))
+!     .            ,work(1+thr_id*dim:(thr_id+1)*dim))
 
       bz = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
      .            ,kx,ky,kz,bcarcoef(:,:,:,3)
-     .            ,worke(1+thr_num*dime:(thr_num+1)*dime))
-!     .            ,work(1+thr_num*dim:(thr_num+1)*dim))
+     .            ,worke(1+thr_id*dime:(thr_id+1)*dime))
+!     .            ,work(1+thr_id*dim:(thr_id+1)*dim))
 
       end subroutine evalBcar
 
@@ -1380,9 +1434,9 @@ c     End program
 
       end subroutine getB
 
-c     evalFlds
+c     evalFlds_global
 c     #################################################################
-      function evalFlds(x1,x2,x3,spcoef) result(vec)
+      subroutine evalFlds_global(x1,x2,x3,spcoef,vec)
 c     -----------------------------------------------------------------
 c     This evaluates cartesian position (x,y,z) at logical position
 c     (x1,x2,x3).
@@ -1392,8 +1446,9 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      real(8) :: spcoef(:,:,:,:)
-      real(8) :: x1,x2,x3,vec(size(spcoef,4))
+      real(8),pointer,intent(in) :: spcoef(:,:,:,:)
+      real(8),intent(in) :: x1,x2,x3
+      real(8),intent(out):: vec(*)  !No assumed-shape array for openMP threading
 
 c     Local variables
 
@@ -1404,11 +1459,11 @@ c     Begin program
       do i = 1,size(spcoef,4)
         vec(i) = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
      .                 ,kx,ky,kz,spcoef(:,:,:,i)
-     .                 ,worke(1+thr_num*dime:(thr_num+1)*dime))
-!     .                 ,work(1+thr_num*dim:(thr_num+1)*dim))
+     .                 ,worke(1+thr_id*dime:(thr_id+1)*dime))
+!     .                 ,work(1+thr_id*dim:(thr_id+1)*dim))
       enddo
 
-      end function evalFlds
+      end subroutine evalFlds_global
 
 c     evalX
 c     #################################################################
@@ -1429,6 +1484,7 @@ c     Call variables
 c     Local variables
 
       integer :: ierror,xd,yd,zd
+      real(8) :: x11,x22,x33
       real(8),pointer :: lxcoef(:,:,:,:)
 
 c     Begin program
@@ -1457,26 +1513,32 @@ c     Begin program
         zd = 0
       endif
 
-      call chk_pos(x1,x2,x3,ierr=ierror)
+      x11 = x1 ; x22 = x2 ; x33 = x3
+      call chk_pos(x11,x22,x33,ierr=ierror)
 
       if (PRESENT(ierr)) ierr = ierror
 
       if (ierror /= ORB_OK) return
 
-      x = db3val(x1,x2,x3,xd,yd,zd,tx,ty,tz,nx,ny,nz
+      x = db3val(x11,x22,x33,xd,yd,zd,tx,ty,tz,nx,ny,nz
      .          ,kx,ky,kz,lxcoef(:,:,:,1)
-     .          ,worke(1+thr_num*dime:(thr_num+1)*dime))
-!     .          ,work(1+thr_num*dim:(thr_num+1)*dim))
+     .          ,worke(1+thr_id*dime:(thr_id+1)*dime))
+!     .          ,work(1+thr_id*dim:(thr_id+1)*dim))
 
-      y = db3val(x1,x2,x3,xd,yd,zd,tx,ty,tz,nx,ny,nz
+      y = db3val(x11,x22,x33,xd,yd,zd,tx,ty,tz,nx,ny,nz
      .          ,kx,ky,kz,lxcoef(:,:,:,2)
-     .          ,worke(1+thr_num*dime:(thr_num+1)*dime))
-!     .          ,work(1+thr_num*dim:(thr_num+1)*dim))
+     .          ,worke(1+thr_id*dime:(thr_id+1)*dime))
+!     .          ,work(1+thr_id*dim:(thr_id+1)*dim))
 
-      z = db3val(x1,x2,x3,xd,yd,zd,tx,ty,tz,nx,ny,nz
+      z = db3val(x11,x22,x33,xd,yd,zd,tx,ty,tz,nx,ny,nz
      .          ,kx,ky,kz,lxcoef(:,:,:,3)
-     .          ,worke(1+thr_num*dime:(thr_num+1)*dime))
-!     .          ,work(1+thr_num*dim:(thr_num+1)*dim))
+     .          ,worke(1+thr_id*dime:(thr_id+1)*dime))
+!     .          ,work(1+thr_id*dim:(thr_id+1)*dim))
+
+      !Shift coords if physical coord is logical coord
+      if (x_is_log) x = x + (x1-x11)
+      if (y_is_log) y = y + (x2-x22)
+      if (z_is_log) z = z + (x3-x33)
 
       nullify(lxcoef)
 
@@ -1505,8 +1567,8 @@ c     Local variables
       real(8),parameter :: tol=1d-12
 
       integer :: iter
-      real(8) :: JJ(size,size),res(size,icol)
-     .          ,dxi(size,icol),error(maxit),damp(maxit)
+      real(8) :: JJ(size,size),res(size,icol),dxi(size,icol),xi(size)
+     .          ,error(maxit),damp(maxit),updt(maxit)
 
       logical :: prnt
 
@@ -1520,13 +1582,7 @@ c     Begin program
         lxcoef => xcoef
       endif
 
-      prnt = (ilevel > 1)
-
-      ierror = ORB_OK
-
-c$$$      x1 = sqrt(x*x+y*y)  !Radius
-c$$$      x2 = acos(x/x1)     !Theta
-c$$$      x3 = z              !Z
+      prnt = (my_rank == 0).and.(ilevel > 1)
 
       if (prnt) then
         write (*,*)
@@ -1535,17 +1591,22 @@ c$$$      x3 = z              !Z
       endif
 
 c     Perform iteration
+      
+      ierror = ORB_OK
 
       do iter=1,maxit
 
-        if (prnt) write (*,*) '>>>>Iteration=',iter
-
+        damp(iter) = 1d0
+        
+        if (prnt) then
+          write (*,*)
+          write (*,*) '>>>>Iteration=',iter
+        endif
+        
         !Form residual and check convergence
         res(:,1) = formResidual(x1,x2,x3,ierror)
-
-        if (ierror /= ORB_OK) exit
-
-        if (prnt) write (*,*) 'evalXi -- res=',res
+        
+        if (prnt) write (*,*) 'evalXi -- residual=',res
 
         error(iter) = sqrt(sum(res*res))
 
@@ -1562,24 +1623,25 @@ c     Perform iteration
         if (prnt) write (*,*) 'evalXi -- J(2,:)=',JJ(2,:)
         if (prnt) write (*,*) 'evalXi -- J(3,:)=',JJ(3,:)
 
-        !Find update dxi =-JJ^-1(res)
+        !Find update dxi = JJ^-1(res)
         call blockSolve(size,JJ,icol,res,dxi)
 
         if (prnt) write (*,*) 'evalXi -- dxi=',dxi
 
-        !Linesearch
-c$$$        if (iter > 1) then
-c$$$          call linesearch(x1,x2,x3,dxi(:,1),error(iter),damp(iter)
-c$$$     .                   ,ierror)
-c$$$        else
-          damp(iter) = 1d0
-          x1 = x1 + dxi(1,1)
-          x2 = x2 + dxi(2,1)
-          x3 = x3 + dxi(3,1)
-c$$$        endif
+        updt(iter) = sqrt(sum(dxi*dxi))
 
-        if (ierror /= ORB_OK) exit
-
+        !Update solution
+        xi = (/x1,x2,x3/)
+        call linesearch(xi,dxi(:,1),error(iter),damp(iter),ierror)
+        if (ierror /= ORB_OK) then
+          if (prnt) write (*,*) "evalXi: Error in Newton linesearch"
+          exit
+        endif
+        x1 = xi(1) ; x2 = xi(2) ; x3 = xi(3)
+c$$$        x1 = x1 + dxi(1,1)
+c$$$        x2 = x2 + dxi(2,1)
+c$$$        x3 = x3 + dxi(3,1)
+        
         !Singular point BC
         call chk_pos(x1,x2,x3,ierr=ierror,no_per_bc=.true.)
 
@@ -1598,11 +1660,12 @@ c$$$        endif
         write (*,*) 'evalXi -- domain=',xsmin,xsmax
      .                                 ,ysmin,ysmax
      .                                 ,zsmin,zsmax
-        write (*,*) 'evalXi -- Convergence history: '
+        write (*,*) 'evalXi -- Newton convergence history: '
      .              ,error(1:min(iter,maxit))
-        write (*,*) 'evalXi -- Damp parameter history: '
-     .              ,damp (1:min(iter,maxit))
-        stop
+        write (*,*) 'evalXi -- Newton update history: '
+     .              ,updt (1:min(iter-1,maxit))
+        write (*,*) 'evalXi -- Newton damping history: '
+     .              ,damp (1:min(iter-1,maxit))
       endif
 
       contains
@@ -1624,36 +1687,40 @@ c     ###################################################################
 
       call chk_pos(x11,x22,x33,ierr=ierr)
 
-      if (ierr /= ORB_OK) return
+      if (ierror /= ORB_OK) then
+        if (prnt)
+     .         write (*,*) "evalXi: Error in computation of residual"
+        return
+      endif
 
       res(1) = x - db3val(x11,x22,x33,0,0,0,tx,ty,tz,nx,ny,nz
      .                   ,kx,ky,kz,lxcoef(:,:,:,1)
-     .                   ,worke(1+thr_num*dime:(thr_num+1)*dime))
+     .                   ,worke(1+thr_id*dime:(thr_id+1)*dime))
 
       res(2) = y - db3val(x11,x22,x33,0,0,0,tx,ty,tz,nx,ny,nz
      .                   ,kx,ky,kz,lxcoef(:,:,:,2)
-     .                   ,worke(1+thr_num*dime:(thr_num+1)*dime))
+     .                   ,worke(1+thr_id*dime:(thr_id+1)*dime))
 
       res(3) = z - db3val(x11,x22,x33,0,0,0,tx,ty,tz,nx,ny,nz
      .                   ,kx,ky,kz,lxcoef(:,:,:,3)
-     .                   ,worke(1+thr_num*dime:(thr_num+1)*dime))
+     .                   ,worke(1+thr_id*dime:(thr_id+1)*dime))
 
       !Shift residual if physical coord is logical coord
       if (x_is_log) res(1) = res(1) - (x1-x11)
       if (y_is_log) res(2) = res(2) - (x2-x22)
       if (z_is_log) res(3) = res(3) - (x3-x33)
 
-cc      if (prnt) then
-cc        write (*,*)
-cc        write (*,*) 'evalXi -- sbcnd',sbcnd
-cc        write (*,*) 'evalXi -- limits',xsmin,xsmax
-cc     .                                ,ysmin,ysmax
-cc     .                                ,zsmin,zsmax,tol
-cc        write (*,*) 'evalXi -- input log coords',x1 ,x2 ,x3
-cc        write (*,*) 'evalXi -- shifted log coords',x11,x22,x33
-cc        write (*,*) 'evalXi -- Shifts=',x1-x11,x2-x22,x3-x33
-cc        write (*,*) 'evalXi -- res before mod=',res
-cc      endif
+      if (prnt) then
+        write (*,*)
+        write (*,*) 'evalXi -- sbcnd',sbcnd
+        write (*,*) 'evalXi -- slimits',xsmin,xsmax
+     .                                 ,ysmin,ysmax
+     .                                 ,zsmin,zsmax
+        write (*,*) 'evalXi -- input log coords',x1 ,x2 ,x3
+        write (*,*) 'evalXi -- shifted log coords',x11,x22,x33
+        write (*,*) 'evalXi -- Shifts=',x1-x11,x2-x22,x3-x33
+        write (*,*) 'evalXi -- res before mod=',res
+      endif
 
 cc      if (sbcnd(1) == PER) res(1) = mod(res(1),xsmax-xsmin-0.1*tol)
 cc      if (sbcnd(3) == PER) res(2) = mod(res(2),ysmax-ysmin-0.1*tol)
@@ -1684,26 +1751,26 @@ c     ###################################################################
       do ieq=1,3
         JJ(ieq,1) = db3val(x11,x22,x33,1,0,0,tx,ty,tz,nx,ny,nz
      .                    ,kx,ky,kz,lxcoef(:,:,:,ieq)
-     .                    ,worke(1+thr_num*dime:(thr_num+1)*dime))
+     .                    ,worke(1+thr_id*dime:(thr_id+1)*dime))
         JJ(ieq,2) = db3val(x11,x22,x33,0,1,0,tx,ty,tz,nx,ny,nz
      .                    ,kx,ky,kz,lxcoef(:,:,:,ieq)
-     .                    ,worke(1+thr_num*dime:(thr_num+1)*dime))
+     .                    ,worke(1+thr_id*dime:(thr_id+1)*dime))
         JJ(ieq,3) = db3val(x11,x22,x33,0,0,1,tx,ty,tz,nx,ny,nz
      .                    ,kx,ky,kz,lxcoef(:,:,:,ieq)
-     .                    ,worke(1+thr_num*dime:(thr_num+1)*dime))
+     .                    ,worke(1+thr_id*dime:(thr_id+1)*dime))
       enddo
 
       end function formJacobian
 
 c     linesearch
 c     ###############################################################
-      subroutine linesearch (x1,x2,x3,ddx,fk,damp,ierror)
+      subroutine linesearch (x,ddx,fk,damp,ierror)
       implicit none       !For safe fortran
 c     ---------------------------------------------------------------
 c     If global is true, uses linesearch backtracking to ensure
 c     sufficient reduction in the Newton residual norm.
 c     In call:
-c       - x1,x2,x3 (input/output): current/next Newton state
+c       - x (input/output): current Newton state, next Newton state
 c       - ddx (input): Newton update
 c       - fk (input): current Newton residual
 c       - damp (output): damping parameter
@@ -1716,13 +1783,13 @@ c     ---------------------------------------------------------------
 c     Call variables
 
       integer :: ierror
-      real(8) :: x1,x2,x3,ddx(size),fk,damp
+      real(8) :: x(size),ddx(size),fk,damp
 
 c     Local variables
 
       integer :: idamp
       real(8) :: dampm,theta,dxnorm,fkp,fm,df,ddf
-      real(8) :: b(size),dummy(size),x(size)
+      real(8) :: b(size),dummy(size)
       real(8) :: alpha,sigma0,sigma1
 
 c     Begin program
@@ -1738,13 +1805,14 @@ c     Initialize parameters
 
 c     Start quadratic linesearch backtracking
 
-      x = (/x1,x2,x3/)
-
       do idamp = 1,100
 
         !Find residual norm |F(xk+dxk)| --> fkp
         dummy = x + damp*ddx
         b = formResidual(dummy(1),dummy(2),dummy(3),ierror)
+
+        if (ierror /= ORB_OK) exit
+
         fkp = sqrt(sum(b*b))
 
         !Check residual minimation condition
@@ -1759,6 +1827,9 @@ c     Start quadratic linesearch backtracking
           !Evaluate residual norm |F(xk+lambda*dxk)| --> fm
           dummy = x + dampm*ddx
           b = formResidual(dummy(1),dummy(2),dummy(3),ierror)
+
+          if (ierror /= ORB_OK) exit
+
           fm = sqrt(sum(b*b))
 
           !Check convergence
@@ -1796,9 +1867,9 @@ cc          write (*,*) 'Damping parameters',dampm,damp
         endif
       enddo
 
-      x1 = dummy(1)
-      x2 = dummy(2)
-      x3 = dummy(3)
+      if (ierror /= ORB_OK) return
+      
+      x = dummy
 
       if (damp < 1d-8) ierror = ORB_SP_ERR
 
@@ -1922,8 +1993,8 @@ c     Begin program
 
       jac = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
      .            ,kx,ky,kz,jcoef
-     .            ,worke(1+thr_num*dime:(thr_num+1)*dime))
-!     .            ,work(1+thr_num*dim:(thr_num+1)*dim))
+     .            ,worke(1+thr_id*dime:(thr_id+1)*dime))
+!     .            ,work(1+thr_id*dim:(thr_id+1)*dim))
 
       if (jac < 0d0) ierror = ORB_NEG_J !Negative Jacobian
 
@@ -1998,8 +2069,8 @@ c     Begin program
 
       ff = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
      .           ,kx,ky,kz,lfcoef
-     .           ,worke(1+thr_num*dime:(thr_num+1)*dime))
-!     .           ,work(1+thr_num*dim:(thr_num+1)*dim))
+     .           ,worke(1+thr_id*dime:(thr_id+1)*dime))
+!     .           ,work(1+thr_id*dim:(thr_id+1)*dim))
 
       nullify(lfcoef)
 
@@ -2027,5 +2098,193 @@ c     Begin program
 c     End programs
 
       end subroutine killSplines
+
+c     evalFlds_local
+c     ##################################################################
+      subroutine evalFlds_local(x1,x2,x3,fld,fldp)
+
+c     ------------------------------------------------------------------
+c     Scatter field fld onto global position x0=(x1,x2,x3) and return
+c     result in fldp. fld is a global array.
+c     ------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      real(8),intent(in) :: x1,x2,x3
+      real(8),intent(in),dimension(0:,0:,0:,:) :: fld
+      real(8),intent(out) :: fldp(*)  !No assumed-shape array for OMP threading
+
+c     Local variables
+
+      integer :: i0,j0,k0,iqty,nqty,nx,ny,nz
+      real(8) :: xhp(3),coeffx,coeffy,coeffz
+
+      real(8) :: Sx2(3,1,1),Sy2(1,3,1),Sz2(1,1,3)
+      real(8) :: dum333(3,3,3)
+ 
+c     Begin program
+
+      nx = size(fld,1)-2
+      ny = size(fld,2)-2
+      nz = size(fld,3)-2
+
+      nqty = size(fld,4)
+      
+c     Determine mesh position (i0,j0,k0) and normalized position wrt cell face
+
+      !Correct for boundary shift
+      if (sbcnd(1) == PER.and.nx > 1) then
+        coeffx = (x1-xsmin)*ihx + 1d0
+      else
+        coeffx = (x1-xsmin)*ihx + 0.5d0
+      endif
+      if (sbcnd(3) == PER.and.ny > 1) then
+        coeffy = (x2-ysmin)*ihy + 1d0
+      else
+        coeffy = (x2-ysmin)*ihy + 0.5d0
+      endif
+      if (sbcnd(5) == PER.and.nz > 1) then
+        coeffz = (x3-zsmin)*ihz + 1d0
+      else
+        coeffz = (x3-zsmin)*ihz + 0.5d0
+      endif
+      
+      i0 = min(floor(coeffx),nx)
+      j0 = min(floor(coeffy),ny)
+      k0 = min(floor(coeffz),nz)
+      
+      xhp(1) = coeffx - i0*1d0
+      xhp(2) = coeffy - j0*1d0
+      xhp(3) = coeffz - k0*1d0
+
+c     Interpolate
+
+c$$$      write (*,*) "Initial pos=",x1,x2,x3
+c$$$      write (*,*) "Normalized pos=",xhp
+c$$$      write (*,*) xsmin,ysmin,zsmin,xsmax,ysmax,zsmax,ihx,ihy,ihz
+c$$$      write (*,*) i0,j0,k0,nx,ny,nz
+
+      call shape2_offset(xhp(1),Sx2(1:3,1,1))
+      call shape2_offset(xhp(2),Sy2(1,1:3,1))
+      call shape2_offset(xhp(3),Sz2(1,1,1:3))
+
+      dum333 = opt_vecvecvec_3(Sx2,Sy2,Sz2)
+
+      do iqty = 1,nqty
+        fldp(iqty) = opt_matmat_333_xyz(dum333
+     .               ,fld(i0-1:i0+1,j0-1:j0+1,k0-1:k0+1,iqty))
+      enddo
+
+c     End program
+
+      end subroutine evalFlds_local
+
+c     shape2_offset
+c     ##################################################################
+      subroutine shape2_offset(x,ss)
+
+c     ------------------------------------------------------------------
+c     Second-order shape function, offset to left cell-face position
+c     ------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      real(8) :: x,ss(3)
+
+c     Local variables
+
+c     Begin program
+
+      ss(1) = 0.5d0*(1d0-x)*(1d0-x)
+      ss(2) = 0.75d0-(x-0.5d0)*(x-0.5d0)
+      ss(3) = 0.5d0*x*x    
+
+c     End program
+
+      end subroutine shape2_offset
+
+c     Matrix-matrix contraction to scalar (3x3x3*3x3x3->1) (Adam)
+c     ################################################################
+      function opt_matmat_333_xyz(A,B) result(C)
+      implicit none
+
+c     Call variables                                                                                                                                                                                     
+      real(8) :: A(3,3,3), B(3,3,3)
+      real(8) :: C
+      
+c     Local variables
+
+      integer :: i, j, k, ii
+
+      C = 0.0d0
+
+      do k=1, 3
+         do j=1, 3
+            do i=1, 3
+                  C = C + A(i,j,k)*B(i,j,k) 
+            end do
+         end do
+      end do
+
+      end function opt_matmat_333_xyz
+
+c     Outer product of 3 vectors (3x3x3) (Adam)
+c     ##################################################################
+      function opt_vecvecvec_3(A,B,C) result(D)
+
+      implicit none
+c     Call variables
+
+      real(8) :: A(3,1,1), B(1,3,1), C(1,1,3)
+      real(8) :: D(3,3,3)
+
+c     Local variables 
+      integer :: i, j, k
+
+      D = 0.0d0
+
+      do i=1, 3
+         do j=1, 3
+            do k=1, 3
+               D(i,j,k) = A(i,1,1)*B(1,j,1)*C(1,1,k)
+            end do
+         end do
+      end do
+
+      end function opt_vecvecvec_3
+
+c     evalFlds
+c     #################################################################
+      subroutine evalFlds(x1,x2,x3,arrayin,arrayout)
+c     -----------------------------------------------------------------
+c     This evaluates cartesian position (x,y,z) at logical position
+c     (x1,x2,x3).
+c     -----------------------------------------------------------------
+
+      implicit none            ! For safe Fortran
+
+c     Call variables
+
+      real(8),pointer,intent(in) :: arrayin(:,:,:,:)
+      real(8),intent(in) :: x1,x2,x3
+      real(8),intent(out):: arrayout(*)  !No assumed-shape array for openMP threading
+
+c     Local variables
+
+      integer :: i
+
+c     Begin program
+
+      if (local_spline) then
+        call evalFlds_local(x1,x2,x3,arrayin,arrayout)
+      else
+        call evalFlds_global(x1,x2,x3,arrayin,arrayout)
+      endif
+      
+      end subroutine evalFlds
 
       end module grid_splines

@@ -1,0 +1,70 @@
+#!/bin/bash
+
+# create all combinations of build folders for current machine
+# this scripts sets up several build folders for release, debug and profile,
+# with and without radiation, for petsc and serial. Might take a long while to
+# run, but only does the initial set up, does not build.
+# Creates a bin folder and links all executables (not yet compiled) into it. This
+# makes it easier to call, if this bin folder is in the path.
+
+# return on error
+set -e
+
+# get current folder
+folder=$(pwd)
+# get script folder
+script_folder="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+
+# create bin folder
+mkdir -p bin/
+
+# process arguments
+source $script_folder/arguments arrays $@
+
+# loop over build types
+for build_type in ${build_types[@]}
+do
+
+    # loop over compilers
+    for compiler in ${compilers[@]}
+    do
+
+        # iterate over serial/parallel
+        for parallel in ${parallel_types[@]}
+        do
+            # load ifp environment
+            source $script_folder/load_environment $build_type $compiler $parallel
+
+            # get cmake option for petsc
+            if [[ $parallel == "serial" ]]; then
+                CMAKE_PETSC="OFF"
+            elif [[ $parallel == "petsc" ]]; then
+                CMAKE_PETSC="ON"
+            else
+                echo "Unsupported parallel type $parallel"
+                return 1
+            fi
+
+            # write which case we are working on
+            echo -e "\e[1m\e[91mCreating configuration for: $build_type $compiler $parallel \e[0m"
+
+            # create folder
+            mkdir -p $MACHINE/$COMPILER/$parallel/$build_type/
+            # change into folder
+            cd $MACHINE/$COMPILER/$parallel/$build_type/
+            # create empty file to prevent error in cleaning
+            touch f
+            # clean folder
+            rm -r *
+            # init cmake
+            $CMAKE_COMMAND ../../../../../ -DUSE_PETSc=$CMAKE_PETSC 
+
+            # change back
+            cd $folder
+
+        done # petsc
+
+    done # compiler
+
+done # build
+

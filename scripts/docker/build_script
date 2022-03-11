@@ -1,0 +1,15 @@
+#!/bin/bash
+
+user=hlx87
+tag=ifp-build
+
+docker build -t $tag .
+docker tag $tag $user/$tag
+docker push $user/$tag
+
+# to login to dockerhub
+# docker login 
+
+# executing and testing, if necessary
+# docker run -it $user/$tag
+

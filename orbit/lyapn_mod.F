@@ -12,6 +12,7 @@
         use OMP
 
         logical :: lssx,lssy,lssz,rzss,ss_io=.false.
+!$OMP THREADPRIVATE(lssx,lssy,lssz,rzss,ss_io)
 
 !private variables
        logical :: lyap=.false.,connect=.false.,ridge=.false.
@@ -143,12 +144,12 @@
         character(50),dimension(:),allocatable :: ridge_file
 
 !     Begin program
-        thr_tot = 1
-
 #ifdef _OPENMP
 !$omp parallel
         thr_tot = omp_get_num_threads()
 !$omp end parallel                                                             
+#else
+        thr_tot = 1
 #endif
 
         if (PRESENT(rz_ss)) then

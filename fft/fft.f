@@ -205,8 +205,8 @@ c ifft
 c#######################################################################
       subroutine ifft(nx,psi,x,nv,psir,psii,ak,inter)
 c***********************************************************************
-c     Performs inverse Fourier transform. Odd entries in data() are real 
-c     parts of the FT; even entries are the imaginary parts of the FT.  
+c     Performs inverse Fourier transform. psir are real 
+c     parts of the FT; psii are the imaginary parts of the FT.  
 c     four1(.,.,-1) does the inverse transform giving the original signal 
 c     in psi(). zero() should be identically zero, but I compute it to 
 c     check (during debugging). 

@@ -17,7 +17,7 @@ c ######################################################################
      .            ,eig_dt=1d0          ! Time step for eigenvalue dynamical system
      .            ,dt      = 1d0       ! Time step (if zero, dt is calculated in code)
      .            ,tmax    =-1d0       ! Target time, in Alfven times (not active if negative)
-     .            ,trstrt  =-1d0       ! Restart time (not active if negative)
+     .            ,trestart=-1d0       ! Restart time (not active if negative)
 
         integer :: sm_pass=2           ! Number of initial smoother passes for Rannacher TS
      .            ,sm_flag=0           ! Time smoothing flag:
@@ -27,7 +27,7 @@ c ######################################################################
      .            ,numtime=-1          ! Number of time steps (not active if negative)
      .            ,ndstep=0            ! # time steps between plots (if zero,
                                        !        ndstep is calculated in code)
-     .            ,nrstrt=-1           ! Restart cycle number (not active if negative)
+     .            ,nrestart=-1         ! Restart cycle number (not active if negative)
 
         logical :: ts_adapt_dt=.true.  ! Time adaptive algorithm (based on Newton convergence)
      .            ,ts_restart=.false.  ! Restarting flag
@@ -37,7 +37,8 @@ c ######################################################################
      .            ,preprocess=.false.  ! Whether to run solution preprocessing before time step
      .            ,eigen=.false.       ! Whether to run framework in eigensolver mode
      .            ,perturb_rstrt=.false.! Whether to apply perturbation after restart
-
+     .            ,ts_no_exact=.false. ! Whether we allow TS to exit on exact solution
+        
         logical, private :: early_restart !Whether restart has happened from intermediate time
         logical :: ts_ramp_up_dt = .false.       !Whether to ramp up dt initially
         real(8) :: ts_ramp_up_dt_fraction = 5d-1 !Fraction of initial timestep
@@ -432,7 +433,7 @@ c$$$          dpert_nh = integral(1,1,1,nxl,nyl,nzl,array,average=.true.)
 c$$$
 c$$$          dpert_nh = sqrt(dpert_nh)
 
-          if (dpert > 0d0 .and. dpert_n > 0d0 .and. time > tn) then
+          if (dpert > 1d-12 .and. dpert_n > 1d-12 .and. time > tn) then
             mag(ieq) = (log(dpert)-log(dpert_n))/(time-tn)
 c$$$          if (dpert /= dpert_n.and.dpert_nh /=0d0.and.time > tn) then
 c$$$            mag(ieq) = .5*(time-tn)*dpert_nh/(dpert-dpert_n)

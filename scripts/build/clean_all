@@ -1,0 +1,48 @@
+#!/bin/bash
+
+# clean all folders for this machine
+# the folders must be initialized and must follow the layout of the
+# create_build_folder script.
+
+# return on error
+set -e
+
+# get current folder
+folder=$(pwd)
+# get script folder
+script_folder="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+
+# process arguments
+source $script_folder/arguments arrays $@
+
+# loop over build types
+for build_type in ${build_types[@]}
+do
+
+    # loop over compilers
+    for compiler in ${compilers[@]}
+    do
+
+        # iterate over serial/parallel
+        for parallel in ${parallel_types[@]}
+        do
+            # load ifp environment
+            source $script_folder/load_environment $build_type $compiler $parallel
+
+            # check if folder exists
+            if [[ -d $MACHINE/$COMPILER/$parallel/$build_type ]]; then
+                # change into folder
+                cd $MACHINE/$COMPILER/$parallel/$build_type/
+                # build
+                make clean
+                # change back
+                cd $folder
+
+            fi
+
+        done # petsc
+
+    done # compiler
+
+done # build
+

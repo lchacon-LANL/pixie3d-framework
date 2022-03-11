@@ -4,7 +4,7 @@ c ######################################################################
 
         use ts_base
 
-        use graphics_io, ONLY: no_graphics_io
+        use graphics_io, ONLY: no_graphics_io,nplot,ndplot,tmplot,dplot
 
       contains
 
@@ -64,7 +64,7 @@ c     End program
 
 c     TS_chk_dump
 c     ###############################################################
-      function TS_chk_dump(etime,reset_counters) result(dump)
+      function TS_chk_dump(reset_counters) result(dump)
 
 c     ---------------------------------------------------------------
 c     Check for end of time loop
@@ -75,12 +75,10 @@ c     ---------------------------------------------------------------
 c     Call variables
 
       logical :: dump
-      real(8),optional,INTENT(OUT) :: etime
       logical,optional :: reset_counters
 
 c     Local variables
 
-      real(8) :: e_time
       logical :: reset
 
 c     Begin program
@@ -91,26 +89,19 @@ c     Begin program
         reset = .false.
       endif
 
-#if defined(petsc)
-      call PetscGetTime   (prof_time(3),prof_err)
-      e_time = prof_time(3)-prof_time(1)
-cc        if (my_rank == 0) write (*,*) e_time, quota
-#else
-      e_time = 0d0
-#endif
-
 #if defined(RFX)
-      dump = (nrst.eq.ndstep.or.tmrst.ge.         dstep.or.e_time>quota)
+      dump = (nrst.eq.ndstep.or.tmrst.ge.dstep)
 #else
-      dump = (nrst.eq.ndstep.or.tmrst.ge.0.999999*dstep.or.e_time>quota)
+      dump = (nrst.eq.ndstep).or.(sign(1d0,dt)*(tmrst-dstep)>=1d-10)
 #endif
 
       if (reset.and.dump) nrst = 0
 
       dump = dump.or.relax_init_grid
-      if (reset.and.dump.and.itime>init_grid_offset) tmrst=tmrst-dstep
 
-      if (PRESENT(etime)) etime = e_time
+      if (reset.and.dump.and.itime>init_grid_offset) then
+        tmrst=tmrst-sign(1d0,dt)*dstep
+      endif
 
 c     End program
 
@@ -118,16 +109,19 @@ c     End program
 
 c     TS_dump
 c     ##################################################################
-      subroutine TS_dump(varray)
+      subroutine TS_dump(varray,dump_now)
 
       implicit none
 
 c     Call variables
 
       type(var_array),pointer :: varray
-
+      logical, optional :: dump_now
+      
 c     Local variables
 
+      logical :: dump
+      
       INTERFACE
         subroutine perturbEquilibrium(varray)
         use var_setup
@@ -137,19 +131,25 @@ c     Local variables
 
 c     Begin program
 
-        if (TS_chk_dump(etime=exec_time,reset_counters=.true.)
+      if (PRESENT(dump_now)) then
+        dump = dump_now
+      else
+        dump = .false.
+      endif
+      
+      if ((TS_chk_dump(reset_counters=.true.).or.dump)
      .     .and.(.not.no_graphics_io)) then
-cc          if (.not.relax_init_grid) nrst  = 0
-cc          if(itime-init_grid_offset > 0) tmrst=tmrst-dstep
-          call writeRecordFile(recordfile,itime,time,dt,gammat,varray)
-        endif
+        call writeRecordFile(recordfile,itime,time,dt,gammat,varray)
+      endif
 
-        if (relax_init_grid) then
-          relax_init_grid = .false.
+#if defined(MK)
+      if (relax_init_grid) then
+        relax_init_grid = .false.
 cc          if (source) call get_src(varray,.true.) !Update source with interpolated equilibrium
-          call equateDerivedType (u_n,varray)     !Save interpolated (unperturbed) equilibrium
-          call perturbEquilibrium(varray)         !Perturb interpolated equilibrium
-        endif
+        call equateDerivedType (u_n,varray) !Save interpolated (unperturbed) equilibrium
+        call perturbEquilibrium(varray) !Perturb interpolated equilibrium
+      endif
+#endif
 
 c     End program
       
@@ -229,5 +229,38 @@ c     End program
  310  format (i5,3x,f7.1,4x,f7.1,4x,f7.1)
 
       end subroutine TS_final_io
-      
+
+c     TS_chk_plot_dump
+c     ###############################################################
+      function TS_chk_plot_dump(reset) result(dump)
+
+c     ---------------------------------------------------------------
+c     Check for end of time loop
+c     ---------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      logical :: dump,reset
+
+c     Local variables
+
+c     Begin program
+
+      dump = (nplot == ndplot.and.nplot > 0)
+cc     .   .or.((time-tmplot) >= dplot-0.9*dt .and. dplot > 0d0)
+     .   .or.(sign(1d0,dt)*(time-tmplot)>=dplot-.1*abs(dt).and.dplot>0.)
+     .   .or.(sign(1d0,dt)*(tmax-time  )<=1d-10           .and.dplot>0.)
+     .   .or.(time == 0d0)
+
+      if (reset.and.dump) then
+        nplot = 0
+        if (itime.gt.0) tmplot = time
+      endif
+
+c     End program
+
+      end function TS_chk_plot_dump
+
       end module ts_io

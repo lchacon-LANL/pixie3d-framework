@@ -943,9 +943,15 @@ c     Begin program
         write (cfile,'(a)') 'ix      iy      other           title'
 
         do i=1,nvar
-          write (cfile,'(4a,i2,2a)') 'i2      i1'
-     .         ,'     ',options,' -i0=',i-1
-     .         ,'     ',trim(descr(i))
+          if (i<=10) then
+            write (cfile,'(4a,i1,2a)') 'i2      i1'
+     .           ,'     ',options,' -i0=',i-1
+     .           ,'     ',trim(descr(i))
+          else
+            write (cfile,'(4a,i2,2a)') 'i2      i1'
+     .           ,'     ',options,' -i0=',i-1
+     .           ,'     ',trim(descr(i))
+          endif
         enddo
         write (cfile,*)
 

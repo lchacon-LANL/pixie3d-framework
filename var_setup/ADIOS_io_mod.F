@@ -82,7 +82,7 @@ c     Initialize ADIOS for componentized I/O
         call pstop('setupRecordFileForWrite'
      .            ,'ADIOS config file not present')
       else
-        call MPI_Comm_dup (MPI_COMM_WORLD,adios_world_comm,adios_err)
+        call MPI_Comm_dup (MPI_COMM_WORLD,adios_world_comm,ierr)
 
         if (set_adios_buffer(ADIOS_BUFFER_MB) /= 0) then
           call pstop("init_ADIOS_IO"
@@ -94,7 +94,7 @@ c     Initialize ADIOS for componentized I/O
      .              ,"Could not setup ADIOS method")
         endif
         
-        call ADIOS_init('adios_config.xml',adios_world_comm,adios_err);
+        call ADIOS_init('adios_config.xml',adios_world_comm,ierr);
       endif
 
       contains
@@ -146,6 +146,27 @@ c     #################################################################
 
       end function init_ADIOS_IO
 
+c     destroy_ADIOS_IO
+c     #################################################################
+      function destroy_ADIOS_IO() result(ierr)
+
+c     -----------------------------------------------------------------
+c     Initializes ADIOS IO according to adios_config.xml
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Global variables
+
+      integer :: ierr
+
+      if (adios_debug) write (*,*) "Terminating ADIOS IO..."
+
+      call MPI_Comm_free(adios_world_comm,ierr)
+      call ADIOS_finalize(my_rank, ierr)
+
+      end function destroy_ADIOS_IO
+      
 c     openADIOSRecordFileForRead
 c     #################################################################
       subroutine openADIOSRecordFileForRead(ierr,file,nvar,nx,ny,nz)
@@ -213,7 +234,7 @@ cc     .                       ,adios_attrsize,ierr)
 cc          write (*,*) adios_attrlist(i),adios_attrtype,adios_attrsize
 cc        enddo
 
-        adios_tread = 0  ! next time read first timestep
+        adios_tread = 0  ! next time read first timestep          
 
         if (adios_debug) then
           write (*,"(a,i0,a,a)")
@@ -238,18 +259,18 @@ cc        enddo
 
 c     closeADIOSRecordFileForRead
 c     #################################################################
-      subroutine closeADIOSRecordFileForRead(ierr)
+      function closeADIOSRecordFileForRead() result(ierr)
 
         implicit none
 
-        integer, intent(out) :: ierr
+        integer :: ierr
 
         call adios_gclose(adios_gh, ierr)
         call adios_fclose(adios_fh, ierr)
 
         if (adios_debug) write (*,*) "Closed ", trim(recordfile)
 
-      end subroutine closeADIOSRecordFileForRead
+      end function closeADIOSRecordFileForRead
 
 c     openADIOSRestartFileForRead
 c     #################################################################
@@ -711,7 +732,7 @@ c          will not be accessible from file (everybody writes these vars)
 
 c     write all boundary conditions into one array buffer
 
-        if (addl_write) then
+        if (addl_write) then 
             do ieq=1,varray%nvar
                 bconds( (ieq-1)*6+1:ieq*6 ) = 
      .                  varray%array_var(ieq)%bconds(:)

@@ -6,7 +6,7 @@ c ######################################################################
 
 #if !defined(samrai)
       use nk, ONLY: nk_conf,matrixFreeMatVec,jfnk,evaluateNewtonResidual
-     .             ,NOERR,CUTDT,anderson
+     .             ,NOERR,CUTDT,anderson,kgm
 
       contains
 
@@ -38,21 +38,12 @@ c     Begin program
 
       nn = size(x)
 
-c     Evaluate old-time NLF
-
-c$$$      old_time_eval = .true. !This informs nlfunction that we are processing
-c$$$                             !  n time level info
-c$$$
-c$$$      call evaluateNonlinearFunction(igrid,nn,x,fold)
-c$$$
-c$$$      old_time_eval = .false.
-
 c     Newton-Krylov iteration
 
       nk_conf%etak_meth      = method
       nk_conf%ksmax          = maxksp
       nk_conf%gmmax          = maxitgm
-      nk_conf%nwt_max_it_acc = 0.7*maxitnwt
+      nk_conf%nwt_max_it_acc = ceiling(0.7*maxitnwt)
       nk_conf%nwt_max_it_rej = maxitnwt
       nk_conf%global_meth    = global
 
@@ -79,8 +70,10 @@ cc      nk_conf%krylov_method='gm'
 
       if (fpa) then
         call anderson(neqd,nn,x,iguess,iout,ierr)
+      elseif(.not.nk_is_gmres) then
+        call jfnk    (neqd,nn,x,iguess,iout,ierr)
       else
-        call jfnk(neqd,nn,x,iguess,iout,ierr)
+        call kgm     (neqd,nn,x,iguess,iout,ierr)
       endif
 
 c     Store convergence info
@@ -274,7 +267,7 @@ c     Map solution to vnp (if no error)
       if (ierr == NOERR .or. ierr == CUTDT) then
         call mapVectorToStructure(gv%gparams,vnp,x)
 
-        call applyBC(1,vnp,gv%aux,it=itime)
+        call applyBC(1,vnp,gv%aux)
 
 #if defined(MK)
         if (mk_grid) call MK_applyBC(1,vnp%array_var(neqd)%array)

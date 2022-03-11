@@ -19,13 +19,6 @@ SUBDIRS = $(COMMONDIR)/math\
 
 #Module order
 
-#PIC config
-
-#Size of particle groups
-PCLE_GROUPING=4
-
-override CPPFLAGS += $(PREPROC)_Npg=$(PCLE_GROUPING)
-
 #Whether canonical momenta diag are compiled
 PIC_CM_DIAG?=t
 
@@ -57,9 +50,8 @@ endif
 
 #Define dependencies
 
-INITFILES = $(wildcard problem_init/*.[F,c,cpp,f]) 
-
-pic_base_mod.o: Fcc_mod.o pic_defs.h $(INITFILES)
+Fcc_mod.o: pic_defs.h
+pic_base_mod.o: Fcc_mod.o
 pic_mod.o: pic_base_mod.o
 
 ifeq ($(PIC_CUDA),t) 

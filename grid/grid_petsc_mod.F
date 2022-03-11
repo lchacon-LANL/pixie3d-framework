@@ -111,31 +111,20 @@ c     Call variables
 
         logical :: bcChk
         integer :: ibc,bctype
-        integer,optional :: bcnd(6)
+        integer :: bcnd(6)
 
 c     Local variables
 
-        integer :: bc(6)
-
 c     Begin program
 
-        if (PRESENT(bcnd)) then
-          bc = bcnd
-        else
-          bc = bcond
-        endif
-
-        if (ibc < 1 .or. ibc > 6) then
-          bcChk = .false.
-        else
-          bcChk = (abs(bc(ibc)) == bctype)
-        endif
+        bcChk = (ibc>=1.and.ibc<=6)
+        if (bcChk) bcChk = (abs(bcnd(ibc)) == bctype)
 
       end function bcChk
 
 c     bcSP
 c     #################################################################
-      function bcSP(dim,ibc,bcnd) result(sing_bc)
+      function bcSP(dim,ibc) result(sing_bc)
 
 c     -----------------------------------------------------------------
 c     Detects whether boundary is of SP type. Boundary is identified
@@ -149,7 +138,7 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer,optional :: dim,ibc,bcnd(6)
+        integer,optional :: dim,ibc
         logical :: sing_bc
 
 c     Local variables
@@ -166,13 +155,13 @@ c     Begin program
           iibc = 1
         endif
 
-        sing_bc = bcChk(iibc,SP,bcnd=bcnd)
+        sing_bc = bcChk(iibc,SP,bcond)
 
       end function bcSP
 
 c     bcPER
 c     #################################################################
-      function bcPER(dim,bcnd) result(per_bc)
+      function bcPER(dim) result(per_bc)
 
 c     -----------------------------------------------------------------
 c     Detects whether dimension dim is of PER type.
@@ -184,7 +173,6 @@ c     Call variables
 
         integer :: dim 
         logical :: per_bc
-        integer,optional :: bcnd(6)
 
 c     Local variables
 
@@ -194,13 +182,13 @@ c     Begin program
 
         iibc = 1+2*(dim-1)
 
-        per_bc = bcChk(iibc,PER,bcnd=bcnd)
+        per_bc = bcChk(iibc,PER,bcond)
 
       end function bcPER
 
 c     bcSYM
 c     #################################################################
-      function bcSYM(ibc,bcnd) result(sym_bc)
+      function bcSYM(ibc) result(sym_bc)
 
 c     -----------------------------------------------------------------
 c     Detects whether boundary is of SYM type. Boundary is
@@ -216,17 +204,41 @@ c     Call variables
 
         integer :: ibc
         logical :: sym_bc
-        integer,optional :: bcnd(6)
 
 c     Local variables
 
-        integer :: bc(6)
+c     Begin program
+
+        sym_bc = bcChk(ibc,SYM,bcond)
+
+      end function bcSYM
+
+c     bcFSYM
+c     #################################################################
+      function bcFSYM(ibc) result(sym_bc)
+
+c     -----------------------------------------------------------------
+c     Detects whether boundary is of SYM type. Boundary is
+c     identified by ibc, with the following convention:
+c        * ibc = 1, 2 (xmin,xmax)
+c        * ibc = 3, 4 (ymin,ymax)
+c        * ibc = 5, 6 (zmin,zmax)
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer :: ibc
+        logical :: sym_bc
+
+c     Local variables
 
 c     Begin program
 
-        sym_bc = bcChk(ibc,SYM,bcnd=bcnd)
+        sym_bc = bcChk(ibc,FSYM,bcond)
 
-      end function bcSYM
+      end function bcFSYM
 
 c     get_topol_bcs
 c     #################################################################
@@ -260,7 +272,7 @@ c     ##################################################################
       implicit none
 
       !Set profiling stages
-      call PetscLogStageRegister('Setup'   ,prof_stage(iSTUP) ,prof_err)
+      call PetscLogStageRegister('Setup   ',prof_stage(iSTUP) ,prof_err)
       call PetscLogStageRegister('NL solve',prof_stage(iNL)   ,prof_err)
       call PetscLogStageRegister('PC setup',prof_stage(iPCSTP),prof_err)  
       call PetscLogStageRegister('PC main ',prof_stage(iPCSLV),prof_err)  
@@ -329,10 +341,11 @@ c ######################################################################
 
         use bc_def
 
-        implicit none
-
 #if defined(petsc)
 
+        use mpi
+        
+#define PETSC_AVOID_MPIF_H
 #include "finclude/petsc.h"
 #include "finclude/petscvec.h"
 #include "finclude/petscda.h"

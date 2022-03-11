@@ -114,6 +114,35 @@ c     End program
 
       end function is_file
 
+#if defined(ifort)
+c     is_dir
+c     ####################################################################
+      function is_dir(dir)
+
+c     --------------------------------------------------------------------
+c     Checks whether "file" exists.
+c     --------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      logical :: is_dir
+      character(*) :: dir
+
+c     Local variables
+
+      integer :: ierr
+
+c     Begin program
+
+      INQUIRE(DIRECTORY=trim(dir),exist=is_dir)
+
+c     End program
+
+      end function is_dir
+#endif
+      
 c     is_open_file
 c     ####################################################################
       function is_open_file(file)
@@ -457,6 +486,7 @@ c     Check for errors
         return
       elseif (nfiles == np) then
         posix_read = .true.  !One file per processor
+        nfiles = 1
       else
         posix_read = .false. !Async file reading
       endif
@@ -466,7 +496,7 @@ c     Allocate arrays and open files
       allocate(munit(nfiles))
 
       if (posix_read) then
-        munit(1) = base_unit+myrank
+        munit(1) = find_unit(base_unit+myrank)
         file = trim(base_fname)//'_proc'//trim(int2char(myrank))
         write (*,*) '  => ',trim(file),', unit=',munit(1)
 
@@ -475,7 +505,7 @@ c     Allocate arrays and open files
       else
         if (single_file) then
           ifile = 1
-          munit(ifile) = base_unit + myrank
+          munit(ifile) = find_unit(base_unit + myrank)
           file = base_fname
           write (*,*) '  => ',trim(file),', unit=',munit(ifile)
 
@@ -483,7 +513,7 @@ c     Allocate arrays and open files
      $        ,form='unformatted',status='old')
         else
           do ifile=1,nfiles
-            munit(ifile) = base_unit+ifile
+            munit(ifile) = find_unit(base_unit+ifile)
             file = trim(base_fname)//'_proc'//trim(int2char(ifile-1))
             write (*,*) '  => ',trim(file),', unit=',munit(ifile)
 

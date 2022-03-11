@@ -37,45 +37,58 @@ c     Local variables
 
 c     Begin program
 
-        locl = abs(mod(ibc,2)-2)-1
-        diml = 1 + (ibc-1-locl)/2
+cc        locl = abs(mod(ibc,2)-2)-1
+cc        diml = 1 + (ibc-1-locl)/2
+        diml = (ibc+1)/2
+        locl = ibc + 1 - 2*diml
 
-        if (.not.associated(gl_def)) then
-          write (*,*) 'Grid def struct not associated'
-          write (*,*) 'Aborting in routine isBdry'
-          stop
-        endif
+        isBdry = isBdry2(gl_def,i,igr,diml,locl)
+
+      end function isBdry
+
+c     isBdry2
+c     #################################################################
+      function isBdry2(gl_def,i,igr,diml,locl)
+
+c     -----------------------------------------------------------------
+c     Detects whether we are at a PHYSICAL boundary or not. Boundary is
+c     identified by dim, loc.
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        integer :: i,igr
+        logical :: isBdry2
+
+        integer :: diml,locl
+
+        type(grid_mg_def),pointer :: gl_def
+
+c     Local variables
+
+        integer :: ilog,itst
+
+c     Begin program
+
+        itst = 1
 
         select case(diml)
         case(1)
           ilog = gl_def%ilo(igr)
-          select case(locl)
-          case (0)
-            itst = 1
-          case (1)
-            itst = gl_def%nxgl(igr)
-          end select
+          if (locl == 1) itst = gl_def%nxgl(igr)
         case(2)
           ilog = gl_def%jlo(igr)
-          select case(locl)
-          case (0)
-            itst = 1
-          case (1)
-            itst = gl_def%nygl(igr)
-          end select
+          if (locl == 1) itst = gl_def%nygl(igr)
         case(3)
           ilog = gl_def%klo(igr)
-          select case(locl)
-          case (0)
-            itst = 1
-          case (1)
-            itst = gl_def%nzgl(igr)
-          end select
+          if (locl == 1) itst = gl_def%nzgl(igr)
         end select
 
-        isBdry = (i+ilog-1 == itst)
+        isBdry2 = (i+ilog-1 == itst)
 
-      end function isBdry
+      end function isBdry2
 
 c     isBC
 c     #################################################################
@@ -113,7 +126,7 @@ c     Begin program
           bcc = bcond
         endif
 
-        isBC = (isBdry(g_def,i,igr,ibc) .and. abs(bcc(ibc)) == BC)
+        isBC = (isBdry(g_def,i,igr,ibc).and.abs(bcc(ibc)) == BC)
 
       end function isBC
 
@@ -134,17 +147,55 @@ c     Begin program
 
         if (.not.associated(gl_def)) then
           write (*,*) 'Grid def struct not associated'
-          write (*,*) 'Aborting in routine isBdry'
+          write (*,*) 'Aborting in routine isSP'
           stop
         endif
 
-        sing_point = (i+gl_def%ilo(igx)-1==1).and.bcSP()
+        sing_point = (i+gl_def%ilo(igx)-1==1).and.(abs(bcond(1)) == SP)
 
       end function isSP
 
+c$$$c     isSP2
+c$$$c     #################################################################
+c$$$      function isSP2(g_def,i,igr,dim,loc,ibc)
+c$$$
+c$$$c     -----------------------------------------------------------------
+c$$$c     Checks whether point at grid level igr, dimension dim(=1,2,3)
+c$$$c     and location loc(=0,1) is at SP boundary.
+c$$$c     -----------------------------------------------------------------
+c$$$
+c$$$        implicit none
+c$$$
+c$$$        integer    :: i,igr
+c$$$        logical    :: isSP2
+c$$$        integer,optional :: dim,loc,ibc
+c$$$
+c$$$        type(grid_mg_def),pointer :: g_def
+c$$$
+c$$$        integer    :: ibcl,ilog,itst,diml,locl
+c$$$
+c$$$        if (PRESENT(dim) .and.PRESENT(loc)) then
+c$$$          diml = dim
+c$$$          locl = loc
+c$$$          ibcl = (1+locl)+2*(diml-1)
+c$$$        elseif (PRESENT(ibc)) then
+c$$$          ibcl = ibc
+c$$$        else
+c$$$          ibcl = 1
+c$$$        endif
+c$$$
+c$$$        if (ibcl < 1 .or. ibcl > 6) then
+c$$$          isSP2 = .false.
+c$$$          return
+c$$$        else
+c$$$          isSP2 = isBC(g_def,i,igr,ibcl,SP)
+c$$$        endif
+c$$$
+c$$$      end function isSP2
+
 c     isSP2
 c     #################################################################
-      function isSP2(g_def,i,igr,dim,loc,ibc)
+      function isSP2(g_def,i,igr)
 
 c     -----------------------------------------------------------------
 c     Checks whether point at grid level igr, dimension dim(=1,2,3)
@@ -155,28 +206,10 @@ c     -----------------------------------------------------------------
 
         integer    :: i,igr
         logical    :: isSP2
-        integer,optional :: dim,loc,ibc
 
         type(grid_mg_def),pointer :: g_def
 
-        integer    :: ibcl,ilog,itst,diml,locl
-
-        if (PRESENT(dim) .and.PRESENT(loc)) then
-          diml = dim
-          locl = loc
-          ibcl = (1+locl)+2*(diml-1)
-        elseif (PRESENT(ibc)) then
-          ibcl = ibc
-        else
-          ibcl = 1
-        endif
-
-        if (ibcl < 1 .or. ibcl > 6) then
-          isSP2 = .false.
-          return
-        else
-          isSP2 = isBC(g_def,i,igr,ibcl,SP)
-        endif
+        isSP2 = (i+g_def%ilo(igr)-1==1).and.(abs(bcond(1)) == SP)
 
       end function isSP2
 
@@ -205,8 +238,10 @@ c     -----------------------------------------------------------------
           ibcl = (1+locl)+2*(diml-1)
         elseif (PRESENT(ibc)) then
           ibcl = ibc
-          locl = abs(mod(ibcl,2)-2)-1
-          diml = 1 + (ibcl-1-locl)/2
+cc          locl = abs(mod(ibcl,2)-2)-1
+cc          diml = 1 + (ibcl-1-locl)/2
+          diml = (ibcl+1)/2
+          locl =  ibcl+1 - 2*diml
         else
           write (*,*) 'Error in isSYM'
           write (*,*) 'Aborting...'
@@ -217,67 +252,67 @@ c     -----------------------------------------------------------------
 
       end function isSYM
 
-c     isSYMBdry
-c     #################################################################
-      function isSYMBdry(gl_def,dim,loc,ibc)
-
-c     -----------------------------------------------------------------
-c     Checks whether boundary at dimension dim(=1,2,3)
-c     and location loc(=0,1) is a SYM boundary
-c     -----------------------------------------------------------------
-
-        implicit none
-
-        logical    :: isSYMBdry
-        integer,optional :: dim,loc,ibc
-
-        integer    :: ibcl,ilog,itst,diml,locl,igr
-
-        type(grid_mg_def),pointer :: gl_def
-
-        if (PRESENT(dim) .and.PRESENT(loc)) then
-          diml = dim
-          locl = loc
-          ibcl = (1+locl)+2*(diml-1)
-        elseif (PRESENT(ibc)) then
-          ibcl = ibc
-          locl = abs(mod(ibcl,2)-2)-1
-          diml = 1 + (ibcl-1-locl)/2
-        else
-          write (*,*) 'Error in isSYMBdry'
-          write (*,*) 'Aborting...'
-          stop
-        endif
-
-        igr = 1 !Use fine grid for test
-
-        select case(diml)
-        case(1)
-          select case(locl)
-          case (0)
-            itst = 1
-          case (1)
-            itst = gl_def%nxv(igr)
-          end select
-        case(2)
-          select case(locl)
-          case (0)
-            itst = 1
-          case (1)
-            itst = gl_def%nyv(igr)
-          end select
-        case(3)
-          select case(locl)
-          case (0)
-            itst = 1
-          case (1)
-            itst = gl_def%nzv(igr)
-          end select
-        end select
-
-        isSYMBdry = isBC(gl_def,itst,igr,ibcl,SYM)
-
-      end function isSYMBdry
+c$$$c     isSYMBdry
+c$$$c     #################################################################
+c$$$      function isSYMBdry(gl_def,dim,loc,ibc)
+c$$$
+c$$$c     -----------------------------------------------------------------
+c$$$c     Checks whether boundary at dimension dim(=1,2,3)
+c$$$c     and location loc(=0,1) is a SYM boundary
+c$$$c     -----------------------------------------------------------------
+c$$$
+c$$$        implicit none
+c$$$
+c$$$        logical    :: isSYMBdry
+c$$$        integer,optional :: dim,loc,ibc
+c$$$
+c$$$        integer    :: ibcl,ilog,itst,diml,locl,igr
+c$$$
+c$$$        type(grid_mg_def),pointer :: gl_def
+c$$$
+c$$$        if (PRESENT(dim) .and.PRESENT(loc)) then
+c$$$          diml = dim
+c$$$          locl = loc
+c$$$          ibcl = (1+locl)+2*(diml-1)
+c$$$        elseif (PRESENT(ibc)) then
+c$$$          ibcl = ibc
+c$$$          locl = abs(mod(ibcl,2)-2)-1
+c$$$          diml = 1 + (ibcl-1-locl)/2
+c$$$        else
+c$$$          write (*,*) 'Error in isSYMBdry'
+c$$$          write (*,*) 'Aborting...'
+c$$$          stop
+c$$$        endif
+c$$$
+c$$$        igr = 1 !Use fine grid for test
+c$$$
+c$$$        select case(diml)
+c$$$        case(1)
+c$$$          select case(locl)
+c$$$          case (0)
+c$$$            itst = 1
+c$$$          case (1)
+c$$$            itst = gl_def%nxv(igr)
+c$$$          end select
+c$$$        case(2)
+c$$$          select case(locl)
+c$$$          case (0)
+c$$$            itst = 1
+c$$$          case (1)
+c$$$            itst = gl_def%nyv(igr)
+c$$$          end select
+c$$$        case(3)
+c$$$          select case(locl)
+c$$$          case (0)
+c$$$            itst = 1
+c$$$          case (1)
+c$$$            itst = gl_def%nzv(igr)
+c$$$          end select
+c$$$        end select
+c$$$
+c$$$        isSYMBdry = isBC(gl_def,itst,igr,ibcl,SYM)
+c$$$
+c$$$      end function isSYMBdry
 
       end module bc_ops
 
@@ -334,7 +369,7 @@ c ---------------------------------------------------------------------
         end INTERFACE
 
         INTERFACE XformToCov_vrtx
-          module procedure XformToCov_ijk_vrtx,XformToCov_mesh_vrtx
+          module procedure XformToCov_vrtx_ijk,XformToCov_vrtx_mesh
         end INTERFACE
 
         INTERFACE XformVector
@@ -617,9 +652,9 @@ c     Begin program
 
       end function XformToCar_ijk
 
-c     XformToCar_ijk_vrtx
+c     XformToCar_vrtx_ijk
 c     #################################################################
-      function XformToCar_ijk_vrtx(g_def,i,j,k,igrid,curv,covariant)
+      function XformToCar_vrtx_ijk(g_def,i,j,k,igrid,curv,covariant)
      .         result(car)
 
 c     -----------------------------------------------------------------
@@ -652,7 +687,7 @@ c     Begin program
           car = matmul(curv,gmetric%grid(igrid)%cnv_v(i,j,k,:,:))
         endif
 
-      end function XformToCar_ijk_vrtx
+      end function XformToCar_vrtx_ijk
 
 c     XformToCar_mesh
 c     #################################################################
@@ -753,15 +788,15 @@ c     Begin program
 
       end function XformToCurv_ijk
 
-c     XformToCurv_ijk
+c     XformToCurv_vrtx_ijk
 c     #################################################################
-      function XformToCurv_ijk_vrtx(g_def,i,j,k,igrid,car,tocnv,nojac)
+      function XformToCurv_vrtx_ijk(g_def,i,j,k,igrid,car,tocnv,nojac)
      .         result(curv)
 
 c     -----------------------------------------------------------------
 c     Transforms a Cartesian vector to curvilinear representation at
-c     grid coordinates (i,j,k). Curvilinear vector is covariant if
-c     tocnv=.false., and contravariant otherwise.
+c     vertex grid coordinates (i+1/2,j+1/2,k+1/2). Returned curvilinear
+c     vector is covariant if tocnv=.false., and contravariant otherwise.
 c     -----------------------------------------------------------------
 
         implicit none
@@ -797,6 +832,7 @@ c     Begin program
           jac = 1d0
         else
           jac = gmetric%grid(igrid)%jac_v(i,j,k)
+          if (jac == 0d0) jac = SP_flsv
         endif
 
         if (.not.tocnv) then
@@ -805,7 +841,37 @@ c     Begin program
           curv = jac*matmul(gmetric%grid(igrid)%cov_v(i,j,k,:,:),car)
         endif
 
-      end function XformToCurv_ijk_vrtx
+c$$$        if (nj) then
+c$$$          jac = 1d0
+c$$$        else
+c$$$          if (gmetric%grid(igrid)%jac_v(i,j,k) == 0d0.and.tocnv) then
+c$$$            jac(1) = 0d0
+c$$$            jac(2) = SP_flsv
+c$$$            jac(3) = 0d0
+c$$$          elseif (gmetric%grid(igrid)%jac_v(i,j,k) == 0d0) then
+c$$$            jac(1) = SP_flsv
+c$$$            jac(2) = 0d0
+c$$$            jac(3) = SP_flsv
+c$$$          else
+c$$$            jac = gmetric%grid(igrid)%jac_v(i,j,k)            
+c$$$          endif
+c$$$        endif
+c$$$
+c$$$        if (.not.tocnv) then
+c$$$          vec(1,:) = jac(1)*gmetric%grid(igrid)%cnv_v(i,j,k,1,:)
+c$$$          vec(2,:) = jac(2)*gmetric%grid(igrid)%cnv_v(i,j,k,2,:)
+c$$$          vec(3,:) = jac(3)*gmetric%grid(igrid)%cnv_v(i,j,k,3,:)
+c$$$c$$$          if (gmetric%grid(igrid)%jac_v(i,j,k) == 0d0)
+c$$$c$$$     .         write (*,*) vec(1,:)
+c$$$        else
+c$$$          vec(1,:) = jac(1)*gmetric%grid(igrid)%cov_v(i,j,k,1,:)
+c$$$          vec(2,:) = jac(2)*gmetric%grid(igrid)%cov_v(i,j,k,2,:)
+c$$$          vec(3,:) = jac(3)*gmetric%grid(igrid)%cov_v(i,j,k,3,:)
+c$$$        endif
+c$$$
+c$$$        curv = matmul(vec,car)
+        
+      end function XformToCurv_vrtx_ijk
 
 c     XformToCurv_mesh
 c     #################################################################
@@ -1494,9 +1560,9 @@ c     Begin program
 
       end function XformToCov_ijk
 
-c     XformToCov_ijk_vrtx
+c     XformToCov_vrtx_ijk
 c     #################################################################
-      function XformToCov_ijk_vrtx(g_def,i,j,k,igrid,cnv)
+      function XformToCov_vrtx_ijk(g_def,i,j,k,igrid,cnv)
      .         result(cov)
 
 c     -----------------------------------------------------------------
@@ -1518,13 +1584,9 @@ c     Local variables
 
 c     Begin program
 
-        !Avoids issues at SP
-        car = XformToCar_ijk_vrtx (g_def,i,j,k,igrid,cnv,.false.)
-        cov = XformToCurv_ijk_vrtx(g_def,i,j,k,igrid,car,.false.)
+        cov = matmul(cnv,g_def%gmetric%grid(igrid)%gsub_v(i,j,k,:,:))
         
-cc        cov = matmul(cnv,g_def%gmetric%grid(igrid)%gsub_v(i,j,k,:,:))
-
-      end function XformToCov_ijk_vrtx
+      end function XformToCov_vrtx_ijk
 
 c     XformToCov_ijk_face
 c     #################################################################
@@ -1670,9 +1732,9 @@ c     Begin program
 
       end function XformToCov_mesh
 
-c     XformToCov_mesh_vrtx
+c     XformToCov_vrtx_mesh
 c     #################################################################
-      function XformToCov_mesh_vrtx(g_def,igrid,cnv) result(cov)
+      function XformToCov_vrtx_mesh(g_def,igrid,cnv) result(cov)
 
 c     -----------------------------------------------------------------
 c     Transforms a contravariant vector to a covariant representation
@@ -1680,6 +1742,8 @@ c     everywhere on the mesh.
 c     -----------------------------------------------------------------
 
         use oned_int
+
+        use xdraw_io
      
         implicit none
 
@@ -1695,8 +1759,10 @@ c     Input variables
 
 c     Local variables
 
-        integer :: i,j,k,nx,ny,nz,ig,jg,kg
-        real(8) :: xx(4)
+        integer :: i,j,k,nx,ny,nz,ig,jg,kg,oint
+        real(8) :: xx(10),car(3,3),car0(3),cov0(0:size(cnv,2)-1,3)
+
+        integer :: jlog,jglobal,jj,mm
 
 c     Begin program
 
@@ -1707,27 +1773,83 @@ c     Begin program
         do k=0,nz
           do j=0,ny
             do i=0,nx
-              cov(i,j,k,:) = XformToCov_ijk_vrtx(g_def,i,j,k,igrid
+              cov(i,j,k,:) = XformToCov_vrtx_ijk(g_def,i,j,k,igrid
      .                                          ,cnv(i,j,k,:))
             enddo
           enddo
         enddo
+        
+c$$$        if (isSP2(g_def,1,igrid)) then
+c$$$          mm = 1
+c$$$          if (coords=='hel') mm = nint(g_def%params(1))
+c$$$          jlog = g_def%jlo(igrid)
+c$$$
+c$$$          !Order of interpolation
+c$$$          oint = 3
+c$$$          !Vertex positions
+c$$$          call getMGmap(g_def,1,1,1,igrid,igrid,igrid,ig,jg,kg)
+c$$$          xx(1:oint+1) = 0.5*(g_def%xx(ig  :ig+oint+1)
+c$$$     .                       +g_def%xx(ig+1:ig+oint+2))
+c$$$
+c$$$          do k=0,nz
+c$$$            !Compute extrapolation at r=0
+c$$$            do j=0,ny
+c$$$              call IntDriver1d(oint+1,xx(1:oint+1),cov(1:oint+1,j,k,1),1
+c$$$     .                        ,(/0d0/),cov0(j:j,1),oint)
+c$$$              call IntDriver1d(oint+1,xx(1:oint+1),cov(1:oint+1,j,k,2),1
+c$$$     .                        ,(/0d0/),cov0(j:j,2),oint)
+c$$$              call IntDriver1d(oint+1,xx(1:oint+1),cov(1:oint+1,j,k,3),1
+c$$$     .                        ,(/0d0/),cov0(j:j,3),oint)
+c$$$            enddo
+c$$$c$$$            !Assign value
+c$$$c$$$            cov(0,:,k,:) = cov0(:,:)
+c$$$            !Average extrapolation at r=0 across rays
+c$$$            do j=0,ny
+c$$$              jglobal = j + jlog - 1
+c$$$              jj = mod(jglobal+mm*ny/2,ny)
+c$$$              if (jj == 0) jj = ny
+c$$$              cov(0,j,k,1) = 0.5*(cov0(j,1)-cov0(jj,1)) !Average r+ and r- to origin
+c$$$              cov(0,j,k,2) = 0.5*(cov0(j,2)+cov0(jj,2)) !Average r+ and r- to origin
+c$$$              cov(0,j,k,3) = 0.5*(cov0(j,3)+cov0(jj,3)) !Average r+ and r- to origin
+c$$$            enddo
+c$$$          enddo
+c$$$        endif
 
-        !Extrapolate 1st and 3rd covariant components at origin
-        if (isSP2(g_def,1,igrid)) then
-          do k=0,nz
-            do j=0,ny
-              call getMGmap(g_def,1,j,k,igrid,igrid,igrid,ig,jg,kg)
-              xx(1:4) = 0.5*(g_def%xx(1:4)+g_def%xx(2:5)) !Vertex positions
-              call IntDriver1d(4,xx,cov(1:4,j,k,1)
-     .                        ,1,(/0d0/),cov(0:0,j,k,1),3)
-              call IntDriver1d(4,xx,cov(1:4,j,k,3)
-     .                        ,1,(/0d0/),cov(0:0,j,k,3),3)
-            enddo
-          enddo
-        endif
+c diag ****
+c$$$        write (*,*)
+c$$$c$$$        write (*,*) "Cartesian comps at r=0",car0
+c$$$        do i=0,nx
+c$$$          write (*,*) "Bcnv_vrtx"
+c$$$     .         ,0.5*(g_def%xg(i)+g_def%xg(i+1)),cnv(i,jplot,1,:)
+c$$$        enddo
+c$$$        write (*,*)
+c$$$        do i=0,nx
+c$$$          write (*,*) "Bcov_vrtx"
+c$$$     .         ,0.5*(g_def%xg(i)+g_def%xg(i+1)),cov(i,jplot,1,:)
+c$$$        enddo
+c$$$        
+c$$$        call createDrawInCfile(3,'Bcov_vrtx.bin','Solution','t','x','y'
+c$$$     .        ,(/'B_1','B_2','B_3'/),'-c -X0 -L57','drawBcov_vrtx.in')
+c$$$
+c$$$        open(unit=110,file='Bcov_vrtx.bin',form='unformatted'
+c$$$     .      ,status='replace')
+c$$$
+c$$$        call contour(cov(0:nx,0:ny,1,1),nx+1,ny+1
+c$$$     .            ,g_def%gxmin,g_def%gxmax
+c$$$     .            ,g_def%gymin,g_def%gymax
+c$$$     .            ,0,110)
+c$$$        call contour(cov(0:nx,0:ny,1,2),nx+1,ny+1
+c$$$     .            ,g_def%gxmin,g_def%gxmax
+c$$$     .            ,g_def%gymin,g_def%gymax
+c$$$     .            ,1,110)
+c$$$        call contour(cov(0:nx,0:ny,1,3),nx+1,ny+1
+c$$$     .            ,g_def%gxmin,g_def%gxmax
+c$$$     .            ,g_def%gymin,g_def%gymax
+c$$$     .            ,1,110)
+c$$$        close(110)
+c diag ****
 
-        end function XformToCov_mesh_vrtx
+      end function XformToCov_vrtx_mesh
 
 c     vectorNorm_ijk
 c     ################################################################
@@ -2526,6 +2648,8 @@ c     Begin program
         nyl = size(car,2)-2
         nzl = size(car,3)-2
 
+        curv = 0d0
+        
         do k = 0,nzl
           do j = 0,nyl
             do i = 0,nxl

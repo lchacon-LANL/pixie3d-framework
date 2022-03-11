@@ -1,0 +1,124 @@
+# files ignored by git
+
+# project folders
+#contrib/*/*
+bin
+
+# These are created as part of make setup
+em/makefile
+3dplot/makefile
+MG/makefile
+driver-petsc/makefile
+driver-samrai/makefile
+driver/makefile
+driver_setup/makefile
+eigen/makefile
+fft/makefile
+grid/makefile
+interpolation/1d_int/makefile
+interpolation/polynomial/makefile
+io/makefile
+math/makefile
+matrixLightSolver/makefile
+mk/makefile
+newtonGMRES/makefile
+orbit/makefile
+OMP/makefile
+pic/2d/makefile
+var_setup/makefile
+pic/3d/makefile
+pic/hyb3d/makefile
+var_setup/adios_config.xml
+
+
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+# CMake files
+CMakeCache.txt
+CMakeFiles
+CMakeScripts
+Testing
+Makefile
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+cmake_config.h
+
+# build folder
+/build/
+
+# project files
+nbproject
+
+# pyhton precompiled files
+*.pyc
+__pycahce__
+
+# os garbage
+.DS_Store
+
+# LaTeX temporary files
+*.aux
+*.log
+*.toc
+*.out
+
+# Latexmk
+*.fdb_latexmk
+
+# SyncTeX
+*.synctex.gz
+
+# LaTeX Beamer
+*.snm
+*.vrb
+*.nav
+*.out
+
+# BibTeX
+*.bbl
+*.blg
+*.run.xml
+*.bcf
+
+# tempory files 
+*.swp
+*~
+
+# x files
+*.x
+
+# IDE files
+*.code-workspace

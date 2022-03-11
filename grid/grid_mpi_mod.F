@@ -1238,6 +1238,8 @@ c     Call variables
 
 c     Local variables
 
+        integer :: ierr
+        
 c     Begin program
 
 #if defined(samrai)
@@ -1252,13 +1254,25 @@ c     Call SAMRAI's error handler
         call pstop_samrai(trim(routine),trim(message))
 #else
 c     Call local error handler
-        
-        call sstop(my_rank,routine,message)
+
+c$$$      call sstop(my_rank,routine,message)
+
+        if (my_rank == 0) then
+          write (*,*)
+          write (*,*) trim(message)
+          write (*,*) 'Program stopped at routine ',trim(routine)
+        endif
+
+#if defined(petsc)
+        call PetscFinalize(ierr)
+#endif
+
+        call exit(FATAL)  !Fatal termination
+
 #endif
 
       end subroutine pstop
 
-#if defined(petsc)
 c     psum
 c     ###################################################################
       function psum(vec1,mpi_comm)
@@ -1284,22 +1298,61 @@ c     Local variables
 
 c     Begin program
 
+#if defined(petsc)
       if (PRESENT(mpi_comm)) then
         mpic = mpi_comm
       else
         mpic = MPI_COMM_WORLD
       endif
 
+      lsum = sum(vec1)
+      call MPI_Allreduce(lsum,psum,1,MPI_DOUBLE_PRECISION
+     .                  ,MPI_SUM,mpic,mpierr)
+#else
       psum = sum(vec1)
-
-      if (.not.asm) then
-        lsum = psum
-        call MPI_Allreduce(lsum,psum,1,MPI_DOUBLE_PRECISION
-     .                    ,MPI_SUM,mpic,mpierr)
-      endif
+#endif
 
       end function psum
+
+c     ipsum
+c     ###################################################################
+      function ipsum(vec1,mpi_comm)
+
+c     -------------------------------------------------------------------
+c     Performs parallel sum of elements of a 1d-array using communicator
+c     mpi_comm. On input:
+c       * vec1: vector
+c       * mpi_comm: MPI communicator
+c     -------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer,optional :: mpi_comm
+      integer :: vec1(:),ipsum
+
+c     Local variables
+
+      integer    :: mpic,lsum
+
+c     Begin program
+
+#if defined(petsc)
+      if (PRESENT(mpi_comm)) then
+        mpic = mpi_comm
+      else
+        mpic = MPI_COMM_WORLD
+      endif
+
+      lsum = sum(vec1)
+      call MPI_Allreduce(lsum,ipsum,1,MPI_INT
+     .                  ,MPI_SUM,mpic,mpierr)
+#else
+      ipsum = sum(vec1)
 #endif
+
+      end function ipsum
 
 c     dot
 c     ###################################################################
@@ -1321,8 +1374,6 @@ c     Call variables
 
 c     Local variables
 
-      integer    :: imin,imax,jmin,jmax,kmin,kmax
-     .             ,i,j,k,iii,ieq
       real(8)    :: ldot
 
 c     Begin program
@@ -1330,16 +1381,14 @@ c     Begin program
       dot = dot_product(vec1,vec2)
 
 #if defined(petsc)
-      if (.not.asm) then
-        ldot = dot
-        call MPI_Allreduce(ldot,dot,1,MPI_DOUBLE_PRECISION
-     .                    ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-      endif
+      ldot = dot
+      call MPI_Allreduce(ldot,dot,1,MPI_DOUBLE_PRECISION
+     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
 #endif
 
       end function dot1
 
-c     dot2
+c     dot2 (Needed for FPA)
 c     ###################################################################
       function dot2(vec1,vec2)
 
@@ -1366,11 +1415,9 @@ c     Begin program
       dot2 = dot_product(vec1,vec2)
 
 #if defined(petsc)
-      if (.not.asm) then
-        ldot = dot2
-        call MPI_Allreduce(ldot,dot2,1,MPI_DOUBLE_PRECISION
-     .                    ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-      endif
+      ldot = dot2
+      call MPI_Allreduce(ldot,dot2,1,MPI_DOUBLE_PRECISION
+     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
 #endif
 
       end function dot2
@@ -1409,11 +1456,9 @@ c     Begin program
         mpicomm = MPI_COMM_WORLD
       endif
 
-      if (.not.asm) then
-        ldot = dot3
-        call MPI_Allreduce(ldot,dot3,1,MPI_DOUBLE_PRECISION
-     .                    ,MPI_SUM,mpicomm,mpierr)
-      endif
+      ldot = dot3
+      call MPI_Allreduce(ldot,dot3,1,MPI_DOUBLE_PRECISION
+     .                  ,MPI_SUM,mpicomm,mpierr)
 #endif
 
       end function dot3
@@ -1470,6 +1515,113 @@ c     Begin program
 
       end function rms
 
+c     pmax
+c     ###################################################################
+      function pmax(val,mpi_comm)
+
+c     -------------------------------------------------------------------
+c     Performs parallel maximum value.
+c     -------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      real(8) :: pmax,val
+      integer,optional :: mpi_comm
+
+c     Local variables
+
+      integer :: mpicomm
+
+c     Begin program
+
+#if defined(petsc)
+      if (PRESENT(mpi_comm)) then
+        mpicomm = mpi_comm
+      else
+        mpicomm = MPI_COMM_WORLD
+      endif
+
+      call MPI_Allreduce(val,pmax,1,MPI_DOUBLE_PRECISION
+     .                  ,MPI_MAX,mpicomm,mpierr)
+#else
+      pmax = val
+#endif
+
+      end function pmax
+
+c     pmin
+c     ###################################################################
+      function pmin(val,mpi_comm)
+
+c     -------------------------------------------------------------------
+c     Performs parallel maximum value.
+c     -------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      real(8) :: pmin,val
+      integer,optional :: mpi_comm
+
+c     Local variables
+
+      integer :: mpicomm
+
+c     Begin program
+
+#if defined(petsc)
+      if (PRESENT(mpi_comm)) then
+        mpicomm = mpi_comm
+      else
+        mpicomm = MPI_COMM_WORLD
+      endif
+
+      call MPI_Allreduce(val,pmin,1,MPI_DOUBLE_PRECISION
+     .                  ,MPI_MIN,mpicomm,mpierr)
+#else
+      pmin = val
+#endif
+
+      end function pmin
+
+c     ipmin
+c     ###################################################################
+      function ipmin(val,mpi_comm)
+
+c     -------------------------------------------------------------------
+c     Performs parallel maximum value.
+c     -------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: ipmin,val
+      integer,optional :: mpi_comm
+
+c     Local variables
+
+      integer :: mpicomm
+
+c     Begin program
+
+#if defined(petsc)
+      if (PRESENT(mpi_comm)) then
+        mpicomm = mpi_comm
+      else
+        mpicomm = MPI_COMM_WORLD
+      endif
+
+      call MPI_Allreduce(val,ipmin,1,MPI_INT,MPI_MIN,mpicomm,mpierr)
+#else
+      ipmin = val
+#endif
+
+      end function ipmin
+      
 c     isProc
 c     #################################################################
       function isProc(proc_id)
@@ -1508,9 +1660,10 @@ c     Local variables
 
 c     Begin program
 
-        inProc =igl>=gl_def%ilo(igx).and.igl<=gl_def%ihi(igx)
-     .     .and.jgl>=gl_def%jlo(igy).and.jgl<=gl_def%jhi(igy)
-     .     .and.kgl>=gl_def%klo(igz).and.kgl<=gl_def%khi(igz)
+        inProc =
+     .       (igl<0.or.(igl>=gl_def%ilo(igx).and.igl<=gl_def%ihi(igx)))
+     .  .and.(jgl<0.or.(jgl>=gl_def%jlo(igy).and.jgl<=gl_def%jhi(igy)))
+     .  .and.(kgl<0.or.(kgl>=gl_def%klo(igz).and.kgl<=gl_def%khi(igz)))
 
 c     End program
 
@@ -1525,7 +1678,8 @@ c     ##############################################################
       implicit none
 
 c     --------------------------------------------------------------
-c     Performs parallel reduction to find global field.
+c     Performs parallel reduction to find global field INCLUDING
+c     ghost cells.
 c     --------------------------------------------------------------
 
 c     Call variables
@@ -1685,7 +1839,8 @@ c     ##############################################################
       implicit none
 
 c     --------------------------------------------------------------
-c     Performs parallel reduction to find global field.
+c     Performs parallel reduction to find global field EXCLUDING
+c     ghost cells.
 c     --------------------------------------------------------------
 
 c     Call variables
@@ -1783,7 +1938,8 @@ c     ##############################################################
       implicit none
 
 c     --------------------------------------------------------------
-c     Performs parallel reduction to find global field.
+c     Performs parallel reduction to find global field INCLUDIN
+c     ghost cells.
 c     --------------------------------------------------------------
 
 c     Call variables
@@ -1910,7 +2066,8 @@ c     ##############################################################
       implicit none
 
 c     --------------------------------------------------------------
-c     Performs parallel reduction to find global field with no BCs.
+c     Performs parallel reduction to find global field EXCLUDING
+c     ghost cells.
 c     --------------------------------------------------------------
 
 c     Call variables
@@ -2266,7 +2423,7 @@ c     Begin program
 #if defined(petsc)
      .                  ,mpi_comm=g_def%mpi_comm
 #endif
-     .                  )
+     .                  ,no_bc=.true.)
         if (my_rank == 0) then
           call contour(dbg(:,:,1),nxg+2,nyg+2
      .                ,xmin,xmax,ymin,ymax,flg,unit)
@@ -2386,7 +2543,8 @@ c     Eliminate specified directions
           npx = max(npx,1) ; npy = max(npy,1) ; npz = max(npz,1)
           return
         else
-          messg = 'np /= npx*npy*npz ... Aborting'
+          messg = 'np='//trim(int2char(np))//' /= npx*npy*npz='
+     $           //trim(int2char(npx*npy*npz))//' ... Aborting'
           call pstop('processorAlloc',messg)
         endif
       endif
@@ -2420,7 +2578,7 @@ c     Find dimensionality
       endif
 
       !Find exponents
-      navg = int((1d0*(nx*ny*nz)/nprocs)**(1d0/nd)) !Average number of points per proc per dim
+      navg = int(((1d0*nx)*(1d0*ny)*(1d0*nz)/nprocs)**(1d0/nd)) !Average number of points per proc per dim
       navg = 2**(floor(log(1d0*navg))/log(2d0))     !Find nearest power of 2 from below
 
       npt = (/nx,ny,nz/)
