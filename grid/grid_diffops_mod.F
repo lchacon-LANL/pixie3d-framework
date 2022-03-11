@@ -5348,7 +5348,7 @@ c     Local variables
 
 c     Begin program
 
-      if (.not.no_map) then
+      if (have_map()) then
         hess = g_def%gmetric%grid(igr)%Gamma(i,j,k,:,:,:)
 
         jac = g_def%gmetric%grid(igr)%jac(i,j,k)
@@ -5599,7 +5599,7 @@ c     Local variables
 
 c     Begin program
 
-      if (no_map) then
+      if (.not.have_map()) then
         src = 0d0
       else
         hess = g_def%gmetric%grid(igr)%Gamma(i,j,k,:,:,:)
@@ -5761,7 +5761,7 @@ c     Local variables
 
 c     Begin program
 
-      if (no_map) then
+      if (.not.have_map()) then
         src = 0d0
       else
         hess = g_def%gmetric%grid(igr)%Gamma(i,j,k,:,:,:)
@@ -6025,7 +6025,7 @@ c     Local variables
 
 c     Begin program
 
-      if (no_map) then
+      if (.not.have_map()) then
         do icomp=1,3
           vlap(icomp)=lap(g_def,i,j,k,nx,ny,nz,igx,igy,igz
      .                   ,vfield(:,:,:,icomp),dff=diff,vol=vol)
@@ -6340,7 +6340,7 @@ c$$$c     Begin program
 c$$$
 c$$$      alt_eom = alt__eom()
 c$$$
-c$$$      if (no_map) then
+c$$$      if (.not.have_map()) then
 c$$$        do icomp=1,3
 c$$$          vlap(icomp)=lap(g_def,i,j,k,nx,ny,nz,igx,igy,igz
 c$$$     .                   ,vfield(:,:,:,icomp),dff=diff

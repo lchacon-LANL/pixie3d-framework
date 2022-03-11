@@ -44,16 +44,18 @@ c     Call variables
 
 c     Local variables
 
-      real(8),pointer,dimension(:,:) :: old_f
+c$$$      real(8),pointer,dimension(:,:) :: old_f
+c$$$
+c$$$      type(var_array),pointer :: dn,dnm,dnp
+c$$$      real(8) :: l_np,l_n,et1,et2
 
-      type(var_array),pointer :: dn,dnm,dnp
-      real(8) :: l_np,l_n,et1,et2
-
-#if defined(EXT_EXPLICIT)
-      function app_newt_guess(vnm,vn,vnp)
+#if defined(EXT_NEWT_GUESS)
+      INTERFACE
+        function app_newt_guess(vnm,vn,vnp)
         use var_setup
         type(var_array),pointer :: vnm,vn,vnp
-      end function app_newt_guess
+        end function app_newt_guess
+      END INTERFACE
 #endif
 
 c     Begin program
@@ -61,7 +63,9 @@ c     Begin program
 #if defined(EXT_NEWT_GUESS)
       call app_newt_guess(vnm,vn,vnp)
 #else
+#if !defined(NO_BDF2_XOLD)
       call AXPYDerivedType(-cn/cnp,vn,-cnm/cnp,vnm,vnp)
+#endif
  
 c$$$      if (itime < 2) then
 c$$$        !Previous time step
@@ -80,21 +84,21 @@ c$$$        call AXPYDerivedType(et1,dn,et2,dnm,dnp) !Recursion relation
 c$$$        call AXPYDerivedType(1d0,vn,1d0,dnp,vnp) !vnp = vn + dnp
 c$$$      endif
 
-cc      write (*,*) itime,l_np,l_n,et1,et2
-
-cc      if (itime <= 2) then
-cc        !Previous time step
-cc        vnp = vn
-cccc      elseif (itime == 2) then
-cccc        !FE predictor
-cccc        dn = dt*old_f(:,1)
-cccc        call AXPYDerivedType(1d0,vn,-1d0,dn,vnp)
-cc      else
-cc        !AB@ predictor
-cc        old_f(:,2) = 0.5*dt*(3*old_f(:,1)-old_f(:,2))
-cc        dn = old_f(:,2)
-cc        call AXPYDerivedType(1d0,vn,-1d0,dn,vnp) !vnp = vn - dt/2*(3*f_n - f_n-1)
-cc      endif
+c$$$      write (*,*) itime,l_np,l_n,et1,et2
+c$$$
+c$$$      if (itime <= 2) then
+c$$$        !Previous time step
+c$$$        vnp = vn
+c$$$cc      elseif (itime == 2) then
+c$$$cc        !FE predictor
+c$$$cc        dn = dt*old_f(:,1)
+c$$$cc        call AXPYDerivedType(1d0,vn,-1d0,dn,vnp)
+c$$$      else
+c$$$        !AB@ predictor
+c$$$        old_f(:,2) = 0.5*dt*(3*old_f(:,1)-old_f(:,2))
+c$$$        dn = old_f(:,2)
+c$$$        call AXPYDerivedType(1d0,vn,-1d0,dn,vnp) !vnp = vn - dt/2*(3*f_n - f_n-1)
+c$$$      endif
 #endif
 
 c     End program
