@@ -32,7 +32,7 @@ c Local variables
 
       integer :: mgcf,mgcs
 
-      logical :: petsc_flg,petsc_flg2
+      logical :: petsc_flg,petsc_flg2,petsc_flg3
      .          ,bc_debg=.false.
      .          ,mg_coarse=.true.
 
@@ -147,6 +147,17 @@ c Read PETSc runtime options
       call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-trestart',trestart
      .                        ,petsc_flg,ierr)
       if (petsc_flg.and.(.not.petsc_flg2)) ts_restart = .true.
+
+      call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-dt_ramp_up'
+     .                        ,ts_ramp_up_dt,petsc_flg,ierr)
+      call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-dt_ramp_up_frac'
+     .                        ,ts_ramp_up_dt_fraction
+     .                        ,petsc_flg2,ierr)
+      call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-dt_ramp_up_recov'
+     .                        ,ts_ramp_up_dt_recovery
+     .                        ,petsc_flg3,ierr)
+      if ((petsc_flg2.or.petsc_flg3).and.(.not.petsc_flg))
+     $                        ts_ramp_up_dt = .true.
 
       call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-fpa',fpa
      .                         ,petsc_flg,ierr)
