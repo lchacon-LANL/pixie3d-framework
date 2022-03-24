@@ -428,9 +428,9 @@ c Introduce perturbation at restart
 
 c Impose BCs (to initialize all auxiliary variables)
 
-      old_time_eval = .true.
+      old_time_eval = .true. ; init_time_eval = .true.
       call applyBC(igrid,u_np,gv%aux)
-      old_time_eval = .false.
+      old_time_eval = .false.; init_time_eval = .false.
 
 #if defined(MK)
       if (mk_grid) call MK_applyBC(igrid,u_np%array_var(neqd)%array)
