@@ -1683,8 +1683,4 @@ ifeq ($(HOST),drava)
 
 endif
 
-ifeq ($(SPRNG),t)
- OPT+=om
-endif
-
 export FC HOST MACHINE LIBS

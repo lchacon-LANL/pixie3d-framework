@@ -3,7 +3,7 @@
 #Defaults
 
 FC  ?= gfortran
-OPT ?= O
+OPT ?= Oom
 PREPROC ?= -D
 
 # Flags for Absoft f90
