@@ -23,7 +23,7 @@ c #####################################################################
 #endif
         logical,private :: map_grid_pack=.false.
 
-        real(8),parameter :: LMIN_NEQONE=1d-3
+        real(8),parameter :: LMIN_NEQ_ONE=1d-3
       contains
 
 c     createGrid
@@ -878,13 +878,6 @@ c     Find global grid
 
         call findGlobalGrid(lmin,lmax,bcs1,bcs2,xxg,lpack,coarse_rat)
 
-c$$$        write (*,*) 'Coarsening ratios=',mgr
-c$$$        write (*,*) 'Grid level=',ig
-c$$$        write (*,*) 'Domain limits=',lmin,lmax
-c$$$        write (*,*) xxg
-c$$$        write (*,*)
-c$$$        pause
-
 c     Assign global grid
 
         if (ig == 1) xg(1:ng+2) = xxg(0:ng+1)
@@ -974,9 +967,9 @@ cc        if (map_grid_pack) numerical_grid = .true.
         !Ensure ignorable directions are small for numerical computation
         !  of grid parameters
         if (numerical_grid .and. coords /= 'car') then
-          if    ((nxx == 1 .and. ((xmax-xmin)>LMIN_NEQONE))
-     .       .or.(nyy == 1 .and. ((ymax-ymin)>LMIN_NEQONE))
-     .       .or.(nzz == 1 .and. ((zmax-zmin)>LMIN_NEQONE))) then
+          if    ((nxx == 1 .and. ((xmax-xmin)>LMIN_NEQ_ONE))
+     .       .or.(nyy == 1 .and. ((ymax-ymin)>LMIN_NEQ_ONE))
+     .       .or.(nzz == 1 .and. ((zmax-zmin)>LMIN_NEQ_ONE))) then
             write (*,*) nxx,nyy,nzz
             write (*,*) xmax,xmin,ymax,ymin,zmax,zmin
             call pstop('consistencyCheck'
@@ -2116,7 +2109,7 @@ c             Check zero-force property: g^lk G^i_lk + nabla_m(g^mi) = 0
                 gsupp=jacp*gdef%gmetric%grid(igrid)%gsup(i+1,j,k,:,:)
                 gsupm=jacm*gdef%gmetric%grid(igrid)%gsup(i-1,j,k,:,:)
 
-               summ = summ +(gsupp(1,ii)-gsupm(1,ii))/dh/jac
+                summ = summ +(gsupp(1,ii)-gsupm(1,ii))/dh/jac
 
                 dh = 2*gdef%dyh(jg)
                 if (alt_eom) then

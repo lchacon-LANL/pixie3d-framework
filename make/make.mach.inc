@@ -1683,5 +1683,4 @@ ifeq ($(HOST),drava)
 
 endif
 
-
 export FC HOST MACHINE LIBS

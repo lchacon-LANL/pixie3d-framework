@@ -3,7 +3,7 @@
 #Defaults
 
 FC  ?= gfortran
-OPT ?= O
+OPT ?= Oom
 PREPROC ?= -D
 
 # Flags for Absoft f90
@@ -91,7 +91,7 @@ ifeq ($(findstring gfortran,$(FC)),gfortran)
   ADDMODFLAG   = -I
   VERBOSE      = -v
   CPPFLAGS    += $(PREPROC)gfortran
-  FFLAGS      += #$(STATIC)
+  FFLAGS      += -std=legacy #$(STATIC)
   FOPENMP      = -fopenmp
   LDFLAGS     += -lgfortran 
   LABEL        = gnu

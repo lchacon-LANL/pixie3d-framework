@@ -37,7 +37,7 @@ c$$$      END INTERFACE
 #include "sprng_f.h"
       SPRNG_POINTER stream
       logical :: is_sprng_init=.false.
-!$OMP THREADPRIVATE(is_sprng_init)
+!$OMP THREADPRIVATE(is_sprng_init,stream)
 #endif
 
       logical :: is_lcg_init=.false.

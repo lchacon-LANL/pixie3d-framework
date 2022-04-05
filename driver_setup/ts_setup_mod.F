@@ -62,6 +62,7 @@ c ######################################################################
         logical :: chk_src=.false.
      .            ,source_eval=.false.
      .            ,old_time_eval=.false.
+     .            ,init_time_eval=.false.
      .            ,bdf2=.false.
      .            ,bdf1=.false.
      .            ,relax_init_grid=.false.

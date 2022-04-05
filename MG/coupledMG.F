@@ -1177,7 +1177,7 @@ c     Consistency check
       if (size(mgarray%grid(igrid)%array,4) /= neq) then
         write (*,*) 'Cannot restrict MG array: ',
      .              'inconsistent number of components'
-        write (*,*) neq,size(mgarray%grid)
+        write (*,*) neq,size(mgarray%grid(igrid)%array,4)
         write (*,*) 'Aborting...'
         stop
       endif

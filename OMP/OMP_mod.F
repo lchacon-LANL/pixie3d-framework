@@ -35,7 +35,7 @@ c     Begin program
           thr_tot = thrtot
         else
 #ifdef _OPENMP
-          thr_tot = omp_get_num_threads()
+          thr_tot = omp_get_max_threads()
 #else
           thr_tot = 1
 #endif
@@ -104,11 +104,12 @@ c     Local variables
 c     Begin program
 
 #ifdef _OPENMP
-!$omp parallel 
-!$omp critical
-        thr_tot = omp_get_num_threads()
-!$omp end critical
-!$omp end parallel
+        thr_tot = omp_get_max_threads()
+c$$$!$omp parallel default(shared)
+c$$$!$omp critical
+c$$$        thr_tot = omp_get_num_threads()
+c$$$!$omp end critical
+c$$$!$omp end parallel
 #else
         thr_tot = 1
 #endif
