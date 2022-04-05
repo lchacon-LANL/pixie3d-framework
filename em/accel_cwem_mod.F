@@ -168,7 +168,8 @@ C    Setup GM EM algorithm
       DV = 0 ; XMU = 0 ; V = 0 ; XVAR = 0
 
       CALL INIT_GM(NIND,NATT,NG,X,WX,IDT,XMU,XVAR,T,WTOT,DV,V)  !This can change NG
-      PRINT*,'initial NG =',NG
+
+      if (std_io) PRINT*,'initial NG =',NG
 
       ! Hardcode the initial condition for 1d overlapping data set
       IF (NATT.EQ.1) THEN
@@ -440,8 +441,7 @@ C      enforce conservation
 
       ! Finish timing AMEM routine (without/with AA)
       call cpu_time(time_end)
-      if (amem_diag) print*,'amem runtime =',time_end-time_start
-      print*,'amem runtime =',time_end-time_start
+      if(amem_diag.or.std_io)print*,'amem runtime =',time_end-time_start
 
 c     Final work after convergence
       
@@ -1256,7 +1256,6 @@ c     Begin program
 
           ! Calculate grp's proportion using MML criterian
           T(K)=max(WSUM(K)-NPARBY2,0d0)/(WTOT-NG_OLD*NPARBY2)
-!c          T(K)=WSUM(K)/WTOT
 
           EIG_SPRD = trace(NATT,XVAR(K,:,:))/NATT
      $           /(det(XVAR(K,:,:)))**(1d0/NATT)
@@ -1283,24 +1282,24 @@ C         !An easier condition for killing Gaussian:
             if (cw_flag) then
 C           Compute particle prob. semiAL(:,K) of grp K 
 C           after update its moments (means & cov)
-            XMUK = XMU(K,:)
-            VK   = V(K,:,:)
-            ISQDV= CN/SQRT(DV(K))
-            TK   = T(K)
-            LWSUM = 0d0
-            KP1 = K+1
-            DO JJ=1,NIND              !particle
-              !Calculate component density
-              CALL Mahalanobis(NATT,X(JJ,:),XMUK,VK,p_ik)
+              XMUK = XMU(K,:)
+              VK   = V(K,:,:)
+              ISQDV= CN/SQRT(DV(K))
+              TK   = T(K)
+              LWSUM = 0d0
+              KP1 = K+1
+              DO JJ=1,NIND              !particle
+                !Calculate component density
+                CALL Mahalanobis(NATT,X(JJ,:),XMUK,VK,p_ik)
 
-              !Compute particle probability for Gaussian K
-              p_ik=(-0.5d0)*MIN(p_ik,1d0*DENMAX)
-              semiAL(JJ,K)=EXP(p_ik)*ISQDV
-              !Component-wise update 
-              GUM(JJ) = GUM(JJ) - AL(JJ,K) + 1.0d-15
-              AL(JJ,K)=TK*semiAL(JJ,K)
-              GUM(JJ) = GUM(JJ) + AL(JJ,K)
-            END DO                     !particle
+                !Compute particle probability for Gaussian K
+                p_ik=(-0.5d0)*MIN(p_ik,1d0*DENMAX)
+                semiAL(JJ,K)=EXP(p_ik)*ISQDV
+                !Component-wise update 
+                GUM(JJ) = GUM(JJ) - AL(JJ,K) + 1.0d-15
+                AL(JJ,K)=TK*semiAL(JJ,K)
+                GUM(JJ) = GUM(JJ) + AL(JJ,K)
+              END DO                     !particle
             end if ! cw_flag
 
           end if ! in (T(K)*NINDT) < 2**NATT .and. NG > 1

@@ -207,8 +207,6 @@ c         write(ML_IO,*) "#SPLIT",ISPLIT
           if (DIAG_IO) write(ML_IO,*) IOUNT,XLOGL(IOUNT),MLENG(IOUNT)
      .                               ,MINVAL(T,mask=(ALIVE_GRP==1))
 
-cc          write(*,'(*(F15.9))') dble(IOUNT),dble(NG),XMU(:,3)
-
           !Standard convergence criteria      
           IF (IOUNT .GT. 1) THEN
             LAST = IOUNT-1
@@ -251,7 +249,7 @@ C      enforce conservation
 
       ! end timing CW-EM
       call cpu_time(t_end)
-      print*,'cw-em runtime =',t_end-t_start
+      if (std_io) write (*,*) 'cw-em runtime =',t_end-t_start
 
 c     Final work after convergence
       

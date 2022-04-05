@@ -416,8 +416,7 @@ C      enforce conservation
 
       ! Finish timing AMEM routine (without/with AA)
       call cpu_time(time_end)
-      if (amem_diag) print*,'amem runtime =',time_end-time_start
-      print*,'amem runtime =',time_end-time_start
+      if(amem_diag.or.std_io)print*,'amem runtime =',time_end-time_start
 
 c     Final work after convergence
       

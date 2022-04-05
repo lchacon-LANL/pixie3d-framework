@@ -240,7 +240,7 @@ c     Begin program
       CN=1d0/(2d0*PI)**(NATT*0.5d0)
       
       NPARBY2 = (NATT+NATT*(NATT+1)/2d0)*0.5d0 !T/2 (of restart paper)
-
+      
       NG_OLD = NG
       NG_Killed = 0
       WSUM = 0d0
@@ -270,7 +270,6 @@ c     Begin program
 C	Mixing proportion calc. by Figuireido's 2002 paper
 
         T(K) = max(WSUM(K)-NPARBY2,0d0)/(WTOT-NG_OLD*NPARBY2)
-        !T(K) = WSUM(K)/WTOT
 
 	!Weed out too-small Gaussians and/or update moments
 	!The following IF-statement is consistent with algorithm
@@ -297,29 +296,27 @@ c$$$        KILL_G = (T(K) .LT. 5D-3)
           ! need to remove the probabilities of dead component from GUM
           ! (01/28/2020)
           DO JJ=1,NIND
-            GUM(JJ)=GUM(JJ)-AL(JJ,K)+1.0d-14
+            GUM(JJ)=abs(GUM(JJ)-AL(JJ,K))+1d-14
           END DO
 
         else
 
           if(NG_Killed>0) then
             K_tmp = K-NG_killed
-            T(K_tmp) = T(K) ; T(K) = 0d0        ! Truong's fix (01/31/2022)
+            T(K_tmp) = T(K)
             WSUM(K_tmp) = WSUM(K)
           else
             K_tmp = K
           end if
           
-cc          T(1:NG) = T(1:NG)/SUM(T(1:NG)) ! Follow Figueiredo&Jain2002
-          ! Truong's fix (01/31/2022)
-          T(1:NG_OLD) = T(1:NG_OLD)/SUM(T(1:NG_OLD)) ! Follow Figueiredo&Jain2002
+          T(1:NG) = T(1:NG)/SUM(T(1:NG)) ! Follow Figueiredo&Jain2002
 
           call update_gaussian_moments(NIND,NATT,K,X,W(:,K),DV(K_tmp)
      .                                ,XMU(K_tmp,:),XVAR(K_tmp,:,:)
      .                                ,V(K_tmp,:,:),WSUM(K_tmp))
            
-C         Compute particle prob. semiAL(:,K) of grp K 
-C	  after update its moments (means & cov)
+C        Compute particle prob. semiAL(:,K) of grp K 
+C	 after update its moments (means & cov)
 
           XMUK = XMU(K_tmp,:)
           VK   = V(K_tmp,:,:)
@@ -333,7 +330,7 @@ C	  after update its moments (means & cov)
              p_ik=(-0.5d0)*MIN(p_ik,1d0*DENMAX)
              semiAL(JJ,K_tmp)=EXP(p_ik)*ISQDV
              !Component-wise update 
-             GUM(JJ) = GUM(JJ) - AL(JJ,K) + 1.0d-15 
+             GUM(JJ) = GUM(JJ) - AL(JJ,K) 
              AL(JJ,K_tmp)=TK*semiAL(JJ,K_tmp)
              GUM(JJ) = GUM(JJ) + AL(JJ,K_tmp)
           END DO                     !particle
@@ -355,7 +352,6 @@ C	  after update its moments (means & cov)
       ALIVE_GRP(NG+1:) = 0
       
       end subroutine CW_AEM_step
-
 
 c     SIM_AEM_step
 c     ###############################################################
@@ -427,6 +423,7 @@ c     Begin program
 C	Mixing proportion calc. by Figuireido's 2002 paper
 
         T(K) = max(WSUM(K)-NPARBY2,0d0)/(WTOT-NG_OLD*NPARBY2)
+cc        T(1:NG) = T(1:NG)/SUM(T(1:NG))  ! Follow Figueiredo&Jain2002
 
 C	!Weed out too-small Gaussians and/or update moments
 C	!The following IF-statement is consistent with algorithm
@@ -451,7 +448,7 @@ C	!An easier condition for killing Gaussian:
             K_tmp = K
           end if
 
-          T(1:NG) = T(1:NG)/SUM(T(1:NG)) ! Follow Figueiredo&Jain2002
+cc          T(1:NG) = T(1:NG)/SUM(T(1:NG)) ! Follow Figueiredo&Jain2002
 
           call update_gaussian_moments(NIND,NATT,K,X,W(:,K),DV(K_tmp)
      .                                ,XMU(K_tmp,:),XVAR(K_tmp,:,:)
@@ -482,7 +479,7 @@ c          END DO                     !particle
       !Recompute mixing coefficients to avoid round-off errors
       if(NG>1) then
          T(1:NG) = T(1:NG)/SUM(T(1:NG))         
-         T(NG) = 1d0-sum(T(1:NG-1)) 
+!         T(NG) = 1d0-sum(T(1:NG-1)) 
       else
          T(NG) = 1d0
       end if
@@ -533,11 +530,9 @@ c     Local variables
       real(8) :: NPARBY2
       real(8) :: p_ik,T_OLD(NG_ORG),TK,ISQDV,CN,LWSUM
       real(8) :: semiAL(NIND,NG_ORG),AL_JJ(NG_ORG)
-     ,     ,XMUK(NATT),VK(NATT,NATT),EIG_SPRD
+     ,     ,XMUK(NATT),VK(NATT,NATT)
 
       integer :: K,KK,JJ,NG_OLD,NG_Killed,K_tmp,NINDT
-        
-      logical :: KILL_G
 
 c     Begin program
 
@@ -580,54 +575,25 @@ c     Begin program
 
           ! Calculate grp's proportion using MML criterian
           T(K)=max(WSUM(K)-NPARBY2,0d0)/(WTOT-NG_OLD*NPARBY2)
-          !T(K)=WSUM(K)/WTOT
-
-          EIG_SPRD = trace(NATT,XVAR(K,:,:))/NATT
-     $           /(det(XVAR(K,:,:)))**(1d0/NATT)
-          KILL_G = (T(K)*NINDT < 2**NATT).or.(EIG_SPRD > 2d1)
-
 
 C         !An easier condition for killing Gaussian: 
-          if (KILL_G .and. NG>1) then
-c$$$          if( T(K)*NINDT < 1.0D-5 .AND. NG > 1 ) then    ! kill grp K if .LT. 2**NATT pcles
-            T(K) = 0D0  ; XMU(K,:) = 0D0   ; XVAR(K,:,:) = 0D0
-            NG = NG-1   ; ALIVE_GRP(K) = 0 ; NG_killed = NG_killed+1
-            DV(K) = 0d0 ; V(K,:,:) = 0d0   ; WSUM(K) = 0d0
-c$$$            ! remove contribution of dead Gaussian in GUM
-c$$$            DO JJ=1,NIND
-c$$$              GUM(JJ) = GUM(JJ) - AL(JJ,K) + 1.0d-15
-c$$$            END DO
+          if( (T(K)*NINDT) < 2**NATT ) then    ! kill grp K if .LT. 2**NATT pcles
+            T(K) = 0D0
+            XMU(K,1:NATT) = 0D0
+            XVAR(K,1:NATT,1:NATT) = 0D0
+            NG = NG - 1
+            ALIVE_GRP(K) = 0
           else
             K_tmp = K
-            T(1:NG_ORG) = T(1:NG_ORG)/SUM(T(1:NG_ORG))
-            call update_gaussian_moments(NIND,NATT,K,X,W(:,K),DV(K)
-     .                                ,XMU(K,:),XVAR(K,:,:)
-     .                                ,V(K,:,:),WSUM(K))
-c$$$C           Compute particle prob. semiAL(:,K) of grp K 
-c$$$C           after update its moments (means & cov)
-c$$$            XMUK = XMU(K,:)
-c$$$            VK   = V(K,:,:)
-c$$$            ISQDV= CN/SQRT(DV(K))
-c$$$            TK   = T(K)
-c$$$            DO JJ=1,NIND              !particle
-c$$$              !Calculate component density
-c$$$              CALL Mahalanobis(NATT,X(JJ,:),XMUK,VK,p_ik)
-c$$$
-c$$$              !Compute particle probability for Gaussian K
-c$$$              p_ik=(-0.5d0)*MIN(p_ik,1d0*DENMAX)
-c$$$              semiAL(JJ,K)=EXP(p_ik)*ISQDV
-c$$$              !Component-wise update 
-c$$$              GUM(JJ) = GUM(JJ) - AL(JJ,K) + 1.0d-15
-c$$$              AL(JJ,K)=TK*semiAL(JJ,K)
-c$$$              GUM(JJ) = GUM(JJ) + AL(JJ,K)
-c$$$            END DO                     !particle
-
+            call update_gaussian_moments(NIND,NATT,K,X,W(:,K),DV(K_tmp)
+     .                                ,XMU(K_tmp,:),XVAR(K_tmp,:,:)
+     .                                ,V(K_tmp,:,:),WSUM(K_tmp)) 
           end if ! in (T(K)*NINDT) < 2**NATT .and. NG > 1
 
         END IF   ! in ALIVE_GRP(K) == 1
       END DO     ! in K=1,NG_ORG
 
-      ! Make sure that sum(T) = 1 before exit this routine.
+      ! Renormalization of Gaussian weights to have sum of 1
       T(1:NG_ORG) = T(1:NG_ORG)/SUM(T(1:NG_ORG))
 
       end subroutine SIM_AEM_step_2
@@ -766,7 +732,7 @@ c     PLLH(\theta) = XLOGL
       ! Take into account the penalized term in adaptive-EM approach:
       DVAL = (NG*NPARBY2+0.5*NG-0.5)
       XLOGL = XLOGL -NPARBY2*LOGT - DVAL*LOG(1.0D0*NINDT)
-
+    
       MLENG = -XLOGL + NPARBY2*LOGT + 0.5d0*NG
      .       *LOG(NINDT/12d0)+NG*(NPARBY2+1d0)*0.5d0
 
