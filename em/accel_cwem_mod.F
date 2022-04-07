@@ -499,9 +499,8 @@ C     Destroy temporary storage
 
       if (diag_io) Call CLOSE_EM_FILES()
 
-
-
 C     Extract the pllh history for plotting (xfer-aamem-paper)
+
       if (amem_diag) then
       open(1,file='pllh_amem.dat',action='write')
       DO I=1,IOUNT-1
@@ -737,7 +736,6 @@ c      WSUM(NG+1:)=0d0 ; ALIVE_GRP(NG+1:)=0
      .         ,AL(:,1:NG_ORG),GUM,DV(1:NG_ORG),T(1:NG_ORG)
      .         ,XMU(1:NG_ORG,:),XVAR(1:NG_ORG,:,:),V(1:NG_ORG,:,:)
      .         ,WSUM(1:NG_ORG),WTOT,ALIVE_GRP(1:NG_ORG),CWFL)
-
 
       ! Finally, use the updated params to form the output soln vector: GVAL = Picard_EM(THETA)
       CALL FORM_GPARAMS_VECTOR(G_DOF,NG_ORG,NATT,T(1:NG_ORG)
@@ -1209,7 +1207,7 @@ c     Local variables
       real(8) :: semiAL(NIND,NG_ORG),AL_JJ(NG_ORG)
      ,     ,XMUK(NATT),VK(NATT,NATT),EIG_SPRD
 
-      integer :: K,KK,JJ,NG_OLD,NG_Killed,K_tmp,NINDT,KP1
+      integer :: K,KK,JJ,NG_OLD,K_tmp,NINDT,KP1
 
       logical :: KILL_G,cw_flag
 
@@ -1228,7 +1226,6 @@ c     Begin program
 
       WSUM(1:NG_ORG) = 0d0
       NG_OLD = NG   ! NG=current number of alive grps
-      NG_Killed = 0
 
       cw_flag = CWFL
 
@@ -1259,13 +1256,13 @@ c     Begin program
 
           EIG_SPRD = trace(NATT,XVAR(K,:,:))/NATT
      $           /(det(XVAR(K,:,:)))**(1d0/NATT)
-          KILL_G = (T(K)*NINDT < 2d0*(2**NATT)).or.(EIG_SPRD > 2d1)
+          KILL_G = (T(K)*NINDT < (2**NATT)).or.(EIG_SPRD > 2d1)
 c$$$          KILL_G = (T(K) .le. 0d0).or.(EIG_SPRD > 2d1)
 
 C         !An easier condition for killing Gaussian: 
           if (KILL_G .and. NG>1) then 
             T(K) = 0D0  ; XMU(K,:) = 0D0   ; XVAR(K,:,:) = 0D0
-            NG = NG-1   ; ALIVE_GRP(K) = 0 ; NG_killed = NG_killed+1
+            NG = NG-1   ; ALIVE_GRP(K) = 0 
             DV(K) = 0d0 ; V(K,:,:) = 0d0   ; WSUM(K) = 0d0
             ! remove contribution of dead Gaussian in GUM
             DO JJ=1,NIND
