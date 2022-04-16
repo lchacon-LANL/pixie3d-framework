@@ -264,9 +264,10 @@ c     Local variables
 
 c     Begin program
 
-      eps = var
       if (.not.test) return
       
+      eps = var
+
       if (roundoff == 0d0) roundoff=findRoundOff()
 
       where (abs(var) < 1000*roundoff) eps = 0d0
