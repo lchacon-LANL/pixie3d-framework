@@ -55,7 +55,7 @@ cc     .               ,status(MPI_STATUS_SIZE)
      .               ,rem_l_lim(3,0:1)
      .               ,rp_l_lim(3,0:1)
 
-        character(80) :: messg
+        character(300) :: messg
 
         type(grid_mg_def),pointer,private :: g_mpi_def
 
