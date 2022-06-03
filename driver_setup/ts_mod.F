@@ -8,39 +8,7 @@ c ######################################################################
 #else
         use prj_int
 
-        logical,private :: ts_after_restart = .false.
-
       contains
-
-c     TS_chk_after_restart
-c     ###############################################################
-      function TS_chk_after_restart(time_slices) result(flag)
-
-c     ---------------------------------------------------------------
-c     Check for end of time loop
-c     ---------------------------------------------------------------
-
-      implicit none
-
-c     Call variables
-
-      logical :: flag
-
-      integer :: time_slices
-
-c     Local variables
-
-      integer :: counter
-
-c     Begin program
-
-      counter = itime-inewtime + 1
-
-      flag = ts_after_restart.and.(counter <= time_slices)
-
-c     End program
-
-      end function TS_chk_after_restart
 
 c     TS_correct_dt
 c     ###############################################################

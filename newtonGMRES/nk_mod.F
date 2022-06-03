@@ -1982,7 +1982,7 @@ c     Call variables
 c     Local variables
 
       integer :: i
-      real(8) :: dummy(nn),yk(nn),pert,ipert,modz,modx,xdotz
+      real(8) :: dummy(nn),yk(nn),pert,ipert,modz,modx!,xdotz
 
 c     Begin program
 
@@ -2001,7 +2001,7 @@ c     Calculate J.x
 c       Calculate difference parameter
 
         modx  = dot2(nk_conf%xk,nk_conf%xk)  !x is grid based, and hence we compute volume-weighed norm
-        xdotz = dot2(z         ,nk_conf%xk)  !x is grid based, and hence we compute volume-weighed norm
+cc        xdotz = dot2(z         ,nk_conf%xk)  !x is grid based, and hence we compute volume-weighed norm
 
         if (modx < roundoff) then
           pert = nk_conf%mf_eps/sqrt(modz)
