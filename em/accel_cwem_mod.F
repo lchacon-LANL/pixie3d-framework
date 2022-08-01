@@ -1,6 +1,6 @@
-c     module AMEM_mod
+c     module AMCWEM_mod
 c     ##################################################################
-      module AMEM_mod
+      module AMCWEM_mod
 
       use em_utils
             
@@ -8,7 +8,7 @@ c     ##################################################################
       USE REG_AA_MOD
 
       PRIVATE ! Make everything in module private by default 
-      PUBLIC :: AMEM
+      PUBLIC :: AM_CWEM
 
       INTEGER :: NCOV
 CGMM_OMP!$OMP THREADPRIVATE(NCOV)
@@ -17,10 +17,10 @@ CGMM_OMP!$OMP THREADPRIVATE(NCOV)
 
       CONTAINS
 
-c     AMEM
+c     AM_CWEM
 c     ##################################################################
-       SUBROUTINE AMEM(INFO,FILEID,NIND,NATT,NG,X,WX,TOL
-     $                ,TOUT,XMUOUT,XVAROUT,MITER,PLLH_OUT)
+       SUBROUTINE AM_CWEM(INFO,FILEID,NIND,NATT,NG,X,WX,TOL
+     $                ,TOUT,XMUOUT,XVAROUT,MITER,PLLH_OUT,CWFL)
 C     ------------------------------------------------------------------
 C     This subroutine uses the EM algorithm from a specified starting
 C     value to find a solution of the likelihood equation
@@ -52,6 +52,7 @@ c    Call variables
       REAL(8), INTENT(IN) :: X(NIND,NATT)    ! X is the particles' vel.
      .                      ,WX(NIND)        ! WX is the particle weight
      .                      ,TOL
+      LOGICAL, INTENT(IN) :: CWFL
       REAL(8), INTENT(OUT):: PLLH_OUT,TOUT(NG)
      .                      ,XMUOUT(NG,NATT)
      .                      ,XVAROUT(NG,NATT,NATT)
@@ -168,6 +169,24 @@ C    Setup GM EM algorithm
 
       CALL INIT_GM(NIND,NATT,NG,X,WX,IDT,XMU,XVAR,T,WTOT,DV,V)  !This can change NG
 
+      if (std_io) PRINT*,'initial NG =',NG
+
+      ! Hardcode the initial condition for 1d overlapping data set
+      IF (NATT.EQ.1) THEN
+      T(1:NG) = 1d0/3d0
+      XMU(1,1:NATT) = 0d0
+      XMU(2,1:NATT) = 0.1d0
+      XMU(3,1:NATT) = 0.2d0
+      XVAR(1,1:NATT,1:NATT) = 1d0
+      XVAR(2,1:NATT,1:NATT) = 1d0
+      XVAR(3,1:NATT,1:NATT) = 1d0
+      DO K=1,NG
+        CALL GDETK(NATT,K,XVAR(K,1:NATT,1:NATT),V(K,1:NATT,1:NATT)
+     .              ,DV(K),IERR,NULL)
+      END DO
+      END IF
+
+
 C     Initialize output G-params to be 0D0
 
       TOUT    = 0D0
@@ -214,7 +233,7 @@ c         write(ML_IO,*) "#SPLIT",ISPLIT
         IOUNT = 1
         ITER = 0
 
-        !Calculate XLOGL & MLENG at iteration 1
+        !Calculate the initial XLOGL & MLENG values
         CALL COMPUTE_PLLH_VER2(ITER,NIND,G_DOF,NG_ORG,NG,NATT
      $         ,WX,X,THETA,XLOGL(IOUNT),MLENG(IOUNT),AL,GUM,ALIVE_GRP)
 
@@ -250,8 +269,8 @@ c         write(ML_IO,*) "#SPLIT",ISPLIT
           NG_OLD = NG
           THETA_OLD = THETA    ! Gaussian params at 'current' iteration, ITER
           ! Perform one A-EM step: GVAL = EM(THETA)
-          CALL AEM_STEP(G_DOF,NG_ORG,NG,NIND,NATT,WTOT
-     $         ,WX,X,THETA,GVAL,AL,GUM,RESP_SUM,ALIVE_GRP)
+          CALL CWAEM_STEP(G_DOF,NG_ORG,NG,NIND,NATT,WTOT
+     $         ,WX,X,THETA,GVAL,AL,GUM,RESP_SUM,ALIVE_GRP,CWFL)
 
           !Check convergence of nonlinear residual
           if (sqrt(sum((theta-gval)*(theta-gval))/NPARAMS) < 1d-13) exit
@@ -300,14 +319,17 @@ c$$$     $                               .OR. (AASTATE%MAA .EQ. 0) ) THEN
      .        .OR.(ITER < AASTATE%AASTART)
      .        .OR.(AASTATE%MAA == 0)
      .       ) THEN
-            CALL COMPUTE_PLLH_VER2(IOUNT,NIND,G_DOF,NG_ORG,NG,NATT
+            ! If using CW-EM , then just go ahead and calculate the p-llh (GUM and AL are already up-to-date)
+            ! If using SIM-EM, then need to re-update GUM & AL, then use it to calculate p-llh
+            if (CWFL .eqv. .FALSE.) then
+              CALL COMPUTE_PLLH_VER2(IOUNT,NIND,G_DOF,NG_ORG,NG,NATT
      $               ,WX,X,THETA,XLOGL(IOUNT),MLENG(IOUNT),AL,GUM
      $               ,ALIVE_GRP(1:NG_ORG))
+            else
+              CALL compute_pllh(NATT,THETA(1:NG_ORG),GUM,WX
+     $          ,ALIVE_GRP(1:NG_ORG),XLOGL(IOUNT),MLENG(IOUNT))
+            end if
             SK0 = S_NEW
-c$$$            CALL EXTRACT_GPARAMS_VECTOR(G_DOF,NG_ORG,NATT,T(1:NG_ORG)
-c$$$     $         ,XMU(1:NG_ORG,1:NATT),XVAR(1:NG_ORG,1:NATT,1:NATT),THETA)
-c$$$            CALL compute_pllh(NATT,T,GUM,WX,ALIVE_GRP(1:NG_ORG)
-c$$$     $          ,XLOGL(IOUNT),MLENG(IOUNT))
           ELSE
 cc            !------------------------------------------------------------------------------
 cc            ! STEP (II): ANDERSON ACCELERATION W/ OR W/OUT (TIKKONOV) REGULARIZATION TERM
@@ -333,11 +355,14 @@ cc            CALL APPLY_AA(AA_RELAX_FLAG)
           ! Update value of SK in AA state variable (bug-fixed 01/21/2021)
           AASTATE%RAA_VARS%SK = SK0
 
-          !Standard convergence criteria      
+          !Standard convergence criteria using loglikelihood      
           IF (IOUNT .GT. 1) THEN
             LAST = IOUNT-1
             ALIM=TOL*XLOGL(LAST)
             DIFF=XLOGL(IOUNT)-XLOGL(LAST)
+            ! convergence criteria using two-norm of difference of solution vectors
+c$$$            ALIM=TOL*NORM2(THETA_OLD)
+c$$$            DIFF=NORM2(THETA-THETA_OLD)
           END IF
           if(ABS(DIFF).le.ABS(ALIM)) EXIT
           
@@ -474,9 +499,8 @@ C     Destroy temporary storage
 
       if (diag_io) Call CLOSE_EM_FILES()
 
-
-
 C     Extract the pllh history for plotting (xfer-aamem-paper)
+
       if (amem_diag) then
       open(1,file='pllh_amem.dat',action='write')
       DO I=1,IOUNT-1
@@ -556,7 +580,7 @@ C     Extract the pllh history for plotting (xfer-aamem-paper)
       SUBROUTINE PLLH_MONOTONICITY_CTRL(AA_RELAX,MON_CHK)
 
       IMPLICIT NONE
-
+      REAL(8) :: LHS_VAL
       LOGICAL :: AA_RELAX,MON_CHK
       
       ! If AA solution is fine (AA_RELAX_FLAG = .FALSE.), we compare LLH(AA) vs LLH(EM)
@@ -564,10 +588,9 @@ C     Extract the pllh history for plotting (xfer-aamem-paper)
       ! re-evaluation of LLH(AA) which is very expensive in EM-GMM context.
       IF (.NOT.AA_RELAX) THEN
         ! Smart LLH comparison using Taylor expansion
-        MON_CHK = CHECK_MONOTONICITY(G_DOF,NIND,NG_ORG
-     .       ,NG,NATT,THETA,THETA_OLD,EPS_VAL,RESP_SUM,DTHETA
-     .       ,ALIVE_GRP)
-
+        CALL CHECK_MONOTONICITY(G_DOF,NIND,NG_ORG,NG,NATT
+     .       ,THETA,THETA_OLD,EPS_VAL,RESP_SUM,DTHETA
+     .       ,ALIVE_GRP,MON_CHK,LHS_VAL)
  
         ! Naive LLH comparison -- keep this code (dont delete), useful for efficiency check.
 c        CALL COMPUTE_PLLH_VER2(ITER,NIND,G_DOF,NG_ORG,NG,NATT,WX
@@ -581,24 +604,37 @@ c        END IF
         if (STD_IO) write (*,*) "PLLH monotonicity chk passes?",mon_chk
 
         ! If LLH-monotonicity chk passes, compute PLLH(AA-soln) and move on
+        ! Also, update AL(:,:) and GUM(:) for the next iteration
         IF (MON_CHK) THEN
           CALL COMPUTE_PLLH_VER2(ITER,NIND,G_DOF,NG_ORG,NG,NATT,WX
      $          ,X,THETA,XLOGL(IOUNT),MLENG(IOUNT),AL,GUM,ALIVE_GRP)
+c$$$          XLOGL(IOUNT) = XLOGL(IOUNT-1)+LHS_VAL
+c$$$          call compute_GUM(G_DOF,NG_ORG,NATT,NIND,X,ALIVE_GRP,THETA
+c$$$     $                          ,AL,GUM)
           S_NEW = SK0 + 1D0
         ELSE
         ! If LLH-monotonicity chk does not pass, revert back to EM-soln & compute PLLH(EM-soln)
-          THETA = GVAL
-          S_NEW = SK0
-          CALL COMPUTE_PLLH_VER2(ITER,NIND,G_DOF,NG_ORG,NG,NATT,WX
+          THETA = GVAL ; S_NEW = SK0
+          if (CWFL) then
+            CALL compute_pllh(NATT,THETA(1:NG_ORG),GUM,WX
+     $         ,ALIVE_GRP(1:NG_ORG),XLOGL(IOUNT),MLENG(IOUNT))
+          else
+            CALL COMPUTE_PLLH_VER2(ITER,NIND,G_DOF,NG_ORG,NG,NATT,WX
      $          ,X,THETA,XLOGL(IOUNT),MLENG(IOUNT),AL,GUM,ALIVE_GRP)
+          end if
         END IF
       ! Else-if (AA_RELAX) then 
       !   we just evaluate the LLH of EM solution & move on
       ! No monotonicity check is required.
       ELSE
-        MON_CHK = .TRUE.
-        CALL COMPUTE_PLLH_VER2(ITER,NIND,G_DOF,NG_ORG,NG,NATT,WX
+        THETA = GVAL ; MON_CHK = .TRUE.
+        if (CWFL) then
+          CALL compute_pllh(NATT,THETA(1:NG_ORG),GUM,WX
+     $         ,ALIVE_GRP(1:NG_ORG),XLOGL(IOUNT),MLENG(IOUNT))
+        else
+          CALL COMPUTE_PLLH_VER2(ITER,NIND,G_DOF,NG_ORG,NG,NATT,WX
      $        , X,GVAL,XLOGL(IOUNT),MLENG(IOUNT),AL,GUM,ALIVE_GRP)
+        end if
         S_NEW = SK0 + 1D0
       END IF              ! end-if (AA_RELAX .EQV. .FALSE.)
       SK0 = S_NEW
@@ -641,7 +677,7 @@ c     .     (MOD(AASTATE%MAA,MVEC_AA).EQ.0).OR.AA_RELAX.OR.(.NOT.MON_CHK)
       
       END SUBROUTINE AA_RESTART
 
-      END SUBROUTINE AMEM
+      END SUBROUTINE AM_CWEM
       
 !CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
 !   Relevant subroutines for A-AMEM algorithm will be added here
@@ -654,10 +690,10 @@ c     .     (MOD(AASTATE%MAA,MVEC_AA).EQ.0).OR.AA_RELAX.OR.(.NOT.MON_CHK)
 !   Note: Subroutines for doing AA will be employed from REG_AA_MOD (driver for regularized AA)
 !CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
 
-!c     AEM_STEP
+!c     CWAEM_STEP
 !c     ###############################################################
-      SUBROUTINE AEM_STEP(G_DOF,NG_ORG,NG,NIND,NATT,WTOT
-     $            ,WX,X,THETA,GVAL,AL,GUM,WSUM,ALIVE_GRP)
+      SUBROUTINE CWAEM_STEP(G_DOF,NG_ORG,NG,NIND,NATT,WTOT
+     $            ,WX,X,THETA,GVAL,AL,GUM,WSUM,ALIVE_GRP,CWFL)
         ! Unlike adaptive_EM_step() which utilizes component-wise EM (Celeux2001),
         ! This subroutine performs 1 adaptive-em step in simultaneous manner
         !   (given a good guess for starting number of component)
@@ -675,6 +711,7 @@ c     .     (MOD(AASTATE%MAA,MVEC_AA).EQ.0).OR.AA_RELAX.OR.(.NOT.MON_CHK)
       REAL(8), INTENT(IN) :: THETA(G_DOF*NG_ORG)
      $                     ,GUM(NIND),AL(NIND,NG_ORG)
       REAL(8), INTENT(OUT) :: GVAL(G_DOF*NG_ORG),WSUM(NG_ORG)
+      LOGICAL, INTENT(IN) :: CWFL
 
       ! Local variables
       REAL(8) :: T(NG_ORG),XMU(NG_ORG,NATT),XVAR(NG_ORG,NATT,NATT)
@@ -695,17 +732,16 @@ c     .         ,WSUM(1:NG),WTOT,ALIVE_GRP(1:NG))
 c      T(NG+1:)=0d0 ; XMU(NG+1:,:)=0d0 ; XVAR(NG+1:,:,:)=0d0
 c      WSUM(NG+1:)=0d0 ; ALIVE_GRP(NG+1:)=0
 
-      call SIM_AEM_step_2(NIND,NATT,NG_ORG,NG,X,WX,W(:,1:NG_ORG)
+      call CW__AEM__step(NIND,NATT,NG_ORG,NG,X,WX,W(:,1:NG_ORG)
      .         ,AL(:,1:NG_ORG),GUM,DV(1:NG_ORG),T(1:NG_ORG)
      .         ,XMU(1:NG_ORG,:),XVAR(1:NG_ORG,:,:),V(1:NG_ORG,:,:)
-     .         ,WSUM(1:NG_ORG),WTOT,ALIVE_GRP(1:NG_ORG))
-
+     .         ,WSUM(1:NG_ORG),WTOT,ALIVE_GRP(1:NG_ORG),CWFL)
 
       ! Finally, use the updated params to form the output soln vector: GVAL = Picard_EM(THETA)
       CALL FORM_GPARAMS_VECTOR(G_DOF,NG_ORG,NATT,T(1:NG_ORG)
      $      ,XMU(1:NG_ORG,1:NATT),XVAR(1:NG_ORG,1:NATT,1:NATT),GVAL)
       !--------------------------------------------------------------------------------------   
-      END SUBROUTINE AEM_STEP
+      END SUBROUTINE CWAEM_STEP
 
 !c     CHECK_MONOTONICITY
 !c     ###############################################################
@@ -715,9 +751,8 @@ c      WSUM(NG+1:)=0d0 ; ALIVE_GRP(NG+1:)=0
 !c     LLH(THETA_AA) - LLH(THETA_{it}) > - epsilon_val = -0.01
 !c     <=> D LLH(THETA_{it}) / D THETA \DOT (THETA_AA - THETA_{it}) > - 0.01 ??
 !######################################################################
-      FUNCTION CHECK_MONOTONICITY(G_DOF,NIND,NG_ORG,NG,NATT,THETA_AA
-     $                           ,THETA,EPS_VAL,WSUM,FVAL,ALIVE_GRP)
-     .         RESULT(MONOTONICITY)
+      SUBROUTINE CHECK_MONOTONICITY(G_DOF,NIND,NG_ORG,NG,NATT,THETA_AA
+     $  ,THETA,EPS_VAL,WSUM,FVAL,ALIVE_GRP,MONOTONICITY,LHS_VAL)
 
       IMPLICIT NONE
     
@@ -788,7 +823,7 @@ c      WSUM(NG+1:)=0d0 ; ALIVE_GRP(NG+1:)=0
 
       MONOTONICITY = (LHS_VAL .GE. -1D0*EPS_VAL)
 
-      END FUNCTION CHECK_MONOTONICITY
+      END SUBROUTINE CHECK_MONOTONICITY
     
 !c     COMPUTE_PLLH_VER2
 !c     ###############################################################
@@ -1084,6 +1119,197 @@ c      WSUM(NG+1:)=0d0 ; ALIVE_GRP(NG+1:)=0
     
       END SUBROUTINE XVAR_CHOLESKY_TRANSFORM
 
+      
+
+c     compute_GUM
+c     ###############################################################
+      subroutine compute_GUM(G_DOF,NG_ORG,NATT,NIND,X
+     $                          ,ALIVE_GRP,THETA,AL,GUM)
+      ! this routine compute the quantity GUM(1:NIND), this term is 
+      ! f(X_j) j=1,...,NIND and
+      ! f = \sum_{k=1,...,NG} \omega_k Gaussian_k(X_j)
+      implicit none
+
+c     call variables
+      integer, intent(in) :: G_DOF,NG_ORG,NATT,NIND
+      integer, intent(in) :: ALIVE_GRP(NG_ORG)
+      real(8), intent(in) :: X(NIND,NATT),THETA(G_DOF*NG_ORG)
+      real(8), intent(out):: GUM(NIND),AL(NIND,NG_ORG)
+
+c     local variables
+      INTEGER, PARAMETER :: DENMAX=175
+      REAL(8), PARAMETER :: PI=3.14159265358979D0
+      integer :: K,JJ,NUL,IERR
+      real(8) :: CN,T(NG_ORG),XMU(NG_ORG,NATT),p_ik,ISQDV
+     $          ,XVAR(NG_ORG,NATT,NATT),V(NG_ORG,NATT,NATT),DV(NG_ORG)
+     $          ,TK,XMUK(NATT),VK(NATT,NATT)
+
+
+      ! Code begins
+      CN=1d0/((2d0*PI)**(NATT*0.5d0))
+      GUM(1:NIND) = 0D0
+      AL(1:NIND,1:NG_ORG) = 0D0
+
+      ! Extract Gaussian parameters (of GMM)
+      CALL EXTRACT_GPARAMS_VECTOR(G_DOF,NG_ORG,NATT,T(1:NG_ORG)
+     $         ,XMU(1:NG_ORG,1:NATT),XVAR(1:NG_ORG,1:NATT,1:NATT),THETA)
+
+      ! Obtain the inverse (V) and determinant (DV) of each group's
+      ! cov-matrix
+      DO K=1,NG_ORG               ! group
+        IF (ALIVE_GRP(K) .EQ. 1) THEN
+          CALL GDETK(NATT,K,XVAR(K,:,:),V(K,:,:),DV(K),IERR,NUL)
+          !------------------------------------------------------
+          XMUK = XMU(K,:)
+          VK   = V(K,:,:)
+          ISQDV= CN/SQRT(DV(K))
+          TK   = T(K)
+          DO JJ=1,NIND          ! particle
+            CALL Mahalanobis(NATT,X(JJ,:),XMUK,VK,p_ik)
+            p_ik = (-0.5d0)*MIN(p_ik,1d0*DENMAX)
+            AL(JJ,K)= ISQDV*TK*EXP(p_ik)
+            GUM(JJ) = GUM(JJ) + AL(JJ,K)
+          END DO                ! end particle
+        !------------------------------------------------------
+        END IF
+      END DO
+
+      end subroutine compute_GUM
+
+
+c     CW__AEM__step
+c     ###############################################################
+      subroutine CW__AEM__step(NIND,NATT,NG_ORG,NG,X,WX,W,AL,GUM,DV
+     .                      ,T,XMU,XVAR,V,WSUM,WTOT,ALIVE_GRP,CWFL)
+      ! (TN--02/08/2021): This subroutine do adaptive EM step in a
+      ! simultaneous manner
+      ! and follows the implementation of the stand-alone code.
+      ! This implementation should be compatible with the current
+      ! implementation of AA inside AMEM() subroutine
+
+      ! NG_ORG = starting/original number of components
+      ! NG = current number of components @ current iteration
+
+      implicit none
+
+c     Call variables
+
+      INTEGER :: NIND,NATT,NG_ORG,NG,ALIVE_GRP(:)
+      REAL(8) :: X(NIND,NATT),WX(NIND),GUM(NIND),W(NIND,NG_ORG)
+     .     ,DV(NG_ORG),T(NG_ORG),XMU(NG_ORG,NATT),XVAR(NG_ORG,NATT,NATT)
+     .     ,V(NG_ORG,NATT,NATT),WSUM(NG_ORG),WTOT,AL(NIND,NG_ORG)
+      LOGICAL :: CWFL
+
+c     Local variables
+
+      real(8) :: NPARBY2
+      real(8) :: p_ik,T_OLD(NG_ORG),TK,ISQDV,CN,LWSUM
+      real(8) :: semiAL(NIND,NG_ORG),AL_JJ(NG_ORG)
+     ,     ,XMUK(NATT),VK(NATT,NATT),EIG_SPRD
+
+      integer :: K,KK,JJ,NG_OLD,K_tmp,NINDT,KP1
+
+      logical :: KILL_G,cw_flag
+
+c     Begin program
+
+#if defined(petsc)
+      call MPI_Allreduce(NIND,NINDT,1,MPI_INTEGER
+     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+#else
+      NINDT = NIND
+#endif
+
+      CN=1d0/(2d0*PI)**(NATT*0.5d0)
+
+      NPARBY2 = (NATT+NATT*(NATT+1)/2d0)*0.5d0 !T/2 (of restart paper)
+
+      WSUM(1:NG_ORG) = 0d0
+      NG_OLD = NG   ! NG=current number of alive grps
+
+      cw_flag = CWFL
+
+      ! Make a copy of Gaussians' proportions at the current
+      ! iteration before updating it for merging purposes
+      T_OLD(1:NG_ORG) = T(1:NG_ORG)
+
+      !Cycle over gaussians
+      DO K=1,NG_ORG
+        IF (ALIVE_GRP(K) .EQ. 1) THEN
+
+          LWSUM = 0d0
+          if (NIND > 0) then
+            DO JJ=1,NIND          !particle
+              W(JJ,K) = WX(JJ)*AL(JJ,K)/GUM(JJ)
+              LWSUM = LWSUM + W(JJ,K)
+            END DO                !particle
+          endif
+#if defined(petsc)
+          call MPI_Allreduce(lwsum,WSUM(K),1,MPI_DOUBLE_PRECISION
+     .                    ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+#else
+          WSUM(K) = LWSUM
+#endif
+
+          ! Calculate grp's proportion using MML criterian
+          T(K)=max(WSUM(K)-NPARBY2,0d0)/(WTOT-NG_OLD*NPARBY2)
+
+          EIG_SPRD = trace(NATT,XVAR(K,:,:))/NATT
+     $           /(det(XVAR(K,:,:)))**(1d0/NATT)
+          KILL_G = (T(K)*NINDT < (2**NATT)).or.(EIG_SPRD > 2d1)
+c$$$          KILL_G = (T(K) .le. 0d0).or.(EIG_SPRD > 2d1)
+
+C         !An easier condition for killing Gaussian: 
+          if (KILL_G .and. NG>1) then 
+            T(K) = 0D0  ; XMU(K,:) = 0D0   ; XVAR(K,:,:) = 0D0
+            NG = NG-1   ; ALIVE_GRP(K) = 0 
+            DV(K) = 0d0 ; V(K,:,:) = 0d0   ; WSUM(K) = 0d0
+            ! remove contribution of dead Gaussian in GUM
+            DO JJ=1,NIND
+              GUM(JJ) = GUM(JJ) - AL(JJ,K) + 1.0d-15
+            END DO
+          else
+
+            K_tmp = K
+            T(1:NG_ORG) = T(1:NG_ORG)/SUM(T(1:NG_ORG))
+            call update_gaussian_moments(NIND,NATT,K,X,W(:,K),DV(K)
+     .                                ,XMU(K,:),XVAR(K,:,:)
+     .                                ,V(K,:,:),WSUM(K))
+
+            if (cw_flag) then
+C           Compute particle prob. semiAL(:,K) of grp K 
+C           after update its moments (means & cov)
+              XMUK = XMU(K,:)
+              VK   = V(K,:,:)
+              ISQDV= CN/SQRT(DV(K))
+              TK   = T(K)
+              LWSUM = 0d0
+              KP1 = K+1
+              DO JJ=1,NIND              !particle
+                !Calculate component density
+                CALL Mahalanobis(NATT,X(JJ,:),XMUK,VK,p_ik)
+
+                !Compute particle probability for Gaussian K
+                p_ik=(-0.5d0)*MIN(p_ik,1d0*DENMAX)
+                semiAL(JJ,K)=EXP(p_ik)*ISQDV
+                !Component-wise update 
+                GUM(JJ) = GUM(JJ) - AL(JJ,K) + 1.0d-15
+                AL(JJ,K)=TK*semiAL(JJ,K)
+                GUM(JJ) = GUM(JJ) + AL(JJ,K)
+              END DO                     !particle
+            end if ! cw_flag
+
+          end if ! in (T(K)*NINDT) < 2**NATT .and. NG > 1
+
+        END IF   ! in ALIVE_GRP(K) == 1
+      END DO     ! in K=1,NG_ORG
+
+      ! Make sure that sum(T) = 1 before exit this routine.
+      T(1:NG_ORG) = T(1:NG_ORG)/SUM(T(1:NG_ORG))
+
+      end subroutine CW__AEM__step
+
+
 !---------------------------------------------------------------------------------------
 
 !CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
@@ -1091,4 +1317,4 @@ c      WSUM(NG+1:)=0d0 ; ALIVE_GRP(NG+1:)=0
 !CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
 
 
-      end module AMEM_mod
+      end module AMCWEM_mod

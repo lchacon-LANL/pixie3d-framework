@@ -31,6 +31,10 @@ c$$$        END INTERFACE
           module procedure find_local_field_vec,find_local_field_scl
         END INTERFACE
 
+        INTERFACE psum
+          module procedure psum,ipsum,ipsum8
+        END INTERFACE
+
         integer :: mpierr
 
 #if defined(petsc)
@@ -50,7 +54,7 @@ cc     .               ,status(MPI_STATUS_SIZE)
      .               ,rem_l_lim(3,0:1)
      .               ,rp_l_lim(3,0:1)
 
-        character(80) :: messg
+        character(300) :: messg
 
         type(grid_mg_def),pointer,private :: g_mpi_def
 
@@ -1422,6 +1426,47 @@ c     Begin program
 
       end function ipsum
 
+c     ipsum8
+c     ###################################################################
+      function ipsum8(vec1,mpi_comm)
+
+c     -------------------------------------------------------------------
+c     Performs parallel sum of elements of a 1d-array using communicator
+c     mpi_comm. On input:
+c       * vec1: vector
+c       * mpi_comm: MPI communicator
+c     -------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer,optional :: mpi_comm
+      integer(8) :: vec1(:),ipsum8
+
+c     Local variables
+
+      integer :: mpic
+      integer(8) :: lsum
+
+c     Begin program
+
+#if defined(petsc)
+      if (PRESENT(mpi_comm)) then
+        mpic = mpi_comm
+      else
+        mpic = MPI_COMM_WORLD
+      endif
+
+      lsum = sum(vec1)
+      call MPI_Allreduce(lsum,ipsum8,1,MPI_INTEGER8
+     .                  ,MPI_SUM,mpic,mpierr)
+#else
+      ipsum8 = sum(vec1)
+#endif
+
+      end function ipsum8
+      
 c     dot
 c     ###################################################################
       function dot1(ntot,vec1,vec2) result(dot)

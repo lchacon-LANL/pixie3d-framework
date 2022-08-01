@@ -264,9 +264,10 @@ c     Local variables
 
 c     Begin program
 
-      eps = var
       if (.not.test) return
       
+      eps = var
+
       if (roundoff == 0d0) roundoff=findRoundOff()
 
       where (abs(var) < 1000*roundoff) eps = 0d0
@@ -1601,9 +1602,9 @@ c     -------------------------------------------------------------------------
       !   lcg64   --- 2
       !   cmrg    --- 3
       !   mlfg    --- 4
-      !   pmlcg   --- 5
-      
-      gtype = 1       !lcg
+      !   pmlcg   --- 5      
+      gtype = 1
+
       if (PRESENT(seed)) then
         sd = 985456376 + 37*seed
       else

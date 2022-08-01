@@ -19,7 +19,8 @@ CGMM_OMP!$OMP THREADPRIVATE(NINDT)
       LOGICAL :: GMM_RANDOM_INIT=.false.           !Whether we use RANDOM GMM init (else GRP8)
      &          ,GMM_KMEANS_INIT=.false.           !Whether we use KMEANS GMM (on top of RND or GRP8)
      &          ,GMM_GS_KMEANS_MULTI_INIT=.false.  !Whether we use GS-MULTI-KMEANS GMM (on top of RND or GRP8)
-
+     &          ,GMM_TEST       =.false.           !Whether we are running tests
+      
       INTEGER :: KM_RUNS    = 10  ! number of K-means trials after optimal NG is obtained
      &          ,KM_REF_SET = 3   ! number of ref. sets to be used in gap-statistics
      &          ,KM_NG_MIN  = 2   ! min # of Gaussians
@@ -113,7 +114,7 @@ CGMM_OMP!$OMP END MASTER
 
         call GMM_INIT_RANDOM(NIND,NATT,NG,W,WSUM,X,XMU,XVAR,T)
 
-      elseif (GMM_KMEANS_INIT) THEN
+      elseif (GMM_KMEANS_INIT.OR.GMM_GS_KMEANS_MULTI_INIT) THEN
 
 CGMM_OMP!$OMP MASTER
         if (my_rank_gmm==0.and.std_io)
@@ -131,8 +132,6 @@ c      Option to use GS--Multi-Kmeans initialization
           NG = MIN(OPT_NG + KM_NG_ADJ,NG)
           if (STD_IO) write (*,*) "Optimal Kmeans # gaussians",NG
           if (DIAG_IO) write (FYLENO,*) "Optimal Kmeans # gaussians",NG
-c$$$        else
-c$$$          NG = NG
         end if
 
         ! Given the 'optimal' no. of component, do multi-Kmeans & select the best:
@@ -284,8 +283,14 @@ c     Initialize means randomly
           call MPI_Bcast(RCORE,1,MPI_INTEGER,0
      .                  ,MPI_COMM_WORLD,mpierr)
           if (my_rank_gmm == RCORE) then
-           !Pick specified particle locations (not parallel)
-            RANI = max(int(NIND*(dble(K))/dble(NG)),1)              
+            if (.not.GMM_TEST) then
+              !Pick random particle locations
+              call unif_rng(RAN)
+              RANI = ceiling(NIND*RAN)
+            else
+              !Pick specified particle locations (not parallel)
+              RANI = ceiling(NIND*(dble(K))/dble(NG))            
+            endif
             XMU(K,1:NATT) = X(RANI,1:NATT)
           endif
           call MPI_Bcast(XMU(K,1:NATT),NATT,MPI_DOUBLE_PRECISION,RCORE
@@ -293,11 +298,14 @@ c     Initialize means randomly
         END DO
 #else
         DO K = 1,NG
-c$$$          !Pick random particle locations (not parallel)
-c$$$          call unif_rng(RAN)  !Works in parallel
-c$$$          RANI = ceiling(NIND*RAN)
-          !Pick specified particle locations (not parallel)
-          RANI = max(int(NIND*(dble(K))/dble(NG)),1)              
+          if (.not.GMM_TEST) then
+            !Pick random particle locations
+            call unif_rng(RAN)
+            RANI = ceiling(NIND*RAN)
+          else
+            !Pick specified particle locations (not parallel)
+            RANI = ceiling(NIND*(dble(K))/dble(NG))         
+          endif
           XMU(K,1:NATT) = X(RANI,1:NATT)
         END DO
 #endif

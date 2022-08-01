@@ -7,4 +7,4 @@ unit_test: $(OBJ)
 	$(F90) $(F90FLAGS) -o $@ $(OBJ)
 
 clean:
-	rm -rf $(CLEANFILES) unit_test
+	rm -rf $(CLEANFILES) unit_test || true

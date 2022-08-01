@@ -120,7 +120,7 @@ c     Consistency check
 
 c     Translate boundary conditions
 
-      ioerr = initBCS(bcs)
+      ioerr = initBCs(bcs)
 
       if (ioerr /= 0.and.my_rank == 0) then
         loc = 1 - mod(minloc(bcond),2)
