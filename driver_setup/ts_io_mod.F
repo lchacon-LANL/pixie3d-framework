@@ -27,7 +27,7 @@ c     Begin program
 c     PETSc CPU counters and profiling
       
 #if defined(petsc)
-      call PetscGetTime   (prof_time(1),prof_err)
+      call PetscTime   (prof_time(1),prof_err)
       call PetscGetCPUTime(prof_time(2),prof_err)
 #endif
 
@@ -54,7 +54,7 @@ c     Begin program
 c     PETSc CPU counters and profiling
       
 #if defined(petsc)
-      call PetscGetTime   (prof_time(3),prof_err)
+      call PetscTime   (prof_time(3),prof_err)
       call PetscGetCPUTime(prof_time(4),prof_err)
 #endif
 

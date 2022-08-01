@@ -41,7 +41,7 @@ c     PRIVATE VARIABLES & PROCEDURES
           module procedure find_dr_1st,find_dr_2nd !4th
         END INTERFACE
 
-        private :: topol_bc,findGridmetrics,find_dr
+        private :: findGridmetrics,find_dr!,topol_bc
 
       contains
 
@@ -1941,61 +1941,55 @@ c     End program
 
       end subroutine findVertexMap
 
-c     topol_bc
-c     #################################################################
-      subroutine topol_bc(gdef,igrid,nxl,nyl,nzl,array,bcs)
+c$$$c     topol_bc
+c$$$c     #################################################################
+c$$$      subroutine topol_bc(gdef,igrid,nxl,nyl,nzl,array,bcs)
+c$$$
+c$$$c     -----------------------------------------------------------------
+c$$$c     Enforce topological constraints on array
+c$$$c     -----------------------------------------------------------------
+c$$$
+c$$$        implicit  none
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$        type(grid_mg_def),pointer :: gdef
+c$$$        integer :: igrid,nxl,nyl,nzl,bcs(6)
+c$$$        real(8) :: array(0:nxl+1,0:nyl+1,0:nzl+1)
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$#if !defined(petsc)
+c$$$        if (bcs(1) == PER .or. bcs(2) == PER) then
+c$$$          array(0    ,:,:) = array(nxl,:,:)
+c$$$          array(nxl+1,:,:) = array(1  ,:,:)
+c$$$        endif
+c$$$
+c$$$        if (bcs(3) == PER .or. bcs(4) == PER) then
+c$$$          array(:,0    ,:) = array(:,nyl,:)
+c$$$          array(:,nyl+1,:) = array(:,1  ,:)
+c$$$        endif
+c$$$        
+c$$$        if (bcs(5) == PER .or. bcs(6) == PER) then
+c$$$          array(:,:,0    ) = array(:,:,nzl)
+c$$$          array(:,:,nzl+1) = array(:,:,1  )
+c$$$        endif
+c$$$#else
+c$$$#if !defined(samrai)
+c$$$        call fillLogGhostCells(gdef,array)
+c$$$        call set_TOPOL_bc_scl(gdef,bcs,PER,array)
+c$$$#else
+c$$$        write(*,*) 'WARNING: metrics in SAMRAI are not being'
+c$$$     .            ,' communicated yet.'
+c$$$#endif
+c$$$#endif
+c$$$
+c$$$c     End program
+c$$$
+c$$$      end subroutine topol_bc
 
-c     -----------------------------------------------------------------
-c     Enforce topological constraints on array
-c     -----------------------------------------------------------------
-
-        implicit  none
-
-c     Call variables
-
-        type(grid_mg_def),pointer :: gdef
-        integer :: igrid,nxl,nyl,nzl,bcs(6)
-        real(8) :: array(0:nxl+1,0:nyl+1,0:nzl+1)
-
-c     Local variables
-
-#if defined(petsc)
-        type(petsc_da_ctx),pointer :: da_ctx
-#endif
-
-c     External
-
-c     Begin program
-
-#if !defined(petsc)
-        if (bcs(1) == PER .or. bcs(2) == PER) then
-          array(0    ,:,:) = array(nxl,:,:)
-          array(nxl+1,:,:) = array(1  ,:,:)
-        endif
-
-        if (bcs(3) == PER .or. bcs(4) == PER) then
-          array(:,0    ,:) = array(:,nyl,:)
-          array(:,nyl+1,:) = array(:,1  ,:)
-        endif
-        
-        if (bcs(5) == PER .or. bcs(6) == PER) then
-          array(:,:,0    ) = array(:,:,nzl)
-          array(:,:,nzl+1) = array(:,:,1  )
-        endif
-#else
-#if !defined(samrai)
-        da_ctx => gdef%dactx(igrid)
-        call fillPetscGhostCells(da_ctx,array)
-#else
-        write(*,*) 'WARNING: metrics in SAMRAI are not being'
-     .            ,' communicated yet.'
-#endif
-#endif
-
-c     End program
-
-      end subroutine topol_bc
-      
 c     dr_bc
 c     #################################################################
       subroutine dr_bc(g_def,igrid,dr)

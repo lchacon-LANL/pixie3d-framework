@@ -193,7 +193,7 @@ c     Local variables
 c     Begin program
 
 #if defined(petsc)
-      call PetscGetTime   (prof_time(3),prof_err)
+      call PetscTime(prof_time(3),prof_err)
       e_time = prof_time(3)-prof_time(1)
 cc      if (my_rank == 0) write (*,*) "Time counters",e_time, quota
 #else
@@ -207,7 +207,7 @@ cc      if (my_rank == 0) write (*,*) "Time counters",e_time, quota
 
       if (exit_tloop .and. e_time <= quota) EXIT_STATUS = SUCCESS
 
-      if (e_time > quota) EXIT_STATUS = NON_FATAL
+      if (exit_tloop .and. e_time > quota) EXIT_STATUS = NON_FATAL
       
 c     End program
 

@@ -74,7 +74,14 @@ endif
 # PETSC setup
 
 ifdef BOPT
-  include ${PETSC_DIR}/conf/base
+#  include ${PETSC_DIR}/conf/base
+  include ${PETSC_DIR}/lib/petsc/conf/variables
+
+#  To access the PETSc variables for the build, including compilers, compiler flags, libraries etc but
+#  manage the build rules yourself (rarely needed) comment out the next lines
+#
+#  include ${PETSC_DIR}/lib/petsc/conf/rules
+#  include ${PETSC_DIR}/lib/petsc/conf/test
 
   CPPFLAGS += $(PREPROC)petsc -I$(PETSC_DIR)/include -I${PETSC_DIR}/$(PETSC_ARCH)/include
 

@@ -765,7 +765,6 @@ c #####################################################################
         integer,private :: bctype
 
         logical,private :: skip_corners=.false.
-cc     .                    ,force_corners=.false.
 
         !Define order of interpolation for EDGE and CORNER treatment
         !(linear to preserve nearest-neighbors stencil; this is 
@@ -774,8 +773,12 @@ cc     .                    ,force_corners=.false.
 
         logical,private :: stg_vector=.false.
 
-        private :: setASMflags,interpolateToFace
-     .            ,fillEdges,fillCorners,do__nothing
+        private :: setASMflags,do__nothing
+     .            ,fillFaces,fillEdges,fillCorners
+     .            ,extrapolateToCorner,interpolateToFace
+     .            ,fillLogGhostCells,set_topol_bc_scl,set_topol_bc_vec
+     .            ,set_log_bc_vec,periodicBC
+     .            
 
       contains
 
@@ -1263,11 +1266,6 @@ c     Call variables
 c     Local variables
 
       integer :: dim,loc,ibc,xtrap_o
-      logical :: petsc__bc
-
-#if defined(petsc)
-      type(petsc_da_ctx),pointer :: da_ctx
-#endif
 
 c     Begin program
 
@@ -1325,26 +1323,13 @@ c     Initialize GLOBAL limits
       kkmxp =  min(kkmax + 1,gbc_def%nzgl(iigz)+1)
 #endif
 
-c     Fill PETSc ghost cells and PER BCs
+c     Fill logical ghost cells (if appropriate)
 
-#if defined(petsc) && !defined(samrai)
-      !Determine whether we need to fill ghost cells using PETSc
-      petsc__bc =  (.not.asm)
-
-      !Fill ghost cells
-      if (petsc__bc) then
-        da_ctx => gbc_def%dactx(igxbc)
-        call fillPetscGhostCells(da_ctx,array)
-      endif
-#elif !defined(samrai)
-      call sync_bc(.true.)
-#endif
-
-      if (bcPER(1).and.bcPER(2).and.bcPER(3)) return !PETSc deals with all periodic domains
+      call fillLogGhostCells(gbc_def,array)
 
 c     Impose BCs
 
-      do bctype=2,BCLIM             !Do not do PER=1; already done
+      do bctype=2,BCLIM         !Do not do PER=1 for SAMRAI
         do dim=1,3
           do loc=0,1
             ibc = (1+loc)+2*(dim-1)
@@ -1381,7 +1366,7 @@ c     #################################################################
       subroutine sync_bc(only_per)
 
 c     -----------------------------------------------------------------
-c     Synchronizes boundaries in parallel.
+c     Synchronizes PER boundaries and corners in parallel.
 c     -----------------------------------------------------------------
 
       implicit none
@@ -1450,12 +1435,8 @@ c     Local variables
       integer    :: i,j,k,imax,imin,jmax,jmin,kmax,kmin
       integer    :: ivar,ieq,ibc,loc,dim,bctype,xtrap_o
      .             ,ilmin,jlmin,klmin,ilmax,jlmax,klmax
-      logical    :: cov_to_cnv(6,3),to_cnv,is__vec,petsc__bc
+      logical    :: cov_to_cnv(6,3),to_cnv,is__vec
      .             ,regularize_sp
-
-#if defined(petsc)
-      type(petsc_da_ctx),pointer :: da_ctx
-#endif
 
 c     Begin program
 
@@ -1546,24 +1527,22 @@ c     Prepare SP BCs
         call averageSingularBC(gbc_def,igxbc,v_cov,0,2,.false.,.false.)
       endif
 
-c     Fill PETSc ghost cells and PER BCs
+c     Fill logical ghost cells (if appropriate)
 
-      call set_LOG_bc(v_cnv,.true.)
-      call set_LOG_bc(v_cov,.false.)
-
-      if (bcPER(1).and.bcPER(2).and.bcPER(3)) return
+      call set_LOG_bc_vec(gbc_def,v_cnv)
+      call set_LOG_bc_vec(gbc_def,v_cov)
 
 c     Set SP BCs (if appropriate)
       
-      call set_TOPOL_bc(SP,v_cnv,.true.)
-      call set_TOPOL_bc(SP,v_cov,.false.)
+      call set_TOPOL_bc_vec(gbc_def,bcnd,SP,v_cnv,.true.,fcomp)
+      call set_TOPOL_bc_vec(gbc_def,bcnd,SP,v_cov,.false.,fcomp)
 
 c     Impose physical BCs
 
       cov_to_cnv = .false.
 
-      do bctype=1,BCLIM
-        if (bctype == SP.or.bctype == PER) cycle !Already done
+      do bctype=2,BCLIM         !Do not do PER=1 (already done)
+        if (bctype == SP) cycle !Already done
         do dim=1,3
           do loc=0,1
             ibc = (1+loc)+2*(dim-1)
@@ -1621,69 +1600,6 @@ c     Periodic boundary synchronizing
 c     End program
 
       contains
-
-c     set_LOG_bc
-c     #################################################################
-      subroutine set_LOG_bc(vec,cnv)
-
-      implicit none
-      
-c     -----------------------------------------------------------------
-c     Set BC "bctype" independently for cov and cnv vectors
-c     -----------------------------------------------------------------
-
-      real(8) :: vec(:,:,:,:)
-      logical :: cnv,petsc__bc
-      integer :: ieq
-
-#if defined(petsc) && !defined(samrai)
-        !Determine whether we need to fill ghost cells using PETSc
-        petsc__bc = (.not.asm)
-
-        !Fill ghost cells
-        if (petsc__bc) then
-          da_ctx => gbc_def%dactx(igxbc)
-          do ieq=1,ncomp
-            call fillPetscGhostCells(da_ctx,vec(:,:,:,ieq))
-          enddo
-        endif
-#elif !defined(samrai)
-        call set_TOPOL_bc(PER,vec,cnv)
-#endif
-
-      end subroutine set_LOG_bc
-
-c     set_TOPOL_bc
-c     #################################################################
-      subroutine set_TOPOL_bc(bctype,vec,cnv)
-
-      implicit none
-      
-c     -----------------------------------------------------------------
-c     Set topological BCs independently for cov and cnv vectors
-c     -----------------------------------------------------------------
-
-      integer :: bctype
-      real(8) :: vec(:,:,:,:)
-      logical :: cnv
-
-      do dim=1,3
-        do loc=0,1
-          ibc = (1+loc)+2*(dim-1)
-
-          do ivar = 1,ncomp
-            ieq = ivar + fcomp - 1
-
-            if (abs(bcnd(ibc,ivar)) == bctype) then
-              call FillGhostNodes_vec(gbc_def,ieq,ivar,ncomp,dim,loc
-     .                               ,bctype,vec,var0,cnv=cnv)
-            endif
-          enddo
-
-        enddo
-      enddo
-
-      end subroutine set_TOPOL_bc
 
 c     sync_bc
 c     #################################################################
@@ -1936,13 +1852,8 @@ c     Local variables
       integer    :: i,j,k,imax,imin,jmax,jmin,kmax,kmin,nx,ny,nz
       integer    :: ncomp,ivar,ibc,loc,dim,bctype,xtrap_o
      .             ,ilmin,jlmin,klmin,ilmax,jlmax,klmax
-      logical    :: petsc__bc
 
       real(8),pointer :: vec0(:,:,:,:)
-
-#if defined(petsc)
-      type(petsc_da_ctx),pointer :: da_ctx
-#endif
 
 c     Begin program
 
@@ -1989,29 +1900,13 @@ c     Initialize GLOBAL limits
       kkmxp =  min(kkmax + 1,gbc_def%nzgl(igzbc)+1)
 #endif
 
-c     Fill PETSc ghost cells and PER BCs
+c     Fill logical ghost cells and PER BCs
 
-#if defined(petsc) && !defined(samrai)
-      !Determine whether we need to fill ghost cells using PETSc
-      petsc__bc = (.not.asm)
-
-      !Fill ghost cells
-      if (petsc__bc) then
-        da_ctx => gbc_def%dactx(igxbc)
-
-        do ivar=1,ncomp
-          call fillPetscGhostCells(da_ctx,vec(:,:,:,ivar))
-        enddo
-      endif
-#elif !defined(samrai)
-      call sync_bc(.true.)
-#endif
-
-      if (bcPER(1).and.bcPER(2).and.bcPER(3)) return
+      call set_LOG_bc_vec(gbc_def,vec)
 
 c     Impose physical BCs
 
-      do bctype=2,BCLIM             !Do not do PER=1; already done 
+      do bctype=2,BCLIM         !Do not do PER=1 for SAMRAI
         do dim=1,3
           do loc=0,1
             ibc = (1+loc)+2*(dim-1)
@@ -2131,10 +2026,6 @@ c     Local variables
      .          ,ilmin,jlmin,klmin,ilmax,jlmax,klmax
       logical :: cov_to_cnv(6,3),to_cnv,flg_sc
 
-#if defined(petsc)
-      type(petsc_da_ctx),pointer :: da_ctx
-#endif
-
 c     Begin program
 
       !Indicate staggered vector treatment
@@ -2212,12 +2103,12 @@ c     Find cnv components
       if (to_cnv) then
 
         !Cov ghost cells
-        call set_LOG_bc(v_cov,.false.)
+        call set_LOG_bc_vec(gbc_def,v_cov)
         call set_TOPOL_bc(SP,v_cov,.false.)
 
         cov_to_cnv = .false.
 
-        do bctype=2,BCLIM       !Do not do PER=1; already done by PETSc or SAMRAI
+        do bctype=2,BCLIM       !Do not do PER=1; already done
           if (bctype == SP) cycle
           call set_bc(bctype,v_cov,.false.)
         enddo
@@ -2226,10 +2117,10 @@ c     Find cnv components
         v_cnv =  XformToCnv_stg_mesh(gbc_def,igxbc,v_cov)
 
         !Cnv ghost cells
-        call set_LOG_bc(v_cnv,.true.)
+        call set_LOG_bc_vec(gbc_def,v_cnv)
         call set_TOPOL_bc(SP,v_cnv,.true.)
 
-        do bctype=2,BCLIM       !Do not do PER=1; already done by PETSc or SAMRAI
+        do bctype=2,BCLIM       !Do not do PER=1; already done
           if (bctype == SP) cycle
           call set_bc(bctype,v_cnv,.true.)
         enddo
@@ -2237,10 +2128,10 @@ c     Find cnv components
       else
 
         !Cnv ghost cells
-        call set_LOG_bc(v_cnv,.true.)
+        call set_LOG_bc_vec(gbc_def,v_cnv)
         call set_TOPOL_bc(SP,v_cnv,.true.)
 
-        do bctype=2,BCLIM       !Do not do PER=1; already done by PETSc or SAMRAI
+        do bctype=2,BCLIM       !Do not do PER=1; already done
           if (bctype == SP) cycle
           call set_bc(bctype,v_cnv,.true.)
         enddo
@@ -2249,12 +2140,12 @@ c     Find cnv components
         v_cov =  XformToCov_stg_mesh(gbc_def,igxbc,v_cnv)
 
         !Cov ghost cells
-        call set_LOG_bc(v_cov,.false.)
+        call set_LOG_bc_vec(gbc_def,v_cov)
         call set_TOPOL_bc(SP,v_cov,.false.)
 
         cov_to_cnv = .false.
 
-        do bctype=2,BCLIM       !Do not do PER=1; already done by PETSc or SAMRAI
+        do bctype=2,BCLIM       !Do not do PER=1; already done
           if (bctype == SP) cycle
           call set_bc(bctype,v_cov,.false.)
         enddo
@@ -2296,36 +2187,25 @@ c     End program
 
       contains
 
-c     set_LOG_bc
-c     #################################################################
-      subroutine set_LOG_bc(vec,cnv)
-
-      implicit none
-      
-c     -----------------------------------------------------------------
-c     Set BC "bctype" independently for cov and cnv vectors
-c     -----------------------------------------------------------------
-
-      real(8) :: vec(:,:,:,:)
-      logical :: cnv,petsc__bc
-      integer :: ieq
-
-#if defined(petsc) && !defined(samrai)
-        !Determine whether we need to fill ghost cells using PETSc
-        petsc__bc = (.not.asm)
-
-        !Fill ghost cells
-        if (petsc__bc) then
-          da_ctx => gbc_def%dactx(igxbc)
-          do ieq=1,ncomp
-            call fillPetscGhostCells(da_ctx,vec(:,:,:,ieq))
-          enddo
-        endif
-#elif !defined(samrai)
-        call set_TOPOL_bc(PER,vec,cnv)
-#endif
-
-      end subroutine set_LOG_bc
+c$$$c     set_LOG_bc
+c$$$c     #################################################################
+c$$$      subroutine set_LOG_bc(vec,cnv)
+c$$$
+c$$$      implicit none
+c$$$      
+c$$$c     -----------------------------------------------------------------
+c$$$c     Set BC "bctype" independently for cov and cnv vectors
+c$$$c     -----------------------------------------------------------------
+c$$$
+c$$$      real(8) :: vec(:,:,:,:)
+c$$$      logical :: cnv
+c$$$      integer :: ieq
+c$$$
+c$$$      do ieq=1,ncomp
+c$$$        call fillLogGhostCells(gbc_def,vec(:,:,:,ieq))
+c$$$      enddo
+c$$$
+c$$$      end subroutine set_LOG_bc
 
 c     set_TOPOL_bc
 c     #################################################################
@@ -2713,13 +2593,9 @@ c     Local variables
       integer :: i,j,k,imax,imin,jmax,jmin,kmax,kmin,nx,ny,nz
       integer :: ncomp,ivar,ibc,loc,dim,bctype,xtrap_o
      .          ,ilmin,jlmin,klmin,ilmax,jlmax,klmax,fcmp
-      logical :: petsc__bc,flg_sc
+      logical :: flg_sc
 
       real(8),pointer :: vec_0(:,:,:,:)
-
-#if defined(petsc)
-      type(petsc_da_ctx),pointer :: da_ctx
-#endif
 
 c     Begin program
 
@@ -2786,34 +2662,13 @@ c     Initialize GLOBAL limits
       kkmxp =  min(kkmax + 1,gbc_def%nzgl(igzbc)+1)
 #endif
 
-c     Fill PETSc ghost cells and PER BCs
+c     Fill logical ghost cells
 
-#if defined(petsc) && !defined(samrai)
-      !Determine whether we need to fill ghost cells using PETSc
-      petsc__bc = (.not.asm)
-
-      !Fill ghost cells
-      if (petsc__bc) then
-        da_ctx => gbc_def%dactx(igxbc)
-
-        do ivar=1,ncomp
-          call fillPetscGhostCells(da_ctx,vec(:,:,:,ivar))
-        enddo
-      endif
-#elif !defined(samrai)
-      call sync_bc(.true.)
-#endif
-
-      !Exit if all periodic domains 
-      if (bcPER(1).and.bcPER(2).and.bcPER(3)) then
-        call set_stg_vector(.false.)
-        if (flg_sc) skip_corners=.false. !Reset skip_corners
-        return
-      endif
+      call set_LOG_BC_vec(gbc_def,vec)
 
 c     Impose physical BCs
 
-      do bctype=2,BCLIM             !Do not do PER=1; already done 
+      do bctype=2,BCLIM         !Do not do PER=1 for SAMRAI
         do dim=1,3
           do loc=0,1
             ibc = (1+loc)+2*(dim-1)
@@ -3169,7 +3024,7 @@ c     syncBC
 c     #################################################################
       subroutine syncBC(gbc_def,array,dim,loc)
 c     -----------------------------------------------------------------
-c     Synchronizes ghostcells in parallel. On input:
+c     Synchronizes periodic ghostcell corners in parallel. On input:
 c        * array -> 3D array to impose BC's on.
 c        * dim -> dimension we are imposing BC on (X,Y,Z)
 c        * loc -> boundary location (0 -> left, 1 -> right)
@@ -3751,6 +3606,57 @@ c$$$     .       array(0:nxbc+1,nybc+1,k) = dumxout2
 
       end subroutine syncBC
 
+c     fillLogGhostCells
+c     #################################################################
+      subroutine fillLogGhostCells(gbc_def,array)
+c     -----------------------------------------------------------------
+c     Fills logical ghost cells using PETSc. On input:
+c        * array -> 3D array to impose BC's on.
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: gbc_def
+
+      real(8) :: array (0:nxbc+1,0:nybc+1,0:nzbc+1)
+
+c     Local variables
+
+      integer :: bcs(6)
+      
+#if defined(petsc) && !defined(samrai)
+      logical :: petsc__bc
+
+      type(petsc_da_ctx),pointer :: da_ctx
+
+c     Begin program
+
+      !Determine whether we need to fill ghost cells using PETSc
+      petsc__bc =  (.not.asm)
+
+      !Fill ghost cells
+      if (petsc__bc) then
+        da_ctx => gbc_def%dactx(igxbc)
+        call fillPetscGhostCells(da_ctx,array)
+      endif
+
+      !Serial periodic BCs no longer done by PETSc
+      bcs = DEF
+      if (da_ctx%mx == 1.and.bcond(1)==PER) bcs(1:2) = PER
+      if (da_ctx%my == 1.and.bcond(3)==PER) bcs(3:4) = PER
+      if (da_ctx%mz == 1.and.bcond(5)==PER) bcs(5:6) = PER
+#else
+      bcs = bcond
+#endif
+
+      call set_TOPOL_bc_scl(gbc_def,bcs,PER,array)
+
+c     End program
+      
+      end subroutine fillLogGhostCells
+      
 c     periodicBC
 c     #################################################################
       subroutine periodicBC(gbc_def,array,dim,loc)
@@ -3780,14 +3686,19 @@ c     Local variables
 
 c     Begin program
 
+#if defined(samrai)
+      !Nothing to do here for SAMRAI
+      return
+#endif
+
       ibc = (1+loc)+2*(dim-1)
 
 #if !defined(petsc)
-
+      !Serial
       call per_BC(ibc,array)
 
 #else
-
+      !Parallel
       select case(dim)
       case(1)
 
@@ -3908,130 +3819,130 @@ c     Begin program
         endif
 
       end select
-
-c$$$      if (.not.associated(gbc_def)) then
-c$$$        call pstop("periodicBC"
-c$$$     .            ,"This routine should not be called standalone")
-c$$$      endif
-c$$$
-c$$$      if (gbc_def%MPI_COMM_PER(dim) /= MPI_COMM_NULL) then
-c$$$        call MPI_Comm_size(gbc_def%MPI_COMM_PER(dim),np_l     ,mpierr)
-c$$$        call MPI_Comm_rank(gbc_def%MPI_COMM_PER(dim),my_rank_l,mpierr)
-c$$$
-c$$$        if (np_l > 2.or.np_l < 1) then
-c$$$          call pstop('periodicBC'
-c$$$     .         ,'Periodic comm in dimension '//trim(int2char(dim))
-c$$$     .       //' has wrong rank='//trim(int2char(np_l)))
-c$$$        elseif (np_l == 2) then
-c$$$          dest = 1 - my_rank_l
-c$$$        endif
-c$$$
-c$$$        if (np_l == 1) then
-c$$$
-c$$$          call per_BC(ibc,array)
-c$$$
-c$$$        else
-c$$$
-c$$$          select case(dim)
-c$$$          case(1)
-c$$$
-c$$$            allocate(rhs(2,nzbc+2))
-c$$$
-c$$$            if (loc==0.and.isBdry(gbc_def,1,igxbc,ibc)) then
-c$$$cc              rhs = array(1,:,:)
-c$$$              rhs(1,:) = array(1,0     ,:)
-c$$$              rhs(2,:) = array(1,nybc+1,:)
-c$$$              call MPI_Sendrecv_replace(rhs,2*(nzbc+2)
-c$$$     .                   ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
-c$$$     .                   ,gbc_def%MPI_COMM_PER(dim),MPI_STATUS_IGNORE
-c$$$     .                   ,mpierr)
-c$$$cc              rhs = array(0,:,:)
-c$$$              array(0,0     ,:) = rhs(1,:)
-c$$$              array(0,nybc+1,:) = rhs(2,:)
-c$$$
-c$$$            elseif (loc==1.and.isBdry(gbc_def,nxbc,igxbc,ibc)) then
-c$$$cc              rhs = array(nxbc,:,:)
-c$$$              rhs(1,:) = array(nxbc,0     ,:)
-c$$$              rhs(2,:) = array(nxbc,nybc+1,:)
-c$$$              call MPI_Sendrecv_replace(rhs,2*(nzbc+2)
-c$$$     .                   ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
-c$$$     .                   ,gbc_def%MPI_COMM_PER(dim),MPI_STATUS_IGNORE
-c$$$     .                   ,mpierr)
-c$$$cc              array(nxbc+1,:,:) = rhs
-c$$$              array(nxbc+1,0     ,:) = rhs(1,:)
-c$$$              array(nxbc+1,nybc+1,:) = rhs(2,:)
-c$$$            endif
-c$$$
-c$$$            deallocate(rhs)
-c$$$
-c$$$          case(2)
-c$$$
-c$$$            allocate(rhs(2,nzbc+2))
-c$$$
-c$$$            if (loc==0.and.isBdry(gbc_def,1,igybc,ibc)) then
-c$$$cc              rhs = array(:,1,:)
-c$$$              rhs(1,:) = array(0     ,1,:)
-c$$$              rhs(2,:) = array(nxbc+1,1,:)
-c$$$              call MPI_Sendrecv_replace(rhs,2*(nzbc+2)
-c$$$     .                   ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
-c$$$     .                   ,gbc_def%MPI_COMM_PER(dim),MPI_STATUS_IGNORE
-c$$$     .                   ,mpierr)
-c$$$cc              array(:,0,:) = rhs
-c$$$              array(0     ,0,:) = rhs(1,:)
-c$$$              array(nxbc+1,0,:) = rhs(2,:)
-c$$$            elseif (loc==1.and.isBdry(gbc_def,nybc,igybc,ibc)) then
-c$$$cc              rhs = array(:,nybc,:)
-c$$$              rhs(1,:) = array(0     ,nybc,:)
-c$$$              rhs(2,:) = array(nxbc+1,nybc,:)
-c$$$              call MPI_Sendrecv_replace(rhs,2*(nzbc+2)
-c$$$     .                   ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
-c$$$     .                   ,gbc_def%MPI_COMM_PER(dim),MPI_STATUS_IGNORE
-c$$$     .                   ,mpierr)
-c$$$cc              array(:,nybc+1,:) = rhs
-c$$$              array(0     ,nybc+1,:) = rhs(1,:)
-c$$$              array(nxbc+1,nybc+1,:) = rhs(2,:)
-c$$$            endif
-c$$$
-c$$$            deallocate(rhs)
-c$$$
-c$$$          case(3)
-c$$$
-c$$$            allocate(rhs(2,nxbc+2))
-c$$$
-c$$$            if (loc==0.and.isBdry(gbc_def,1,igzbc,ibc)) then
-c$$$cc              rhs = array(:,:,1)
-c$$$              rhs(1,:) = array(:,0     ,1)
-c$$$              rhs(2,:) = array(:,nybc+1,1)
-c$$$              call MPI_Sendrecv_replace(rhs,2*(nxbc+2)
-c$$$     .                   ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
-c$$$     .                   ,gbc_def%MPI_COMM_PER(dim),MPI_STATUS_IGNORE
-c$$$     .                   ,mpierr)
-c$$$cc              array(:,:,0) = rhs
-c$$$              array(:,0     ,0) = rhs(1,:) 
-c$$$              array(:,nybc+1,0) = rhs(2,:)
-c$$$            elseif (loc==1.and.isBdry(gbc_def,nzbc,igzbc,ibc)) then
-c$$$cc              rhs = array(:,:,nzbc)
-c$$$              rhs(1,:) = array(:,0     ,nzbc)
-c$$$              rhs(2,:) = array(:,nybc+1,nzbc)
-c$$$              call MPI_Sendrecv_replace(rhs,2*(nxbc+2)
-c$$$     .                   ,MPI_DOUBLE_PRECISION,dest,dim,dest,dim
-c$$$     .                   ,gbc_def%MPI_COMM_PER(dim),MPI_STATUS_IGNORE
-c$$$     .                   ,mpierr)
-c$$$cc              array(:,:,nzbc+1) = rhs
-c$$$              array(:,0     ,nzbc+1) = rhs(1,:) 
-c$$$              array(:,nybc+1,nzbc+1) = rhs(2,:)
-c$$$            endif
-c$$$
-c$$$            deallocate(rhs)
-c$$$          end select
-c$$$        endif
-c$$$
-c$$$      endif
 #endif
 
 c     End program
 
       end subroutine periodicBC
+
+c$$$c     set_LOG_bc_scl
+c$$$c     #################################################################
+c$$$      subroutine set_LOG_bc_scl(gdef,scl)
+c$$$
+c$$$      implicit none
+c$$$      
+c$$$c     -----------------------------------------------------------------
+c$$$c     Set logical BCs
+c$$$c     -----------------------------------------------------------------
+c$$$
+c$$$      type(grid_mg_def),pointer :: gdef
+c$$$
+c$$$      real(8) :: scl(:,:,:)
+c$$$
+c$$$      call fillLogGhostCells(gdef,scl)
+c$$$
+c$$$      end subroutine set_LOG_bc_scl
+
+c     set_TOPOL_bc_scl
+c     #################################################################
+      subroutine set_TOPOL_bc_scl(gdef,bcnd,bctype,scl)
+
+      implicit none
+      
+c     -----------------------------------------------------------------
+c     Set topological BCs 
+c     -----------------------------------------------------------------
+
+      type(grid_mg_def),pointer :: gdef
+
+      integer :: bctype,bcnd(:)
+      real(8) :: scl(:,:,:)
+
+      integer :: dim,loc,ibc,ieq
+      real(8) :: scl0(0:size(scl,1)-2
+     .               ,0:size(scl,2)-2
+     .               ,0:size(scl,3)-2)
+
+      scl0 = 0d0
+
+      ieq = 0  !Equation identifier, irrelevant for TOPOL BCs
+      
+      do dim=1,3
+        do loc=0,1
+          ibc = (1+loc)+2*(dim-1)
+
+          if (abs(bcnd(ibc)) == bctype) then
+            call FillGhostNodes_scl(gdef,ieq,1,dim,loc
+     .                             ,bctype,scl,scl0)
+          endif
+        enddo
+      enddo
+
+      end subroutine set_TOPOL_bc_scl
+
+c     set_LOG_bc_vec
+c     #################################################################
+      subroutine set_LOG_bc_vec(gdef,vec)
+
+      implicit none
+      
+c     -----------------------------------------------------------------
+c     Set logical (parallel) BCs
+c     -----------------------------------------------------------------
+
+      type(grid_mg_def),pointer :: gdef
+
+      real(8) :: vec(:,:,:,:)
+      integer :: ieq
+
+      do ieq=1,size(vec,4)
+        call fillLogGhostCells(gdef,vec(:,:,:,ieq))
+      enddo
+
+      end subroutine set_LOG_bc_vec
+
+c     set_TOPOL_bc_vec
+c     #################################################################
+      subroutine set_TOPOL_bc_vec(gdef,bcnd,bctype,vec,is_cnv,fcomp)
+
+      implicit none
+      
+c     -----------------------------------------------------------------
+c     Set topological BCs 
+c     -----------------------------------------------------------------
+
+      type(grid_mg_def),pointer :: gdef
+
+      integer :: bctype,fcomp,bcnd(:,:)
+      real(8) :: vec(:,:,:,:)
+      logical :: is_cnv
+
+      integer :: dim,loc,ibc,ivar,ieq,ncomp
+      real(8) :: var0(0:size(vec,1)-2
+     .               ,0:size(vec,2)-2
+     .               ,0:size(vec,3)-2,size(vec,4))
+
+      var0 = 0d0
+
+      ncomp = size(vec,4)
+      
+      do dim=1,3
+        do loc=0,1
+          ibc = (1+loc)+2*(dim-1)
+
+          do ivar = 1,ncomp
+            ieq = ivar + fcomp - 1
+
+            if (abs(bcnd(ibc,ivar)) == bctype) then
+              call FillGhostNodes_vec(gdef,ieq,ivar,ncomp,dim,loc
+     .                               ,bctype,vec,var0,cnv=is_cnv)
+            endif
+          enddo
+
+        enddo
+      enddo
+
+      end subroutine set_TOPOL_bc_vec
 
 c     extrapolateBC
 c     #################################################################

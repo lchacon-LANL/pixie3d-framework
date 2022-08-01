@@ -35,9 +35,8 @@ c$$$        END INTERFACE
 
 #if defined(petsc)
 
-#include "finclude/petscdef.h"
-#include "finclude/petscvecdef.h"
-#include "finclude/petscdadef.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscdmda.h"
 
         integer    :: np=1
      .               ,my_rank=0
@@ -265,7 +264,7 @@ c     Begin program
 c     Fill known values of dactx%Xg
 
         !Get pointer to vector data
-        call DAGetLocalVector(dactx%da,localX,ierr)
+        call DMGetLocalVector(dactx%da,localX,ierr)
 cc        call fchkerrq(ierr,'DAGetLocalVector')
 
         call VecGetArrayF90  (localX,lx_v,ierr)
@@ -277,23 +276,22 @@ cc        call fchkerrq(ierr,'DAGetLocalVector')
         call VecRestoreArrayF90(localX,lx_v,ierr)
 
         !Insert values into global vector
-        call DALocalToGlobal(dactx%da,localX
+        call DMLocalToGlobal(dactx%da,localX
      .                      ,INSERT_VALUES,dactx%Xg
      $                      ,ierr)
-cc        call DARestoreLocalVector(dactx%da,localX,ierr)
+cc        call DMRestoreLocalVector(dactx%da,localX,ierr)
 
 c     Fill ghost cells
 
         !Get pointer to vector data w/ghost cells
-cc        call DAGetLocalVector    (dactx%da,localX,ierr)
-        call DAGlobalToLocalBegin(dactx%da,dactx%Xg
+cc        call DMGetLocalVector    (dactx%da,localX,ierr)
+        call DMGlobalToLocalBegin(dactx%da,dactx%Xg
      .                           ,INSERT_VALUES,localX
      $                           ,ierr)
 
-        call DAGlobalToLocalEnd  (dactx%da,dactx%Xg
+        call DMGlobalToLocalEnd  (dactx%da,dactx%Xg
      .                           ,INSERT_VALUES,localX
      $                           ,ierr)
-
 
         call VecGetArrayF90(localX,lx_v,ierr)
 
@@ -305,12 +303,82 @@ cc        call DAGetLocalVector    (dactx%da,localX,ierr)
 
 c     Deallocate memory
 
-        call DARestoreLocalVector(dactx%da,localX,ierr)
+        call DMRestoreLocalVector(dactx%da,localX,ierr)
 
 c     End program
 
       end subroutine fillPetscGhostCells
 
+c$$$c     fillPetscGhostCells
+c$$$c     #################################################################
+c$$$      subroutine fillPetscGhostCells(dactx,array)
+c$$$
+c$$$c     -----------------------------------------------------------------
+c$$$c     Performs communication to fill ghost cells in array using PETSc
+c$$$c     distributed arrays in DA context dactx.
+c$$$c     -----------------------------------------------------------------
+c$$$
+c$$$        implicit none
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$        type(petsc_da_ctx),pointer :: dactx
+c$$$
+c$$$        real(8) :: array(dactx%ilm:dactx%ihp
+c$$$     .                  ,dactx%jlm:dactx%jhp 
+c$$$     .                  ,dactx%klm:dactx%khp)
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$        Vec :: localX
+c$$$
+c$$$        PetscScalar,pointer :: lx_v(:,:,:)
+c$$$
+c$$$        integer    :: ierr
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$c     Fill known values of dactx%Xg
+c$$$
+c$$$        !Get pointer to vector data
+c$$$        call DMCreateLocalVector(dactx%da,localX,ierr)
+c$$$
+c$$$        call DMDAVecGetArrayF90(dactx%da,localX,lx_v,ierr)
+c$$$        
+c$$$        write (*,*) "before",array(:,1,1)
+c$$$        
+c$$$        !Assignment: array -> lx_v
+c$$$        call fillLocalVec(dactx,array,lx_v)
+c$$$
+c$$$        !Restore vector
+c$$$        call DMDAVecRestoreArrayF90(dactx%da,localX,lx_v,ierr)
+c$$$
+c$$$c     Fill ghost cells
+c$$$
+c$$$        call DMLocalToLocalBegin(dactx%da,localX,INSERT_VALUES,localX
+c$$$     .                          ,ierr)
+c$$$        
+c$$$        call DMLocalToLocalEnd(dactx%da,localX,INSERT_VALUES,localX
+c$$$     .                        ,ierr)
+c$$$
+c$$$        call DMDAVecGetArrayF90(dactx%da,localX,lx_v,ierr)
+c$$$
+c$$$        !Assignment: array <- lx_v
+c$$$        call emptyLocalVec(dactx,array,lx_v)
+c$$$
+c$$$        write (*,*) "after",array(:,1,1)
+c$$$        
+c$$$        !Restore vector
+c$$$        call DMDAVecRestoreArrayF90(dactx%da,localX,lx_v,ierr)
+c$$$
+c$$$c     Deallocate memory
+c$$$
+c$$$        call DMRestoreLocalVector(dactx%da,localX,ierr)
+c$$$
+c$$$c     End program
+c$$$
+c$$$      end subroutine fillPetscGhostCells
+c$$$      
 c     initMPI
 c     #####################################################################
       subroutine initMPI(mpi_comm,np,my_rank)
