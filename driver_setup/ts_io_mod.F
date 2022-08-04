@@ -6,6 +6,8 @@ c ######################################################################
 
         use graphics_io, ONLY: no_graphics_io,nplot,ndplot,tmplot,dplot
 
+        logical :: ts_after_restart = .false.
+
       contains
 
 c     TS_init_timers
@@ -263,4 +265,34 @@ c     End program
 
       end function TS_chk_plot_dump
 
+c     TS_chk_after_restart
+c     ###############################################################
+      function TS_chk_after_restart(time_slices) result(flag)
+
+c     ---------------------------------------------------------------
+c     Check for end of time loop
+c     ---------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      logical :: flag
+
+      integer :: time_slices
+
+c     Local variables
+
+      integer :: counter
+
+c     Begin program
+
+      counter = itime-inewtime + 1
+
+      flag = ts_after_restart.and.(counter <= time_slices)
+
+c     End program
+
+      end function TS_chk_after_restart
+      
       end module ts_io
