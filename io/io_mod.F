@@ -283,7 +283,8 @@ c     Begin program
 #else
      .       // 'a\'  // achar(39) //' -e"'
 #endif
-     .       // trim(line)   // '" -e"}" '
+     .       // trim(line)   // '" -e"}" '    !'
+
      .       // trim(file)
 
         ierr = shellcmd(trim(command))
@@ -315,7 +316,7 @@ c     Begin program
 #else
      .       // 'c\'  // achar(39) //' -e"'
 #endif
-     .       // trim(line)   // '" -e"}" '
+     .       // trim(line)   // '" -e"}" '   !'
      .       // trim(file)
 
       ierr = shellcmd(trim(command))
@@ -347,6 +348,40 @@ c     Begin program
 
       end function delete_line
 
+c     lines_in_file
+c     ####################################################################
+      function lines_in_file(file) result(nlines)
+
+c     --------------------------------------------------------------------
+c     Replaces line containing "text" with line "line" in ascii file "file"
+c     --------------------------------------------------------------------
+
+      implicit none
+
+      integer :: nlines
+
+      character(*) :: file
+
+      integer :: ifile,i,reason
+      
+c     Begin program
+
+      ifile = find_unit(1234)
+      open(unit=ifile,FILE=trim(file),action="read")
+
+      !how many
+      i = 0
+      do
+       read(ifile,FMT='(a)',iostat=reason)
+       if (reason/=0) EXIT
+       i = i+1
+      end do
+
+      nlines = i
+c$$$      write(*,'(a,I0)') "Number of lines in file: " , nlines
+      
+      end function lines_in_file
+      
 c     sstop
 c     ################################################################
       subroutine sstop(rank,routine,message)
@@ -538,6 +573,7 @@ c     -----------------------------------------------------------------
       implicit none
 
 c     Call variables
+
       integer,pointer,dimension(:) :: munit
 
 c     Local variables
@@ -556,5 +592,60 @@ c     Begin program
 c     End programs
 
       end subroutine closeFiles
+
+c     getFiles
+c     #################################################################
+      function getFiles(bname,munit) result(ierr)
+
+c     -----------------------------------------------------------------
+c     Get files with basename bname
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: ierr
+      integer,pointer,dimension(:) :: munit
+      character(*) :: bname
+
+c     Local variables
+
+      integer :: ifile
+      real(8) :: r
+      integer :: i,reason,NFiles
+      character(LEN=100) :: dumstr
+
+c     Begin program
+
+      !get the files
+      ierr = shellcmd('ls ./'//trim(bname)//'* > fileContents.txt')
+
+      if (ierr /= 0) return
+      
+      NFiles = lines_in_file('fileContents.txt')
+
+      if (NFiles == 0) then
+        ierr = 1
+        return
+      endif
+
+      !Open files
+      open(ifile,file='fileContents.txt',status='old')
+      allocate(munit(NFiles))
+      do i = 1,NFiles
+        read(ifile,'(a)') dumstr
+        write(*,'(a,a)') "Opening file ",trim(dumstr)
+        munit(i) = find_unit(1234)
+        open(unit=munit(i),file=trim(dumstr),status='old')
+      end do 
+
+      close(ifile)
+
+      ierr = shellcmd('rm fileContents.txt')
+      
+c     End programs
+
+      end function getFiles
 
       end module file_io
