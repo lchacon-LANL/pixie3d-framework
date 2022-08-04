@@ -149,15 +149,12 @@ c$$$     .   ,"-dt",dt,petsc_flg,ierr)
      .   ,"-trestart",trestart,petsc_flg,ierr)
       if (petsc_flg.and.(.not.petsc_flg2)) ts_restart = .true.
 
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     $   ,"-dt_ramp_up",ts_ramp_up_dt,petsc_flg,ierr)
       call PetscOptionsGetReal(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
-     $                        ,'-dt_ramp_up'
-     .                        ,ts_ramp_up_dt,petsc_flg,ierr)
+     $   ,"-dt_ramp_up_frac",ts_ramp_up_dt_fraction,petsc_flg2,ierr)
       call PetscOptionsGetReal(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
-     $                        ,'-dt_ramp_up_frac'
-     .                        ,ts_ramp_up_dt_fraction,petsc_flg2,ierr)
-      call PetscOptionsGetReal(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
-     $                        ,'-dt_ramp_up_recov'
-     .                        ,ts_ramp_up_dt_recovery,petsc_flg3,ierr)
+     $   ,"-dt_ramp_up_recov",ts_ramp_up_dt_recovery,petsc_flg3,ierr)
       if ((petsc_flg2.or.petsc_flg3).and.(.not.petsc_flg))
      .                         ts_ramp_up_dt = .true.
 
