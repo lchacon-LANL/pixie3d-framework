@@ -10,6 +10,8 @@ MACHINE ?= $(HOST)
 
 CPPFLAGS += $(PREPROC)$(ARCH)
 
+MPIEXEC ?= mpiexec --oversubscribe
+
 ############
 # DEFAULTS #
 ############
@@ -1323,6 +1325,8 @@ ifeq ($(findstring ch,$(HOST)),ch)
   override MACHINE = chicoma
   override FC = ftn
   
+  MPIEXEC = srun
+
   CPPFLAGS+= $(PREPROC)USE_MPICH
 
   ifeq ($(findstring gfortran,$(shell $(FC) 2>&1)),gfortran)
@@ -1697,4 +1701,4 @@ ifeq ($(HOST),drava)
 
 endif
 
-export FC HOST MACHINE LIBS
+export FC HOST MACHINE LIBS MPIEXEC
