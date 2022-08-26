@@ -38,7 +38,7 @@ c     -----------------------------------------------------------------
      .                      ,OPN=10  !Open boundary conditions
      .                      ,SYNC=11 !Parallel sync
 
-        integer,parameter :: BCLIM=7 !Defines # of BC cases (excludes DEF,SYM,FSYM,OPN)
+        integer,parameter :: BCLIM=7 !Defines # of BC cases (excludes SYNC,SYM,FSYM,OPN)
      .                      ,BCTOT=10!Total number of BC defs
 
         logical :: asm_dir(3)=.false.,asm=.false.
@@ -344,8 +344,8 @@ c ######################################################################
 #if defined(petsc)
 
         use mpi
-        
-#define PETSC_AVOID_MPIF_H
+
+cc#define PETSC_AVOID_MPIF_H
         
 #include <petsc/finclude/petscvec.h>
         use Petscvec

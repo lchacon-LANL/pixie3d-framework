@@ -714,6 +714,7 @@ c     Start iteration
 
       itr = 0
       magdp = 1d0
+      theta = 1d0
 
       do
         !Find matvec

@@ -1442,9 +1442,11 @@ c     Begin program
         dzz = g_def%dz(kg-1)
       endif
 
+      jac0 = g_def%gmetric%grid(igrid)%jac(i,j,k)
+
       if (isSP2(g_def,i,igx).and.hx == 0.and.spoint) then
         jacp = g_def%gmetric%grid(igrid)%jac(i+1,j,k)
-        jach = 0.5*(jacp+jac0)   !Only good for cylindrical-like geom.
+        jach = 0.5*(jacp+jac0)  !Only good for cylindrical-like geom.
 
         div = ((cnv(i+1,j  ,k  ,1)/jacp
      .         +cnv(i  ,j  ,k  ,1)/jac0)*jach        )/dxx
@@ -1475,7 +1477,7 @@ cccc        dzz = g_def%dz(kg)
 cc        jac0 = 0.5*(g_def%gmetric%grid(igrid)%jac(i,j,kp)
 cc     .             +g_def%gmetric%grid(igrid)%jac(i,j,k ))
 cc      case default
-        jac0 = g_def%gmetric%grid(igrid)%jac(i,j,k)
+cc        jac0 = g_def%gmetric%grid(igrid)%jac(i,j,k)
 cc      end select
 
       div = div/jac0
@@ -5353,6 +5355,8 @@ c     Begin program
 
         jac = g_def%gmetric%grid(igr)%jac(i,j,k)
         ijac = 1d0/jac
+
+        to = 0d0
         
         call flxx(g_def,i,j,k,igr,to(1,:),0,v1=v1,v2=v2,s1=s1,s2=s2)
         call flxy(g_def,i,j,k,igr,to(2,:),0,v1=v1,v2=v2,s1=s1,s2=s2)
@@ -7224,18 +7228,13 @@ c     Regularize innermost cell layer (closest to SP)
         dv_sum = sum(gl_def%gmetric%grid(igr)%dvol(1,1:ny,1:nz))
 
 #if defined(petsc)
-        allocate(l_sum(3))
+        dv_sum = psum((/dv_sum/),mpi_comm=gl_def%MPI_COMM)
         
+        allocate(l_sum(3))
         l_sum = sp_sum
         call MPI_Allreduce(l_sum,sp_sum,3
      .                    ,MPI_DOUBLE_PRECISION
      .                    ,MPI_SUM,gl_def%MPI_COMM,mpierr)
-
-        l_sum(1) = dv_sum
-        call MPI_Allreduce(l_sum(1),dv_sum,1
-     .                    ,MPI_DOUBLE_PRECISION
-     .                    ,MPI_SUM,gl_def%MPI_COMM,mpierr)
-
         deallocate(l_sum)
 #endif
 
@@ -7283,7 +7282,8 @@ c     Local variables
       integer :: nx,ny,nz,neq,i,j,k,ig,jg,kg,one,two,thr
      .          ,oavg,oext,icomp,ivar,m,l
 
-      real(8) :: curv(3),car(3),tnsr(3,3),tnsr_car(3,3),dv_sum,x1,y1,z1
+      real(8) :: curv(3),car(3),tnsr(3,3),tnsr_car(3,3),dv_sum
+     $          ,x1,y1,z1
 
       real(8),allocatable :: sp_sum(:,:),l_sum(:,:)
      $                      ,tensor(:,:,:,:,:)
@@ -7368,17 +7368,13 @@ cc              write (*,*) i,j,k,tnsr_car
         dv_sum = sum(gl_def%gmetric%grid(igr)%dvol(1,1:ny,1:nz))
 
 #if defined(petsc)
+        dv_sum = psum((/dv_sum/),mpi_comm=gl_def%MPI_COMM)
+        
         allocate(l_sum(3,3))
         l_sum = sp_sum
         call MPI_Allreduce(l_sum,sp_sum,9
      .                    ,MPI_DOUBLE_PRECISION
      .                    ,MPI_SUM,gl_def%MPI_COMM,mpierr)
-
-        l_sum(1,1) = dv_sum
-        call MPI_Allreduce(l_sum(1,1),dv_sum,1
-     .                    ,MPI_DOUBLE_PRECISION
-     .                    ,MPI_SUM,gl_def%MPI_COMM,mpierr)
-
         deallocate(l_sum)
 #endif
 

@@ -189,9 +189,7 @@ c     Find machine round-off
       if (epsmac == 0d0) epsmac = findRoundOff()  !Used for RMS norm measures
 
 #if defined(petsc)
-      leps = epsmac
-      call MPI_Allreduce(leps,epsmac,1,MPI_DOUBLE_PRECISION
-     .                  ,MPI_MAX,MPI_COMM_WORLD,mpierr)
+      epsmac = pmax(epsmac)
 #endif
 
       roundoff = sqrt(1d0*ntot*npx*npy*npz)*epsmac  !Used for standard norm measures
@@ -518,9 +516,7 @@ c     Find machine round-off
       if (epsmac == 0d0) epsmac = findRoundOff()  !Used for RMS norm measures
 
 #if defined(petsc)
-      leps = epsmac
-      call MPI_Allreduce(leps,epsmac,1,MPI_DOUBLE_PRECISION
-     .                  ,MPI_MAX,MPI_COMM_WORLD,mpierr)
+      epsmac = pmax(epsmac)
 #endif
 
       roundoff = sqrt(1d0*ntot*npx*npy*npz)*epsmac  !Used for standard norm measures
@@ -995,9 +991,7 @@ c     Find machine round-off
       if (epsmac == 0d0) epsmac = findRoundOff()  !Used for RMS norm measures
 
 #if defined(petsc)
-      leps = epsmac
-      call MPI_Allreduce(leps,epsmac,1,MPI_DOUBLE_PRECISION
-     .                  ,MPI_MAX,MPI_COMM_WORLD,mpierr)
+      epsmac = pmax(epsmac)
 #endif
 
       roundoff = sqrt(1d0*ntot*npx*npy*npz)*epsmac  !Used for standard norm measures
@@ -1168,9 +1162,7 @@ c     Calculate magnitude of residuals
         call MPI_Allreduce(lravg,ravg,neq,MPI_DOUBLE_PRECISION
      .                    ,MPI_SUM,MPI_COMM_WORLD,mpierr)
 
-        lnn = nn
-        call MPI_Allreduce(lnn,nn,1,MPI_INTEGER
-     .                    ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+        nn = psum((/nn/))
       endif
 #endif
 

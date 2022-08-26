@@ -83,6 +83,7 @@ ifdef BOPT
 #  include ${PETSC_DIR}/lib/petsc/conf/rules
 #  include ${PETSC_DIR}/lib/petsc/conf/test
 
+  FFLAGS += -I${PETSC_DIR}/$(PETSC_ARCH)/include
   CPPFLAGS += $(PREPROC)petsc -I$(PETSC_DIR)/include -I${PETSC_DIR}/$(PETSC_ARCH)/include
 
   ifdef PETSC_C

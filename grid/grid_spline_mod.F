@@ -2193,7 +2193,8 @@ c     ------------------------------------------------------------------
 
 c     Call variables
 
-      real(8) :: x,ss(3)
+      real(8) :: x
+      real(8),INTENT(OUT) :: ss(3)
 
 c     Local variables
 

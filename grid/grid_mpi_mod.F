@@ -35,6 +35,10 @@ c$$$        END INTERFACE
           module procedure psum,ipsum,ipsum8
         END INTERFACE
 
+        INTERFACE pmax
+          module procedure pmax,ipmax
+        END INTERFACE
+        
         integer :: mpierr
 
 #if defined(petsc)
@@ -1466,6 +1470,45 @@ c     Begin program
 #endif
 
       end function ipsum8
+
+c     plor
+c     ###################################################################
+      function plor(val,mpi_comm)
+
+c     -------------------------------------------------------------------
+c     Performs parallel logical OR using communicator mpi_comm. On input:
+c       * val: logical variable
+c       * mpi_comm: MPI communicator
+c     -------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer,optional :: mpi_comm
+      logical :: val,plor
+
+c     Local variables
+
+      logical    :: lval
+      integer    :: mpic
+
+c     Begin program
+
+#if defined(petsc)
+      if (PRESENT(mpi_comm)) then
+        mpic = mpi_comm
+      else
+        mpic = MPI_COMM_WORLD
+      endif
+
+      lval = val
+      call MPI_Allreduce(lval,plor,1,MPI_LOGICAL,MPI_LOR,mpic,mpierr)
+#else
+      plor = val
+#endif
+
+      end function plor
       
 c     dot
 c     ###################################################################
@@ -1664,6 +1707,41 @@ c     Begin program
 
       end function pmax
 
+c     ipmax
+c     ###################################################################
+      function ipmax(val,mpi_comm)
+
+c     -------------------------------------------------------------------
+c     Performs parallel maximum value.
+c     -------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: ipmax,val
+      integer,optional :: mpi_comm
+
+c     Local variables
+
+      integer :: mpicomm
+
+c     Begin program
+
+#if defined(petsc)
+      if (PRESENT(mpi_comm)) then
+        mpicomm = mpi_comm
+      else
+        mpicomm = MPI_COMM_WORLD
+      endif
+
+      call MPI_Allreduce(val,ipmax,1,MPI_INT,MPI_MAX,mpicomm,mpierr)
+#else
+      ipmax = val
+#endif
+
+      end function ipmax
+      
 c     pmin
 c     ###################################################################
       function pmin(val,mpi_comm)
@@ -2514,7 +2592,7 @@ c     Begin program
         elseif (flg == 1) then
           unit = find_unit(12345)
           open(unit=unit,file=trim(file),form='unformatted'
-     .        ,access='append',status='old')
+     .        ,position='append',status='old')
         endif
       endif
         

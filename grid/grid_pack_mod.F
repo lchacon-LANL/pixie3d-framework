@@ -646,13 +646,13 @@ c$$$            endif
             xi0 = xmin - (xmin-x0)/lambda - bb*(xmin-x0)**pwr
 
             !Linear extrapolation to ensure equal mesh spacing at ghost points
-cc            if (xi > xmax) then
-cc              dx = xi - xmax
-cc            elseif (xi < xmin) then
-cc              dx = xi - xmin
-cc            else
-cc              dx = 0d0
-cc            endif
+            if (xi > xmax) then
+              dx = xi - xmax
+            elseif (xi < xmin) then
+              dx = xi - xmin
+            else
+              dx = 0d0
+            endif
 
             !Initial guess
             x = xi! - 2*dx

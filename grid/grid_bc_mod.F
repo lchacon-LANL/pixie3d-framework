@@ -1,5 +1,9 @@
 #if !defined(PER_SYNC_ONLY)
+#if defined(USE_MPICH)
+#define PER_SYNC_ONLY .true.
+#else
 #define PER_SYNC_ONLY .false.
+#endif
 #endif
 
 c module BCS_variables
@@ -2684,20 +2688,20 @@ c     Impose physical BCs
         enddo
       enddo
 
-c$$$c     Fill edges 
-c$$$
-c$$$      xtrap_o = max(2,order)
-c$$$
-c$$$      do ivar=1,ncomp
-c$$$        call fillEdges(gbc_def,vec(:,:,:,ivar),vec_0(:,:,:,ivar)
-c$$$     .                ,bcnd(:,ivar),xtrap_o)
-c$$$      enddo
-c$$$
-c$$$c     Fill corners 
-c$$$
-c$$$      do ivar=1,ncomp
-c$$$        call fillCorners(gbc_def,vec(:,:,:,ivar),bcnd(:,ivar),xtrap_o)
-c$$$      enddo
+c     Fill edges 
+
+      xtrap_o = max(2,order)
+
+      do ivar=1,ncomp
+        call fillEdges(gbc_def,vec(:,:,:,ivar),vec_0(:,:,:,ivar)
+     .                ,bcnd(:,ivar),xtrap_o)
+      enddo
+
+c     Fill corners 
+
+      do ivar=1,ncomp
+        call fillCorners(gbc_def,vec(:,:,:,ivar),bcnd(:,ivar),xtrap_o)
+      enddo
 
 c     Periodic boundary synchronizing
 
@@ -3024,7 +3028,7 @@ c     syncBC
 c     #################################################################
       subroutine syncBC(gbc_def,array,dim,loc)
 c     -----------------------------------------------------------------
-c     Synchronizes periodic ghostcell corners in parallel. On input:
+c     Synchronizes ghostcell corners in parallel. On input:
 c        * array -> 3D array to impose BC's on.
 c        * dim -> dimension we are imposing BC on (X,Y,Z)
 c        * loc -> boundary location (0 -> left, 1 -> right)
@@ -3067,7 +3071,7 @@ c     Begin program
       ibc = (1+loc)+2*(dim-1)
 
 #if !defined(petsc)
-      !Synchronize PER corners
+      !Synchronize PER ghostcell corners
       select case(dim)
       case(1)
         if (bcPER(2)) then

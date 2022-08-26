@@ -883,7 +883,7 @@ c     Begin program
 
         return_error = PRESENT(ierr)
 
-        if (return_error) lerr = 0
+        lerr = 0
 
         igx = igrid
         igy = igrid
@@ -1007,8 +1007,7 @@ c     Gather error flags
 
         if (return_error) then
 #if defined(petsc)
-          call MPI_Allreduce(lerr,ierr,1,MPI_INTEGER
-     .                      ,MPI_MAX,g_def%mpi_comm,mpierr)
+          ierr = pmax(lerr,mpi_comm=g_def%mpi_comm)
 #else
           ierr = lerr
 #endif
@@ -1073,9 +1072,9 @@ c     Impose BCs on dr
 
 c     Evaluate grid quantities (at vertices)
 
-        do k = klom,khip
-          do j = jlom,jhip
-            do i = ilom,ihip
+        do k = klom,khi
+          do j = jlom,jhi
+            do i = ilom,ihi
               r = dr(i,j,k,:,:)
 
               !Jacobian <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
@@ -2005,7 +2004,7 @@ c     Call variables
         type(grid_mg_def),pointer :: g_def
 
         integer :: igrid
-        real(8) :: dr(0:,0:,0:,:,:)
+        real(8) :: dr(:,:,:,:,:)
 
 c     Local variables
 
@@ -2446,5 +2445,5 @@ c     Fill ghost cells by 2nd-order extrapolation
       end subroutine coarsen
 
       end subroutine coarsenGridMetrics
-      
+
       end module grid_metric_init

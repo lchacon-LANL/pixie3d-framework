@@ -7,6 +7,8 @@ c ######################################################################
 
         use file_io
 
+        use grid
+        
         use variables
 
 #if defined(adios)
@@ -731,10 +733,10 @@ cc      if (associated(gv%gparams)) then
      .          .or. nyl /= gv%gparams%nly
      .          .or. nzl /= gv%gparams%nlz )
 
-        lchck = check
-
-        call MPI_Allreduce(lchck,check,1
-     .                ,MPI_LOGICAL,MPI_LOR,MPI_COMM_WORLD,mpierr)
+        check = plor(check)
+c$$$        lchck = check
+c$$$        call MPI_Allreduce(lchck,check,1
+c$$$     .                ,MPI_LOGICAL,MPI_LOR,MPI_COMM_WORLD,mpierr)
 
         if (check) then
           write (*,*) my_rank,nxl,gv%gparams%nlx
