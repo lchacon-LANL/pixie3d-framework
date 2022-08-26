@@ -1164,6 +1164,8 @@ ifeq ($(findstring ba,$(HOST)),ba)
      PETSC_DIR =/turquoise/usr/projects/magreconn/soft/petsc-3.17.3
 
      ifdef MPICH_FC
+       MPIEXEC = srun
+
        CPPFLAGS+= $(PREPROC)USE_MPICH
        ifeq ($(BOPT),O)
          PETSC_ARCH = badger_gcc-9.3.0_mvapich2-2.3.6
