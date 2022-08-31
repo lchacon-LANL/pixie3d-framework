@@ -963,6 +963,7 @@ cc          write (*,*) itime1,itime2
         endif
         call closeGraphicsFiles
         ufile = openGraphicsFiles(file)
+        recordfile=file
       endif
 
       end function switch_dumpfile
