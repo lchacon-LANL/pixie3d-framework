@@ -114,7 +114,7 @@ c     Read initialization parameters
       no_err = no_err.or.(ioerr==0)
       
       if (.not.no_err)
-     $     call pstop('readGridInput','Problem reading "setup"')
+     $     call pstop('readGridConfig','Problem reading "setup"')
 
       close(unit=uinput)
 
