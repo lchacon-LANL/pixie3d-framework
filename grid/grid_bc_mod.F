@@ -1269,7 +1269,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: dim,loc,ibc,xtrap_o
+      integer :: dim,loc,ibc,xt_o
 
 c     Begin program
 
@@ -1345,16 +1345,16 @@ c     Impose BCs
         enddo
       enddo
 
-c     Fill edges
+c     Fill edges and corners
 
-      xtrap_o = max(2,order)
+      if (.not.PER_SYNC_ONLY) then
+        xt_o = max(2,order)
 
-      call fillEdges(gbc_def,array,array0,bcnd,xtrap_o)
+        call fillEdges(gbc_def,array,array0,bcnd,xt_o)
 
-c     Fill corners
-
-      call fillCorners(gbc_def,array,bcnd,xtrap_o)
-
+        call fillCorners(gbc_def,array,bcnd,xt_o)
+      endif
+      
 c     Periodic boundary synchronizing
 
 #if defined(PER_BC_SYNC) && !defined(samrai)
@@ -1437,7 +1437,7 @@ c     Call variables
 c     Local variables
 
       integer    :: i,j,k,imax,imin,jmax,jmin,kmax,kmin
-      integer    :: ivar,ieq,ibc,loc,dim,bctype,xtrap_o
+      integer    :: ivar,ieq,ibc,loc,dim,bctype,xt_o
      .             ,ilmin,jlmin,klmin,ilmax,jlmax,klmax
       logical    :: cov_to_cnv(6,3),to_cnv,is__vec
      .             ,regularize_sp
@@ -1579,23 +1579,25 @@ c     Synchronize covariant and contravariant components
 
 c     Fill edges (for both cnv and cov components)
 
-      xtrap_o = max(2,order)
+      if (.not.PER_SYNC_ONLY) then
+        xt_o = max(2,order)
 
-      do ivar=1,ncomp
-        call fillEdges(gbc_def,v_cov(:,:,:,ivar),var0(:,:,:,ivar)
-     .                ,bcnd(:,ivar),xtrap_o)
-        call fillEdges(gbc_def,v_cnv(:,:,:,ivar),var0(:,:,:,ivar)
-     .                ,bcnd(:,ivar),xtrap_o)
-      enddo
+        do ivar=1,ncomp
+          call fillEdges(gbc_def,v_cov(:,:,:,ivar),var0(:,:,:,ivar)
+     .                  ,bcnd(:,ivar),xt_o)
+          call fillEdges(gbc_def,v_cnv(:,:,:,ivar),var0(:,:,:,ivar)
+     .                  ,bcnd(:,ivar),xt_o)
+        enddo
 
-c     Fill corners (for both cnv and cov components)
+c       Fill corners (for both cnv and cov components)
 
-      do ivar=1,ncomp
-        call fillCorners(gbc_def,v_cov(:,:,:,ivar),bcnd(:,ivar),xtrap_o)
-        call fillCorners(gbc_def,v_cnv(:,:,:,ivar),bcnd(:,ivar),xtrap_o)
-      enddo
-
-c     Periodic boundary synchronizing
+        do ivar=1,ncomp
+          call fillCorners(gbc_def,v_cov(:,:,:,ivar),bcnd(:,ivar),xt_o)
+          call fillCorners(gbc_def,v_cnv(:,:,:,ivar),bcnd(:,ivar),xt_o)
+        enddo
+      endif
+      
+c     Periodic boundary and corner synchronizing
 
 #if defined(PER_BC_SYNC) && !defined(samrai)
       call sync_bc(PER_SYNC_ONLY)
@@ -1854,7 +1856,7 @@ c     Call variables
 c     Local variables
 
       integer    :: i,j,k,imax,imin,jmax,jmin,kmax,kmin,nx,ny,nz
-      integer    :: ncomp,ivar,ibc,loc,dim,bctype,xtrap_o
+      integer    :: ncomp,ivar,ibc,loc,dim,bctype,xt_o
      .             ,ilmin,jlmin,klmin,ilmax,jlmax,klmax
 
       real(8),pointer :: vec0(:,:,:,:)
@@ -1926,21 +1928,21 @@ c     Impose physical BCs
         enddo
       enddo
 
-c     Fill edges 
+c     Fill edges and corners
 
-      xtrap_o = max(2,order)
+      if (.not.PER_SYNC_ONLY) then
+        xt_o = max(2,order)
 
-      do ivar=1,ncomp
-        call fillEdges(gbc_def,vec(:,:,:,ivar),vec0(:,:,:,ivar)
-     .                ,bcnd(:,ivar),xtrap_o)
-      enddo
+        do ivar=1,ncomp
+          call fillEdges(gbc_def,vec(:,:,:,ivar),vec0(:,:,:,ivar)
+     .                ,bcnd(:,ivar),xt_o)
+        enddo
 
-c     Fill corners 
-
-      do ivar=1,ncomp
-        call fillCorners(gbc_def,vec(:,:,:,ivar),bcnd(:,ivar),xtrap_o)
-      enddo
-
+        do ivar=1,ncomp
+          call fillCorners(gbc_def,vec(:,:,:,ivar),bcnd(:,ivar),xt_o)
+        enddo
+      endif
+      
 c     Periodic boundary synchronizing
 
 #if defined(PER_BC_SYNC) && !defined(samrai)
@@ -2025,7 +2027,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: i,j,k,imax,imin,jmax,jmin,kmax,kmin,xtrap_o
+      integer :: i,j,k,imax,imin,jmax,jmin,kmax,kmin,xt_o
       integer :: ivar,ieq,ibc,loc,dim,bctype
      .          ,ilmin,jlmin,klmin,ilmax,jlmax,klmax
       logical :: cov_to_cnv(6,3),to_cnv,flg_sc
@@ -2108,7 +2110,8 @@ c     Find cnv components
 
         !Cov ghost cells
         call set_LOG_bc_vec(gbc_def,v_cov)
-        call set_TOPOL_bc(SP,v_cov,.false.)
+cc        call set_TOPOL_bc(SP,v_cov,.false.)
+        call set_TOPOL_bc_vec(gbc_def,bcnd,SP,v_cov,.false.,fcomp)
 
         cov_to_cnv = .false.
 
@@ -2122,7 +2125,8 @@ c     Find cnv components
 
         !Cnv ghost cells
         call set_LOG_bc_vec(gbc_def,v_cnv)
-        call set_TOPOL_bc(SP,v_cnv,.true.)
+cc        call set_TOPOL_bc(SP,v_cnv,.true.)
+        call set_TOPOL_bc_vec(gbc_def,bcnd,SP,v_cnv,.true.,fcomp)
 
         do bctype=2,BCLIM       !Do not do PER=1; already done
           if (bctype == SP) cycle
@@ -2133,7 +2137,8 @@ c     Find cnv components
 
         !Cnv ghost cells
         call set_LOG_bc_vec(gbc_def,v_cnv)
-        call set_TOPOL_bc(SP,v_cnv,.true.)
+cc        call set_TOPOL_bc(SP,v_cnv,.true.)
+        call set_TOPOL_bc_vec(gbc_def,bcnd,SP,v_cnv,.true.,fcomp)
 
         do bctype=2,BCLIM       !Do not do PER=1; already done
           if (bctype == SP) cycle
@@ -2145,7 +2150,8 @@ c     Find cnv components
 
         !Cov ghost cells
         call set_LOG_bc_vec(gbc_def,v_cov)
-        call set_TOPOL_bc(SP,v_cov,.false.)
+cc        call set_TOPOL_bc(SP,v_cov,.false.)
+        call set_TOPOL_bc_vec(gbc_def,bcnd,SP,v_cov,.false.,fcomp)
 
         cov_to_cnv = .false.
 
@@ -2160,25 +2166,27 @@ c     Synchronize covariant and contravariant components (only bottom bdrys)
 
       call synchronize_stg(ncomp,v_cnv,v_cov,bcnd,cov_to_cnv)
 
-c$$$c     Fill edges (for both cnv and cov components)
-c$$$
-c$$$      xtrap_o = max(2,order)
-c$$$
-c$$$      do ivar=1,ncomp
-c$$$        call fillEdges(gbc_def,v_cov(:,:,:,ivar),var0(:,:,:,ivar)
-c$$$     .                ,bcnd(:,ivar),xtrap_o)
-c$$$        call fillEdges(gbc_def,v_cnv(:,:,:,ivar),var0(:,:,:,ivar)
-c$$$     .                ,bcnd(:,ivar),xtrap_o)
-c$$$      enddo
-c$$$
-c$$$c     Fill corners (for both cnv and cov components)
-c$$$
-c$$$      do ivar=1,ncomp
-c$$$        call fillCorners(gbc_def,v_cov(:,:,:,ivar),bcnd(:,ivar),xtrap_o)
-c$$$        call fillCorners(gbc_def,v_cnv(:,:,:,ivar),bcnd(:,ivar),xtrap_o)
-c$$$      enddo
+c     Fill edges (for both cnv and cov components)
 
-c     Periodic boundary synchronizing
+      if (.not.PER_SYNC_ONLY) then
+        xt_o = max(2,order)
+
+        do ivar=1,ncomp
+          call fillEdges(gbc_def,v_cov(:,:,:,ivar),var0(:,:,:,ivar)
+     .                  ,bcnd(:,ivar),xt_o)
+          call fillEdges(gbc_def,v_cnv(:,:,:,ivar),var0(:,:,:,ivar)
+     .                  ,bcnd(:,ivar),xt_o)
+        enddo
+
+c       Fill corners (for both cnv and cov components)
+
+        do ivar=1,ncomp
+          call fillCorners(gbc_def,v_cov(:,:,:,ivar),bcnd(:,ivar),xt_o)
+          call fillCorners(gbc_def,v_cnv(:,:,:,ivar),bcnd(:,ivar),xt_o)
+        enddo
+      endif
+      
+c     Periodic boundary and corner synchronizing
 
 #if defined(PER_BC_SYNC) && !defined(samrai)
       call sync_bc(PER_SYNC_ONLY)
@@ -2210,38 +2218,38 @@ c$$$        call fillLogGhostCells(gbc_def,vec(:,:,:,ieq))
 c$$$      enddo
 c$$$
 c$$$      end subroutine set_LOG_bc
-
-c     set_TOPOL_bc
-c     #################################################################
-      subroutine set_TOPOL_bc(bctype,vec,cnv)
-
-      implicit none
-      
-c     -----------------------------------------------------------------
-c     Set topological BCs independently for cov and cnv vectors
-c     -----------------------------------------------------------------
-
-      integer :: bctype
-      real(8) :: vec(:,:,:,:)
-      logical :: cnv
-
-      do dim=1,3
-        do loc=0,1
-          ibc = (1+loc)+2*(dim-1)
-
-          do ivar = 1,ncomp
-            ieq = ivar + fcomp - 1
-
-            if (abs(bcnd(ibc,ivar)) == bctype) then
-              call FillGhostNodes_vec(gbc_def,ieq,ivar,ncomp,dim,loc
-     .                               ,bctype,vec,var0,cnv=cnv)
-            endif
-          enddo
-
-        enddo
-      enddo
-
-      end subroutine set_TOPOL_bc
+c$$$
+c$$$c     set_TOPOL_bc
+c$$$c     #################################################################
+c$$$      subroutine set_TOPOL_bc(bctype,vec,cnv)
+c$$$
+c$$$      implicit none
+c$$$      
+c$$$c     -----------------------------------------------------------------
+c$$$c     Set topological BCs independently for cov and cnv vectors
+c$$$c     -----------------------------------------------------------------
+c$$$
+c$$$      integer :: bctype
+c$$$      real(8) :: vec(:,:,:,:)
+c$$$      logical :: cnv
+c$$$
+c$$$      do dim=1,3
+c$$$        do loc=0,1
+c$$$          ibc = (1+loc)+2*(dim-1)
+c$$$
+c$$$          do ivar = 1,ncomp
+c$$$            ieq = ivar + fcomp - 1
+c$$$
+c$$$            if (abs(bcnd(ibc,ivar)) == bctype) then
+c$$$              call FillGhostNodes_vec(gbc_def,ieq,ivar,ncomp,dim,loc
+c$$$     .                               ,bctype,vec,var0,cnv=cnv)
+c$$$            endif
+c$$$          enddo
+c$$$
+c$$$        enddo
+c$$$      enddo
+c$$$
+c$$$      end subroutine set_TOPOL_bc
 
 c     set_bc
 c     #################################################################
@@ -2595,7 +2603,7 @@ c     Call variables
 c     Local variables
 
       integer :: i,j,k,imax,imin,jmax,jmin,kmax,kmin,nx,ny,nz
-      integer :: ncomp,ivar,ibc,loc,dim,bctype,xtrap_o
+      integer :: ncomp,ivar,ibc,loc,dim,bctype,xt_o
      .          ,ilmin,jlmin,klmin,ilmax,jlmax,klmax,fcmp
       logical :: flg_sc
 
@@ -2688,21 +2696,21 @@ c     Impose physical BCs
         enddo
       enddo
 
-c     Fill edges 
+c     Fill edges and corners
 
-      xtrap_o = max(2,order)
+      if (.not.PER_SYNC_ONLY) then
+        xt_o = max(2,order)
 
-      do ivar=1,ncomp
-        call fillEdges(gbc_def,vec(:,:,:,ivar),vec_0(:,:,:,ivar)
-     .                ,bcnd(:,ivar),xtrap_o)
-      enddo
+        do ivar=1,ncomp
+          call fillEdges(gbc_def,vec(:,:,:,ivar),vec_0(:,:,:,ivar)
+     .                ,bcnd(:,ivar),xt_o)
+        enddo
 
-c     Fill corners 
-
-      do ivar=1,ncomp
-        call fillCorners(gbc_def,vec(:,:,:,ivar),bcnd(:,ivar),xtrap_o)
-      enddo
-
+        do ivar=1,ncomp
+          call fillCorners(gbc_def,vec(:,:,:,ivar),bcnd(:,ivar),xt_o)
+        enddo
+      endif
+      
 c     Periodic boundary synchronizing
 
 #if defined(PER_BC_SYNC) && !defined(samrai)

@@ -562,11 +562,13 @@ c     Impose BCs on dr
 
         call dr_bc_vrtx(g_def,igrid,dr)
 
+c$$$        write (*,*) dr(:,0,0,1,1)
+c$$$        stop
 c     Evaluate grid quantities (at vertices)
 
-        do k = klom,khi
-          do j = jlom,jhi
-            do i = ilom,ihi
+        do k = klom,khip
+          do j = jlom,jhip
+            do i = ilom,ihip
               r = dr(i,j,k,:,:)
 
               !Jacobian <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<

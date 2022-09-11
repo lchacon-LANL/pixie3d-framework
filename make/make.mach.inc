@@ -471,36 +471,68 @@ ifeq ($(findstring pn2033419,$(HOST)),pn2033419)
 #  ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
 
   ifdef BOPT
-    PETSC_DIR =$(HOME)/Software/petsc-3.17.3
-
-    ifeq ($(BOPT),O)
-      PETSC_ARCH = darwin_gcc-9.4_openmpi-3.1.5
-    else
-      PETSC_ARCH = darwin_gcc-9.4_openmpi-3.1.5_g
-    endif
-
-    HDF5 = t
-
-    HDF5_HOME = $(HOME)/lib/hdf5-1.8.13/gcc-9.4.0-openmpi-3.1.5
-    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
-    HDF5_MOD  = $(HDF5_HOME)/include
-    HDF5_INC  = $(HDF5_MOD)
-
-    ADIOS2 = t
-    ADIOS2_METHOD = MPI
-#    ADIOS2_HOME = $(HOME)/lib/adios-2.5.0/gcc-9.4.0_openmpi-3.1.5
-    ADIOS2_HOME = $(HOME)/lib/adios-2.8.3/gcc-9.4.0_openmpi-3.1.5
-    ADIOS2_LIBS = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-libs)
-    ADIOS2_MOD  = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-flags)
-#    ADIOS2_VER  = 2.5.0
-    ADIOS2_VER  = 2.8.3
-
-    SPRNG = t
-    SPRNG_HOME = $(HOME)/lib/sprng5/gcc-9.4.0_openmpi-3.1.5
-    SPRNG_LIBS = $(SPRNG_HOME)/lib -lsprng -lstdc++ -lm
-    SPRNG_INC  = $(SPRNG_HOME)/include
+    ifdef MPICH
+      MPIEXEC = mpiexec
       
-#    LIBS += -L/opt/local/lib -latlas
+      PETSC_DIR =$(HOME)/Software/petsc-3.17.3
+
+#      CPPFLAGS+= $(PREPROC)USE_MPICH
+
+      ifeq ($(BOPT),O)
+        PETSC_ARCH = darwin_gcc-9.4_mpich-3.4.2
+      else
+        PETSC_ARCH = darwin_gcc-9.4_mpich-3.4.2_g
+      endif
+
+      HDF5 = f
+      HDF5_HOME = $(HOME)/lib/hdf5-1.8.13/gcc-9.4.0-openmpi-3.1.5
+      HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+      HDF5_MOD  = $(HDF5_HOME)/include
+      HDF5_INC  = $(HDF5_MOD)
+
+      ADIOS2 = t
+      ADIOS2_METHOD = MPI
+      ADIOS2_HOME = $(HOME)/lib/adios-2.8.3/gcc-9.4.0_mpich-3.4.2
+      ADIOS2_LIBS = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-libs)
+      ADIOS2_MOD  = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-flags)
+      ADIOS2_VER  = 2.8.3
+
+      SPRNG = t
+      SPRNG_HOME = $(HOME)/lib/sprng5/gcc-9.4.0_mpich-3.4.2
+      SPRNG_LIBS = $(SPRNG_HOME)/lib -lsprng -lstdc++ -lm
+      SPRNG_INC  = $(SPRNG_HOME)/include
+    else
+      PETSC_DIR =$(HOME)/Software/petsc-3.17.3
+
+      CPPFLAGS+= $(PREPROC)USE_MPICH
+
+      ifeq ($(BOPT),O)
+        PETSC_ARCH = darwin_gcc-9.4_openmpi-3.1.5
+      else
+        PETSC_ARCH = darwin_gcc-9.4_openmpi-3.1.5_g
+      endif
+
+      HDF5 = t
+      HDF5_HOME = $(HOME)/lib/hdf5-1.8.13/gcc-9.4.0-openmpi-3.1.5
+      HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+      HDF5_MOD  = $(HDF5_HOME)/include
+      HDF5_INC  = $(HDF5_MOD)
+
+      ADIOS2 = t
+      ADIOS2_METHOD = MPI
+#      ADIOS2_HOME = $(HOME)/lib/adios-2.5.0/gcc-9.4.0_openmpi-3.1.5
+      ADIOS2_HOME = $(HOME)/lib/adios-2.8.3/gcc-9.4.0_openmpi-3.1.5
+      ADIOS2_LIBS = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-libs)
+      ADIOS2_MOD  = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-flags)
+#      ADIOS2_VER  = 2.5.0
+      ADIOS2_VER  = 2.8.3
+
+      SPRNG = t
+      SPRNG_HOME = $(HOME)/lib/sprng5/gcc-9.4.0_openmpi-3.1.5
+      SPRNG_LIBS = $(SPRNG_HOME)/lib -lsprng -lstdc++ -lm
+      SPRNG_INC  = $(SPRNG_HOME)/include
+    endif
+      
   else
     LIBS += -L/opt/local/lib/lapack -llapack -lblas
 
@@ -523,7 +555,6 @@ ifeq ($(findstring pn2033419,$(HOST)),pn2033419)
   endif
 
 endif
-
 ##############
 # quadrivium #
 ##############
