@@ -468,6 +468,8 @@ ifeq ($(findstring pn2033419,$(HOST)),pn2033419)
 
   OMP_NUM_THREADS = 8
 
+  override MACHINE = pn2033419
+
 #  ARPACK_LIBS = -L../contrib/arpack/ -larpack_$(FC)
 
   ifdef BOPT
