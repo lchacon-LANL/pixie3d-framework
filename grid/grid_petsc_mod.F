@@ -481,34 +481,29 @@ c     Store MPI info
 
         call DMDAGetNeighbors(dactx%da,neighbors,mpierr)
 
-c$$$        do i=1,27
-c$$$          iz = (i-1)/9
-c$$$          iy = (i-1 - 9*iz)/3
-c$$$          ix = i-1 - iy*3 - iz*9
-c$$$          dactx%proc_neighbors(ix-1,iy-1,iz-1)=neighbors(i)
-c$$$        enddo
+        where (neighbors < 0) neighbors = MPI_PROC_NULL
+        
         dactx%proc_neighbors = reshape(neighbors,(/3,3,3/))
 
-        !Make "self" a fake neighbor in serial PER cases
+        !Make "self" a fake neighbor in serial directions
         if (bcond(1)==PER.and.dactx%mx == 1) then
-          dactx%proc_neighbors(-1,:,:) = dactx%proc_neighbors(0,:,:)
-          dactx%proc_neighbors( 1,:,:) = dactx%proc_neighbors(0,:,:)
+          dactx%proc_neighbors(-1,0,0) = dactx%proc_neighbors(0,0,0)
+          dactx%proc_neighbors( 1,0,0) = dactx%proc_neighbors(0,0,0)
         endif
         if (bcond(3)==PER.and.dactx%my == 1) then
-          dactx%proc_neighbors(:,-1,:) = dactx%proc_neighbors(:,0,:)
-          dactx%proc_neighbors(:, 1,:) = dactx%proc_neighbors(:,0,:)
+          dactx%proc_neighbors(0,-1,0) = dactx%proc_neighbors(0,0,0)
+          dactx%proc_neighbors(0, 1,0) = dactx%proc_neighbors(0,0,0)
         endif
         if (bcond(5)==PER.and.dactx%mz == 1) then
-          dactx%proc_neighbors(:,:,-1) = dactx%proc_neighbors(:,:,0)
-          dactx%proc_neighbors(:,:, 1) = dactx%proc_neighbors(:,:,0)
+          dactx%proc_neighbors(0,0,-1) = dactx%proc_neighbors(0,0,0)
+          dactx%proc_neighbors(0,0, 1) = dactx%proc_neighbors(0,0,0)
         endif
 
-c$$$        if (dactx%rank == 0) then
-c$$$          write (*,*) neighbors
-c$$$          write (*,*) dactx%proc_neighbors( 0  , 1,0)
-c$$$          write (*,*) dactx%proc_neighbors(-1:1, 0,0)
-c$$$          write (*,*) dactx%proc_neighbors( 0  ,-1,0)
-c$$$        endif
+c$$$        write (*,*) dactx%rank,MPI_PROC_NULL
+c$$$        write (*,*) dactx%rank,neighbors
+c$$$        write (*,*) dactx%rank,dactx%proc_neighbors( 0  , 1,0)
+c$$$        write (*,*) dactx%rank,dactx%proc_neighbors(-1:1, 0,0)
+c$$$        write (*,*) dactx%rank,dactx%proc_neighbors( 0  ,-1,0)
 c$$$        stop
 
 c     End program

@@ -1,9 +1,15 @@
-#if !defined(PER_SYNC_ONLY)
-#if defined(USE_MPICH)
-#define PER_SYNC_ONLY .true.
-#else
-#define PER_SYNC_ONLY .false.
+#if !defined(PER_BC_SYNC)
+#define DO_CORNER_SYNC .false.
 #endif
+#if defined(samrai)
+#define DO_CORNER_SYNC .true.
+#endif
+#if !defined(DO_CORNER_SYNC)
+!#if defined(USE_MPICH)
+!#define DO_CORNER_SYNC .false.
+!#else
+#define DO_CORNER_SYNC .true.
+!#endif
 #endif
 
 c module BCS_variables
@@ -1333,7 +1339,7 @@ c     Fill logical ghost cells (if appropriate)
 
 c     Impose BCs
 
-      do bctype=2,BCLIM         !Do not do PER=1 for SAMRAI
+      do bctype=2,BCLIM
         do dim=1,3
           do loc=0,1
             ibc = (1+loc)+2*(dim-1)
@@ -1347,7 +1353,7 @@ c     Impose BCs
 
 c     Fill edges and corners
 
-      if (.not.PER_SYNC_ONLY) then
+      if (.not.DO_CORNER_SYNC) then
         xt_o = max(2,order)
 
         call fillEdges(gbc_def,array,array0,bcnd,xt_o)
@@ -1358,7 +1364,7 @@ c     Fill edges and corners
 c     Periodic boundary synchronizing
 
 #if defined(PER_BC_SYNC) && !defined(samrai)
-      call sync_bc(PER_SYNC_ONLY)
+      call sync_bc(DO_CORNER_SYNC)
 #endif
 
 c     End program
@@ -1367,7 +1373,7 @@ c     End program
 
 c     sync_bc
 c     #################################################################
-      subroutine sync_bc(only_per)
+      subroutine sync_bc(do_corners)
 
 c     -----------------------------------------------------------------
 c     Synchronizes PER boundaries and corners in parallel.
@@ -1377,7 +1383,7 @@ c     -----------------------------------------------------------------
 
 c     Call variables
       
-      logical :: only_per
+      logical :: do_corners
       
 c     Local variables
 
@@ -1394,7 +1400,7 @@ c     Begin program
         enddo
       enddo
 
-      if (only_per) return
+      if (.not.do_corners) return
 
       !Other: order by location
       do loc=0,1
@@ -1579,7 +1585,7 @@ c     Synchronize covariant and contravariant components
 
 c     Fill edges (for both cnv and cov components)
 
-      if (.not.PER_SYNC_ONLY) then
+      if (.not.DO_CORNER_SYNC) then
         xt_o = max(2,order)
 
         do ivar=1,ncomp
@@ -1600,7 +1606,7 @@ c       Fill corners (for both cnv and cov components)
 c     Periodic boundary and corner synchronizing
 
 #if defined(PER_BC_SYNC) && !defined(samrai)
-      call sync_bc(PER_SYNC_ONLY)
+      call sync_bc(DO_CORNER_SYNC)
 #endif
 
 c     End program
@@ -1609,11 +1615,11 @@ c     End program
 
 c     sync_bc
 c     #################################################################
-      subroutine sync_bc(only_per)
+      subroutine sync_bc(do_corners)
 
 c     Call variables
 
-      logical :: only_per
+      logical :: do_corners
 
 c     Local variables
       
@@ -1638,7 +1644,7 @@ c     Begin program
         enddo
       enddo
 
-      if (only_per) return
+      if (.not.do_corners) return
 
       !Other: order by location first
       do loc=0,1
@@ -1912,7 +1918,7 @@ c     Fill logical ghost cells and PER BCs
 
 c     Impose physical BCs
 
-      do bctype=2,BCLIM         !Do not do PER=1 for SAMRAI
+      do bctype=2,BCLIM
         do dim=1,3
           do loc=0,1
             ibc = (1+loc)+2*(dim-1)
@@ -1930,7 +1936,7 @@ c     Impose physical BCs
 
 c     Fill edges and corners
 
-      if (.not.PER_SYNC_ONLY) then
+      if (.not.DO_CORNER_SYNC) then
         xt_o = max(2,order)
 
         do ivar=1,ncomp
@@ -1946,7 +1952,7 @@ c     Fill edges and corners
 c     Periodic boundary synchronizing
 
 #if defined(PER_BC_SYNC) && !defined(samrai)
-      call sync_bc(PER_SYNC_ONLY)
+      call sync_bc(DO_CORNER_SYNC)
 #endif
 
       deallocate(vec0)
@@ -1957,11 +1963,11 @@ c     End program
 
 c     sync_bc
 c     #################################################################
-      subroutine sync_bc(only_per)
+      subroutine sync_bc(do_corners)
 
 c     Call variables
 
-      logical :: only_per
+      logical :: do_corners
 
 c     Local variables
       
@@ -1982,7 +1988,7 @@ c     Begin program
         enddo
       enddo
 
-      if (only_per) return
+      if (.not.do_corners) return
 
       !Other: order by location first
       do loc=0,1
@@ -2168,7 +2174,7 @@ c     Synchronize covariant and contravariant components (only bottom bdrys)
 
 c     Fill edges (for both cnv and cov components)
 
-      if (.not.PER_SYNC_ONLY) then
+      if (.not.DO_CORNER_SYNC) then
         xt_o = max(2,order)
 
         do ivar=1,ncomp
@@ -2189,7 +2195,7 @@ c       Fill corners (for both cnv and cov components)
 c     Periodic boundary and corner synchronizing
 
 #if defined(PER_BC_SYNC) && !defined(samrai)
-      call sync_bc(PER_SYNC_ONLY)
+      call sync_bc(DO_CORNER_SYNC)
 #endif
 
 c     End program
@@ -2299,11 +2305,11 @@ c     Begin program
 
 c     sync_bc
 c     #################################################################
-      subroutine sync_bc(only_per)
+      subroutine sync_bc(do_corners)
 
 c     Call variables
 
-      logical :: only_per
+      logical :: do_corners
 
 c     Local variables
       
@@ -2326,7 +2332,7 @@ c     Begin program
         enddo
       enddo
 
-      if (only_per) return
+      if (.not.do_corners) return
 
       !Other: order by location first
       do loc=0,1
@@ -2680,7 +2686,7 @@ c     Fill logical ghost cells
 
 c     Impose physical BCs
 
-      do bctype=2,BCLIM         !Do not do PER=1 for SAMRAI
+      do bctype=2,BCLIM
         do dim=1,3
           do loc=0,1
             ibc = (1+loc)+2*(dim-1)
@@ -2698,7 +2704,7 @@ c     Impose physical BCs
 
 c     Fill edges and corners
 
-      if (.not.PER_SYNC_ONLY) then
+      if (.not.DO_CORNER_SYNC) then
         xt_o = max(2,order)
 
         do ivar=1,ncomp
@@ -2714,7 +2720,7 @@ c     Fill edges and corners
 c     Periodic boundary synchronizing
 
 #if defined(PER_BC_SYNC) && !defined(samrai)
-      call sync_bc(PER_SYNC_ONLY)
+      call sync_bc(DO_CORNER_SYNC)
 #endif
 
       if (PRESENT(vec0)) then
@@ -2732,11 +2738,11 @@ c     End program
 
 c     sync_bc
 c     #################################################################
-      subroutine sync_bc(only_per)
+      subroutine sync_bc(do_corners)
 
 c     Call variables
 
-      logical :: only_per
+      logical :: do_corners
 
 c     Local variables
       
@@ -2757,7 +2763,7 @@ c     Begin program
         enddo
       enddo
 
-      if (only_per) return
+      if (.not.do_corners) return
 
       !Other: order by location first
       do loc=0,1
@@ -3288,7 +3294,8 @@ c$$$        if (pn( 0, 0, 1)/=nullp.and.pn( 0, 0, 1)/=currp)
 c$$$     .       array(i,0:nybc+1,nzbc+1) = dumyout2
 
         if (down) then
-          if (pn(0,-1,0)==pn(0,1,0)) then  !Special case where both neighbors are same proc (PER)
+          !Special case where both neighbors are same proc (PER)
+          if (pn(0,-1,0)==pn(0,1,0).and.pn(0,1,0)/=nullp) then
             array(i,0     ,0:nzbc+1) = dumzout2
           else
             array(i,0     ,0:nzbc+1) = dumzout1
@@ -3296,7 +3303,8 @@ c$$$     .       array(i,0:nybc+1,nzbc+1) = dumyout2
         endif
 
         if (up) then
-          if (pn(0,-1,0)==pn(0,1,0)) then
+          !Special case where both neighbors are same proc (PER)
+          if (pn(0,-1,0)==pn(0,1,0).and.pn(0,1,0)/=nullp) then
             array(i,nybc+1,0:nzbc+1) = dumzout1
           else
             array(i,nybc+1,0:nzbc+1) = dumzout2
@@ -3304,7 +3312,8 @@ c$$$     .       array(i,0:nybc+1,nzbc+1) = dumyout2
         endif
 
         if (bottom) then
-          if (pn(0,0,-1)==pn(0,0,1)) then
+          !Special case where both neighbors are same proc (PER)
+          if (pn(0,0,-1)==pn(0,0,1).and.pn(0,0,1)/=nullp) then
             array(i,0:nybc+1,0     ) = dumyout2
           else
             array(i,0:nybc+1,0     ) = dumyout1
@@ -3312,7 +3321,8 @@ c$$$     .       array(i,0:nybc+1,nzbc+1) = dumyout2
         endif
 
         if (top) then
-          if (pn(0,0,-1)==pn(0,0,1)) then
+          !Special case where both neighbors are same proc (PER)
+          if (pn(0,0,-1)==pn(0,0,1).and.pn(0,0,1)/=nullp) then
             array(i,0:nybc+1,nzbc+1) = dumyout1
           else
             array(i,0:nybc+1,nzbc+1) = dumyout2
@@ -3434,7 +3444,8 @@ c$$$        if (pn( 0, 0, 1)/=nullp.and.pn( 0, 0, 1)/=currp)
 c$$$     .       array(0:nxbc+1,j,nzbc+1) = dumxout2
 
         if (left) then
-          if (pn(-1,0,0)==pn(1,0,0)) then
+          !Special case where both neighbors are same proc (PER)
+          if (pn(-1,0,0)==pn(1,0,0).and.pn(1,0,0)/=nullp) then
             array(0     ,j,0:nzbc+1) = dumzout2
           else
             array(0     ,j,0:nzbc+1) = dumzout1
@@ -3442,7 +3453,8 @@ c$$$     .       array(0:nxbc+1,j,nzbc+1) = dumxout2
         endif
 
         if (right) then
-          if (pn(-1,0,0)==pn(1,0,0)) then
+          !Special case where both neighbors are same proc (PER)
+          if (pn(-1,0,0)==pn(1,0,0).and.pn(1,0,0)/=nullp) then
             array(nxbc+1,j,0:nzbc+1) = dumzout1
           else
             array(nxbc+1,j,0:nzbc+1) = dumzout2
@@ -3450,7 +3462,8 @@ c$$$     .       array(0:nxbc+1,j,nzbc+1) = dumxout2
         endif
 
         if (bottom) then
-          if (pn(0,0,-1)==pn(0,0,1)) then
+          !Special case where both neighbors are same proc (PER)
+          if (pn(0,0,-1)==pn(0,0,1).and.pn(0,0,1)/=nullp) then
             array(0:nxbc+1,j,0     ) = dumxout2
           else
             array(0:nxbc+1,j,0     ) = dumxout1
@@ -3458,7 +3471,8 @@ c$$$     .       array(0:nxbc+1,j,nzbc+1) = dumxout2
         endif
 
         if (top) then
-          if (pn(0,0,-1)==pn(0,0,1)) then
+          !Special case where both neighbors are same proc (PER)
+          if (pn(0,0,-1)==pn(0,0,1).and.pn(0,0,1)/=nullp) then
             array(0:nxbc+1,j,nzbc+1) = dumxout1
           else
             array(0:nxbc+1,j,nzbc+1) = dumxout2
@@ -3579,7 +3593,8 @@ c$$$        if (pn( 0, 1, 0)/=nullp.and.pn( 0, 1, 0)/=currp)
 c$$$     .       array(0:nxbc+1,nybc+1,k) = dumxout2
 
         if (left) then
-          if (pn(-1,0,0)==pn(1,0,0)) then
+          !Special case where both neighbors are same proc (PER)
+          if (pn(-1,0,0)==pn(1,0,0).and.pn(1,0,0)/=nullp) then
             array(0     ,0:nybc+1,k) = dumyout2
           else
             array(0     ,0:nybc+1,k) = dumyout1
@@ -3587,7 +3602,8 @@ c$$$     .       array(0:nxbc+1,nybc+1,k) = dumxout2
         endif
 
         if (right) then
-          if (pn(-1,0,0)==pn(1,0,0)) then
+          !Special case where both neighbors are same proc (PER)
+          if (pn(-1,0,0)==pn(1,0,0).and.pn(1,0,0)/=nullp) then
             array(nxbc+1,0:nybc+1,k) = dumyout1
           else
             array(nxbc+1,0:nybc+1,k) = dumyout2
@@ -3595,7 +3611,8 @@ c$$$     .       array(0:nxbc+1,nybc+1,k) = dumxout2
         endif
 
         if (down) then
-          if (pn(0,-1,0)==pn(0,1,0)) then
+          !Special case where both neighbors are same proc (PER)
+          if (pn(0,-1,0)==pn(0,1,0).and.pn(0,1,0)/=nullp) then
             array(0:nxbc+1,0     ,k) = dumxout2
           else
             array(0:nxbc+1,0     ,k) = dumxout1
@@ -3603,7 +3620,8 @@ c$$$     .       array(0:nxbc+1,nybc+1,k) = dumxout2
         endif
 
         if (up) then
-          if (pn(0,-1,0)==pn(0,1,0)) then
+          !Special case where both neighbors are same proc (PER)
+          if (pn(0,-1,0)==pn(0,1,0).and.pn(0,1,0)/=nullp) then
             array(0:nxbc+1,nybc+1,k) = dumxout1
           else
             array(0:nxbc+1,nybc+1,k) = dumxout2
