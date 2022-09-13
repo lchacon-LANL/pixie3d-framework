@@ -506,8 +506,6 @@ ifeq ($(findstring pn2033419,$(HOST)),pn2033419)
     else
       PETSC_DIR =$(HOME)/Software/petsc-3.17.3
 
-      CPPFLAGS+= $(PREPROC)USE_MPICH
-
       ifeq ($(BOPT),O)
         PETSC_ARCH = darwin_gcc-9.4_openmpi-3.1.5
       else
