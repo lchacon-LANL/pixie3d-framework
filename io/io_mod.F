@@ -631,12 +631,13 @@ c     Begin program
       endif
 
       !Open files
+      ifile = find_unit(1234)
       open(ifile,file='fileContents.txt',status='old')
       allocate(munit(NFiles))
       do i = 1,NFiles
         read(ifile,'(a)') dumstr
-        write(*,'(a,a)') "Opening file ",trim(dumstr)
-        munit(i) = find_unit(1234)
+        write(*,'(a,a)') " Opening file ",trim(dumstr)
+        munit(i) = find_unit(12345)
         open(unit=munit(i),file=trim(dumstr),status='old')
       end do 
 
