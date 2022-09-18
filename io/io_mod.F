@@ -595,7 +595,7 @@ c     End programs
 
 c     getFiles
 c     #################################################################
-      function getFiles(bname,munit) result(ierr)
+      function getFiles(bname,munit,info) result(ierr)
 
 c     -----------------------------------------------------------------
 c     Get files with basename bname
@@ -605,7 +605,7 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-      integer :: ierr
+      integer :: ierr,info
       integer,pointer,dimension(:) :: munit
       character(*) :: bname
 
@@ -636,7 +636,7 @@ c     Begin program
       allocate(munit(NFiles))
       do i = 1,NFiles
         read(ifile,'(a)') dumstr
-        write(*,'(a,a)') " Opening file ",trim(dumstr)
+        if (info > 0) write(*,'(a,a)') " Opening file ",trim(dumstr)
         munit(i) = find_unit(12345)
         open(unit=munit(i),file=trim(dumstr),status='old')
       end do 
