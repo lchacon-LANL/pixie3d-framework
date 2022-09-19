@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.13)
+cmake_minimum_required(VERSION 3.18)
 
 # flag if we run as a subproject
 set(subproject OFF)
@@ -112,8 +112,9 @@ framework_option(USE_PIC_CUDA "Use CUDA for PIC libs" OFF)
 framework_option(USE_HDF5 "Use HDF5 libraries" OFF)
 framework_option(USE_ARPACK "Use ARPACK libraries" OFF)
 framework_option(USE_SAMRAI "Use SAMRAI" OFF)
+# FIXME mpuch requires OFF because of argument mismatch problem
 framework_option(
-    USE_Werror "Turns all warnings into errors, good to fix errors" ON
+    USE_Werror "Turns all warnings into errors, good to fix errors" OFF
 )
 
 framework_dependent_option(USE_ADIOS2 "Enable ADIOS2 io library" ON "USE_PETSc" OFF)
@@ -265,7 +266,7 @@ if(USE_PETSc)
   # MPI
   find_package(MPI REQUIRED)
   # petsc
-  find_package(PETSC 3.0.0 EXACT REQUIRED)
+  find_package(PETSC 3.17.3 REQUIRED)
 
   # add to interface
   target_link_libraries(
@@ -432,6 +433,12 @@ function(init_target target_name)
          "${CMAKE_CURRENT_SOURCE_DIR}/${target_source}"
     )
   endforeach()
+
+  # FIXME for newer gnu, allow function parameter mismatch for mpich
+  if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
+    # enable preprocessor
+    target_compile_options(${target_name} PRIVATE "-fallow-argument-mismatch")
+  endif()
 
   # set these values in outer scope (kind of return value)
   set(cmake_files
