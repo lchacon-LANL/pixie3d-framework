@@ -2,11 +2,11 @@ c     module gm_init
 c     ##################################################################
       module gm_init
 
+      use grid_mpi
+      
       use kmeans_mod
 
       use gs_kmeans_mod
-
-      integer,private :: mpierr
 
       REAL(8)                              :: TS
       REAL(8), DIMENSION(:  ), ALLOCATABLE :: XMUS
@@ -75,12 +75,13 @@ c    Local variables
 
 c     Begin program
 
-#if defined(petsc)
-      call MPI_Allreduce(NIND,NINDT,1,MPI_INTEGER
-     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-#else
-      NINDT = NIND
-#endif
+      NINDT = psum((/NIND/))
+c$$$#if defined(petsc)
+c$$$      call MPI_Allreduce(NIND,NINDT,1,MPI_INTEGER
+c$$$     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+c$$$#else
+c$$$      NINDT = NIND
+c$$$#endif
 
       ALLOCATE(XMUS(NATT),XVARS(NATT,NATT))
 
@@ -97,12 +98,12 @@ c     Begin program
 
       W(1:NIND,1) = WX(1:NIND)
 
-      WTOT = sum(WX) !adding all particle weights for calculating the total variance 
-#if defined(petsc)
-      lwtot = WTOT
-      call MPI_Allreduce(lwtot,WTOT,1,MPI_DOUBLE_PRECISION
-     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-#endif
+      WTOT = psum(WX) !adding all particle weights for calculating the total variance 
+c$$$#if defined(petsc)
+c$$$      lwtot = WTOT
+c$$$      call MPI_Allreduce(lwtot,WTOT,1,MPI_DOUBLE_PRECISION
+c$$$     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+c$$$#endif
       WSUM = WTOT
 
       if (GMM_RANDOM_INIT) then
@@ -166,17 +167,17 @@ C    !Invert covariance matrices, returned by GS-KMeans init
 
       CALL GDET(NATT,NG,XVAR(1:NG,:,:),V(1:NG,:,:),DV(1:NG),IER)
 
-      IER=0
+      IER = 0
 
 C     Calculate total data size when data is weighted ie weighted
 C     likelihood and sum of weights does not equal one.
 
-      WTOT=sum(WX)
-#if defined(petsc)
-      lwtot = WTOT
-      call MPI_Allreduce(lwtot,WTOT,1,MPI_DOUBLE_PRECISION
-     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-#endif
+      WTOT = psum(WX)
+c$$$#if defined(petsc)
+c$$$      lwtot = WTOT
+c$$$      call MPI_Allreduce(lwtot,WTOT,1,MPI_DOUBLE_PRECISION
+c$$$     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+c$$$#endif
 
       ! If (adaptive/GS)--K-means is used then NG is changed.
       ! Here, 

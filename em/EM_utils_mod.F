@@ -17,8 +17,6 @@ C          maximum value of the A term in exp(-A) used when calculating
 C          the density of a point. Above this value exp(-A) is equated
 C          to zero.
 
-      integer,private :: mpierr
-
       CONTAINS
 
 c     CAPART

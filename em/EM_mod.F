@@ -9,8 +9,6 @@ c     ##################################################################
       PUBLIC :: EM
 
       INTEGER :: NCOV
-
-      integer,private :: mpierr
       
       CONTAINS
 

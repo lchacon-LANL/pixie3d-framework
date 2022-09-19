@@ -13,8 +13,6 @@ c     ##################################################################
       INTEGER :: NCOV
 CGMM_OMP!$OMP THREADPRIVATE(NCOV)
 
-      integer,private :: mpierr
-
       CONTAINS
 
 c     AM_CWEM

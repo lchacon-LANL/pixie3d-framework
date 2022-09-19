@@ -1,13 +1,12 @@
       MODULE GS_KMEANS_MOD
 
       USE GM_IO
-      
-#if defined(m_p_i) || defined(petsc)
-      use mpi
-#endif
-      USE MATH, ONLY: GAUSS2,UNIF_RNG
 
-      integer :: mpierr
+      USE grid_mpi
+cc#if defined(m_p_i) || defined(petsc)
+cc      use mpi
+cc#endif
+      USE MATH, ONLY: GAUSS2,UNIF_RNG
 
       PRIVATE  ! Make everything private
       PUBLIC :: GMM_KMEANS_MULTI_INIT
@@ -76,17 +75,19 @@
       REAL(8) :: XSTAN(NIND,NATT),XMIN(NATT),XMAX(NATT)
      $          ,XRANGE(NATT)
 
-#if defined(petsc)
-      call MPI_Allreduce(NIND,NINDT,1,MPI_INTEGER
-     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-#else
-      NINDT = NIND
-#endif
+c$$$#if defined(petsc)
+c$$$      call MPI_Allreduce(NIND,NINDT,1,MPI_INTEGER
+c$$$     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+c$$$#else
+c$$$      NINDT = NIND
+c$$$#endif
 
+      NINDT = psum((/NIND/))
+      
       ! Standardize the particles' velocities X-->XSTAN
       DO I=1,NATT
-        XMIN(I)=MINVAL(X(:,I))
-        XMAX(I)=MAXVAL(X(:,I))
+        XMIN(I)=pmin(MINVAL(X(:,I)))
+        XMAX(I)=pmax(MAXVAL(X(:,I)))
         XRANGE(I)=XMAX(I)-XMIN(I)
         XSTAN(:,I)=X(:,I)/XRANGE(I)
 cc        XSTAN(:,I)=X(:,I)
@@ -142,12 +143,12 @@ cc        XSTAN(:,I)=X(:,I)
         
         ! Here, we calculate total-mean & total-variance
         ! aka sample mean & sample variance matrix
-        WSUM=SUM(WX(1:NIND))
-#if defined(petsc)
-        lwtot = WSUM
-        call MPI_Allreduce(lwtot,WSUM,1,MPI_DOUBLE_PRECISION
-     .                    ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-#endif
+        WSUM=PSUM(WX(1:NIND))
+c$$$#if defined(petsc)
+c$$$        lwtot = WSUM
+c$$$        call MPI_Allreduce(lwtot,WSUM,1,MPI_DOUBLE_PRECISION
+c$$$     .                    ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+c$$$#endif
         CALL LCALK(NIND,NATT,X,WX,WSUM,XMUS(1:NATT)
      $            ,XVARS(1:NATT,1:NATT)) 
 
@@ -225,12 +226,12 @@ cc        XSTAN(:,I)=X(:,I)
                             !     over a box aligned with the principal components of the data.
                             ! 3. Generate the reference data set from a normal distribution
                             !     with parameters := samples' mean & samples' covariance 
-      WTOT = SUM(WX(1:NIND))!DBLE(NIND)
-#if defined(petsc)
-      lwtot = WTOT
-      call MPI_Allreduce(lwtot,WTOT,1,MPI_DOUBLE_PRECISION
-     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-#endif
+      WTOT = PSUM(WX(1:NIND))!DBLE(NIND)
+c$$$#if defined(petsc)
+c$$$      lwtot = WTOT
+c$$$      call MPI_Allreduce(lwtot,WTOT,1,MPI_DOUBLE_PRECISION
+c$$$     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+c$$$#endif
       KM_TOL = 1D-5             ! Tol. to terminate K-means
       MAXIT = 200           ! Max iter for K-means
       A2 = 0.0D0            ! Scaling factor for the squared standard dev.
@@ -313,8 +314,8 @@ cc        XSTAN(:,I)=X(:,I)
         ! Generate each reference feature uniformly over the range of 
         ! the observed values for that feature.
         DO I=1,NATT
-          XMIN = MINVAL(X(:,I))
-          XMAX = MAXVAL(X(:,I))
+          XMIN = pmin(MINVAL(X(:,I)))
+          XMAX = pmax(MAXVAL(X(:,I)))
           DIFF = XMAX-XMIN
           PRINT*,DIFF
 CC          CALL RANDOM_NUMBER(XREF(1:NIND,I)) !Problematic with OpenMP
@@ -340,8 +341,8 @@ CC          XREF(1:NIND,I) = DIFF*XREF(1:NIND,I)+XMIN
         CALL DGEMM('N','N',NIND,NATT,NATT,1.0D0,X,NIND,V,NATT
      $          ,0.0D0,XP,NIND)
         DO I=1,NATT
-          XMIN = MINVAL(XP(:,I))
-          XMAX = MAXVAL(XP(:,I))
+          XMIN = pmin(MINVAL(XP(:,I)))
+          XMAX = pmax(MAXVAL(XP(:,I)))
           DIFF = XMAX-XMIN
           !DIFF = 1.0D0
           !XMIN = 0D0
@@ -503,7 +504,6 @@ CC          ZP(1:NIND,I) = DIFF*ZP(1:NIND,I)+XMIN
         WORK(I) = 1D12
       END DO
 
-CC      CALL RANDOM_NUMBER(W)
       CALL UNIF_RNG(W)
       CHOICE=MIN(INT(W*DBLE(NIND))+1, NIND)
       C(1,1:NATT) = X(CHOICE,1:NATT)
@@ -522,7 +522,6 @@ CC      CALL RANDOM_NUMBER(W)
             WORK(I) = BEST
 10          TOT = TOT + BEST
           END DO
-CC          CALL RANDOM_NUMBER(W)
           CALL UNIF_RNG(W)
           W = W * TOT
           TOT = 0D0
@@ -551,10 +550,10 @@ CC          CALL RANDOM_NUMBER(W)
 
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       INTEGER T,TT
-      EXTERNAL RANDNUM
+      !EXTERNAL RANDNUM
       INTEGER FLAGS(40),FYLENO
       COMMON /STORE2/ FLAGS,FYLENO
-      DOUBLE PRECISION RANDNUM
+      !DOUBLE PRECISION RANDNUM
       !       INCLUDE 'EMMIX.max'
       DIMENSION WX(NIND),X(NIND,NATT),XK(NG,NATT)
      $   ,XKOLD(NG,NATT),IDT(NIND)
@@ -587,13 +586,13 @@ CC      CALL KSEED(NIND,NATT,NG,XSTAN,XK,IER)	        ! pick centroids randomly 
         ! Convergence check: also compute the total inertia
         IF (ET.LE.EPSILON) THEN
           ! Regular inertia
-          INERTIA_SUM = SUM(INERTIA)
-          ! Weighted inertia
-#if defined(petsc)
-          LSUM = INERTIA_SUM
-          call MPI_Allreduce(LSUM,INERTIA_SUM,1,MPI_DOUBLE_PRECISION
-     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-#endif
+          INERTIA_SUM = PSUM(INERTIA)
+c$$$          ! Weighted inertia
+c$$$#if defined(petsc)
+c$$$          LSUM = INERTIA_SUM
+c$$$          call MPI_Allreduce(LSUM,INERTIA_SUM,1,MPI_DOUBLE_PRECISION
+c$$$     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+c$$$#endif
           GO TO 99
         END IF
 30    CONTINUE          ! End iterative loop in T
@@ -601,7 +600,7 @@ CC      CALL KSEED(NIND,NATT,NG,XSTAN,XK,IER)	        ! pick centroids randomly 
       !WRITE (FYLENO,*) 'REACHED MAXIMUM NUMBER OF ',TT,' ITERATIONS'
       IER=-41
 99    RETURN
-      END SUBROUTINE
+      END SUBROUTINE KMEANS
     
     
 !######################################################################
@@ -645,14 +644,12 @@ CC      CALL KSEED(NIND,NATT,NG,XSTAN,XK,IER)	        ! pick centroids randomly 
 
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       INTEGER CHOICE
-      EXTERNAL RANDNUM
-      DOUBLE PRECISION RANDNUM
+      !EXTERNAL RANDNUM
+      !DOUBLE PRECISION RANDNUM
       !INCLUDE 'EMMIX.max'
       DIMENSION XSTAN(NIND,NATT),XK(NG,NATT)
       !CALL RANDOM_SEED
       DO 210 I=1,NG
-       !R=RANDNUM()
-CC        CALL RANDOM_NUMBER(R)
         CALL UNIF_RNG(R)
         ! Convert CHOICE to integer
         R=R*NIND
@@ -820,7 +817,7 @@ CC        CALL RANDOM_NUMBER(R)
          DO JJ=1,NIND
             SUM(J)=SUM(J)+X(JJ,J)*W(JJ)
          END DO
-      END DO    
+      END DO
 #if defined(petsc)
       LSUM = SUM
       call MPI_Allreduce(lsum,SUM,NATT,MPI_DOUBLE_PRECISION
