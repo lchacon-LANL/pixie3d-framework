@@ -27,10 +27,8 @@ CGMM_OMP!$OMP THREADPRIVATE(NINDT)
      &          ,KM_NG_MAX  = 10  ! max # of Gaussians
      &          ,KM_NG_ADJ  = 2   ! to avoid underestimate # of Gaussians
 
-c$$$      namelist /gmm_init/ gmm_random_init,gmm_kmeans_init
-c$$$     .                   ,gmm_gs_kmeans_multi_init,km_runs,km_ref_set
-c$$$     .                   ,km_ng_min,km_ng_max,km_ng_adj
-
+      REAL(8) :: KM_TOL = 1d-4  ! KMEANS convergence tolerance
+      
       contains
 
 c     DESTROY_GM
@@ -76,12 +74,6 @@ c    Local variables
 c     Begin program
 
       NINDT = psum((/NIND/))
-c$$$#if defined(petsc)
-c$$$      call MPI_Allreduce(NIND,NINDT,1,MPI_INTEGER
-c$$$     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-c$$$#else
-c$$$      NINDT = NIND
-c$$$#endif
 
       ALLOCATE(XMUS(NATT),XVARS(NATT,NATT))
 
@@ -99,11 +91,6 @@ c$$$#endif
       W(1:NIND,1) = WX(1:NIND)
 
       WTOT = psum(WX) !adding all particle weights for calculating the total variance 
-c$$$#if defined(petsc)
-c$$$      lwtot = WTOT
-c$$$      call MPI_Allreduce(lwtot,WTOT,1,MPI_DOUBLE_PRECISION
-c$$$     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-c$$$#endif
       WSUM = WTOT
 
       if (GMM_RANDOM_INIT) then
@@ -128,7 +115,7 @@ c      Option to use GS--Multi-Kmeans initialization
         ! components
         if (GMM_GS_KMEANS_MULTI_INIT) THEN
           CALL OPTIMAL_K(NIND,NATT,WX,X,KM_REF_SET
-     $                ,KM_NG_MIN,KM_NG_MAX,OPT_NG)
+     $                ,KM_NG_MIN,KM_NG_MAX,KM_TOL,OPT_NG)
 
           NG = MIN(OPT_NG + KM_NG_ADJ,NG)
           if (STD_IO) write (*,*) "Optimal Kmeans # gaussians",NG
@@ -136,7 +123,7 @@ c      Option to use GS--Multi-Kmeans initialization
         end if
 
         ! Given the 'optimal' no. of component, do multi-Kmeans & select the best:
-        CALL GMM_KMEANS_MULTI_INIT(NIND,NATT,NG,500,WX,X
+        CALL GMM_KMEANS_MULTI_INIT(NIND,NATT,NG,500,KM_TOL,WX,X
      $          ,XMU(1:NG,:),XVAR(1:NG,:,:)
      $          ,T(1:NG),IDT,NK(1:NG),WTOT,KMITER,KM_RUNS)
 

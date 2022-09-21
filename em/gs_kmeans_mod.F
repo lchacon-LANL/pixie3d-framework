@@ -3,11 +3,11 @@
       USE GM_IO
 
       USE grid_mpi
-cc#if defined(m_p_i) || defined(petsc)
-cc      use mpi
-cc#endif
+
       USE MATH, ONLY: GAUSS2,UNIF_RNG
 
+      use OMP
+      
       PRIVATE  ! Make everything private
       PUBLIC :: GMM_KMEANS_MULTI_INIT
       PUBLIC :: OPTIMAL_K
@@ -44,8 +44,8 @@ cc#endif
 !   This subroutines perform K-means (with fixed number of clusters)
 !   for 'KM_RUNS' number of times and choose the best run using the 
 !   smallest inertia (SSE) value.
-      SUBROUTINE GMM_KMEANS_MULTI_INIT(NIND,NATT,NG,MAXIT,WX,X,XMU,
-     $      XVAR,T,IDT,GRP_COUNT,WTOT,ITOUT,KM_RUNS)
+      SUBROUTINE GMM_KMEANS_MULTI_INIT(NIND,NATT,NG,MAXIT,KM_TOL
+     $      ,WX,X,XMU,XVAR,T,IDT,GRP_COUNT,WTOT,ITOUT,KM_RUNS)
 !     This subroutine uses the KMEANS to initialize G-parameters for EM.
 !     Approach: Run K-Means clustering for 'KM_RUNS' times & select best cluster
       IMPLICIT NONE
@@ -56,12 +56,13 @@ cc#endif
       INTEGER, INTENT(INOUT) :: NG
       INTEGER, INTENT(OUT) :: ITOUT
       INTEGER, INTENT(INOUT) :: IDT(NIND)
-      REAL(8), INTENT(IN) :: WX(NIND),X(NIND,NATT),WTOT
+      REAL(8), INTENT(IN) :: WX(NIND),X(NIND,NATT),WTOT,KM_TOL
       REAL(8), INTENT(INOUT):: T(NG),XMU(NG,NATT),XVAR(NG,NATT,NATT)
       REAL(8), INTENT(OUT) :: GRP_COUNT(NG)
 
 !     Local variables
-      REAL(8) :: RAN,TEMP,KM_TOL,KLdist                         !RAN=Random number (0,1)
+
+      REAL(8) :: RAN,TEMP,KLdist
      $     ,XVAR_K(1:NATT,1:NATT),LSUMX(1:NATT,1:NATT)
      $     ,INERTIA,MIN_INERTIA
       INTEGER :: I,J,K,II,JJ,RANI,IER,NINDT                     !RANI=Random integer
@@ -75,13 +76,8 @@ cc#endif
       REAL(8) :: XSTAN(NIND,NATT),XMIN(NATT),XMAX(NATT)
      $          ,XRANGE(NATT)
 
-c$$$#if defined(petsc)
-c$$$      call MPI_Allreduce(NIND,NINDT,1,MPI_INTEGER
-c$$$     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-c$$$#else
-c$$$      NINDT = NIND
-c$$$#endif
-
+!     Begin program
+      
       NINDT = psum((/NIND/))
       
       ! Standardize the particles' velocities X-->XSTAN
@@ -96,24 +92,20 @@ cc        XSTAN(:,I)=X(:,I)
       MIN_INERTIA = 1.0D8   ! initialize to be large
       GRP_COUNT = 0D0
 
-      IF (NIND > 0) then
-        KM_TOL = 1D-4
-    
+      IF (NINDT > 0) then
         ! Using K-means clustering to obtain 'good guess' for means
-
         ! Standard K-Means (performed for 'KM_RUNS' times)
-        ! Truong 10/20/2020: Can we thread this JJ loop??? They can be treated as independent run
         DO JJ = 1,KM_RUNS
-           CALL KMEANS(NIND,NATT,NG,WX,XSTAN,XMU_KM,IDT_KM
-     $           ,KM_TOL,MAXIT,ITOUT,IER,INERTIA)
-           if (STD_IO) WRITE(*,*) "ITER =",JJ,"SSE =",INERTIA
-           if (DIAG_IO) WRITE(FYLENO,*) "ITER =",JJ,"SSE =",INERTIA
-           ! Select best run using 'smallest' value for inertia (SSE)
-           IF (INERTIA .LE. MIN_INERTIA) THEN
-             XMU(1:NG,1:NATT) = XMU_KM(1:NG,1:NATT)
-             IDT(1:NIND) = IDT_KM(1:NIND)
-             MIN_INERTIA = INERTIA
-           END IF
+          CALL KMEANS(NIND,NATT,NG,WX,XSTAN,XMU_KM,IDT_KM
+     $               ,KM_TOL,MAXIT,ITOUT,IER,INERTIA)
+          if (STD_IO) WRITE(*,*) "ITER =",JJ,"SSE =",INERTIA
+          if (DIAG_IO) WRITE(FYLENO,*) "ITER =",JJ,"SSE =",INERTIA
+          ! Select best run using 'smallest' value for inertia (SSE)
+          IF (INERTIA .LE. MIN_INERTIA) THEN
+            XMU = XMU_KM
+            IDT = IDT_KM
+            MIN_INERTIA = INERTIA
+          END IF
         END DO
         if (STD_IO) THEN
           WRITE(*,*) "Final clustering, min_SSE =",MIN_INERTIA
@@ -199,13 +191,13 @@ c$$$#endif
 !   We choose the optimal number of components K to be the
 !   smallest k such that Gap(k) > Gap(k+1) - 0.5*sd_{k+1} for k=KMIN,...,KMAX
 !   This condition is proposed in the paper by Tibshirani, Walther, Hastie 2001
-      SUBROUTINE OPTIMAL_K(NIND,NATT,WX,X,NREFS,KMIN,KMAX,OPT_K)
+      SUBROUTINE OPTIMAL_K(NIND,NATT,WX,X,NREFS,KMIN,KMAX,KM_TOL,OPT_K)
 
       IMPLICIT NONE
 
       !   Call variables
       INTEGER, INTENT(IN) :: NIND,NATT,NREFS,KMIN,KMAX
-      REAL(8), INTENT(IN) :: WX(NIND),X(NIND,NATT)
+      REAL(8), INTENT(IN) :: WX(NIND),X(NIND,NATT),KM_TOL
       INTEGER, INTENT(OUT) :: OPT_K
     
       !   Local variables
@@ -215,7 +207,7 @@ c$$$#endif
      $     ,SQDEV(NREFS),WTOT,WXREF(NIND),LWTOT
 
       INTEGER :: IDT(NIND),MAXIT,ITOUT,IER,K_VECTOR(KMAX-KMIN+1)
-      REAL(8) :: XMU(1:KMAX,1:NATT),KM_TOL,INERTIA,A1,A2
+      REAL(8) :: XMU(1:KMAX,1:NATT),INERTIA,A1,A2
     
       ! Code begins
     
@@ -226,13 +218,12 @@ c$$$#endif
                             !     over a box aligned with the principal components of the data.
                             ! 3. Generate the reference data set from a normal distribution
                             !     with parameters := samples' mean & samples' covariance 
-      WTOT = PSUM(WX(1:NIND))!DBLE(NIND)
-c$$$#if defined(petsc)
-c$$$      lwtot = WTOT
-c$$$      call MPI_Allreduce(lwtot,WTOT,1,MPI_DOUBLE_PRECISION
-c$$$     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-c$$$#endif
-      KM_TOL = 1D-5             ! Tol. to terminate K-means
+#if defined(petsc)
+      REF_SET_METHOD = 3    ! Method 2 is not MPI-ready
+#endif
+      
+      WTOT = PSUM(WX)
+
       MAXIT = 200           ! Max iter for K-means
       A2 = 0.0D0            ! Scaling factor for the squared standard dev.
                             ! We find (heuristically) that it is good to set A2=1 or 2
@@ -316,16 +307,15 @@ c$$$#endif
         DO I=1,NATT
           XMIN = pmin(MINVAL(X(:,I)))
           XMAX = pmax(MAXVAL(X(:,I)))
-          DIFF = XMAX-XMIN
-          PRINT*,DIFF
-CC          CALL RANDOM_NUMBER(XREF(1:NIND,I)) !Problematic with OpenMP
-CC          XREF(1:NIND,I) = DIFF*XREF(1:NIND,I)+XMIN
           DO J=1,NIND
             CALL UNIF_RNG(XREF(J,I))
             XREF(J,I) = DIFF*XREF(J,I)+XMIN
           END DO
         END DO
       ELSE IF (METHOD .EQ. 2) THEN
+#if defined(petsc)
+        call pstop("generate_reference_set","Broken in parallel")
+#endif
         ! Generate the reference features from a uniform distribution 
         ! over a box aligned with the principal components of the data.
         ! Compute SVD of X(1:NIND,1:NATT), note that the DGESVD returns V^T not V
@@ -365,7 +355,6 @@ CC          ZP(1:NIND,I) = DIFF*ZP(1:NIND,I)+XMIN
       END IF  ! End if in METHOD   
 
       END SUBROUTINE GENERATE_REFERENCE_SET
-    
     
 !######################################################################
 !   BOX_MULLER_GAUSSIAN_SAMPLING
@@ -468,11 +457,8 @@ CC          ZP(1:NIND,I) = DIFF*ZP(1:NIND,I)+XMIN
       XVAR = XVAR/WTOT + (1.11d-16)    
 
       END SUBROUTINE GET_SAMPLE_MEAN_COV
-    
-    
-    
-    
 
+      
 !   #######################################################################
 !   This group of subroutines implements the K-means Clustering algorithm.
 !   Implemented by David Peel May 1994
@@ -481,15 +467,15 @@ CC          ZP(1:NIND,I) = DIFF*ZP(1:NIND,I)+XMIN
 !   SEEDING_INIT_FOR_KMEANS
 !######################################################################
       SUBROUTINE SEEDING_INIT_FOR_KMEANS(NIND,NATT,NG,WX,X,C)
-      !     This subroutine is taken from:
-      !     https://rosettacode.org/wiki/K-means%2B%2B_clustering#Fortran
-      !     Implemented based on the paper "kmeans++: the advantages of careful seeding"
-      !     by David Arthur and Sergei Vassilvitskii (2007)
-      !     It is tested with gfortran and works well
+      !This subroutine is taken from:
+      !https://rosettacode.org/wiki/K-means%2B%2B_clustering#Fortran
+      !Implemented based on the paper "kmeans++: the advantages of careful seeding"
+      !by David Arthur and Sergei Vassilvitskii (2007)
+      !It is tested with gfortran and works well
 
       IMPLICIT NONE
 
-      !     Call variables
+      !Call variables
       INTEGER, INTENT(IN) :: NIND,NATT,NG
       REAL(8), INTENT(IN) :: WX(NIND),X(NIND,NATT)
       REAL(8), INTENT(OUT) :: C(NG,NATT)
@@ -544,94 +530,89 @@ CC          ZP(1:NIND,I) = DIFF*ZP(1:NIND,I)+XMIN
 !   KMEANS
 !######################################################################
       SUBROUTINE KMEANS(NIND,NATT,NG,WX,X,XMU,IDT,EPSILON
-     $                  ,TT,T,IER,INERTIA_SUM)
+     $                 ,TT,T,IER,INERTIA_SUM)
 !     Main subroutine - standard K-means for fixed number of cluster
 !     K-means can be initialized randomly or with improved seedings (preferred!)
 
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      INTEGER T,TT
-      !EXTERNAL RANDNUM
-      INTEGER FLAGS(40),FYLENO
-      COMMON /STORE2/ FLAGS,FYLENO
-      !DOUBLE PRECISION RANDNUM
-      !       INCLUDE 'EMMIX.max'
-      DIMENSION WX(NIND),X(NIND,NATT),XK(NG,NATT)
-     $   ,XKOLD(NG,NATT),IDT(NIND)
-     $   ,XSTAN(NIND,NATT),XMU(NG,NATT)
-      REAL(8) :: INERTIA(NIND),INERTIA_SUM,LSUM
-    
-      ! Code begins
-      IER=0
-        !   XMU(1:NG,1:NATT) = 0D0
-CC      CALL KSTAND(NIND,NATT,WX,X,XSTAN)              ! normalize sample
-        !   CALL KSEED(NIND,NATT,NG,XSTAN,XK,IER)	! pick centroids randomly from normalized sample.
-      XSTAN(1:NIND,1:NATT) = X(1:NIND,1:NATT)           ! do not normalize sample X
-      CALL SEEDING_INIT_FOR_KMEANS(NIND,NATT,NG,WX,XSTAN,XK)   ! pick centroids using kmeans++ style with improved seedings
-CC      CALL KSEED(NIND,NATT,NG,XSTAN,XK,IER)	        ! pick centroids randomly from original sample.
-        !   XK(1:NG,1:NATT) = XMU(1:NG,1:NATT)          ! pick centroids = pseudo-random init of means
+      IMPLICIT NONE
 
-      DO 30 T=1,TT      ! Begin iterative loop in T
-        DO 430 KK=1,NG
-          DO 420 LL=1,NATT 
-            XKOLD(KK,LL)=XK(KK,LL)
-420   	  CONTINUE
-430     CONTINUE
-        DO 20 KK=1,NIND
+!     Call variables
+
+      INTEGER :: NIND,NATT,NG,T,TT,IER,IDT(NIND)
+      REAL(8) :: WX(NIND),X(NIND,NATT),XSTAN(NIND,NATT)
+     $          ,XKOLD(NG,NATT),XK(NG,NATT)
+     $          ,XMU(NG,NATT),EPSILON
+
+!     Local variables
+      
+      INTEGER :: LL,KK
+      REAL(8) :: INERTIA(NIND),INERTIA_SUM,LSUM,DISTB
+    
+!     Begin program
+      
+      IER=0
+
+      XSTAN = X ! do not normalize sample X
+
+      !Pick centroids randomly
+CC      CALL KSEED(NIND,NATT,NG,XSTAN,XK,IER)
+      !Pick centroids using kmeans++ style with improved seedings
+      CALL SEEDING_INIT_FOR_KMEANS(NIND,NATT,NG,WX,XSTAN,XK)
+
+      DO T=1,TT                 ! Begin iterative loop in T
+
+        XKOLD = XK
+
+        DO KK=1,NIND
           CALL WINNER(NIND,NATT,NG,WX,XSTAN,KK,XK,IDT,IER,DISTB)
           INERTIA(KK) = DISTB   ! squared distance of point kk^{th} to its closest cluster
-20      CONTINUE
-        CALL UPDATE(NIND,NATT,NG,WX,XSTAN,XK,IDT,IER)
-        ET=RULE(NG,NATT,XKOLD,XK)
-        XMU(1:NG,1:NATT) = XK(1:NG,1:NATT)
+        ENDDO
+        
+        CALL UPDATE_LOC(NIND,NATT,NG,WX,XSTAN,XK,IDT,IER)
+        
         ! Convergence check: also compute the total inertia
-        IF (ET.LE.EPSILON) THEN
+        IF (sum(abs(XK-XKOLD)) <= EPSILON) THEN
           ! Regular inertia
           INERTIA_SUM = PSUM(INERTIA)
-c$$$          ! Weighted inertia
-c$$$#if defined(petsc)
-c$$$          LSUM = INERTIA_SUM
-c$$$          call MPI_Allreduce(LSUM,INERTIA_SUM,1,MPI_DOUBLE_PRECISION
-c$$$     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-c$$$#endif
-          GO TO 99
+          XMU = XK
+          RETURN
         END IF
-30    CONTINUE          ! End iterative loop in T
+      ENDDO
 
       !WRITE (FYLENO,*) 'REACHED MAXIMUM NUMBER OF ',TT,' ITERATIONS'
       IER=-41
-99    RETURN
+      
       END SUBROUTINE KMEANS
-    
-    
-!######################################################################
-!   KSTAND
-!######################################################################
-!     Normalizing the data to Z-score
-!     For our application of using A-AMEM, we may NOT need to use this
-      SUBROUTINE KSTAND(NIND,NATT,WX,X,XNEW) 
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      !   INCLUDE 'EMMIX.max'
-      DIMENSION X(NIND,NATT),XNEW(NIND,NATT),XVAR(NATT),XMU(NATT)
-     $          ,WX(NIND)
-      WTOT = SUM(WX(1:NIND))
-      DO 200 J=1,NATT
-        XMU(J)=0
-        DO 200 I=1,NIND
-          XMU(J)=XMU(J)+WX(I)*X(I,J)/WTOT 
-200     CONTINUE       
-      DO 210 J=1,NATT
-        XVAR(J)=0
-        DO 210 I=1,NIND
-          XVAR(J)=XVAR(J)+WX(I)*
-     $            (X(I,J)-XMU(J))*(X(I,J)-XMU(J))/(WTOT)
-210     CONTINUE
-      DO 220 J=1,NATT
-        DO 220 I=1,NIND
-          XNEW(I,J)=(X(I,J)-XMU(J))/XVAR(J)
-220     CONTINUE
-      RETURN
-      END SUBROUTINE KSTAND
-    
+
+c$$$!######################################################################
+c$$$!   KSTAND
+c$$$!######################################################################
+c$$$!     Normalizing the data to Z-score
+c$$$!     For our application of using A-AMEM, we may NOT need to use this
+c$$$      SUBROUTINE KSTAND(NIND,NATT,WX,X,XNEW) 
+c$$$      IMPLICIT NONE
+c$$$
+c$$$      INTEGER :: J,I,NIND,NATT
+c$$$      REAL(8) :: X(NIND,NATT),XNEW(NIND,NATT),XVAR(NATT),XMU(NATT)
+c$$$     $          ,WX(NIND),WTOT
+c$$$      WTOT = SUM(WX(1:NIND))
+c$$$      DO 200 J=1,NATT
+c$$$        XMU(J)=0
+c$$$        DO 200 I=1,NIND
+c$$$          XMU(J)=XMU(J)+WX(I)*X(I,J)/WTOT 
+c$$$200     CONTINUE       
+c$$$      DO 210 J=1,NATT
+c$$$        XVAR(J)=0
+c$$$        DO 210 I=1,NIND
+c$$$          XVAR(J)=XVAR(J)+WX(I)*
+c$$$     $            (X(I,J)-XMU(J))*(X(I,J)-XMU(J))/(WTOT)
+c$$$210     CONTINUE
+c$$$      DO 220 J=1,NATT
+c$$$        DO 220 I=1,NIND
+c$$$          XNEW(I,J)=(X(I,J)-XMU(J))/XVAR(J)
+c$$$220     CONTINUE
+c$$$      RETURN
+c$$$      END SUBROUTINE KSTAND
     
 !######################################################################
 !   KSEED
@@ -642,27 +623,20 @@ c$$$#endif
 !   random. Not recommend to use. Should use improved seedings
 !   See subroutine SEEDING_INIT_FOR_KMEANS
 
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      INTEGER CHOICE
-      !EXTERNAL RANDNUM
-      !DOUBLE PRECISION RANDNUM
-      !INCLUDE 'EMMIX.max'
-      DIMENSION XSTAN(NIND,NATT),XK(NG,NATT)
-      !CALL RANDOM_SEED
-      DO 210 I=1,NG
+      IMPLICIT NONE
+      INTEGER :: CHOICE,NIND,NATT,NG,IER,I
+
+      REAL(8) :: XSTAN(NIND,NATT),XK(NG,NATT),R
+
+      DO I=1,NG
         CALL UNIF_RNG(R)
         ! Convert CHOICE to integer
         R=R*NIND
-        CHOICE=INT(R)+1
-        !CHOICE=1+FLOOR(NIND*R)
-        !CHOICE = max(int(NIND*(dble(I))/dble(NG)),1)
-        DO 200 J=1,NATT
-          XK(I,J)=XSTAN(CHOICE,J) 
-200     CONTINUE
-210   CONTINUE
+        CHOICE=MAX(INT(R),1)
+        XK(I,:)=XSTAN(CHOICE,:) 
+      ENDDO
       RETURN
       END
-    
     
 !######################################################################
 !   WINNER
@@ -671,10 +645,10 @@ c$$$#endif
 !     This subroutine determines the allocation of the KKth point 
 !     ie which mean is closest to the given data point (Euclidean).
 
-!     INCLUDE 'EMMIX.max'
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      DIMENSION XSTAN(NIND,NATT),XK(NG,NATT),IDT(NIND)
-     $          ,WX(NIND)
+      IMPLICIT NONE
+      INTEGER :: NIND,NATT,NG,IDT(NIND),IER,I,J,KK
+      
+      REAL(8) :: XSTAN(NIND,NATT),XK(NG,NATT),WX(NIND),DISTB,DIST
 
       DO 310 I=1,NG
         DIST=0D0
@@ -689,32 +663,26 @@ c$$$#endif
 310   CONTINUE
       RETURN
       END
-    
-       
-       
+
 !######################################################################
-!   UPDATE
+!   UPDATE_LOC
 !######################################################################
 !     This subroutine update the new location for means in K-means alg.
-      SUBROUTINE UPDATE(NIND,NATT,NG,WX,XSTAN,XK,IDT,IER)
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-!     INCLUDE 'EMMIX.max'
-      DIMENSION XK(NG,NATT),IDT(NIND),XSTAN(NIND,NATT),N(NG)
-     $          ,WX(NIND),ISUMN(NG),SUMXK(NG,NATT)
+      SUBROUTINE UPDATE_LOC(NIND,NATT,NG,WX,XSTAN,XK,IDT,IER)
+      IMPLICIT NONE
 
-      DO 410 II=1,NG
-        N(II)=0
-        DO 410 LL=1,NATT
-          XK(II,LL)=0 
-410   CONTINUE
-      DO 450 I=1,NIND
+      INTEGER :: NIND,NATT,NG,IDT(NIND),II,I,LL,IER
+      REAL(8) :: XK(NG,NATT),XSTAN(NIND,NATT),SUMN(NG),N(NG)
+     $          ,WX(NIND),SUMXK(NG,NATT)
+
+      N = 0d0
+      XK = 0d0
+  
+      DO I=1,NIND
         II=IDT(I)
         N(II)=N(II)+WX(I)
-!       Update rules
-        DO 440 LL=1,NATT
-          XK(II,LL)=XK(II,LL)+WX(I)*XSTAN(I,LL)
-440     CONTINUE
-450   CONTINUE
+        XK(II,:)=XK(II,:)+WX(I)*XSTAN(I,:)
+      ENDDO
 
 #if defined(petsc)
       SUMXK = XK
@@ -722,73 +690,62 @@ c$$$#endif
      .              ,MPI_DOUBLE_PRECISION,MPI_SUM
      .              ,MPI_COMM_WORLD,mpierr)
 
-      ISUMN = N
-      call MPI_Allreduce(ISUMN,N,NG
-     .              ,MPI_INTEGER,MPI_SUM
+      SUMN = N
+      call MPI_Allreduce(SUMN,N,NG
+     .              ,MPI_DOUBLE_PRECISION,MPI_SUM
      .              ,MPI_COMM_WORLD,mpierr)
 #endif
 
-      DO 499 II=1,NG
-        DO 499 LL=1,NATT
-          IF (N(II).NE.0) THEN
-            XK(II,LL)=XK(II,LL)/N(II)       
-          ELSE
-            RETURN
-          ENDIF
-499   CONTINUE
+      DO II=1,NG
+        IF (N(II) > 0d0) THEN
+          XK(II,:)=XK(II,:)/N(II)       
+        ELSE
+          RETURN
+        ENDIF
+      ENDDO
+      
       RETURN
       END
 
+c$$$!######################################################################
+c$$$!   RULE
+c$$$!######################################################################
+c$$$      FUNCTION RULE(NG,NATT,XKOLD,XK)
+c$$$!     This function returns the value used to determine if the algorithm
+c$$$!     has converged it is a measure of the change in the nodes from iteration 
+c$$$!     to iteration. 
+c$$$      IMPLICIT NONE
+c$$$
+c$$$      INTEGER :: NG,NATT,R,KK
+c$$$      REAL(8) :: XK(NG,NATT),XKOLD(NG,NATT),RULE
+c$$$
+c$$$      RULE= sum(abs(XK-XKOLD))
+c$$$
+c$$$      RETURN
+c$$$      END
 
-!######################################################################
-!   RULE
-!######################################################################
-      FUNCTION RULE(NG,NATT,XKOLD,XK)
-!     This function returns the value used to determine if the algorithm
-!     has converged it is a measure of the change in the nodes from iteration 
-!     to iteration. 
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-!     INCLUDE 'EMMIX.max'
-      INTEGER R
-      DIMENSION XK(NG,NATT),XKOLD(NG,NATT)
-
-      RULE=0.0
-      DO 510 KK=1,NATT
-        DO 500 R=1,NG
-         RULE=RULE+abs(XK(R,KK)-XKOLD(R,KK))
-500    CONTINUE
-510   CONTINUE
-      RETURN
-      END
-
-
-!######################################################################
-!   FUNCTION RANDNUM()
-!######################################################################
-!           FUNCTION RANDNUM()
-!C          This is the function called by the program NMM. If you
-!C          wish to use your own portable random number generator 
-!C          then it should be used in place of this function.
-
-!	   IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-!	   COMMON /STORE1/ SEED,RANDTYPE,IX,IY,IZ
-!	   IF (RANDTYPE.EQ.1) THEN
-!             RANDNUM=RANDOM(IX,IY,IZ)
-!	   ELSE
-!      WRITE(*,*)'ERROR: As previously described due to random number'
-!      WRITE(*,*)'       generator problems features utilising'
-!      WRITE(*,*)'       random numbers are unavailable'
-!	   STOP
-!	   ENDIF
-!          RETURN
-!	   END
-
-
-!C   End of subroutine group for KMEANS-CLUSTERING
-!C   #######################################################################
-
-
-
+c$$$!######################################################################
+c$$$!   FUNCTION RANDNUM()
+c$$$!######################################################################
+c$$$           FUNCTION RANDNUM()
+c$$$!C          This is the function called by the program NMM. If you
+c$$$!C          wish to use your own portable random number generator 
+c$$$!C          then it should be used in place of this function.
+c$$$
+c$$$	   IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+c$$$	   COMMON /STORE1/ SEED,RANDTYPE,IX,IY,IZ
+c$$$	   IF (RANDTYPE.EQ.1) THEN
+c$$$             RANDNUM=RANDOM(IX,IY,IZ)
+c$$$	   ELSE
+c$$$      WRITE(*,*)'ERROR: As previously described due to random number'
+c$$$      WRITE(*,*)'       generator problems features utilising'
+c$$$      WRITE(*,*)'       random numbers are unavailable'
+c$$$	   STOP
+c$$$	   ENDIF
+c$$$          RETURN
+c$$$	   END
+c$$$!C   End of subroutine group for KMEANS-CLUSTERING
+c$$$!C   #######################################################################
 
 !c     LCALK
 !c     A copy yof LCALK from SEMGM.F

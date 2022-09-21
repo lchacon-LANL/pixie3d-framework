@@ -171,26 +171,24 @@ C    Setup GM EM algorithm
 
       ! Hardcode the initial condition for 1d overlapping data set
       IF (NATT.EQ.1) THEN
-      T(1:NG) = 1d0/3d0
-      XMU(1,1:NATT) = 0d0
-      XMU(2,1:NATT) = 0.1d0
-      XMU(3,1:NATT) = 0.2d0
-      XVAR(1,1:NATT,1:NATT) = 1d0
-      XVAR(2,1:NATT,1:NATT) = 1d0
-      XVAR(3,1:NATT,1:NATT) = 1d0
-      DO K=1,NG
-        CALL GDETK(NATT,K,XVAR(K,1:NATT,1:NATT),V(K,1:NATT,1:NATT)
-     .              ,DV(K),IERR,NULL)
-      END DO
+        T(1:NG) = 1d0/3d0
+        XMU(1,1:NATT) = 0d0
+        XMU(2,1:NATT) = 0.1d0
+        XMU(3,1:NATT) = 0.2d0
+        XVAR(1,1:NATT,1:NATT) = 1d0
+        XVAR(2,1:NATT,1:NATT) = 1d0
+        XVAR(3,1:NATT,1:NATT) = 1d0
+        DO K=1,NG
+          CALL GDETK(NATT,K,XVAR(K,1:NATT,1:NATT),V(K,1:NATT,1:NATT)
+     .                ,DV(K),IERR,NULL)
+        END DO
       END IF
-
 
 C     Initialize output G-params to be 0D0
 
       TOUT    = 0D0
       XMUOUT  = 0D0
       XVAROUT = 0D0
-
 
       ! timing the AMEM routine (without/with AA)
       call cpu_time(time_start)
