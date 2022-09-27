@@ -378,6 +378,8 @@ c     Begin program
       end do
 
       nlines = i
+
+      close(ifile)
 c$$$      write(*,'(a,I0)') "Number of lines in file: " , nlines
       
       end function lines_in_file
