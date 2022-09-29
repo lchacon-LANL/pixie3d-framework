@@ -353,7 +353,7 @@ c     ####################################################################
       function lines_in_file(file) result(nlines)
 
 c     --------------------------------------------------------------------
-c     Replaces line containing "text" with line "line" in ascii file "file"
+c     Computes number of lines in "file"
 c     --------------------------------------------------------------------
 
       implicit none
