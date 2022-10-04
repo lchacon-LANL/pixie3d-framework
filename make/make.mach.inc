@@ -1491,18 +1491,18 @@ ifeq ($(findstring sn,$(HOST)),sn)
 
   override MACHINE = snow
 
-  ifeq ($(findstring ifort,$(FC)),ifort)
+  ifeq ($(findstring ifort,$(shell $(FC) 2>&1)),ifort)
 
     NETCDF=f
 
     ifeq ($(MPI_NAME),openmpi)
      ifdef BOPT
-      PETSC_DIR =/usr/projects/DPIC/Software/petsc-3.0.0-p7
+      PETSC_DIR =/usr/projects/DPIC/Software/petsc-3.17.3
 
       ifeq ($(BOPT),O)
-       PETSC_ARCH = linux64_snow_intel-19.0.4_openmpi-3.1.6
+       PETSC_ARCH = snow_intel-21.2.0_openmpi-4.1.1
       else
-       PETSC_ARCH = linux64_snow_intel-17.0.4_openmpi-2.1.2_dbg
+       PETSC_ARCH = snow_intel-21.2.0_openmpi-4.1.1_g
       endif
 
       HDF5 = f
@@ -1520,7 +1520,7 @@ ifeq ($(findstring sn,$(HOST)),sn)
 
       ADIOS2 = t
       ADIOS2_METHOD = MPI_LUSTRE
-      ADIOS2_HOME = /usr/projects/DPIC/Software/adios-2.5/lib/intel-19.0.4_openmpi-3.1.6
+      ADIOS2_HOME = /usr/projects/DPIC/Software/adios-2.5/lib/snow_intel-21.2.0_openmpi-4.1.1
       ADIOS2_LIBS = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-libs)
       ADIOS2_MOD  = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-flags)
       ADIOS2_VER  = 2.5.0
@@ -1528,7 +1528,7 @@ ifeq ($(findstring sn,$(HOST)),sn)
       SPRNG = t
 
       SPRNG_PAR_HOME = /usr/projects/DPIC/Software/sprng5
-      SPRNG_LIBS = $(SPRNG_PAR_HOME)/snow_intel-19.0.4-openmpi-3.1.6/lib -lsprng -lstdc++
+      SPRNG_LIBS = $(SPRNG_PAR_HOME)/snow_intel-21.2.0-openmpi-4.1.1/lib -lsprng -lstdc++
       SPRNG_INC  = $(SPRNG_PAR_HOME)/include
      else
       LIBS += -L/usr/lib -llapack -lblas
