@@ -253,7 +253,7 @@ c     Begin program
       dump = (nplot == ndplot.and.nplot > 0)
 cc     .   .or.((time-tmplot) >= dplot-0.9*dt .and. dplot > 0d0)
      .   .or.(sign(1d0,dt)*(time-tmplot)>=dplot-.1*abs(dt).and.dplot>0.)
-     .   .or.(sign(1d0,dt)*(tmax-time  )<=1d-10           .and.dplot>0.)
+     .   .or.(          abs(tmax-time  )<=1d-10           .and.dplot>0.)
      .   .or.(time == 0d0)
 
       if (reset.and.dump) then

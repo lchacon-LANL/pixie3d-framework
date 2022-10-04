@@ -313,6 +313,9 @@ c Runtime initializations
      .   ,"-dplot",dplot,petsc_flg,ierr)
 
       call PetscOptionsGetInt(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     .   ,"-ndplot",ndplot,petsc_flg,ierr)
+
+      call PetscOptionsGetInt(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
      .   ,"-numtime",numtime,petsc_flg,ierr)
       if (petsc_flg) tmax = 0d0
 
