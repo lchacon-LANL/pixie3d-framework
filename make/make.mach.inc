@@ -1545,6 +1545,55 @@ ifeq ($(findstring sn,$(HOST)),sn)
 
   endif
 
+  ifeq ($(findstring gfortran,$(shell $(FC) 2>&1)),gfortran)
+
+    NETCDF=f
+
+    ifeq ($(MPI_NAME),openmpi)
+     ifdef BOPT
+      PETSC_DIR =/usr/projects/DPIC/Software/petsc-3.17.3
+
+      ifeq ($(BOPT),O)
+       PETSC_ARCH = snow_gcc-10.3.0_openmpi-4.1.1
+      else
+       PETSC_ARCH = snow_gcc-10.3.0_openmpi-4.1.1_g
+      endif
+
+      HDF5 = f
+
+      HDF5_LIBS =-L$(HDF5_ROOT)/lib -lhdf5_fortran -lhdf5 -lz
+      HDF5_MOD  = $(HDF5_ROOT)/include
+      HDF5_INC  = $(HDF5_MOD)
+
+      ADIOS = f
+
+      ADIOS2 = t
+      ADIOS2_METHOD = MPI_LUSTRE
+      ADIOS2_HOME = /usr/projects/DPIC/Software/adios-2.5/lib/snow_gcc-10.3.0_openmpi-4.1.1
+      ADIOS2_LIBS = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-libs)
+      ADIOS2_MOD  = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-flags)
+      ADIOS2_VER  = 2.5.0
+      
+      SPRNG = t
+
+      SPRNG_PAR_HOME = /usr/projects/DPIC/Software/sprng5
+      SPRNG_LIBS = $(SPRNG_PAR_HOME)/snow_gcc-10.3.0_openmpi-4.1.1/lib -lsprng -lstdc++
+      SPRNG_INC  = $(SPRNG_PAR_HOME)/include
+     else
+      LIBS += -L/usr/lib -llapack -lblas
+
+      HDF5 = f
+
+      ADIOS = f
+
+      SPRNG = f
+
+     endif
+
+    endif
+
+  endif
+
 endif
 
 ####################
