@@ -1585,7 +1585,7 @@ c     Input variables
 
         type(grid_mg_def),pointer :: g_def
 
-        integer    :: i,j,k,igrid,he,hex,hey,hez
+        integer    :: i,j,k,igrid,he
         real(8)    :: cov(3),cnv(3)
 
 c     Local variables
