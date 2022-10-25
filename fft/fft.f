@@ -151,7 +151,7 @@ c Begin program
 
       twopi=2*pi
 
-      lx   = (x(nx)-x(1))/(nx-1)*nx
+      lx   = (x(nx)-x(1))/(nx-1)*nx !Domain length
       xmed = 0.5*(x(nx)+x(1))
 
 c Smooth initial data (Hanning)
@@ -260,14 +260,14 @@ c Begin program
 
 c Reconstruct uniform grid from ak
 
-      lx   = (x(nx)-x(1))/(nx-1)*nx
+      lx = (x(nx)-x(1))/(nx-1)*nx  !Domain length
 
       x_wrk(1) = x(1)
       do i=2,nv
          if(i.le.nv/2+1) then
-           im = int(lx*ak(i)/twopi+1d-3)
+           im =    nint(lx*ak(i)/twopi)
          else
-           im = nv+int(lx*ak(i)/twopi-1d-3)
+           im = nv+nint(lx*ak(i)/twopi)
          endif
         x_wrk(i) = x_wrk(1) + lx/nv*im
       enddo
@@ -289,7 +289,6 @@ c End program
 c four1
 c########################################################################
       subroutine four1(data,nx,isign)
-cc      implicit none       !For safe Fortran
 c************************************************************************
 c     Performs direct and inverse Fourier transform of 'data'.
 c
@@ -306,13 +305,14 @@ c************************************************************************
 c Variables
 
       implicit real*8(a-h,o-z)
+cc      implicit none       !For safe Fortran
 
       integer*4   nx
       real*8 data(2*nx)
 
 c Begin program
 
-      pi=4*atan(1.0)
+      pi=acos(-1d0)
       twopi=2*pi
       nn=nx
       n=2*nn
@@ -342,8 +342,8 @@ c Begin program
          theta=twopi/(isign*mmax)
          wpr=-2*sin(0.5*theta)**2
          wpi=sin(theta)
-         wr=1
-         wi=0
+         wr=1d0
+         wi=0d0
          do m=1,mmax,2
             do i=m,n,istep
                j=i+mmax
