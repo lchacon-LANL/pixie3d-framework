@@ -248,7 +248,7 @@ c$$$          enddo
           kappa   = gp(4)  !Elongation
           delta   = gp(5)  !Triangularity
           zeta    = gp(6)  !Squareness
-          kappa_sp= gp(7) !Elongation at magnetic axis
+          kappa_sp= gp(7)  !Elongation at magnetic axis
           shftR   = gp(8)  !Origin shift in R
           shftZ   = gp(9)  !Origin shift in Z
 
@@ -276,8 +276,8 @@ c$$$            write (*,*) "EFITdiag"
 c$$$            do i=1,100
 c$$$              xlog(2) = 2*pi/100*i
 c$$$              bb = aa*kappa
-c$$$              cs = cos(xlog(2)+asin(delta*sin(xlog(2))))-gp(7)/aa
-c$$$              sn = sin(xlog(2)+zeta*sin(2*xlog(2)))     -gp(8)/bb
+c$$$              cs = cos(xlog(2)+asin(delta*sin(xlog(2))))-gp(8)/aa
+c$$$              sn = sin(xlog(2)+zeta*sin(2*xlog(2)))     -gp(9)/bb
 c$$$              write (*,*) "EFITdiag",(major_r + aa*cs),Z0+bb*sn
 c$$$            enddo
 c$$$          endif
