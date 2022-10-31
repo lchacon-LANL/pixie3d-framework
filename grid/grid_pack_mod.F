@@ -578,7 +578,7 @@ c     Call variables
         
 c     Local variables
 
-        real(8) :: xi0,xibar,LL,bb,dx
+        real(8) :: xi0,xibar,LL,bb,dx,coeff
 
         integer,parameter :: nit=100
 
@@ -607,9 +607,6 @@ c     Begin program
 
         else
 
-          if (der > 0)
-     .         call sstop(0,'cubic_scl','Derivative not implemented')
-          
           LL = xmax-xmin
           bb = eta/LL**2
 
@@ -621,17 +618,19 @@ c     Begin program
      .                   *LL*sqrt(4d0*(1d0-lambda)-eta)/sqrt(12.*eta)
 
             !Linear extrapolation to ensure equal mesh spacing at ghost points
-            if (xi > xmax) then
-              dx = xi - xmax
-              x =  x0 + lambda*(xmax-dx-xi0) + bb*(xmax-dx-xi0)**3
-              x = 2*xmax - x
-            elseif (xi < xmin) then
-              dx = xmin - xi
-              x =  x0 + lambda*(xmin+dx-xi0) + bb*(xmin+dx-xi0)**3
-              x = 2*xmin - x
-            else
-              x = x0 + lambda*(xi-xi0) + bb*(xi-xi0)**3
-            endif
+            select case(der)
+            case(0)
+              if (xi > xmax) then
+                dx = xi - xmax
+                x =  x0 + lambda*(xmax-dx-xi0) + bb*(xmax-dx-xi0)**3
+                x = 2*xmax - x
+              elseif (xi < xmin) then
+                dx = xmin - xi
+                x =  x0 + lambda*(xmin+dx-xi0) + bb*(xmin+dx-xi0)**3
+                x = 2*xmin - x
+              else
+                x = x0 + lambda*(xi-xi0) + bb*(xi-xi0)**3
+              endif
 c$$$            if (xi < xmin.and.bcSP(dim=dim)) then
 c$$$              dx = xmin - xi
 c$$$              x =  x0 + lambda*(xmin+dx-xi0) + bb*(xmin+dx-xi0)**3
@@ -639,6 +638,27 @@ c$$$              x = 2*xmin - x
 c$$$            else
 c$$$              x = x0 + lambda*(xi-xi0) + bb*(xi-xi0)**3
 c$$$            endif
+            case(1)
+              if (xi > xmax) then
+                dx = xi - xmax
+                x = lambda + 3*bb*(xmax-dx-xi0)**2
+              elseif (xi < xmin) then
+                dx = xmin - xi
+                x = lambda + 3*bb*(xmin+dx-xi0)**2
+              else
+                x = lambda + 3*bb*(xi-xi0)**2
+              endif
+            case(2)
+              if (xi > xmax) then
+                dx = xi - xmax
+                x = -6*bb*(xmax-dx-xi0)
+              elseif (xi < xmin) then
+                dx = xmin - xi
+                x = -6*bb*(xmin+dx-xi0)
+              else
+                x =  6*bb*(xi-xi0)
+              endif
+            end select
 
           !Pack at edges
           else
@@ -648,10 +668,13 @@ c$$$            endif
             !Linear extrapolation to ensure equal mesh spacing at ghost points
             if (xi > xmax) then
               dx = xi - xmax
+              coeff = -1d0
             elseif (xi < xmin) then
               dx = xi - xmin
+              coeff = -1d0
             else
               dx = 0d0
+              coeff = 1d0
             endif
 
             !Initial guess
@@ -694,6 +717,13 @@ cc            elseif (xi < xmin) then
 cc              x = 2*xmin - x
 cc            endif
 
+            select case(der)
+            case(1)
+              x = coeff/(1d0/lambda+pwr*bb*(x-x0)**(pwr-1))
+            case(2)
+              xi0 = coeff/(1d0/lambda+pwr*bb*(x-x0)**(pwr-1))
+              x = -pwr*(pwr-1)*bb*(x-x0)**(pwr-2)*xi0**3
+            end select
           endif
 
         endif

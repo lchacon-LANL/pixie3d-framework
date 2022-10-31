@@ -2485,7 +2485,7 @@ c     ##################################################################
 
 c     blockSolve
 c     #################################################################
-      subroutine blockSolve(size,mat,icol,rhs,x)
+      subroutine blockSolve(size,mat,icol,rhs,x,ret_inv)
 
 c     -----------------------------------------------------------------
 c     Solves block systems using a direct solve approach. Requires
@@ -2497,36 +2497,47 @@ c       * mat  (real array): block matrix
 c       * icol (integer) : number of columns of rhs
 c       * rhs  (real array): rhs of equation
 c       * x    ( "     "   ): solution (output)
-c       * smoother (character): identifies calling subroutine (JB, GS)
+c       * ret_inv (logical): return inverse in mat
 c     -----------------------------------------------------------------
 
         implicit none
 
 c     Call variables
 
-        integer    :: size,icol
+        integer  :: size,icol
 
-        real(8)    :: mat(size,size),rhs(size,icol),x(size,icol)
+        real(8)  :: mat(size,size),rhs(size,icol),x(size,icol)
+
+        logical,optional :: ret_inv
 
 c     Local variables
 
-        integer    :: ipiv(size),info
+        integer  :: ipiv(size),info
 
-        real(8)    :: mat2(size,size)
+        real(8)  :: mat2(size,size)
 
         external dgesv
 
 c     Begin program
 
-        mat2 = mat !Avoid overwritting mat
         x = rhs
 
-        call dgesv(size,icol,mat2,size,ipiv,x,size,info) !LAPACK routine
+        if (PRESENT(ret_inv)) then
+
+          call dgesv(size,icol,mat ,size,ipiv,x,size,info) !LAPACK routine
+
+        else
+
+          mat2 = mat            !Avoid overwritting mat
+
+          call dgesv(size,icol,mat2,size,ipiv,x,size,info) !LAPACK routine
+
+        endif
 
         call LAPACK_error("blockSolve",info)
 
       end subroutine blockSolve
-
+      
 c     blockInv
 c     #################################################################
       subroutine blockInv(size,mat)
