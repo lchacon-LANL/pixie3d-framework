@@ -13,7 +13,7 @@ driver-samrai/makefile
 driver/makefile
 driver_setup/makefile
 eigen/makefile
-fft/makefile
+fft1d/makefile
 grid/makefile
 interpolation/1d_int/makefile
 interpolation/polynomial/makefile
