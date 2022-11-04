@@ -265,63 +265,66 @@ c     ---------------------------------------------------------------
       !Initial condition (assume alpha ~ 0.5 + delta, delta << 1 and solve)
       eta = 1d1
       do i=1,5
-        eta =2*sqrt(abs(log(0.5*LL*slope/(2*eta*Lp/sqrt(pi)))))
+        eta=max(2d0*sqrt(abs(log(0.5d0*LL*slope/(2d0*eta*Lp/sqrt(pi)))))
+     $         ,1.5d0)   !Failsafe to ensure eta > 1
       enddo
-      alpha = 0.5*(1-log(Lm/Lp)/eta/eta)
-      a1 = sqrt(4/pi)*eta*Lm/LL
-      a2 = sqrt(4/pi)*eta*Lp/LL
+      alpha = abs(0.5d0*(1d0-log(Lm/Lp)/eta/eta))
+      a1 = sqrt(4d0/pi)*eta*Lm/LL
+      a2 = sqrt(4d0/pi)*eta*Lp/LL
 
+cc      write (*,*) "sol 0",a1,a2,alpha,eta
+        
       !Newton iteration (variable order: a1,a2,alpha=Ep/L,eta=L/sqrt(sigma))
       do i=1,nit
-        erfv1 = sqrt(pi/4.)*erf((1-alpha)*eta)
-        erfv2 = sqrt(pi/4.)*erf(   alpha *eta)
-        erfv  = sqrt(pi/4.)*erf(          eta)
+        erfv1 = sqrt(pi/4.)*erf((1d0-alpha)*eta)
+        erfv2 = sqrt(pi/4.)*erf(     alpha *eta)
+        erfv  = sqrt(pi/4.)*erf(            eta)
 
-        derfv1 = exp(-((1-alpha)*eta)**2)
-        derfv2 = exp(-((  alpha)*eta)**2)
+        derfv1 = exp(-((1d0-alpha)*eta)**2)
+        derfv2 = exp(-((    alpha)*eta)**2)
         derfv  = exp(-eta**2)
         
-        exp1    = exp(eta**2*(1-2*alpha))
-        dexp1d1 =-2*eta*eta*exp1         !wrt alpha
-        dexp1d2 = 2*eta*(1-2*alpha)*exp1 !wrt eta
+        exp1    = exp(eta**2*(1d0-2*alpha))
+        dexp1d1 =-2*eta*eta*exp1           !wrt alpha
+        dexp1d2 = 2*eta*(1d0-2*alpha)*exp1 !wrt eta
         
         exp2    = exp(-(alpha*eta)**2)
-        dexp2d1 = -2*alpha*eta*eta*exp2  !wrt alpha
-        dexp2d2 = -2*eta*alpha*alpha*exp2!wrt eta
+        dexp2d1 = -2*alpha*eta*eta*exp2    !wrt alpha
+        dexp2d2 = -2*eta*alpha*alpha*exp2  !wrt eta
 
         ff  = eta/erfv
-        dff = 1./erfv - eta*derfv/(erfv*erfv)
+        dff = 1d0/erfv - eta*derfv/(erfv*erfv)
         
         !Residual
         res(i,1) = Lm/LL*eta - a1*erfv1 - a2*erfv + a2*erfv2
         res(i,2) = a1 + a2 - ff
-        res(i,3) = a1 - a2*alpha*exp1/(1-alpha)
-        res(i,4) = slope - a2*exp2/(1-alpha)
+        res(i,3) = a1 - a2*alpha*exp1/(1d0-alpha)
+        res(i,4) = slope - a2*exp2/(1d0-alpha)
 
         !Jacobian solution
         jac(1,1) = -erfv1
         jac(1,2) = +erfv2-erfv
         jac(1,3) = a1*eta*derfv1 + a2*eta*derfv2
         jac(1,4) = Lm/LL
-     .           - a1*(1-alpha)*derfv1
+     .           - a1*(1d0-alpha)*derfv1
      .           - a2*derfv
      .           + a2*alpha*derfv2
 
-        jac(2,1) = 1.
-        jac(2,2) = 1.
+        jac(2,1) = 1d0
+        jac(2,2) = 1d0
         jac(2,3) = 0d0
         jac(2,4) = -dff
 
-        jac(3,1) = 1.
-        jac(3,2) = -alpha*exp1/(1-alpha)
-        jac(3,3) = -a2*(1-alpha)**(-2)*exp1
-     .             -a2*alpha/(1-alpha)*dexp1d1
-        jac(3,4) = -a2*alpha*dexp1d2/(1-alpha)
+        jac(3,1) = 1d0
+        jac(3,2) = -alpha*exp1/(1d0-alpha)
+        jac(3,3) = -a2*(1d0-alpha)**(-2)*exp1
+     .             -a2*alpha/(1d0-alpha)*dexp1d1
+        jac(3,4) = -a2*alpha*dexp1d2/(1d0-alpha)
 
-        jac(4,1) = 0.
-        jac(4,2) = -exp2/(1-alpha)
-        jac(4,3) = -a2*(1-alpha)**(-2)*exp2 - a2*dexp2d1/(1-alpha)
-        jac(4,4) = -a2*dexp2d2/(1-alpha)
+        jac(4,1) = 0d0
+        jac(4,2) = -exp2/(1d0-alpha)
+        jac(4,3) = -a2*(1d0-alpha)**(-2)*exp2 - a2*dexp2d1/(1d0-alpha)
+        jac(4,4) = -a2*dexp2d2/(1d0-alpha)
 
         call blockSolve(neq,jac,1,res(i,:),dxi(i,:))
 
@@ -331,7 +334,7 @@ c     ---------------------------------------------------------------
         alpha = abs(alpha - dxi(i,3))  !Enforce alpha > 0
         eta   = abs(  eta - dxi(i,4))  !Enforce eta >= 0d0
 
-cc        write (*,*) i,a1,a2,alpha,eta
+cc        write (*,*) "sol",i,a1,a2,alpha,eta
         
         !Check convergence
 cc        write (*,*) i,dxi(i,:),res(i,:)
