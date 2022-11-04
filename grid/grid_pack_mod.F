@@ -147,7 +147,7 @@ c     Global variables
 
 c     Local variables
 
-        integer,parameter :: nit=50,neq=4
+        integer,parameter :: nit=100,neq=4
 
         integer :: i
         real(8) :: jac(neq,neq),ijac,dxi(nit,neq),res(nit,neq),xi(neq)
@@ -257,40 +257,46 @@ c     ---------------------------------------------------------------
 c     Prepares Gaussian profile for grid packing
 c     ---------------------------------------------------------------
 
+      integer :: ierr
+
+      ierr = 0
+      
       if (Lp == Lm) then
         Lp = Lp*(1d0+1d-8)
         Lm = Lm*(1d0-1d-8)
       endif
 
-      !Initial condition (assume alpha ~ 0.5 + delta, delta << 1 and solve)
+      !Initial condition (assume alpha ~ 0.5 + delta, delta << 1, eta >> 1 and solve)
       eta = 1d1
-      do i=1,5
-        eta=max(2d0*sqrt(abs(log(0.5d0*LL*slope/(2d0*eta*Lp/sqrt(pi)))))
-     $         ,1.5d0)   !Failsafe to ensure eta > 1
+      do i=1,20
+        eta= max(2d0
+     $       *sqrt(abs(log(0.5d0*LL*slope/(2d0*eta*Lp/sqrt(pi)))))
+     $       ,2.5d0)   !Failsafe to ensure eta > 1
+cc        write (*,*) i,eta
       enddo
-      alpha = abs(0.5d0*(1d0-log(Lm/Lp)/eta/eta))
+      alpha = max(min(abs(0.5d0*(1d0-log(Lm/Lp)/(eta*eta))),9d-1),1d-1)
       a1 = sqrt(4d0/pi)*eta*Lm/LL
       a2 = sqrt(4d0/pi)*eta*Lp/LL
 
-cc      write (*,*) "sol 0",a1,a2,alpha,eta
+cc      write (*,*) "sol           0",a1,a2,alpha,eta
         
       !Newton iteration (variable order: a1,a2,alpha=Ep/L,eta=L/sqrt(sigma))
       do i=1,nit
-        erfv1 = sqrt(pi/4.)*erf((1d0-alpha)*eta)
-        erfv2 = sqrt(pi/4.)*erf(     alpha *eta)
-        erfv  = sqrt(pi/4.)*erf(            eta)
+        erfv1 = sqrt(pi/4d0)*erf((1d0-alpha)*eta)
+        erfv2 = sqrt(pi/4d0)*erf(     alpha *eta)
+        erfv  = sqrt(pi/4d0)*erf(            eta)
 
         derfv1 = exp(-((1d0-alpha)*eta)**2)
         derfv2 = exp(-((    alpha)*eta)**2)
         derfv  = exp(-eta**2)
         
-        exp1    = exp(eta**2*(1d0-2*alpha))
-        dexp1d1 =-2*eta*eta*exp1           !wrt alpha
-        dexp1d2 = 2*eta*(1d0-2*alpha)*exp1 !wrt eta
+        exp1    = exp(eta**2*(1d0-2d0*alpha))
+        dexp1d1 =-2d0*eta*eta*exp1           !wrt alpha
+        dexp1d2 = 2d0*eta*(1d0-2d0*alpha)*exp1 !wrt eta
         
         exp2    = exp(-(alpha*eta)**2)
-        dexp2d1 = -2*alpha*eta*eta*exp2    !wrt alpha
-        dexp2d2 = -2*eta*alpha*alpha*exp2  !wrt eta
+        dexp2d1 = -2d0*alpha*eta*eta*exp2    !wrt alpha
+        dexp2d2 = -2d0*eta*alpha*alpha*exp2  !wrt eta
 
         ff  = eta/erfv
         dff = 1d0/erfv - eta*derfv/(erfv*erfv)
@@ -326,13 +332,15 @@ cc      write (*,*) "sol 0",a1,a2,alpha,eta
         jac(4,3) = -a2*(1d0-alpha)**(-2)*exp2 - a2*dexp2d1/(1d0-alpha)
         jac(4,4) = -a2*dexp2d2/(1d0-alpha)
 
-        call blockSolve(neq,jac,1,res(i,:),dxi(i,:))
+        call blockSolve(neq,jac,1,res(i,:),dxi(i,:),ierr=ierr)
+
+        if (ierr/=0) call sstop(0,"prep_gaussian","Singular Jacobian")
 
         !Update solution
         a1    = abs(   a1 - dxi(i,1))  !Enforce a1 > 0
         a2    = abs(   a2 - dxi(i,2))  !Enforce a1 > 0
-        alpha = abs(alpha - dxi(i,3))  !Enforce alpha > 0
-        eta   = abs(  eta - dxi(i,4))  !Enforce eta >= 0d0
+        alpha = min(abs(alpha - dxi(i,3)),0.999)  !Enforce 0 < alpha < 1
+        eta   = max(abs(  eta - dxi(i,4)),1.001)  !Enforce eta > 1d0
 
 cc        write (*,*) "sol",i,a1,a2,alpha,eta
         

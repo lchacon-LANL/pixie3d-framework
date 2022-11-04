@@ -2485,7 +2485,7 @@ c     ##################################################################
 
 c     blockSolve
 c     #################################################################
-      subroutine blockSolve(size,mat,icol,rhs,x,ret_inv)
+      subroutine blockSolve(size,mat,icol,rhs,x,ret_inv,ierr)
 
 c     -----------------------------------------------------------------
 c     Solves block systems using a direct solve approach. Requires
@@ -2509,6 +2509,7 @@ c     Call variables
         real(8)  :: mat(size,size),rhs(size,icol),x(size,icol)
 
         logical,optional :: ret_inv
+        integer,optional :: ierr
 
 c     Local variables
 
@@ -2534,8 +2535,12 @@ c     Begin program
 
         endif
 
-        call LAPACK_error("blockSolve",info)
-
+        if (PRESENT(ierr)) then
+          ierr = info
+        else
+          call LAPACK_error("blockSolve",info)
+        endif
+        
       end subroutine blockSolve
       
 c     blockInv
