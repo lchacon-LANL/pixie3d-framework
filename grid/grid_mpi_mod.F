@@ -1315,7 +1315,8 @@ c     Call variables
 c     Local variables
 
         integer :: ierr
-        
+        character(200) :: command
+
 c     Begin program
 
 #if defined(samrai)
@@ -1337,6 +1338,8 @@ c$$$      call sstop(my_rank,routine,message)
           write (*,*)
           write (*,*) trim(message)
           write (*,*) 'Program stopped at routine ',trim(routine)
+          command = 'cat '//int2char(FATAL)//' > exit_code.txt'
+          ierr = shellcmd(trim(command))
         endif
 
 #if defined(petsc)

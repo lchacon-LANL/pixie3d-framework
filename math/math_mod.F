@@ -472,6 +472,7 @@ c     Subroutine to generate J_n(x) and Y_n(x) with given x and
 c     up to N=NMAX-NTEL.
 c
 c     -------------------------------------------------------------------
+      IMPLICIT NONE
 
 c     Call variables
 
@@ -488,7 +489,7 @@ c     Local variables
 
 c     Begin program
 
-      PI = 4d0*ATAN(1d0)
+      PI = ACOS(-1d0)
       GAMMA = 0.577215664901532860606512
 
       B1(NMAX)   = 0d0
@@ -578,8 +579,10 @@ c$$$END
 !     C.W.CLENSHAW, CHEBYSHEV SERIES FOR MATHEMATICAL FUNCTIONS,
 !     MATHEMATICAL TABLES, VOL.5, 1962.
 !
+      implicit none
+      integer :: IACC, N,J,M
+      REAL(8) :: X,BESSI,TOX,BIM,BI,BIP,BIGNO,BIGNI
       PARAMETER (IACC = 40,BIGNO = 1.D10, BIGNI = 1.D-10)
-      REAL(8) :: X,BESSI,TOX,BIM,BI,BIP
       IF (N.EQ.0) THEN
       BESSI = BESSI0(X)
       RETURN
@@ -614,6 +617,7 @@ c$$$END
 ! ----------------------------------------------------------------------
 ! Auxiliary Bessel functions for N=0, N=1
       FUNCTION BESSI0(X)
+      IMPLICIT NONE
       REAL(8) :: X,BESSI0,Y,P1,P2,P3,P4,P5,P6,P7,
      .     Q1,Q2,Q3,Q4,Q5,Q6,Q7,Q8,Q9,AX,BX
       DATA P1,P2,P3,P4,P5,P6,P7/1.D0,3.5156229D0,3.0899424D0,
@@ -635,6 +639,7 @@ c$$$END
       END FUNCTION
 ! ----------------------------------------------------------------------
       FUNCTION BESSI1(X)
+      IMPLICIT NONE
       REAL(8) :: X,BESSI1,Y,P1,P2,P3,P4,P5,P6,P7,
      .     Q1,Q2,Q3,Q4,Q5,Q6,Q7,Q8,Q9,AX,BX
       DATA P1,P2,P3,P4,P5,P6,P7/0.5D0,0.87890594D0,0.51498869D0,

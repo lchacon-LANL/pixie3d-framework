@@ -398,6 +398,7 @@ c     ---------------------------------------------------------------
         character(*)  :: routine, message
 
         integer :: ierr
+        character(200) :: command
 
 c     Begin program
 
@@ -405,6 +406,8 @@ c     Begin program
           write (*,*)
           write (*,*) trim(message)
           write (*,*) 'Program stopped at routine ',trim(routine)
+          command = 'cat '//int2char(FATAL)//' > exit_code.txt'
+          ierr = shellcmd(trim(command))
         endif
 
 #if defined(petsc)
