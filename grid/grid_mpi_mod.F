@@ -1338,7 +1338,7 @@ c$$$      call sstop(my_rank,routine,message)
           write (*,*)
           write (*,*) trim(message)
           write (*,*) 'Program stopped at routine ',trim(routine)
-          command = 'cat '//int2char(FATAL)//' > exit_code.txt'
+          command = 'echo '//int2char(FATAL)//' > exit_code.txt'
           ierr = shellcmd(trim(command))
         endif
 

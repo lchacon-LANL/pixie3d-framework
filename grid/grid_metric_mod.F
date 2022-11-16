@@ -27,13 +27,8 @@ c ---------------------------------------------------------------------
 
 c     PRIVATE VARIABLES & PROCEDURES
 
-        integer,private :: ilo ,ihi ,jlo ,jhi ,klo ,khi
-     .                    ,ilom,ihip,jlom,jhip,klom,khip
-
-        integer,private ::
-     .             i,j,k,igx,igy,igz
-     .            ,i0,ip,im,j0,jp,jm,k0,kp,km,l,m,n,p
-     .            ,ig,ig0,igm,igp,jg,jg0,jgm,jgp,kg,kg0,kgm,kgp
+        integer,private :: i,j,k,i0,ip,im,j0,jp,jm,k0,kp,km,l,m,n,p
+     .                    ,ig,ig0,igm,igp,jg,jg0,jgm,jgp,kg,kg0,kgm,kgp
 
         logical,private :: map_present,vmap_present
 
@@ -41,7 +36,7 @@ c     PRIVATE VARIABLES & PROCEDURES
           module procedure find_dr_1st,find_dr_2nd !4th
         END INTERFACE
 
-        private :: findGridmetrics,find_dr!,topol_bc
+        private :: findGridmetrics,find_dr
 
       contains
 
@@ -110,9 +105,9 @@ c     Begin program
 
 c     Evaluate dr=dx/dxi vectors at vertices
 
-        do k = klom,khi
-          do j = jlom,jhi
-            do i = ilom,ihi
+        do k = 0,nz
+          do j = 0,ny
+            do i = 0,nx
               dr(i,j,k,:,:) = find_dr(g_def,i,j,k,igrid,1,1,1,x)
             enddo
           enddo
@@ -120,9 +115,9 @@ c     Evaluate dr=dx/dxi vectors at vertices
 
 c     Evaluate d2r=d2x/dxi/dxj hessian at cell centers
 
-        do k = klo,khi
-          do j = jlo,jhi
-            do i = ilo,ihi
+        do k = 1,nz
+          do j = 1,ny
+            do i = 1,nx
               do m= 1,3
                 d2r(i,j,k,:,:,m)=find_dr(g_def,i-1,j-1,k-1,igrid,1,1,1
      .                                  ,dr(:,:,:,:,m))
@@ -377,55 +372,37 @@ c     Begin program
 
         lerr = 0
 
-        igx = igrid
-        igy = igrid
-        igz = igrid
-
-        ilo = 1
-        jlo = 1
-        klo = 1
-        ihi = g_def%nxv(igrid)
-        jhi = g_def%nyv(igrid)
-        khi = g_def%nzv(igrid)
-
-        ilom = ilo-1
-        jlom = jlo-1
-        klom = klo-1
-        ihip = ihi+1
-        jhip = jhi+1
-        khip = khi+1
-
-        nx = ihi-ilo+1
-        ny = jhi-jlo+1
-        nz = khi-klo+1
+        nx = g_def%nxv(igrid)
+        ny = g_def%nyv(igrid)
+        nz = g_def%nzv(igrid)
 
 c       ANALYTICAL QUANTITIES **********************************
 
         if ((.not.numerical_grid).and.anal_map) then
 
           !Cell-centered metrics
-          do k = klom,khip
-            do j = jlom,jhip
-              do i = ilom,ihip
+          do k = 0,nz+1
+            do j = 0,ny+1
+              do i = 0,nx+1
                 g_def%gmetric%grid(igrid)%car  (i,j,k,:)
-     .                    = map     (g_def,i,j,k,igx,igy,igz)
+     .                    = map     (g_def,i,j,k,igrid,igrid,igrid)
                 g_def%gmetric%grid(igrid)%jac  (i,j,k)
-     .                    = jacobian(g_def,i,j,k,igx,igy,igz)
+     .                    = jacobian(g_def,i,j,k,igrid,igrid,igrid)
                 g_def%gmetric%grid(igrid)%gsub (i,j,k,:,:)
-     .                    = g_sub   (g_def,i,j,k,igx,igy,igz)
+     .                    = g_sub   (g_def,i,j,k,igrid,igrid,igrid)
                 g_def%gmetric%grid(igrid)%gsup (i,j,k,:,:)
-     .                    = g_sup   (g_def,i,j,k,igx,igy,igz)
+     .                    = g_sup   (g_def,i,j,k,igrid,igrid,igrid)
                 g_def%gmetric%grid(igrid)%Gamma(i,j,k,:,:,:)
-     .                    = christ_2knd(g_def,i,j,k,igx,igy,igz)
+     .                    = christ_2knd(g_def,i,j,k,igrid,igrid,igrid)
                 do l=1,3
                   g_def%gmetric%grid(igrid)%cov(i,j,k,l,:)
-     .                 = covariantVector    (g_def,l,i,j,k,igx,igy,igz)
+     .                = covariantVector(g_def,l,i,j,k,igrid,igrid,igrid)
                   g_def%gmetric%grid(igrid)%cnv(i,j,k,l,:)
-     .                 = contravariantVector(g_def,l,i,j,k,igx,igy,igz)
+     .            = contravariantVector(g_def,l,i,j,k,igrid,igrid,igrid)
                 enddo
 
                 !Cell volume
-                call getMGmap(g_def,i,j,k,igx,igy,igz,ig,jg,kg)
+                call getMGmap(g_def,i,j,k,igrid,igrid,igrid,ig,jg,kg)
 
                 g_def%gmetric%grid(igrid)%dlvol(i,j,k) = 1d0
 
@@ -452,22 +429,22 @@ c       ANALYTICAL QUANTITIES **********************************
           enddo
 
           !Vertex metrics
-          do k = klom,khip
-            do j = jlom,jhip
-              do i = ilom,ihip
+          do k = 0,nz+1
+            do j = 0,ny+1
+              do i = 0,nx+1
                 g_def%gmetric%grid(igrid)%jac_v(i,j,k)
-     .                 = jacobian(g_def,i,j,k,igx,igy,igz,vertex=.true.)
+     .           = jacobian(g_def,i,j,k,igrid,igrid,igrid,vertex=.true.)
                 g_def%gmetric%grid(igrid)%gsub_v(i,j,k,:,:)
-     .                 = g_sub   (g_def,i,j,k,igx,igy,igz,vertex=.true.)
+     .           = g_sub   (g_def,i,j,k,igrid,igrid,igrid,vertex=.true.)
                 g_def%gmetric%grid(igrid)%gsup_v (i,j,k,:,:)
-     .                 = g_sup   (g_def,i,j,k,igx,igy,igz,vertex=.true.)
+     .           = g_sup   (g_def,i,j,k,igrid,igrid,igrid,vertex=.true.)
                 do l=1,3
                   g_def%gmetric%grid(igrid)%cov_v(i,j,k,l,:)
-     .                 = covariantVector    (g_def,l,i,j,k,igx,igy,igz
-     .                                         ,vertex=.true.)
+     .                 = covariantVector(g_def,l,i,j,k,igrid,igrid,igrid
+     .                                  ,vertex=.true.)
                   g_def%gmetric%grid(igrid)%cnv_v(i,j,k,l,:)
-     .                 = contravariantVector(g_def,l,i,j,k,igx,igy,igz
-     .                                         ,vertex=.true.)
+     .             = contravariantVector(g_def,l,i,j,k,igrid,igrid,igrid
+     .                                   ,vertex=.true.)
                 enddo
 
               enddo
@@ -475,7 +452,7 @@ c       ANALYTICAL QUANTITIES **********************************
           enddo
 
           !Zero force condition on Christoffel symbols (only on finest grid)
-          if (igrid == 1) call hessianZeroForceCorr(g_def)
+          if (igrid == 1) call hessianZeroForceCorr(g_def,igrid)
 
 c       NUMERICAL QUANTITIES ***********************************
 
@@ -487,11 +464,11 @@ c       NUMERICAL QUANTITIES ***********************************
 
           call findVertexMap(g_def,igrid)
 
-          call findCellMetrics(g_def)
+          call findCellMetrics(g_def,igrid)
 
-          call findVertexMetrics(g_def)
+          call findVertexMetrics(g_def,igrid)
 
-          call Christoffel(g_def)
+          call Christoffel(g_def,igrid)
 
         endif
 
@@ -511,7 +488,7 @@ c     End program
 
 c     findVertexMetrics
 c     #################################################################
-      subroutine findVertexMetrics(g_def)
+      subroutine findVertexMetrics(g_def,igrid)
 
 c     -----------------------------------------------------------------
 c     Finds metrics at vertices (i+1/2,j+1/2,k+1/2) (stored at (i,j,k))
@@ -523,6 +500,8 @@ c     Call variables
 
         type(grid_mg_def),pointer :: g_def
 
+        integer :: igrid
+        
 c     Local variables
 
         integer :: he,nx,ny,nz
@@ -536,23 +515,23 @@ c     Begin program
 
         he = 1
 
-        allocate(dr(ilom:ihip,jlom:jhip,klom:khip,3,3))
-
 c     Local grid size
 
-        nx = ihi-ilo+1
-        ny = jhi-jlo+1
-        nz = khi-klo+1
+        nx = g_def%nxv(igrid)
+        ny = g_def%nyv(igrid)
+        nz = g_def%nzv(igrid)
 
 c     Evaluate dr=dx/dxi vectors at vertices
+
+        allocate(dr(0:nx+1,0:ny+1,0:nz+1,3,3))
 
         xc => g_def%gmetric%grid(igrid)%car
 
         dr = 0d0
 
-        do k = klom,khi
-          do j = jlom,jhi
-            do i = ilom,ihi
+        do k = 0,nz
+          do j = 0,ny
+            do i = 0,nx
               dr(i,j,k,:,:) = find_dr(g_def,i,j,k,igrid,he,he,he,xc)
             enddo
           enddo
@@ -564,9 +543,9 @@ c     Impose BCs on dr
 
 c     Evaluate grid quantities (at vertices)
 
-        do k = klom,khip
-          do j = jlom,jhip
-            do i = ilom,ihip
+        do k = 0,nz+1
+          do j = 0,ny+1
+            do i = 0,nx+1
               r = dr(i,j,k,:,:)
 
               !Jacobian <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
@@ -576,7 +555,7 @@ c     Evaluate grid quantities (at vertices)
               if (jac <= 0d0
      .           .and. (.not.isSP2(g_def,i+1,igrid))) then
                 if (.not.(check_grid.or.return_error)) then
-                  write (*,*) 'Negative Jacobian in half mesh'
+                  write (*,*) 'Negative or zero Jacobian in half mesh'
                   write (*,*) 'Grid level',igrid
                   write (*,*) 'Processor rank=',my_rank
                   write (*,*) 'Grid position=',i,j,k
@@ -636,7 +615,7 @@ c     End program
 
 c     findCellMetrics
 c     #################################################################
-      subroutine findCellMetrics(g_def)
+      subroutine findCellMetrics(g_def,igrid)
 
 c     -----------------------------------------------------------------
 c     Finds metrics at cell centers.
@@ -648,9 +627,11 @@ c     Call variables
 
         type(grid_mg_def),pointer :: g_def
 
+        integer :: igrid
+        
 c     Local variables
 
-        integer :: he,imin,imax,jmin,jmax,kmin,kmax,nx,ny,nz,bcs(6)
+        integer :: he,nx,ny,nz,bcs(6)
 
         real(8) :: r(3,3),car0(3),carp(3),carm(3),jac,ijac
      .            ,cnv(3,3),cov(3,3),gsub(3,3),gsup(3,3),vec(3)
@@ -661,41 +642,32 @@ c     Local variables
 
 c     Begin program
 
-        imin = ilom
-        imax = ihip
-
-        jmin = jlom
-        jmax = jhip
-
-        kmin = klom
-        kmax = khip
-
 c     Local grid size
 
-        nx = ihi-ilo+1
-        ny = jhi-jlo+1
-        nz = khi-klo+1
+        nx = g_def%nxv(igrid)
+        ny = g_def%nyv(igrid)
+        nz = g_def%nzv(igrid)
 
 c     Evaluate dr=dx/dxi vectors
 
         xc => g_def%gmetric%grid(igrid)%car
 
-        allocate(dr(ilom:ihip,jlom:jhip,klom:khip,3,3))
+        allocate(dr(0:nx+1,0:ny+1,0:nz+1,3,3))
 
         dr = 0d0
 
         if (igrid == 1) then  !Second order for finest grid
-          do k = kmin,kmax
-            do j = jmin,jmax
-              do i = imin,imax
+          do k = 0,nz+1
+            do j = 0,ny+1
+              do i = 0,nx+1
                 dr(i,j,k,:,:) = find_dr(g_def,i,j,k,igrid,xc)
               enddo
             enddo
           enddo
         else                  !First order in coarser grids (to avoid negative jacobians)
-          do k = kmin,kmax
-            do j = jmin,jmax
-              do i = imin,imax
+          do k = 0,nz+1
+            do j = 0,ny+1
+              do i = 0,nx+1
                 dr(i,j,k,:,:) = find_dr(g_def,i,j,k,igrid,0,0,0,xc)
               enddo
             enddo
@@ -708,9 +680,9 @@ c     Apply BCs on dr (including SP)
 
 c     Evaluate rest of grid quantities
 
-        do k = kmin,kmax
-          do j = jmin,jmax
-            do i = imin,imax
+        do k = 0,nz+1
+          do j = 0,ny+1
+            do i = 0,nx+1
               r = dr(i,j,k,:,:)
 
               !Jacobian <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
@@ -763,7 +735,7 @@ c     Evaluate rest of grid quantities
               g_def%gmetric%grid(igrid)%gsup(i,j,k,:,:) = gsup
 
               !Cell volume <<<<<<<<<<<<<<<<<<
-              call getMGmap(g_def,i,j,k,igx,igy,igz,ig,jg,kg)
+              call getMGmap(g_def,i,j,k,igrid,igrid,igrid,ig,jg,kg)
 
               g_def%gmetric%grid(igrid)%dlvol(i,j,k) = 1d0
 
@@ -799,7 +771,7 @@ c     End program
 
 c     Christoffel
 c     #################################################################
-      subroutine Christoffel(g_def)
+      subroutine Christoffel(g_def,igrid)
 
 c     -----------------------------------------------------------------
 c     Compute Christoffel symbols of the second kind at cell centers
@@ -811,7 +783,11 @@ c     Call variables
 
         type(grid_mg_def),pointer :: g_def
 
+        integer :: igrid
+        
 c     Local variables
+
+        integer :: nx,ny,nz
 
         integer :: i,j,k,l,m,n,he,bcs(6,3)
         real(8) :: r(3,3),cov(3,3),gamma(3,3,3)
@@ -822,17 +798,21 @@ c     Local variables
 
 c     Begin program
 
+        nx = g_def%nxv(igrid)
+        ny = g_def%nyv(igrid)
+        nz = g_def%nzv(igrid)
+
         xc => g_def%gmetric%grid(igrid)%car
 
 c     NEW WAY: compute directly second-order derivatives
 
-        allocate(d2r(ilom:ihip,jlom:jhip,klom:khip,3,3,3))
+        allocate(d2r(0:nx+1,0:ny+1,0:nz+1,3,3,3))
 
         d2r = find_d2r(g_def,igrid,xc)
 
-        do k = klo,khi
-          do j = jlo,jhi
-            do i = ilo,ihi
+        do k = 1,nz
+          do j = 1,ny
+            do i = 1,nx
 
               cov = g_def%gmetric%grid(igrid)%cov(i,j,k,:,:)
               
@@ -897,14 +877,14 @@ c$$$        deallocate(dr)
 
 c     Enforce zero-force condition on Christoffle symbols
         
-        if (igrid == 1) call hessianZeroForceCorr(g_def)
+        if (igrid == 1) call hessianZeroForceCorr(g_def,igrid)
 
 c     Apply BCs to Christoffel symbols
 
         !Regularize
-        do k = klo,khi
-          do j = jlo,jhi
-            do i = ilo,ihi
+        do k = 1,nz
+          do j = 1,ny
+            do i = 1,nx
                g_def%gmetric%grid(igrid)%Gamma(i,j,k,:,:,:) =
      .              g_def%gmetric%grid(igrid)%Gamma(i,j,k,:,:,:)
      .             *g_def%gmetric%grid(igrid)%jac  (i,j,k)
@@ -928,9 +908,9 @@ c     Apply BCs to Christoffel symbols
         enddo
 
         !Transform back
-        do k = klom,khip
-          do j = jlom,jhip
-            do i = ilom,ihip
+        do k = 0,nz+1
+          do j = 0,ny+1
+            do i = 0,nx+1
                g_def%gmetric%grid(igrid)%Gamma(i,j,k,:,:,:) =
      .              g_def%gmetric%grid(igrid)%Gamma(i,j,k,:,:,:)
      .             /g_def%gmetric%grid(igrid)%jac  (i,j,k)
@@ -944,7 +924,7 @@ c     End program
       
 c     hessianZeroForceCorr
 c     #################################################################
-      subroutine hessianZeroForceCorr(g_def)
+      subroutine hessianZeroForceCorr(g_def,igrid)
 
 c     -----------------------------------------------------------------
 c     Postprocess Christoffel symbol to satisfy zero-force condition
@@ -957,9 +937,11 @@ c     Call variables
 
         type(grid_mg_def),pointer :: g_def
 
+        integer :: igrid
+        
 c     Local variables
 
-        integer :: i,j,k,ii,ll,kk,mm,jj,ig,jg,kg
+        integer :: i,j,k,ii,ll,kk,mm,jj,ig,jg,kg,nx,ny,nz
         real(8) :: x1,y1,z1,summ,summ2,dh,jac,jacp,jacm,const,hlf
         real(8) :: hess(3,3,3),table(3,3,3),gamma(3,3,3)
      .            ,gsub(3,3),gsup(3,3),gsupp(3,3),gsupm(3,3)
@@ -967,15 +949,19 @@ c     Local variables
 
 c     Begin program
 
-        do k = klo,khi
-          do j = jlo,jhi
-            do i = ilo,ihi
+        nx = g_def%nxv(igrid)
+        ny = g_def%nyv(igrid)
+        nz = g_def%nzv(igrid)
+
+        do k = 1,nz
+          do j = 1,ny
+            do i = 1,nx
 
             gamma = g_def%gmetric%grid(igrid)%Gamma(i,j,k,:,:,:)
             gsub  = g_def%gmetric%grid(igrid)%gsub(i,j,k,:,:)
             gsup  = g_def%gmetric%grid(igrid)%gsup(i,j,k,:,:)
 
-            call getMGmap(g_def,i,j,k,igx,igy,igz,ig,jg,kg)
+            call getMGmap(g_def,i,j,k,igrid,igrid,igrid,ig,jg,kg)
 
             do ii=1,3 !cycle through Chistoffel symbols
 
@@ -1299,12 +1285,12 @@ c     Call variables
 
         integer :: igrid
         type(grid_mg_def),pointer :: g_def
+        logical :: coarsen
 
 c     Local variables
 
         integer :: nx,ny,nz
         real(8),pointer,dimension(:,:,:,:) :: xf,xc
-        logical :: coarsen
 
 c     Begin program
 
@@ -1328,10 +1314,10 @@ c     Begin program
 
           if (checkAnalMapDatabase()) then
 
-            do k = klom,khip
-              do j = jlom,jhip
-                do i = ilom,ihip
-                  xc(i,j,k,:) = map(g_def,i,j,k,igx,igy,igz)
+            do k = 0,nz+1
+              do j = 0,ny+1
+                do i = 0,nx+1
+                  xc(i,j,k,:) = map(g_def,i,j,k,igrid,igrid,igrid)
                 enddo
               enddo
             enddo
@@ -1384,7 +1370,7 @@ c     Begin program
             do k = 0,nz
               do j = 0,ny
                 do i = 0,nx
-                  xv(i,j,k,:) = map(g_def,i,j,k,igx,igy,igz
+                  xv(i,j,k,:) = map(g_def,i,j,k,igrid,igrid,igrid
      .                             ,vertex=.true.)
                 enddo
               enddo
@@ -1401,7 +1387,7 @@ c$$$
 c$$$            do k = 0,nz
 c$$$              do j = 0,ny
 c$$$                do i = 0,nx
-c$$$                  call getCurvilinearCoordinates(g_def,i,j,k,igx,igy,igz
+c$$$                  call getCurvilinearCoordinates(g_def,i,j,k,igrid,igrid,igrid
 c$$$     .                                          ,ig1,jg1,kg1,x1,y1,z1
 c$$$     .                                          ,vertex=.true.)
 c$$$
@@ -1431,55 +1417,6 @@ c     End program
         nullify(xv,xc)
 
       end subroutine findVertexMap
-
-c$$$c     topol_bc
-c$$$c     #################################################################
-c$$$      subroutine topol_bc(gdef,igrid,nxl,nyl,nzl,array,bcs)
-c$$$
-c$$$c     -----------------------------------------------------------------
-c$$$c     Enforce topological constraints on array
-c$$$c     -----------------------------------------------------------------
-c$$$
-c$$$        implicit  none
-c$$$
-c$$$c     Call variables
-c$$$
-c$$$        type(grid_mg_def),pointer :: gdef
-c$$$        integer :: igrid,nxl,nyl,nzl,bcs(6)
-c$$$        real(8) :: array(0:nxl+1,0:nyl+1,0:nzl+1)
-c$$$
-c$$$c     Local variables
-c$$$
-c$$$c     Begin program
-c$$$
-c$$$#if !defined(petsc)
-c$$$        if (bcs(1) == PER .or. bcs(2) == PER) then
-c$$$          array(0    ,:,:) = array(nxl,:,:)
-c$$$          array(nxl+1,:,:) = array(1  ,:,:)
-c$$$        endif
-c$$$
-c$$$        if (bcs(3) == PER .or. bcs(4) == PER) then
-c$$$          array(:,0    ,:) = array(:,nyl,:)
-c$$$          array(:,nyl+1,:) = array(:,1  ,:)
-c$$$        endif
-c$$$        
-c$$$        if (bcs(5) == PER .or. bcs(6) == PER) then
-c$$$          array(:,:,0    ) = array(:,:,nzl)
-c$$$          array(:,:,nzl+1) = array(:,:,1  )
-c$$$        endif
-c$$$#else
-c$$$#if !defined(samrai)
-c$$$        call fillLogGhostCells(gdef,array)
-c$$$        call set_TOPOL_bc_scl(gdef,bcs,PER,array)
-c$$$#else
-c$$$        write(*,*) 'WARNING: metrics in SAMRAI are not being'
-c$$$     .            ,' communicated yet.'
-c$$$#endif
-c$$$#endif
-c$$$
-c$$$c     End program
-c$$$
-c$$$      end subroutine topol_bc
 
 c     dr_bc
 c     #################################################################
@@ -1640,6 +1577,8 @@ c     Local variables
 
 c     Begin program
 
+        lerr = 0
+        
 c     Checks
 
         map_present = PRESENT(xcar)
@@ -1665,14 +1604,6 @@ c     Allocate arrays
         if (vmap_present) g_def%gmetric%grid(igrmin)%car_v = xcarv
 
 c     Find grid metrics at all grid levels
-
-c$$$        call findGridMetrics(g_def,igrmin,.false.,ierr=lerr)
-c$$$        do igrid=igrmin+1,igrmax
-c$$$          call coarsenGridMetrics(g_def,igrid,ierr=lerr)
-c$$$c$$$          if (my_rank == 0) write (*,*) 'igrid=',igrid,
-c$$$c$$$     $                            'coarsenGridMetrics error',lerr
-c$$$          if (lerr /= 0) exit
-c$$$        enddo
 
         do igrid=igrmin,igrmax
           call findGridMetrics(g_def,igrid,.not.PRESENT(igr),ierr=lerr)
@@ -1720,10 +1651,6 @@ c     Local variables
      .            ,nxc,nyc,nzc,nxf,nyf,nzf,l,m,bcs(6)
 
 c     Begin program
-
-c$$$cc        write (*,*) 'DIAG -- coarsenGridMetrics'
-c$$$        call findGridMetrics(g_def,igc)
-c$$$        return
 
         !From analytical mapping
         if ((.not.numerical_grid).and.anal_map) then
@@ -2128,7 +2055,7 @@ c     Begin program
         ip = i0+1
         im = i0-1
 
-        call getMGmap(g_def,i0,j,k,igx,igy,igz,ig,jg,kg)
+        call getMGmap(g_def,i0,j,k,igrid,igrid,igrid,ig,jg,kg)
 
         igp = ig+1
         igm = ig-1
@@ -2147,7 +2074,7 @@ c     Begin program
         jp = j0+1
         jm = j0-1
 
-        call getMGmap(g_def,i,j0,k,igx,igy,igz,ig,jg,kg)
+        call getMGmap(g_def,i,j0,k,igrid,igrid,igrid,ig,jg,kg)
 
         jgp = jg+1
         jgm = jg-1
@@ -2166,7 +2093,7 @@ c     Begin program
         kp = k0+1
         km = k0-1
 
-        call getMGmap(g_def,i,j,k0,igx,igy,igz,ig,jg,kg)
+        call getMGmap(g_def,i,j,k0,igrid,igrid,igrid,ig,jg,kg)
 
         kgp = kg+1
         kgm = kg-1
@@ -2258,7 +2185,7 @@ c     Begin program
         ny = g_def%nyv(igrid)
         nz = g_def%nzv(igrid)
 
-        call getMGmap(g_def,i,j,k,igx,igy,igz,ig,jg,kg)
+        call getMGmap(g_def,i,j,k,igrid,igrid,igrid,ig,jg,kg)
 
 c     Exceptions
 
@@ -2271,7 +2198,7 @@ c     Exceptions
           im  = i0-1
           imm = i0-2
 
-          call getMGmap(g_def,i0,j,k,igx,igy,igz,ig0,jg,kg)
+          call getMGmap(g_def,i0,j,k,igrid,igrid,igrid,ig0,jg,kg)
 
           igpp = ig0+2
           igp  = ig0+1
@@ -2296,7 +2223,7 @@ c     Exceptions
           ip = i0+1
           im = i0-1
 
-          call getMGmap(g_def,i0,j,k,igx,igy,igz,ig0,jg,kg)
+          call getMGmap(g_def,i0,j,k,igrid,igrid,igrid,ig0,jg,kg)
 
           igp = ig0+1
           igm = ig0-1
@@ -2319,7 +2246,7 @@ c     Exceptions
           jm  = j0-1
           jmm = j0-2
 
-          call getMGmap(g_def,i,j0,k,igx,igy,igz,ig,jg0,kg)
+          call getMGmap(g_def,i,j0,k,igrid,igrid,igrid,ig,jg0,kg)
 
           jgpp = jg0+2
           jgp  = jg0+1
@@ -2344,7 +2271,7 @@ c     Exceptions
           jp = j0+1
           jm = j0-1
 
-          call getMGmap(g_def,i,j0,k,igx,igy,igz,ig,jg0,kg)
+          call getMGmap(g_def,i,j0,k,igrid,igrid,igrid,ig,jg0,kg)
 
           jgp = jg0+1
           jgm = jg0-1
@@ -2367,7 +2294,7 @@ c     Exceptions
           km  = k0-1
           kmm = k0-2
 
-          call getMGmap(g_def,i,j,k0,igx,igy,igz,ig,jg,kg0)
+          call getMGmap(g_def,i,j,k0,igrid,igrid,igrid,ig,jg,kg0)
 
           kgpp = kg0+2
           kgp  = kg0+1
@@ -2391,7 +2318,7 @@ c     Exceptions
           kp = k0+1
           km = k0-1
 
-          call getMGmap(g_def,i,j,k0,igx,igy,igz,ig,jg,kg0)
+          call getMGmap(g_def,i,j,k0,igrid,igrid,igrid,ig,jg,kg0)
 
           kgp = kg0+1
           kgm = kg0-1
