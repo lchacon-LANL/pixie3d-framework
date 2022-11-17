@@ -396,7 +396,7 @@ c     Input variables
 c     Local variables
 
       integer :: ig,jg,kg
-      real(8) :: x,y,z,gp(ngparams),mm,kk,aa,bb,R0,R2,dR2,rr,th,zz
+      real(8) :: x,y,z,gp(ngparams),mm,kk,aa,bb,R0,R1,R2,dR2,rr,th,zz
      .          ,Jac,rhs,da,db,Z2,dZ2,iaa,ibb,da_a,db_b,rold,Rs,gc_cf
      .          ,phi
 
@@ -416,13 +416,13 @@ c     Find radius and angle
       case('hel')
 
         if (polar) then
-          rr = gc_cf*sqrt(x**2+y**2)
+          rr = gc_cf*sqrt(x*x+y*y)
           th = atan2(y,x)
           if (rr < 0d0) th = th + pi
           zz = z
           th = mod(th+2*pi,2*pi) !Ensure angle is in [0,2pi]
         else
-          rr = gc_cf*sqrt(x**2+y**2)
+          rr = gc_cf*sqrt(x*x+y*y)
           phi = atan2(y,x)      !Physical angle
           if (rr < 0d0) phi = phi + pi
           mm = g_def%params(1)  !Poloidal mode number
@@ -434,7 +434,7 @@ c     Find radius and angle
         
       case('cyl')
 
-        rr = gc_cf*sqrt(x**2+y**2)
+        rr = gc_cf*sqrt(x*x+y*y)
         th = atan2(y,x)
         if (rr < 0d0) th = th + pi
         zz = z
@@ -446,15 +446,12 @@ c     Find radius and angle
         aa = g_def%params(2) !Horizontal radius
         bb = g_def%params(3) !Vertical   radius
 
-        R2 = ((sqrt(x*x+y*y)-R0)/aa) ; R2 = R2*R2          !In-plane radius
+        R1 = (sqrt(x*x+y*y)-R0)/aa          !In-plane radius
         
-        rr = gc_cf*sqrt(R2+z*z/(bb*bb))          !Poloidal radius
-        zz =-atan2(y,x)                          !Toroidal angle
+        rr = gc_cf*sqrt(R1*R1+z*z/(bb*bb))  !Poloidal radius
+        zz =-atan2(y,x)                     !Toroidal angle
 
-        th = cos(zz)
-        th = atan2(aa*z*th,bb*(x-R0*th)) !Poloidal angle
-cc        th = atan2(z/bb,sqrt(R2))                !Poloidal angle
-cc        th = asin(z/bb/rr)                       !Poloidal angle
+        th = atan2(z/bb,R1)                 !Poloidal angle
         
         if (rr < 0d0) th = th + pi
 
@@ -491,9 +488,9 @@ cc        th = asin(z/bb/rr)                       !Poloidal angle
         aa = aa/cos(th)
         bb = bb/sin(th)
         
-        R2 = ((sqrt(x*x+y*y)-R0)/aa)**2          !In-plane radius
+        R1 = ((sqrt(x*x+y*y)-R0)/aa)          !In-plane radius
         
-        rr = gc_cf*sqrt(R2+z*z/(bb*bb))
+        rr = gc_cf*sqrt(R1*R1+z*z/(bb*bb))
         
         if (rr < 0d0) th = th + pi
 
