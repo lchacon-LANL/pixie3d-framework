@@ -3056,6 +3056,9 @@ c     Local variables
       integer :: ibc,flg,nullp,currp
       integer,dimension(-1:1,-1:1,-1:1) :: pn
 
+      integer :: down_tag=1,up_tag=2,top_tag=3,bottom_tag=4
+     $          ,left_tag=5,right_tag=6
+       
 #if defined(petsc)
       integer :: dest,tag=0,ireq,request(10),status(MPI_STATUS_SIZE,10)
 
@@ -3202,14 +3205,14 @@ c     Begin program
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumzout1,(nzbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,MPI_DOUBLE_PRECISION,dest,up_tag
      .         ,gbc_def%MPI_COMM,request(ireq)
      .         ,mpierr)
         else
           ireq = ireq+1
           dumzin1 = array(i,1,0:nzbc+1)
           call MPI_Isend(dumzin1,(nzbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,MPI_DOUBLE_PRECISION,dest,down_tag
      .         ,gbc_def%MPI_COMM,request(ireq)
      .         ,mpierr)
         endif
@@ -3222,14 +3225,14 @@ c     Begin program
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumzout2,(nzbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,MPI_DOUBLE_PRECISION,dest,down_tag
      .         ,gbc_def%MPI_COMM,request(ireq)
      .         ,mpierr)
         else
           ireq = ireq+1
           dumzin2 = array(i,nybc,0:nzbc+1)
           call MPI_Isend(dumzin2,(nzbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,MPI_DOUBLE_PRECISION,dest,up_tag
      .         ,gbc_def%MPI_COMM,request(ireq)
      .         ,mpierr)
         endif
@@ -3242,14 +3245,14 @@ c     Begin program
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumyout1,(nybc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,MPI_DOUBLE_PRECISION,dest,top_tag
      .         ,gbc_def%MPI_COMM,request(ireq)
      .         ,mpierr)
         else
           ireq = ireq+1
           dumyin1 = array(i,0:nybc+1,1)
           call MPI_Isend(dumyin1,(nybc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,MPI_DOUBLE_PRECISION,dest,bottom_tag
      .         ,gbc_def%MPI_COMM,request(ireq)
      .         ,mpierr)
         endif
@@ -3262,14 +3265,14 @@ c     Begin program
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumyout2,(nybc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,MPI_DOUBLE_PRECISION,dest,bottom_tag
      .         ,gbc_def%MPI_COMM,request(ireq)
      .         ,mpierr)
         else
           ireq = ireq+1
           dumyin2 = array(i,0:nybc+1,nzbc)
           call MPI_Isend(dumyin2,(nybc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,MPI_DOUBLE_PRECISION,dest,top_tag
      .         ,gbc_def%MPI_COMM,request(ireq)
      .         ,mpierr)
         endif
@@ -3278,46 +3281,42 @@ c     Begin program
       if(ireq>0.and.flg==1) then
         call MPI_Waitall(ireq,request,status,mpierr)
 
-c$$$        if (pn( 0,-1, 0)/=nullp.and.pn( 0,-1, 0)/=currp)
-c$$$     .       array(i,0     ,0:nzbc+1) = dumzout1
-c$$$        if (pn( 0, 1, 0)/=nullp.and.pn( 0, 1, 0)/=currp)
-c$$$     .       array(i,nybc+1,0:nzbc+1) = dumzout2
-c$$$        if (pn( 0, 0,-1)/=nullp.and.pn( 0, 0,-1)/=currp)
-c$$$     .       array(i,0:nybc+1,0     ) = dumyout1
-c$$$        if (pn( 0, 0, 1)/=nullp.and.pn( 0, 0, 1)/=currp)
-c$$$     .       array(i,0:nybc+1,nzbc+1) = dumyout2
+        if (down)   array(i,0     ,0:nzbc+1) = dumzout1
+        if (up)     array(i,nybc+1,0:nzbc+1) = dumzout2
+        if (bottom) array(i,0:nybc+1,0     ) = dumyout1
+        if (top)    array(i,0:nybc+1,nzbc+1) = dumyout2
 
-        if (down) then
-          if (pn(0,-1,0)==pn(0,1,0)) then  !Special case where both neighbors are same proc (PER)
-            array(i,0     ,0:nzbc+1) = dumzout2
-          else
-            array(i,0     ,0:nzbc+1) = dumzout1
-          endif
-        endif
-
-        if (up) then
-          if (pn(0,-1,0)==pn(0,1,0)) then
-            array(i,nybc+1,0:nzbc+1) = dumzout1
-          else
-            array(i,nybc+1,0:nzbc+1) = dumzout2
-          endif
-        endif
-
-        if (bottom) then
-          if (pn(0,0,-1)==pn(0,0,1)) then
-            array(i,0:nybc+1,0     ) = dumyout2
-          else
-            array(i,0:nybc+1,0     ) = dumyout1
-          endif
-        endif
-
-        if (top) then
-          if (pn(0,0,-1)==pn(0,0,1)) then
-            array(i,0:nybc+1,nzbc+1) = dumyout1
-          else
-            array(i,0:nybc+1,nzbc+1) = dumyout2
-          endif
-        endif
+c$$$        if (down) then
+c$$$          if (pn(0,-1,0)==pn(0,1,0)) then  !Special case where both neighbors are same proc (PER)
+c$$$            array(i,0     ,0:nzbc+1) = dumzout2
+c$$$          else
+c$$$            array(i,0     ,0:nzbc+1) = dumzout1
+c$$$          endif
+c$$$        endif
+c$$$
+c$$$        if (up) then
+c$$$          if (pn(0,-1,0)==pn(0,1,0)) then
+c$$$            array(i,nybc+1,0:nzbc+1) = dumzout1
+c$$$          else
+c$$$            array(i,nybc+1,0:nzbc+1) = dumzout2
+c$$$          endif
+c$$$        endif
+c$$$
+c$$$        if (bottom) then
+c$$$          if (pn(0,0,-1)==pn(0,0,1)) then
+c$$$            array(i,0:nybc+1,0     ) = dumyout2
+c$$$          else
+c$$$            array(i,0:nybc+1,0     ) = dumyout1
+c$$$          endif
+c$$$        endif
+c$$$
+c$$$        if (top) then
+c$$$          if (pn(0,0,-1)==pn(0,0,1)) then
+c$$$            array(i,0:nybc+1,nzbc+1) = dumyout1
+c$$$          else
+c$$$            array(i,0:nybc+1,nzbc+1) = dumyout2
+c$$$          endif
+c$$$        endif
 
       endif
 
@@ -3348,14 +3347,14 @@ c     Begin program
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumzout1,(nzbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,MPI_DOUBLE_PRECISION,dest,right_tag
      .         ,gbc_def%MPI_COMM,request(ireq)
      .         ,mpierr)
         else
           ireq = ireq+1
           dumzin1 = array(1,j,0:nzbc+1)
           call MPI_Isend(dumzin1,(nzbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,MPI_DOUBLE_PRECISION,dest,left_tag
      .         ,gbc_def%MPI_COMM,request(ireq)
      .         ,mpierr)
         endif
@@ -3368,14 +3367,14 @@ c     Begin program
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumzout2,(nzbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,MPI_DOUBLE_PRECISION,dest,left_tag
      .         ,gbc_def%MPI_COMM,request(ireq)
      .         ,mpierr)
         else
           ireq = ireq+1
           dumzin2 = array(nxbc,j,0:nzbc+1)
           call MPI_Isend(dumzin2,(nzbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,MPI_DOUBLE_PRECISION,dest,right_tag
      .         ,gbc_def%MPI_COMM,request(ireq)
      .         ,mpierr)
         endif
@@ -3388,14 +3387,14 @@ c     Begin program
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumxout1,(nxbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,MPI_DOUBLE_PRECISION,dest,up_tag
      .         ,gbc_def%MPI_COMM,request(ireq)
      .         ,mpierr)
         else
           ireq = ireq+1
           dumxin1 = array(0:nxbc+1,j,1)
           call MPI_Isend(dumxin1,(nxbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,MPI_DOUBLE_PRECISION,dest,bottom_tag
      .         ,gbc_def%MPI_COMM,request(ireq)
      .         ,mpierr)
         endif
@@ -3408,14 +3407,14 @@ c     Begin program
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumxout2,(nxbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,MPI_DOUBLE_PRECISION,dest,bottom_tag
      .         ,gbc_def%MPI_COMM,request(ireq)
      .         ,mpierr)
         else
           ireq = ireq+1
           dumxin2 = array(0:nxbc+1,j,nzbc)
           call MPI_Isend(dumxin2,(nxbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,MPI_DOUBLE_PRECISION,dest,top_tag
      .         ,gbc_def%MPI_COMM,request(ireq)
      .         ,mpierr)
         endif
@@ -3424,46 +3423,42 @@ c     Begin program
       if(ireq>0.and.flg==1) then
         call MPI_Waitall(ireq,request,status,mpierr)
 
-c$$$        if (pn(-1, 0, 0)/=nullp.and.pn(-1, 0, 0)/=currp)
-c$$$     .       array(0     ,j,0:nzbc+1) = dumzout1
-c$$$        if (pn( 1, 0, 0)/=nullp.and.pn( 1, 0, 0)/=currp)
-c$$$     .       array(nxbc+1,j,0:nzbc+1) = dumzout2
-c$$$        if (pn( 0, 0,-1)/=nullp.and.pn( 0, 0,-1)/=currp)
-c$$$     .       array(0:nxbc+1,j,0     ) = dumxout1
-c$$$        if (pn( 0, 0, 1)/=nullp.and.pn( 0, 0, 1)/=currp)
-c$$$     .       array(0:nxbc+1,j,nzbc+1) = dumxout2
+        if (left)   array(0     ,j,0:nzbc+1) = dumzout1
+        if (right)  array(nxbc+1,j,0:nzbc+1) = dumzout2
+        if (bottom) array(0:nxbc+1,j,0     ) = dumxout1
+        if (top)    array(0:nxbc+1,j,nzbc+1) = dumxout2
 
-        if (left) then
-          if (pn(-1,0,0)==pn(1,0,0)) then
-            array(0     ,j,0:nzbc+1) = dumzout2
-          else
-            array(0     ,j,0:nzbc+1) = dumzout1
-          endif
-        endif
-
-        if (right) then
-          if (pn(-1,0,0)==pn(1,0,0)) then
-            array(nxbc+1,j,0:nzbc+1) = dumzout1
-          else
-            array(nxbc+1,j,0:nzbc+1) = dumzout2
-          endif
-        endif
-
-        if (bottom) then
-          if (pn(0,0,-1)==pn(0,0,1)) then
-            array(0:nxbc+1,j,0     ) = dumxout2
-          else
-            array(0:nxbc+1,j,0     ) = dumxout1
-          endif
-        endif
-
-        if (top) then
-          if (pn(0,0,-1)==pn(0,0,1)) then
-            array(0:nxbc+1,j,nzbc+1) = dumxout1
-          else
-            array(0:nxbc+1,j,nzbc+1) = dumxout2
-          endif
-        endif
+c$$$        if (left) then
+c$$$          if (pn(-1,0,0)==pn(1,0,0)) then
+c$$$            array(0     ,j,0:nzbc+1) = dumzout2
+c$$$          else
+c$$$            array(0     ,j,0:nzbc+1) = dumzout1
+c$$$          endif
+c$$$        endif
+c$$$
+c$$$        if (right) then
+c$$$          if (pn(-1,0,0)==pn(1,0,0)) then
+c$$$            array(nxbc+1,j,0:nzbc+1) = dumzout1
+c$$$          else
+c$$$            array(nxbc+1,j,0:nzbc+1) = dumzout2
+c$$$          endif
+c$$$        endif
+c$$$
+c$$$        if (bottom) then
+c$$$          if (pn(0,0,-1)==pn(0,0,1)) then
+c$$$            array(0:nxbc+1,j,0     ) = dumxout2
+c$$$          else
+c$$$            array(0:nxbc+1,j,0     ) = dumxout1
+c$$$          endif
+c$$$        endif
+c$$$
+c$$$        if (top) then
+c$$$          if (pn(0,0,-1)==pn(0,0,1)) then
+c$$$            array(0:nxbc+1,j,nzbc+1) = dumxout1
+c$$$          else
+c$$$            array(0:nxbc+1,j,nzbc+1) = dumxout2
+c$$$          endif
+c$$$        endif
       endif
 
       end subroutine d2
@@ -3493,14 +3488,14 @@ c     Begin program
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumyout1,(nybc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,MPI_DOUBLE_PRECISION,dest,right_tag
      .         ,gbc_def%MPI_COMM,request(ireq)
      .         ,mpierr)
         else
           ireq = ireq+1
           dumyin1 = array(1,0:nybc+1,k)
           call MPI_Isend(dumyin1,(nybc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,MPI_DOUBLE_PRECISION,dest,left_tag
      .         ,gbc_def%MPI_COMM,request(ireq)
      .         ,mpierr)
         endif
@@ -3513,14 +3508,14 @@ c     Begin program
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumyout2,(nybc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,MPI_DOUBLE_PRECISION,dest,left_tag
      .         ,gbc_def%MPI_COMM,request(ireq)
      .         ,mpierr)
         else
           ireq = ireq+1
           dumyin2 = array(nxbc,0:nybc+1,k)
           call MPI_Isend(dumyin2,(nybc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,MPI_DOUBLE_PRECISION,dest,right_tag
      .         ,gbc_def%MPI_COMM,request(ireq)
      .         ,mpierr)
         endif
@@ -3533,14 +3528,14 @@ c     Begin program
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumxout1,(nxbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,MPI_DOUBLE_PRECISION,dest,up_tag
      .         ,gbc_def%MPI_COMM,request(ireq)
      .         ,mpierr)
         else
           ireq = ireq+1
           dumxin1 = array(0:nxbc+1,1,k)
           call MPI_Isend(dumxin1,(nxbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,MPI_DOUBLE_PRECISION,dest,down_tag
      .         ,gbc_def%MPI_COMM,request(ireq)
      .         ,mpierr)
         endif
@@ -3553,14 +3548,14 @@ c     Begin program
         if (flg == 0) then
           ireq = ireq+1
           call MPI_Irecv(dumxout2,(nxbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,MPI_DOUBLE_PRECISION,dest,down_tag
      .         ,gbc_def%MPI_COMM,request(ireq)
      .         ,mpierr)
         else
           ireq = ireq+1
           dumxin2 = array(0:nxbc+1,nybc,k)
           call MPI_Isend(dumxin2,(nxbc+2)
-     .         ,MPI_DOUBLE_PRECISION,dest,ibc
+     .         ,MPI_DOUBLE_PRECISION,dest,up_tag
      .         ,gbc_def%MPI_COMM,request(ireq)
      .         ,mpierr)
         endif
@@ -3569,46 +3564,42 @@ c     Begin program
       if(ireq>0.and.flg==1) then
         call MPI_Waitall(ireq,request,status,mpierr)
  
-c$$$        if (pn(-1, 0, 0)/=nullp.and.pn(-1, 0, 0)/=currp)
-c$$$     .       array(0     ,0:nybc+1,k) = dumyout1
-c$$$        if (pn( 1, 0, 0)/=nullp.and.pn( 1, 0, 0)/=currp)
-c$$$     .       array(nxbc+1,0:nybc+1,k) = dumyout2
-c$$$        if (pn( 0,-1, 0)/=nullp.and.pn( 0,-1, 0)/=currp)
-c$$$     .       array(0:nxbc+1,0     ,k) = dumxout1
-c$$$        if (pn( 0, 1, 0)/=nullp.and.pn( 0, 1, 0)/=currp)
-c$$$     .       array(0:nxbc+1,nybc+1,k) = dumxout2
+        if (left)  array(0     ,0:nybc+1,k) = dumyout1
+        if (right) array(nxbc+1,0:nybc+1,k) = dumyout2
+        if (down)  array(0:nxbc+1,0     ,k) = dumxout1
+        if (up)    array(0:nxbc+1,nybc+1,k) = dumxout2
 
-        if (left) then
-          if (pn(-1,0,0)==pn(1,0,0)) then
-            array(0     ,0:nybc+1,k) = dumyout2
-          else
-            array(0     ,0:nybc+1,k) = dumyout1
-          endif
-        endif
-
-        if (right) then
-          if (pn(-1,0,0)==pn(1,0,0)) then
-            array(nxbc+1,0:nybc+1,k) = dumyout1
-          else
-            array(nxbc+1,0:nybc+1,k) = dumyout2
-          endif
-        endif
-
-        if (down) then
-          if (pn(0,-1,0)==pn(0,1,0)) then
-            array(0:nxbc+1,0     ,k) = dumxout2
-          else
-            array(0:nxbc+1,0     ,k) = dumxout1
-          endif
-        endif
-
-        if (up) then
-          if (pn(0,-1,0)==pn(0,1,0)) then
-            array(0:nxbc+1,nybc+1,k) = dumxout1
-          else
-            array(0:nxbc+1,nybc+1,k) = dumxout2
-          endif
-        endif
+c$$$        if (left) then
+c$$$          if (pn(-1,0,0)==pn(1,0,0)) then
+c$$$            array(0     ,0:nybc+1,k) = dumyout2
+c$$$          else
+c$$$            array(0     ,0:nybc+1,k) = dumyout1
+c$$$          endif
+c$$$        endif
+c$$$
+c$$$        if (right) then
+c$$$          if (pn(-1,0,0)==pn(1,0,0)) then
+c$$$            array(nxbc+1,0:nybc+1,k) = dumyout1
+c$$$          else
+c$$$            array(nxbc+1,0:nybc+1,k) = dumyout2
+c$$$          endif
+c$$$        endif
+c$$$
+c$$$        if (down) then
+c$$$          if (pn(0,-1,0)==pn(0,1,0)) then
+c$$$            array(0:nxbc+1,0     ,k) = dumxout2
+c$$$          else
+c$$$            array(0:nxbc+1,0     ,k) = dumxout1
+c$$$          endif
+c$$$        endif
+c$$$
+c$$$        if (up) then
+c$$$          if (pn(0,-1,0)==pn(0,1,0)) then
+c$$$            array(0:nxbc+1,nybc+1,k) = dumxout1
+c$$$          else
+c$$$            array(0:nxbc+1,nybc+1,k) = dumxout2
+c$$$          endif
+c$$$        endif
 
       endif
       
