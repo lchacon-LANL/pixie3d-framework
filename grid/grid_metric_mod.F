@@ -1517,9 +1517,12 @@ c     Start with topological BCs
 
 c     Set up i=0, j=0, k=0 boundaries (do NOTHING: dr is trustworthy there)
 
-        where (bcs(1,:) /= PER) bcs(1,:) = DEF
-        where (bcs(3,:) /= PER) bcs(3,:) = DEF
-        where (bcs(5,:) /= PER) bcs(5,:) = DEF
+c$$$        where (bcs(1,:) /= PER) bcs(1,:) = DEF
+c$$$        where (bcs(3,:) /= PER) bcs(3,:) = DEF
+c$$$        where (bcs(5,:) /= PER) bcs(5,:) = DEF
+        where (bcs(1,:) == DEF) bcs(1,:) = EXT
+        where (bcs(3,:) == DEF) bcs(3,:) = EXT 
+        where (bcs(5,:) == DEF) bcs(5,:) = EXT 
 
 c     Set up i=imax, j=jmax, k=kmax boundaries
 
