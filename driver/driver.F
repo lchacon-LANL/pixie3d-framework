@@ -82,8 +82,9 @@ c     Find new time step and update time counters
 
         call TS_correct_dt(ierr)
 
-c     Store old time solution
+c     Store old time solutions
 
+        call equateDerivedType(u_nm2,u_nm)
         call equateDerivedType(u_nm,u_n)
         call equateDerivedType(u_n ,u_np)
 
@@ -104,6 +105,7 @@ c     Check for error in time stepping
 
           call equateDerivedType(u_np,u_n )
           call equateDerivedType(u_n ,u_nm)
+          call equateDerivedType(u_nm,u_nm2)
 
           call TS_rollback_counters()
 

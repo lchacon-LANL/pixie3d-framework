@@ -131,8 +131,8 @@ c     Begin program
       time = 0d0
 
       dtold = dt
-      dt_n  = dt
-      dt_nm = dt
+      dt_n  = 0d0
+      dt_nm = 0d0
 
 c     End program
 
@@ -168,7 +168,7 @@ c     Begin program
 
       dtold = tn - tnm
       dt_n  = dtold
-      dt_nm = 0d0
+      dt_nm = tnm-tnm2
 
       time  = tn
       tn    = tnm
@@ -216,7 +216,7 @@ c     Begin program
       dtold = tn - tnm
       if (dtold == 0d0) dtold = dt
 
-      dt_nm = dt_n
+      dt_nm = tnm-tnm2
       dt_n  = dtold
 
 c     End program

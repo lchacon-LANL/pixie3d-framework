@@ -104,6 +104,7 @@ c #####################################################################
           type(var_array)  ,pointer :: u_n     => null()   ! data at time n
           type(var_array)  ,pointer :: u_np    => null()   ! data at n+1
           type(var_array)  ,pointer :: u_nm    => null()   ! data at n-1
+          type(var_array)  ,pointer :: u_nm2   => null()   ! data at n-2
 
           type(aux_array)  ,pointer :: aux     => null()   ! auxiliary variables
           type(grid_mg_def),pointer :: gparams => null()   ! contains all grid info
@@ -120,6 +121,7 @@ c #####################################################################
         type(var_array),pointer :: u_np => null()
      .                            ,u_n  => null()
      .                            ,u_nm => null()
+     .                            ,u_nm2=> null()
      .                            ,u_ic => null()
      .                            ,u_0  => null()
 
@@ -243,7 +245,7 @@ c     Nullify pointers
         if (.not.associated(gv)) then
           allocate(gv)
           nullify(gv%bc_grp)
-          nullify(gv%u_np,gv%u_n,gv%u_nm,gv%u_0)
+          nullify(gv%u_np,gv%u_n,gv%u_nm,gv%u_nm2,gv%u_0)
           nullify(gv%gparams)
           nullify(gv%aux)
         endif
@@ -968,9 +970,11 @@ c     Begin program
 #if !defined(samrai)
         call allocateDerivedType(gv%u_np)
         call allocateDerivedType(gv%u_nm)
+        call allocateDerivedType(gv%u_nm2)
 
         u_np    => gv%u_np
         u_nm    => gv%u_nm
+        u_nm2   => gv%u_nm2
 #endif
 
 c     End program
@@ -987,12 +991,13 @@ c     Local variables
 
 c     Begin program
 
-        call deallocateDerivedType(gv%u_n )
+        call deallocateDerivedType(gv%u_n)
         call deallocateDerivedType(gv%u_0)
 
 #if !defined(samrai)
         call deallocateDerivedType(gv%u_np)
         call deallocateDerivedType(gv%u_nm)
+        call deallocateDerivedType(gv%u_nm2)
 #endif
 
 c     End program

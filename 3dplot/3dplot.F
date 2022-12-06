@@ -116,6 +116,7 @@ c     Output per time step
 
 c     Store previous record (for time derivatives in diagnostics)
 
+        call equateDerivedType(u_nm2,u_n)
         call equateDerivedType(u_n,u_np)
 
 c     Check for tmax
