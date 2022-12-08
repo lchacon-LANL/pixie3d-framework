@@ -345,8 +345,6 @@ c ######################################################################
 
         use mpi
 
-cc#define PETSC_AVOID_MPIF_H
-        
 #include <petsc/finclude/petscvec.h>
         use Petscvec
         
