@@ -634,18 +634,17 @@ ifeq ($(findstring Marias,$(HOST)),Marias)
   OMP_NUM_THREADS = 4
 
   ifdef BOPT
-#    PETSC_DIR =$(WORKDIR)/lib/petsc-3.0.0-p7
     PETSC_DIR =$(WORKDIR)/lib/petsc-3.17.3
 
     ifeq ($(BOPT),O)
-      PETSC_ARCH = darwin_gcc-12.1.0_openmpi-3.1.6
+      PETSC_ARCH = darwin_gcc-12.2.0_openmpi-3.1.6
     else
-      PETSC_ARCH = darwin_gcc-12.1.0_openmpi-3.1.6_g
+      PETSC_ARCH = darwin_gcc-12.2.0_openmpi-3.1.6_g
     endif
 
     HDF5 = t
 
-    HDF5_HOME = $(WORKDIR)/lib/hdf5-1.8.13/gcc-12.1.0_openmpi-3.1.6
+    HDF5_HOME = $(WORKDIR)/lib/hdf5-1.8.13/gcc-12.2.0_openmpi-3.1.6
     HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
     HDF5_MOD  = $(HDF5_HOME)/include
     HDF5_INC  = $(HDF5_MOD)
@@ -658,10 +657,10 @@ ifeq ($(findstring Marias,$(HOST)),Marias)
 
     ADIOS2 = t
     ADIOS2_METHOD = MPI
-    ADIOS2_HOME = $(WORKDIR)/lib/adios-2.8.2/gcc-12.1.0_openmpi-3.1.6
+    ADIOS2_HOME = $(WORKDIR)/lib/adios-2.5.0/gcc-12.2.0_openmpi-3.1.6
     ADIOS2_LIBS = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-libs)
     ADIOS2_MOD  = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-flags) 
-    ADIOS2_VER  = 2.8.2
+    ADIOS2_VER  = 2.5.0
      
     LIBS += -L/opt/local/lib -latlas
   else
