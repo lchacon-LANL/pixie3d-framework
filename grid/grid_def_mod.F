@@ -389,7 +389,7 @@ cc        nnmg = (2+ngrdt-ngrd)*nn
 
 c     deallocateGridStructure
 c     #################################################################
-      recursive subroutine deallocateGridStructure(grid_st)
+      subroutine deallocateGridStructure(grid_st)
 c     -----------------------------------------------------------------
 c     Allocates grid structure
 c     -----------------------------------------------------------------
@@ -412,9 +412,9 @@ c     Begin program
         
         if (.not.associated(grid_st)) return
 
-c     Deallocate coarser levels
-
-        call deallocateGridStructure(grid_st%g_crse_def)
+c$$$c     Deallocate coarser levels
+c$$$
+c$$$        call deallocateGridStructure(grid_st%g_crse_def)
 
 c     Deallocate gmetric
 
@@ -478,174 +478,174 @@ c     End program
 
       end subroutine deallocateGridStructure
 
-c     equateGridStructure
-c     #################################################################
-      subroutine equateGridStructure(grid_st2,grid_st1)
-
-c     -----------------------------------------------------------------
-c     Performs grid_st2 = grid_st1, where MG storage arrays are 
-c     strictly copied, PETSC DA are regenerated, and grid metrics
-c     are simply pointed to.
-c     -----------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-        type(grid_mg_def),pointer :: grid_st1
-        type(grid_mg_def),pointer :: grid_st2
-
-c     Local variables
-
-        integer :: ngridx,ngridy,ngridz,nx,ny,nz
-     .            ,nglx,ngly,nglz,mx,my,mz
-     .            ,ilog,ihig,jlog,jhig,klog,khig
-
-c     Begin program
-
-        ngridx = grid_st1%ngrdx
-        ngridy = grid_st1%ngrdy
-        ngridz = grid_st1%ngrdz
-
-        nx = grid_st1%nxv(1)
-        ny = grid_st1%nyv(1)
-        nz = grid_st1%nzv(1)
-
-        nglx = grid_st1%nglx
-        ngly = grid_st1%ngly
-        nglz = grid_st1%nglz
-
-        mx = grid_st1%mx
-        my = grid_st1%my
-        mz = grid_st1%mz
-
-        ilog = grid_st1%ilog
-        ihig = grid_st1%ihig
-        jlog = grid_st1%jlog
-        jhig = grid_st1%jhig
-        klog = grid_st1%klog
-        khig = grid_st1%khig
-
-        if (associated(grid_st2)) then
-          if (    grid_st2%ngrdx /= ngridx
-     .        .or.grid_st2%ngrdy /= ngridy
-     .        .or.grid_st2%ngrdz /= ngridz
-     .        .or.grid_st2%nxv(1)/= nx
-     .        .or.grid_st2%nyv(1)/= ny
-     .        .or.grid_st2%nzv(1)/= nz
-     .        .or.grid_st2%nglx  /= nglx
-     .        .or.grid_st2%ngly  /= ngly
-     .        .or.grid_st2%nglz  /= nglz)
-     .      call deallocateGridStructure(grid_st2)
-        endif
-
-c       Create basic structure
-
-        call allocateGridStructure(ngridx,ngridy,ngridz,mx,my,mz
-     .                            ,nglx,ngly,nglz,grid_st2)
-
-c       Copy values
-
-        grid_st2%xg         = grid_st1%xg        
-        grid_st2%yg         = grid_st1%yg        
-        grid_st2%zg         = grid_st1%zg        
-        grid_st2%xx         = grid_st1%xx        
-        grid_st2%yy         = grid_st1%yy        
-        grid_st2%zz         = grid_st1%zz        
-        grid_st2%dx         = grid_st1%dx        
-        grid_st2%dy         = grid_st1%dy        
-        grid_st2%dz         = grid_st1%dz        
-        grid_st2%dxh        = grid_st1%dxh       
-        grid_st2%dyh        = grid_st1%dyh       
-        grid_st2%dzh        = grid_st1%dzh       
-        grid_st2%nxv        = grid_st1%nxv       
-        grid_st2%nyv        = grid_st1%nyv       
-        grid_st2%nzv        = grid_st1%nzv       
-        grid_st2%nxgl       = grid_st1%nxgl       
-        grid_st2%nygl       = grid_st1%nygl       
-        grid_st2%nzgl       = grid_st1%nzgl       
-        grid_st2%ilo        = grid_st1%ilo
-        grid_st2%jlo        = grid_st1%jlo
-        grid_st2%klo        = grid_st1%klo
-        grid_st2%ihi        = grid_st1%ihi
-        grid_st2%jhi        = grid_st1%jhi
-        grid_st2%khi        = grid_st1%khi
-        grid_st2%gcw        = grid_st1%gcw
-        grid_st2%istartx    = grid_st1%istartx   
-        grid_st2%istarty    = grid_st1%istarty   
-        grid_st2%istartz    = grid_st1%istartz   
-        grid_st2%istartp    = grid_st1%istartp   
-        grid_st2%mg_ratio_x = grid_st1%mg_ratio_x
-        grid_st2%mg_ratio_y = grid_st1%mg_ratio_y
-        grid_st2%mg_ratio_z = grid_st1%mg_ratio_z
-        grid_st2%iline      = grid_st1%iline
-        grid_st2%jline      = grid_st1%jline
-        grid_st2%kline      = grid_st1%kline
-
-        !Grid info
-        grid_st2%gxmin      = grid_st1%gxmin
-        grid_st2%gxmax      = grid_st1%gxmax
-        grid_st2%gymin      = grid_st1%gymin
-        grid_st2%gymax      = grid_st1%gymax
-        grid_st2%gzmin      = grid_st1%gzmin
-        grid_st2%gzmax      = grid_st1%gzmax
-        grid_st2%lxmin      = grid_st1%lxmin
-        grid_st2%lxmax      = grid_st1%lxmax
-        grid_st2%lymin      = grid_st1%lymin
-        grid_st2%lymax      = grid_st1%lymax
-        grid_st2%lzmin      = grid_st1%lzmin
-        grid_st2%lzmax      = grid_st1%lzmax
-
-        grid_st2%g_pack     = grid_st1%g_pack
-        grid_st2%params     = grid_st1%params
-
-        !MPI info
-#if defined(petsc)
-        grid_st2%mpi_comm   = grid_st1%mpi_comm
-        grid_st2%np         = grid_st1%np
-        grid_st2%rank       = grid_st1%rank
-        grid_st2%mx         = grid_st1%mx
-        grid_st2%my         = grid_st1%my
-        grid_st2%mz         = grid_st1%mz
-        grid_st2%MPI_COMM_SP  = grid_st1%MPI_COMM_SP    
-        grid_st2%MPI_COMM_POL = grid_st1%MPI_COMM_POL   
-        grid_st2%MPI_COMM_RAD = grid_st1%MPI_COMM_RAD   
-        grid_st2%MPI_COMM_X   = grid_st1%MPI_COMM_X     
-        grid_st2%MPI_COMM_Y   = grid_st1%MPI_COMM_Y     
-        grid_st2%MPI_COMM_Z   = grid_st1%MPI_COMM_Z     
-        grid_st2%MPI_COMM_XY  = grid_st1%MPI_COMM_XY    
-        grid_st2%MPI_COMM_XZ  = grid_st1%MPI_COMM_XZ    
-        grid_st2%MPI_COMM_YZ  = grid_st1%MPI_COMM_YZ    
-        grid_st2%MPI_COMM_PER = grid_st2%MPI_COMM_PER
-        grid_st2%MPI_COMM_CRSE= grid_st2%MPI_COMM_CRSE
-#endif
-
-c       Create and copy grid metric
-
-        if (associated(grid_st1%gmetric)) then
-          call equateGridMetric(grid_st2%gmetric
-     .                         ,grid_st1%gmetric,grid_st1)
-        else
-          nullify(grid_st2%gmetric)
-        endif
-
-c       Create and copy coarse grid metric
-
-        if (associated(grid_st1%g_crse_def)) then
-          grid_st2%g_crse_def => grid_st1%g_crse_def
-        else
-          nullify(grid_st2%g_crse_def)
-        endif
-
-c       Create fortran PETSc parallel grid hierarchy (parallel version)
-
-#if defined(petsc)
-        call createPETScGrid(grid_st2,0)
-#endif
-
-c     End program
-
-      end subroutine equateGridStructure
+c$$$c     equateGridStructure
+c$$$c     #################################################################
+c$$$      subroutine equateGridStructure(grid_st2,grid_st1)
+c$$$
+c$$$c     -----------------------------------------------------------------
+c$$$c     Performs grid_st2 = grid_st1, where MG storage arrays are 
+c$$$c     strictly copied, PETSC DA are regenerated, and grid metrics
+c$$$c     are simply pointed to.
+c$$$c     -----------------------------------------------------------------
+c$$$
+c$$$        implicit none
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$        type(grid_mg_def),pointer :: grid_st1
+c$$$        type(grid_mg_def),pointer :: grid_st2
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$        integer :: ngridx,ngridy,ngridz,nx,ny,nz
+c$$$     .            ,nglx,ngly,nglz,mx,my,mz
+c$$$     .            ,ilog,ihig,jlog,jhig,klog,khig
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$        ngridx = grid_st1%ngrdx
+c$$$        ngridy = grid_st1%ngrdy
+c$$$        ngridz = grid_st1%ngrdz
+c$$$
+c$$$        nx = grid_st1%nxv(1)
+c$$$        ny = grid_st1%nyv(1)
+c$$$        nz = grid_st1%nzv(1)
+c$$$
+c$$$        nglx = grid_st1%nglx
+c$$$        ngly = grid_st1%ngly
+c$$$        nglz = grid_st1%nglz
+c$$$
+c$$$        mx = grid_st1%mx
+c$$$        my = grid_st1%my
+c$$$        mz = grid_st1%mz
+c$$$
+c$$$        ilog = grid_st1%ilog
+c$$$        ihig = grid_st1%ihig
+c$$$        jlog = grid_st1%jlog
+c$$$        jhig = grid_st1%jhig
+c$$$        klog = grid_st1%klog
+c$$$        khig = grid_st1%khig
+c$$$
+c$$$        if (associated(grid_st2)) then
+c$$$          if (    grid_st2%ngrdx /= ngridx
+c$$$     .        .or.grid_st2%ngrdy /= ngridy
+c$$$     .        .or.grid_st2%ngrdz /= ngridz
+c$$$     .        .or.grid_st2%nxv(1)/= nx
+c$$$     .        .or.grid_st2%nyv(1)/= ny
+c$$$     .        .or.grid_st2%nzv(1)/= nz
+c$$$     .        .or.grid_st2%nglx  /= nglx
+c$$$     .        .or.grid_st2%ngly  /= ngly
+c$$$     .        .or.grid_st2%nglz  /= nglz)
+c$$$     .      call deallocateGridStructure(grid_st2)
+c$$$        endif
+c$$$
+c$$$c       Create basic structure
+c$$$
+c$$$        call allocateGridStructure(ngridx,ngridy,ngridz,mx,my,mz
+c$$$     .                            ,nglx,ngly,nglz,grid_st2)
+c$$$
+c$$$c       Copy values
+c$$$
+c$$$        grid_st2%xg         = grid_st1%xg        
+c$$$        grid_st2%yg         = grid_st1%yg        
+c$$$        grid_st2%zg         = grid_st1%zg        
+c$$$        grid_st2%xx         = grid_st1%xx        
+c$$$        grid_st2%yy         = grid_st1%yy        
+c$$$        grid_st2%zz         = grid_st1%zz        
+c$$$        grid_st2%dx         = grid_st1%dx        
+c$$$        grid_st2%dy         = grid_st1%dy        
+c$$$        grid_st2%dz         = grid_st1%dz        
+c$$$        grid_st2%dxh        = grid_st1%dxh       
+c$$$        grid_st2%dyh        = grid_st1%dyh       
+c$$$        grid_st2%dzh        = grid_st1%dzh       
+c$$$        grid_st2%nxv        = grid_st1%nxv       
+c$$$        grid_st2%nyv        = grid_st1%nyv       
+c$$$        grid_st2%nzv        = grid_st1%nzv       
+c$$$        grid_st2%nxgl       = grid_st1%nxgl       
+c$$$        grid_st2%nygl       = grid_st1%nygl       
+c$$$        grid_st2%nzgl       = grid_st1%nzgl       
+c$$$        grid_st2%ilo        = grid_st1%ilo
+c$$$        grid_st2%jlo        = grid_st1%jlo
+c$$$        grid_st2%klo        = grid_st1%klo
+c$$$        grid_st2%ihi        = grid_st1%ihi
+c$$$        grid_st2%jhi        = grid_st1%jhi
+c$$$        grid_st2%khi        = grid_st1%khi
+c$$$        grid_st2%gcw        = grid_st1%gcw
+c$$$        grid_st2%istartx    = grid_st1%istartx   
+c$$$        grid_st2%istarty    = grid_st1%istarty   
+c$$$        grid_st2%istartz    = grid_st1%istartz   
+c$$$        grid_st2%istartp    = grid_st1%istartp   
+c$$$        grid_st2%mg_ratio_x = grid_st1%mg_ratio_x
+c$$$        grid_st2%mg_ratio_y = grid_st1%mg_ratio_y
+c$$$        grid_st2%mg_ratio_z = grid_st1%mg_ratio_z
+c$$$        grid_st2%iline      = grid_st1%iline
+c$$$        grid_st2%jline      = grid_st1%jline
+c$$$        grid_st2%kline      = grid_st1%kline
+c$$$
+c$$$        !Grid info
+c$$$        grid_st2%gxmin      = grid_st1%gxmin
+c$$$        grid_st2%gxmax      = grid_st1%gxmax
+c$$$        grid_st2%gymin      = grid_st1%gymin
+c$$$        grid_st2%gymax      = grid_st1%gymax
+c$$$        grid_st2%gzmin      = grid_st1%gzmin
+c$$$        grid_st2%gzmax      = grid_st1%gzmax
+c$$$        grid_st2%lxmin      = grid_st1%lxmin
+c$$$        grid_st2%lxmax      = grid_st1%lxmax
+c$$$        grid_st2%lymin      = grid_st1%lymin
+c$$$        grid_st2%lymax      = grid_st1%lymax
+c$$$        grid_st2%lzmin      = grid_st1%lzmin
+c$$$        grid_st2%lzmax      = grid_st1%lzmax
+c$$$
+c$$$        grid_st2%g_pack     = grid_st1%g_pack
+c$$$        grid_st2%params     = grid_st1%params
+c$$$
+c$$$        !MPI info
+c$$$#if defined(petsc)
+c$$$        grid_st2%mpi_comm   = grid_st1%mpi_comm
+c$$$        grid_st2%np         = grid_st1%np
+c$$$        grid_st2%rank       = grid_st1%rank
+c$$$        grid_st2%mx         = grid_st1%mx
+c$$$        grid_st2%my         = grid_st1%my
+c$$$        grid_st2%mz         = grid_st1%mz
+c$$$        grid_st2%MPI_COMM_SP  = grid_st1%MPI_COMM_SP    
+c$$$        grid_st2%MPI_COMM_POL = grid_st1%MPI_COMM_POL   
+c$$$        grid_st2%MPI_COMM_RAD = grid_st1%MPI_COMM_RAD   
+c$$$        grid_st2%MPI_COMM_X   = grid_st1%MPI_COMM_X     
+c$$$        grid_st2%MPI_COMM_Y   = grid_st1%MPI_COMM_Y     
+c$$$        grid_st2%MPI_COMM_Z   = grid_st1%MPI_COMM_Z     
+c$$$        grid_st2%MPI_COMM_XY  = grid_st1%MPI_COMM_XY    
+c$$$        grid_st2%MPI_COMM_XZ  = grid_st1%MPI_COMM_XZ    
+c$$$        grid_st2%MPI_COMM_YZ  = grid_st1%MPI_COMM_YZ    
+c$$$        grid_st2%MPI_COMM_PER = grid_st2%MPI_COMM_PER
+c$$$        grid_st2%MPI_COMM_CRSE= grid_st2%MPI_COMM_CRSE
+c$$$#endif
+c$$$
+c$$$c       Create and copy grid metric
+c$$$
+c$$$        if (associated(grid_st1%gmetric)) then
+c$$$          call equateGridMetric(grid_st2%gmetric
+c$$$     .                         ,grid_st1%gmetric,grid_st1)
+c$$$        else
+c$$$          nullify(grid_st2%gmetric)
+c$$$        endif
+c$$$
+c$$$c       Create and copy coarse grid metric
+c$$$
+c$$$        if (associated(grid_st1%g_crse_def)) then
+c$$$          grid_st2%g_crse_def => grid_st1%g_crse_def
+c$$$        else
+c$$$          nullify(grid_st2%g_crse_def)
+c$$$        endif
+c$$$
+c$$$c       Create fortran PETSc parallel grid hierarchy (parallel version)
+c$$$
+c$$$#if defined(petsc)
+c$$$        call createPETScGrid(grid_st2,0)
+c$$$#endif
+c$$$
+c$$$c     End program
+c$$$
+c$$$      end subroutine equateGridStructure
 
 c     writeGridStructure
 c     #################################################################

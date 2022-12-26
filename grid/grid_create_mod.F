@@ -82,7 +82,7 @@ c     Legacy assignments (backward compatibility)
 
 c     destroyGrid
 c     #################################################################
-      subroutine destroyGrid(gdef)
+      recursive subroutine destroyGrid(gdef)
 
 c     -----------------------------------------------------------------
 c     Deallocates grid memory space
@@ -96,11 +96,22 @@ c     Call variables
 
 c     Local variables
 
-c     Begin program
+c     Begin program        
 
+        if (.not.associated(gdef)) return
+
+c     Deallocate coarser levels
+
+        call destroyGrid(gdef%g_crse_def)
+
+c     Deallocate MPI COMMs
+        
 #if defined(petsc)
         call destroy_MPI_comms(gdef)
 #endif
+
+c     Deallocate grid structure
+        
         call deallocateGridStructure(gdef)
 
       end subroutine destroyGrid
