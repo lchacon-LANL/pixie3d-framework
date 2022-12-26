@@ -268,6 +268,10 @@ c     Begin program
 
         if (g_mpi_def%mpi_comm == MPI_COMM_SELF) return
 
+        call MPI_COMM_free(g_mpi_def%mpi_comm,mpierr)
+
+        call MPI_COMM_free(g_mpi_def%mpi_comm_crse,mpierr)
+
 c     Singular-point boundary MPI communicator
 
         if (bcSP()) then
