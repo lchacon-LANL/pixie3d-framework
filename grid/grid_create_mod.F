@@ -98,6 +98,9 @@ c     Local variables
 
 c     Begin program
 
+#if defined(petsc)
+        call destroy_MPI_comms(gdef)
+#endif
         call deallocateGridStructure(gdef)
 
       end subroutine destroyGrid

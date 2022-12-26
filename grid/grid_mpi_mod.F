@@ -131,7 +131,8 @@ c     X MPI communicator (domains that share the same Y, Z  slices)
         call splitMPIComm(g_mpi_def%MPI_COMM_X,selectRank_X
      .                     ,MPI_COMM_ORIG=g_mpi_def%mpi_comm)
 
-        if (bcSP()) g_mpi_def%MPI_COMM_RAD = g_mpi_def%MPI_COMM_X
+        if (bcSP()) call MPI_COMM_dup(g_mpi_def%MPI_COMM_X
+     $                               ,g_mpi_def%MPI_COMM_RAD,mpierr) 
         if (chk_mpi_comm)
      .       call check_MPI_COMM(g_mpi_def%MPI_COMM_X,'MPI_COMM_X')
 
@@ -140,7 +141,8 @@ c     Y MPI communicator (domains that share same X, Z slices)
         call splitMPIComm(g_mpi_def%MPI_COMM_Y,selectRank_Y
      .                     ,MPI_COMM_ORIG=g_mpi_def%mpi_comm)
 
-        if (bcSP()) g_mpi_def%MPI_COMM_POL = g_mpi_def%MPI_COMM_Y
+        if (bcSP()) call MPI_COMM_dup(g_mpi_def%MPI_COMM_Y
+     $                               ,g_mpi_def%MPI_COMM_POL,mpierr) 
         if (chk_mpi_comm)
      .       call check_MPI_COMM(g_mpi_def%MPI_COMM_Y,'MPI_COMM_Y')
 
@@ -240,6 +242,82 @@ c     End program
 
       end subroutine check_MPI_COMM
 
+c     destroy_MPI_comms
+c     #################################################################
+      subroutine destroy_MPI_comms(g_def)
+
+c     -----------------------------------------------------------------
+c     Creates required MPI communicators
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        type(grid_mg_def),pointer,INTENT(IN)  :: g_def
+
+c     Local variables
+
+        integer :: my_sp_rank,np_sp
+
+        logical :: chk_mpi_comm=.false.
+
+c     Begin program
+
+        g_mpi_def => g_def
+
+        if (g_mpi_def%mpi_comm == MPI_COMM_SELF) return
+
+c     Singular-point boundary MPI communicator
+
+        if (bcSP()) then
+          call MPI_COMM_free(g_mpi_def%MPI_COMM_SP,mpierr)
+          call MPI_COMM_free(g_mpi_def%MPI_COMM_RAD,mpierr)
+          call MPI_COMM_free(g_mpi_def%MPI_COMM_POL,mpierr)
+        endif
+
+c     X MPI communicator (domains that share the same Y, Z  slices)
+
+        call MPI_COMM_free(g_mpi_def%MPI_COMM_X,mpierr)
+
+c     Y MPI communicator (domains that share same X, Z slices)
+
+        call MPI_COMM_free(g_mpi_def%MPI_COMM_Y,mpierr)
+
+c     Z MPI communicator (domains that share same X, Z slices)
+
+        call MPI_COMM_free(g_mpi_def%MPI_COMM_Z,mpierr)
+
+c     XY MPI communicator (domains that share same Z slices)
+
+        call MPI_COMM_free(g_mpi_def%MPI_COMM_XY,mpierr)
+
+c     XZ MPI communicator (domains that share same Y slices)
+
+        call MPI_COMM_free(g_mpi_def%MPI_COMM_XZ,mpierr)
+
+c     YZ MPI communicator (domains that share same X slices)
+
+        call MPI_COMM_free(g_mpi_def%MPI_COMM_YZ,mpierr)
+
+c     Periodic BCs communicators
+
+        if (bcond(1) == PER) then
+          call MPI_COMM_free(g_mpi_def%MPI_COMM_PER(1),mpierr)
+        endif
+        if (bcond(3) == PER) then
+          call MPI_COMM_free(g_mpi_def%MPI_COMM_PER(2),mpierr)
+        endif
+        if (bcond(5) == PER) then
+          call MPI_COMM_free(g_mpi_def%MPI_COMM_PER(3),mpierr)
+        endif
+
+        if (chk_mpi_comm) write(*,*) 'Finished destroying MPI comms'
+
+c     End program
+
+      end subroutine destroy_MPI_comms
+      
 c     fillPetscGhostCells
 c     #################################################################
       subroutine fillPetscGhostCells(dactx,array)
