@@ -2330,7 +2330,7 @@ c     Read POINCARE data (this sets up orbit, splines)
 
 c     Recreate grid structure according to POINCARE data (but current mesh size)
 
-        call deallocateGridStructure(g_def)
+        call destroyGrid(g_def)
         call createGrid(nxd,nyd,nzd,xmin,xmax,ymin,ymax,zmin,zmax,g_def)
 
 c     Interpolate LOCAL map from POINCARE data

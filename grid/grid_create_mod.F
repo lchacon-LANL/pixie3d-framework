@@ -420,7 +420,7 @@ c     Cycle through grid hierarchies
               write (*,*) ' >>> defineGridMetric error',ierr
               write (*,*) ' >>> Discarding leftover meshes due to jac<0'
             endif
-            call deallocateGridStructure(gf_def%g_crse_def)
+            call destroyGrid(gf_def%g_crse_def)
             exit                
           endif
 
