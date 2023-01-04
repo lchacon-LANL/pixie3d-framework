@@ -2,6 +2,8 @@ c module graphics_io
 c ######################################################################
       module graphics_io
 
+        use io, ONLY: find_unit
+      
         integer   :: ngroups
 
         integer   :: ngraph   ,xdraw_cont_lim
@@ -93,7 +95,7 @@ c     Call variables
 
 c     Local variables
 
-      integer :: i
+      integer :: i,ufile
 
       namelist /graphics/ sel_diag,sel_graph
      .                   ,ndplot,dplot
@@ -118,9 +120,10 @@ cc      sel_graph =(/ (i,i=1,xdraw_cont_lim) /)
 
 c     Read graphics initialization parameters
 
-      open(unit=25,file=trim(file),status='old')
-      read(25,graphics,iostat=ioerr)
-      close(unit=25)
+      ufile = find_unit(25)
+      open(unit=ufile,file=trim(file),status='old')
+      read(ufile,graphics,iostat=ioerr)
+      close(unit=ufile)
 
 c     Initialize if not set
 

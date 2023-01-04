@@ -26,6 +26,7 @@ c Local variables
 
       integer :: ierr=0
       logical :: finish_t_loop
+      character(200) :: command
       
 c Interfaces
 
@@ -170,6 +171,11 @@ c Final I/O
 c End program
 
       call DR_destroy
+
+      if (my_rank == 0) then
+        command = 'echo '//int2char(EXIT_STATUS)//' > exit_code.txt'
+        ierr = shellcmd(trim(command))
+      endif
 
       call exit(EXIT_STATUS)
 
