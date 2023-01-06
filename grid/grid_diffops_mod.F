@@ -5888,50 +5888,50 @@ c     End program
 
       end function div_tensor_cov_reg
 
-c     veclap2_cov_mesh
-c     ###############################################################
-      function veclap2_cov_mesh(g_def,igrid,cov) result(cov_out)
-
-c     ---------------------------------------------------------------
-c     Calculates curl(A) in general non-orthogonal coordinates. Is
-c     boundary-ready (can extrapolate). The vector A is
-c     covariant, and returns the contravariant component "comp".
-c     ---------------------------------------------------------------
-
-      implicit none           !For safe fortran
-
-c     Call variables
-
-      type(grid_mg_def),pointer :: g_def
-
-      integer :: igrid
-
-      real(8) :: cov(0:,0:,0:,:)
-     .          ,cov_out(0:size(cov,1)-1
-     $                  ,0:size(cov,2)-1
-     $                  ,0:size(cov,3)-1,3)
-
-c$$$      real(8),optional :: diff(0:size(cov,1)-1
-c$$$     $                        ,0:size(cov,2)-1
-c$$$     $                        ,0:size(cov,3)-1)
-
-c     Local variables
-
-      integer :: nx,ny,nz,i,j,k
-      real(8) :: cnv(0:size(cov,1)-1
-     $              ,0:size(cov,2)-1
-     $              ,0:size(cov,3)-1,3)
-
-c     Begin program
-
-      cnv = XformToCnv(g_def,igrid,cov)
-
-      cov_out =-curlcurl_cov(g_def,igrid,cov)
-     .         +gradDiv     (g_def,igrid,cnv)
-      
-c     End program
-
-      end function veclap2_cov_mesh
+c$$$c     veclap2_cov_mesh
+c$$$c     ###############################################################
+c$$$      function veclap2_cov_mesh(g_def,igrid,cov) result(cov_out)
+c$$$
+c$$$c     ---------------------------------------------------------------
+c$$$c     Calculates curl(A) in general non-orthogonal coordinates. Is
+c$$$c     boundary-ready (can extrapolate). The vector A is
+c$$$c     covariant, and returns the contravariant component "comp".
+c$$$c     ---------------------------------------------------------------
+c$$$
+c$$$      implicit none           !For safe fortran
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$      type(grid_mg_def),pointer :: g_def
+c$$$
+c$$$      integer :: igrid
+c$$$
+c$$$      real(8) :: cov(0:,0:,0:,:)
+c$$$     .          ,cov_out(0:size(cov,1)-1
+c$$$     $                  ,0:size(cov,2)-1
+c$$$     $                  ,0:size(cov,3)-1,3)
+c$$$
+c$$$c$$$      real(8),optional :: diff(0:size(cov,1)-1
+c$$$c$$$     $                        ,0:size(cov,2)-1
+c$$$c$$$     $                        ,0:size(cov,3)-1)
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$      integer :: nx,ny,nz,i,j,k
+c$$$      real(8) :: cnv(0:size(cov,1)-1
+c$$$     $              ,0:size(cov,2)-1
+c$$$     $              ,0:size(cov,3)-1,3)
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$      cnv = XformToCnv(g_def,igrid,cov)
+c$$$
+c$$$      cov_out =-curlcurl_cov(g_def,igrid,cov)
+c$$$     .         +gradDiv     (g_def,igrid,cnv)
+c$$$      
+c$$$c     End program
+c$$$
+c$$$      end function veclap2_cov_mesh
 
 c     veclap_mesh
 c     ###############################################################
@@ -7109,15 +7109,10 @@ c     Begin program
 
       cnv = XformToCnv(g_def,igrid,cov)
 
-c     Assemble curl(curl) on the mesh
-
-      veclap =-curlcurl_vrtx(g_def,igrid,cov,ret_cnv=ret_cnv)
-
 c     Assemble vector Laplacian on the mesh
 
-      veclap = veclap
-cc     .        +gradDiv(g_def,igrid,cnv,ret_cnv=ret_cnv)
-     .        +gradDiv_vrtx(g_def,igrid,cnv,ret_cnv=ret_cnv)
+      veclap =-curlcurl_vrtx(g_def,igrid,cov,ret_cnv=ret_cnv)
+     .        +gradDiv_vrtx (g_def,igrid,cnv,ret_cnv=ret_cnv)
       
 c     End program
 
@@ -7924,66 +7919,66 @@ c     End program
 
       end subroutine curlcurl_cov_z
 
-c     curlcurl_mesh2
-c     ###############################################################
-      function curlcurl_mesh2(g_def,igrid,vec,iscnv) result(vec_out)
-
-c     ---------------------------------------------------------------
-c     Calculates curlcurl(A) in general non-orthogonal coordinates.
-c     The vector A can be covariant or contravariant, and returns
-c     corresponding components.
-c     ---------------------------------------------------------------
-
-      implicit none           !For safe fortran
-
-c     Call variables
-
-      type(grid_mg_def),pointer :: g_def
-
-      integer :: igrid
-
-      real(8),target :: vec(0:,0:,0:,:)
-     .                 ,vec_out(0:size(vec,1)-1
-     $                         ,0:size(vec,2)-1
-     $                         ,0:size(vec,3)-1,3)
-
-      logical :: iscnv
-
-c     Local variables
-
-      real(8),pointer,dimension(:,:,:,:) :: cnv,cov
-
-c     Begin program
-
-      if (iscnv) then
-        cnv => vec
-        cov => vec_out
-        cov = XformToCov(g_def,igrid,cnv)
-      else
-        cov => vec
-        cnv => vec_out
-        cnv = XformToCnv(g_def,igrid,cov)
-      endif
-      
-      vec_out =-veclap_cov(g_def,igrid,cov)
-     .         +gradDiv   (g_def,igrid,cnv)
-
-      if (iscnv) vec_out = XformToCnv(g_def,igrid,vec_out)
-
-      nullify(cnv,cov)
-      
-c     End program
-
-      end function curlcurl_mesh2
+c$$$c     curlcurl_mesh2
+c$$$c     ###############################################################
+c$$$      function curlcurl_mesh2(g_def,igrid,vec,iscnv) result(vec_out)
+c$$$
+c$$$c     ---------------------------------------------------------------
+c$$$c     Calculates curlcurl(A) in general non-orthogonal coordinates.
+c$$$c     The vector A can be covariant or contravariant, and returns
+c$$$c     corresponding components.
+c$$$c     ---------------------------------------------------------------
+c$$$
+c$$$      implicit none           !For safe fortran
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$      type(grid_mg_def),pointer :: g_def
+c$$$
+c$$$      integer :: igrid
+c$$$
+c$$$      real(8),target :: vec(0:,0:,0:,:)
+c$$$     .                 ,vec_out(0:size(vec,1)-1
+c$$$     $                         ,0:size(vec,2)-1
+c$$$     $                         ,0:size(vec,3)-1,3)
+c$$$
+c$$$      logical :: iscnv
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$      real(8),pointer,dimension(:,:,:,:) :: cnv,cov
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$      if (iscnv) then
+c$$$        cnv => vec
+c$$$        cov => vec_out
+c$$$        cov = XformToCov(g_def,igrid,cnv)
+c$$$      else
+c$$$        cov => vec
+c$$$        cnv => vec_out
+c$$$        cnv = XformToCnv(g_def,igrid,cov)
+c$$$      endif
+c$$$      
+c$$$      vec_out =-veclap_cov(g_def,igrid,cov)
+c$$$     .         +gradDiv   (g_def,igrid,cnv)
+c$$$
+c$$$      if (iscnv) vec_out = XformToCnv(g_def,igrid,vec_out)
+c$$$
+c$$$      nullify(cnv,cov)
+c$$$      
+c$$$c     End program
+c$$$
+c$$$      end function curlcurl_mesh2
 
 c     curlcurl_mesh
 c     ###############################################################
-      function curlcurl_mesh(g_def,igrid,vec,iscnv) result(vec_out)
+      function curlcurl_mesh(g_def,igrid,cnv) result(cnv_out)
 
 c     ---------------------------------------------------------------
 c     Calculates curlcurl(A) in general non-orthogonal coordinates.
 c     The vector A can be covariant or contravariant, and returns
-c     corresponding components.
+c     contravariant components.
 c     ---------------------------------------------------------------
 
       implicit none           !For safe fortran
@@ -7994,12 +7989,10 @@ c     Call variables
 
       integer :: igrid
 
-      real(8) :: vec(0:,0:,0:,:)
-     .          ,vec_out(0:size(vec,1)-1
-     $                  ,0:size(vec,2)-1
-     $                  ,0:size(vec,3)-1,3)
-
-      logical :: iscnv
+      real(8) :: cnv(0:,0:,0:,:)
+     .          ,cnv_out(0:size(cnv,1)-1
+     $                  ,0:size(cnv,2)-1
+     $                  ,0:size(cnv,3)-1,3)
 
 c     Local variables
 
@@ -8014,8 +8007,8 @@ c     Begin program
       do k=1,nz
         do j=1,ny
           do i=1,nx
-            vec_out(i,j,k,:)=curlcurl_ijk(g_def,i,j,k,nx,ny,nz
-     $                                   ,igrid,igrid,igrid,vec,iscnv)
+            cnv_out(i,j,k,:)=curlcurl_ijk(g_def,i,j,k,nx,ny,nz
+     $                                   ,igrid,igrid,igrid,cnv)
           enddo
         enddo
       enddo
@@ -8026,13 +8019,13 @@ c     End program
 
 c     curlcurl_ijk
 c     ###############################################################
-      function curlcurl_ijk(g_def,i,j,k,nx,ny,nz,igx,igy,igz,vec,iscnv
-     .                     ,vol)  result(cnv)
+      function curlcurl_ijk(g_def,i,j,k,nx,ny,nz,igx,igy,igz,cnv,vol)
+     $         result(cnv_out)
 
 c     ---------------------------------------------------------------
 c     Calculates curl(curl(A)) in general non-orthogonal
-c     coordinates, preserving the SPD property. The vector A can be
-c     covariant or contravariant, and returns corresponding components.
+c     coordinates. The vector A can be covariant or contravariant, 
+c     and returns contravariant components.
 c     ---------------------------------------------------------------
 
       implicit none           !For safe fortran
@@ -8043,399 +8036,24 @@ c     Call variables
 
       integer :: i,j,k,nx,ny,nz,igx,igy,igz
 
-      real(8),target :: vec(0:nx+1,0:ny+1,0:nz+1,3)
+      real(8) :: cnv(0:nx+1,0:ny+1,0:nz+1,3)
 cc      real(8),target,optional :: diff(0:nx+1,0:ny+1,0:nz+1)
 
-      logical :: iscnv
-      
       logical,optional,intent(IN) :: vol
+
+      real(8) :: cnv_out(3)
 
 c     Local variables
 
-      real(8) :: cnv(3),cov(3)
-
 c     Begin program
 
-      if (iscnv) then
-        cnv=-veclap (g_def,i,j,k,nx,ny,nz,igx,igy,igz,vec,vol=vol)
-     .      +gradDiv(g_def,i,j,k,nx,ny,nz,igx,igy,igz,vec,vol=vol
-     .              ,cnv=.true.)
-      else
-        cov = curlcurl_cov_ijk(g_def,i,j,k,nx,ny,nz,igx,igy,igz,vec)
-        cnv = XformToCnv(g_def,i,j,k,igx,cov)
-      endif
+      cnv_out=-veclap (g_def,i,j,k,nx,ny,nz,igx,igy,igz,vec,vol=vol)
+     .        +gradDiv(g_def,i,j,k,nx,ny,nz,igx,igy,igz,vec,vol=vol
+     .                ,cnv=.true.)
       
 c     End program
 
       end function curlcurl_ijk
-
-c$$$c     curlcurl_cov_ijk
-c$$$c     ###############################################################
-c$$$      function curlcurl_cov_ijk(g_def,i,j,k,igx,igy,igz,cov) result(cnv)
-c$$$
-c$$$c     ---------------------------------------------------------------
-c$$$c     Calculates curl(curl(A)) in general non-orthogonal
-c$$$c     coordinates, preserving the SPD property. The vector A is
-c$$$c     covariant, and returns the contravariant vector cnv.
-c$$$c     ---------------------------------------------------------------
-c$$$
-c$$$      use grid
-c$$$
-c$$$      implicit none           !For safe fortran
-c$$$
-c$$$c     Call variables
-c$$$
-c$$$      type(grid_mg_def),pointer :: g_def
-c$$$
-c$$$      integer :: i,j,k,igx,igy,igz
-c$$$
-c$$$      real(8) :: cov(0:,0:,0:,:),cnv(3)
-c$$$
-c$$$      real(8),dimension(:,:,:,:,:),pointer :: gsup
-c$$$
-c$$$c     Local variables
-c$$$
-c$$$      integer(4) :: ip,im,jp,jm,kp,km,ig,jg,kg
-c$$$
-c$$$      real(8)    :: x0,xp,xm,y0,yp,ym,z0,zp,zm
-c$$$      real(8)    :: dwa,dwb,dwc,dwd,dwe,dwf,dwg,dwh,dwi,dwj,dwk
-c$$$
-c$$$      !Component one
-c$$$      real(8)    :: d_yy_kp,d_yy_km,d_zz_jp,d_zz_jm
-c$$$     .             ,d_xy_kp,d_xy_km,d_yz_kp,d_yz_km
-c$$$     .             ,d_xz_jp,d_xz_jm,d_yz_jp,d_yz_jm
-c$$$     .             ,d_yz_jpkp,d_yz_jpkm,d_yz_jmkp,d_yz_jmkm
-c$$$
-c$$$      !Component two
-c$$$      real(8)    :: d_zz_ip,d_zz_im,d_xx_kp,d_xx_km
-c$$$     .             ,d_xz_kp,d_xz_km
-c$$$     .             ,d_xz_ip,d_xz_im,d_yz_ip,d_yz_im
-c$$$     .             ,d_xz_ipkp,d_xz_ipkm,d_xz_imkp,d_xz_imkm
-c$$$
-c$$$      !Component three
-c$$$      real(8)    :: d_yy_ip,d_yy_im,d_xx_jp,d_xx_jm
-c$$$     .             ,d_xy_jp,d_xy_jm,d_xy_ip,d_xy_im
-c$$$cc     .             ,d_xz_jp,d_xz_jm,d_yz_ip,d_yz_im
-c$$$     .             ,d_xy_ipjp,d_xy_ipjm,d_xy_imjp,d_xy_imjm
-c$$$
-c$$$c     Begin program
-c$$$
-c$$$      call getMGmap(g_def,i,j,k,igx,igy,igz,ig,jg,kg)
-c$$$
-c$$$      ip = i+1
-c$$$      im = i-1
-c$$$      jp = j+1
-c$$$      jm = j-1
-c$$$      kp = k+1
-c$$$      km = k-1
-c$$$
-c$$$      x0 = xx(ig)
-c$$$      xp = 0.5*(xx(ig+1)+xx(ig))
-c$$$      xm = 0.5*(xx(ig-1)+xx(ig))
-c$$$
-c$$$      y0 = yy(jg)
-c$$$      yp = 0.5*(yy(jg+1)+yy(jg))
-c$$$      ym = 0.5*(yy(jg-1)+yy(jg))
-c$$$
-c$$$      z0 = zz(kg)
-c$$$      zp = 0.5*(zz(kg+1)+zz(kg))
-c$$$      zm = 0.5*(zz(kg-1)+zz(kg))
-c$$$
-c$$$      gsup => g_def%gmetric%grid(igrid)%gsup_v
-c$$$
-c$$$      select case(comp)
-c$$$      case(1)
-c$$$      !first component
-c$$$
-c$$$        d_yy_kp = 2./(1./eeta(i,j,kp)+1./eeta(i,j,k))
-c$$$     .           *g_sub_elem(2,2,x0,y0,zp,.false.)
-c$$$        d_yy_km = 2./(1./eeta(i,j,km)+1./eeta(i,j,k))
-c$$$     .           *g_sub_elem(2,2,x0,y0,zm,.false.)
-c$$$
-c$$$        d_zz_jp = 2./(1./eeta(i,jp,k)+1./eeta(i,j,k))
-c$$$     .           *g_sub_elem(3,3,x0,yp,z0,.false.)
-c$$$        d_zz_jm = 2./(1./eeta(i,jm,k)+1./eeta(i,j,k))
-c$$$     .           *g_sub_elem(3,3,x0,ym,z0,.false.)
-c$$$
-c$$$        d_yz_jpkp = 4./(1./eeta(i,jp,kp)+1./eeta(i,jp,k )
-c$$$     .                 +1./eeta(i,j ,kp)+1./eeta(i,j ,k ))
-c$$$     .             *g_sub_elem(2,3,x0,yp,zp,.false.)
-c$$$        d_yz_jpkm = 4./(1./eeta(i,jp,km)+1./eeta(i,jp,k )
-c$$$     .                 +1./eeta(i,j ,km)+1./eeta(i,j ,k ))
-c$$$     .             *g_sub_elem(2,3,x0,yp,zm,.false.)
-c$$$        d_yz_jmkp = 4./(1./eeta(i,jm,kp)+1./eeta(i,jm,k )
-c$$$     .                 +1./eeta(i,j ,kp)+1./eeta(i,j ,k ))
-c$$$     .             *g_sub_elem(2,3,x0,ym,zp,.false.)
-c$$$        d_yz_jmkm = 4./(1./eeta(i,jm,km)+1./eeta(i,jm,k )
-c$$$     .                 +1./eeta(i,j ,km)+1./eeta(i,j ,k ))
-c$$$     .             *g_sub_elem(2,3,x0,ym,zm,.false.)
-c$$$
-c$$$        d_xy_kp = 2./(1./eeta(i,j,kp)+1./eeta(i,j,k))
-c$$$     .           *g_sub_elem(1,2,x0,y0,zp,.false.)
-c$$$        d_xy_km = 2./(1./eeta(i,j,km)+1./eeta(i,j,k))
-c$$$     .           *g_sub_elem(1,2,x0,y0,zm,.false.)
-c$$$
-c$$$        d_yz_kp = 2./(1./eeta(i,j,kp)+1./eeta(i,j,k))
-c$$$     .           *g_sub_elem(2,3,x0,y0,zp,.false.)
-c$$$        d_yz_km = 2./(1./eeta(i,j,km)+1./eeta(i,j,k))
-c$$$     .           *g_sub_elem(2,3,x0,y0,zm,.false.)
-c$$$
-c$$$        d_xz_jp = 2./(1./eeta(i,jp,k)+1./eeta(i,j,k))
-c$$$     .           *g_sub_elem(1,3,x0,yp,z0,.false.)
-c$$$        d_xz_jm = 2./(1./eeta(i,jm,k)+1./eeta(i,j,k))
-c$$$     .           *g_sub_elem(1,3,x0,ym,z0,.false.)
-c$$$
-c$$$        d_yz_jp = 2./(1./eeta(i,jp,k)+1./eeta(i,j,k))
-c$$$     .           *g_sub_elem(2,3,x0,yp,z0,.false.)
-c$$$        d_yz_jm = 2./(1./eeta(i,jm,k)+1./eeta(i,j,k))
-c$$$     .           *g_sub_elem(2,3,x0,ym,z0,.false.)
-c$$$
-c$$$        dwa = -dxh(ig)*dyh(jg)
-c$$$     .              *(d_yy_kp*(ax(i,j,kp)-ax(i,j,k ))/dz(kg  )
-c$$$     .               -d_yy_km*(ax(i,j,k )-ax(i,j,km))/dz(kg-1) )
-c$$$        dwb = -dxh(ig)*dzh(kg)
-c$$$     .              *(d_zz_jp*(ax(i,jp,k)-ax(i,j ,k))/dy(jg  )
-c$$$     .               -d_zz_jm*(ax(i,j ,k)-ax(i,jm,k))/dy(jg-1) )
-c$$$        dwc = -dxh(ig)/2.
-c$$$     .              *(-d_yz_jpkp*(ax(i,jp,kp)-ax(i,j ,k ))
-c$$$     .                +d_yz_jmkm*(ax(i,j ,k )-ax(i,jm,km))
-c$$$     .                +d_yz_jpkm*(ax(i,jp,km)-ax(i,j ,k ))
-c$$$     .                -d_yz_jmkp*(ax(i,j ,k )-ax(i,jm,kp)))
-c$$$        dwd =  dyh(jg)/4.
-c$$$     .              *(d_yy_kp*(az(ip,j,kp)-az(im,j,kp)
-c$$$     .                        +az(ip,j,k )-az(im,j,k ))
-c$$$     .               -d_yy_km*(az(ip,j,km)-az(im,j,km)
-c$$$     .                        +az(ip,j,k )-az(im,j,k )))
-c$$$        dwe = -dxh(ig)/4.
-c$$$     .              *(d_xy_kp*(az(i,jp,kp)-az(i,jm,kp)
-c$$$     .                        +az(i,jp,k )-az(i,jm,k ))
-c$$$     .               -d_xy_km*(az(i,jp,km)-az(i,jm,km)
-c$$$     .                        +az(i,jp,k )-az(i,jm,k )))
-c$$$        dwf =  dxh(ig)*dyh(jg)
-c$$$     .              *(d_xy_kp*(ay(i,j,kp)-ay(i,j,k ))/dz(kg)
-c$$$     .               -d_xy_km*(ay(i,j,k )-ay(i,j,km))/dz(kg-1))
-c$$$        dwg = -dyh(jg)/4.
-c$$$     .              *(d_yz_kp*(ay(ip,j,kp)-ay(im,j,kp)
-c$$$     .                        +ay(ip,j,k )-ay(im,j,k ))
-c$$$     .               -d_yz_km*(ay(ip,j,km)-ay(im,j,km)
-c$$$     .                        +ay(ip,j,k )-ay(im,j,k )))
-c$$$        dwh =  dzh(kg)/4.
-c$$$     .              *(d_zz_jp*(ay(ip,jp,k)-ay(im,jp,k)
-c$$$     .                        +ay(ip,j ,k)-ay(im,j ,k))
-c$$$     .               -d_zz_jm*(ay(ip,jm,k)-ay(im,jm,k)
-c$$$     .                        +ay(ip,j ,k)-ay(im,j ,k)))
-c$$$        dwi =  dxh(ig)*dzh(kg)
-c$$$     .              *(d_xz_jp*(az(i,jp,k)-az(i,j ,k))/dy(jg  )
-c$$$     .               -d_xz_jm*(az(i,j ,k)-az(i,jm,k))/dy(jg-1))
-c$$$        dwj = -dxh(ig)/4.
-c$$$     .              *(d_xz_jp*(ay(i,jp,kp)-ay(i,jp,km)
-c$$$     .                        +ay(i,j ,kp)-ay(i,j ,km))
-c$$$     .               -d_xz_jm*(ay(i,jm,kp)-ay(i,jm,km)
-c$$$     .                        +ay(i,j ,kp)-ay(i,j ,km)))
-c$$$        dwk = -dzh(kg)/4.
-c$$$     .              *(d_yz_jp*(az(ip,jp,k)-az(im,jp,k)
-c$$$     .                        +az(ip,j ,k)-az(im,j ,k))
-c$$$     .               -d_yz_jm*(az(ip,jm,k)-az(im,jm,k)
-c$$$     .                        +az(ip,j ,k)-az(im,j ,k)))
-c$$$
-c$$$      case(2)
-c$$$
-c$$$        d_xx_kp = 2./(1./eeta(i,j,kp)+1./eeta(i,j,k))
-c$$$     .           *g_sub_elem(1,1,x0,y0,zp,.false.)
-c$$$        d_xx_km = 2./(1./eeta(i,j,km)+1./eeta(i,j,k))
-c$$$     .           *g_sub_elem(1,1,x0,y0,zm,.false.)
-c$$$
-c$$$        d_zz_ip = 2./(1./eeta(ip,j,k)+1./eeta(i,j,k))
-c$$$     .           *g_sub_elem(3,3,xp,y0,z0,.false.)
-c$$$        d_zz_im = 2./(1./eeta(im,j,k)+1./eeta(i,j,k))
-c$$$     .           *g_sub_elem(3,3,xm,y0,z0,.false.)
-c$$$
-c$$$        d_xz_ipkp = 4./(1./eeta(ip,j,kp)+1./eeta(ip,j,k )
-c$$$     .                 +1./eeta(i ,j,kp)+1./eeta(i ,j,k ))
-c$$$     .             *g_sub_elem(1,3,xp,y0,zp,.false.)
-c$$$        d_xz_ipkm = 4./(1./eeta(ip,j,km)+1./eeta(ip,j,k )
-c$$$     .                 +1./eeta(i ,j,km)+1./eeta(i ,j,k ))
-c$$$     .             *g_sub_elem(1,3,xp,y0,zm,.false.)
-c$$$        d_xz_imkp = 4./(1./eeta(im,j,kp)+1./eeta(im,j,k )
-c$$$     .                 +1./eeta(i ,j,kp)+1./eeta(i ,j,k ))
-c$$$     .             *g_sub_elem(1,3,xm,y0,zp,.false.)
-c$$$        d_xz_imkm = 4./(1./eeta(im,j,km)+1./eeta(im,j,k )
-c$$$     .                 +1./eeta(i ,j,km)+1./eeta(i ,j,k ))
-c$$$     .             *g_sub_elem(1,3,xm,y0,zm,.false.)
-c$$$
-c$$$        d_xy_kp = 2./(1./eeta(i,j,kp)+1./eeta(i,j,k))
-c$$$     .           *g_sub_elem(1,2,x0,y0,zp,.false.)
-c$$$        d_xy_km = 2./(1./eeta(i,j,km)+1./eeta(i,j,k))
-c$$$     .           *g_sub_elem(1,2,x0,y0,zm,.false.)
-c$$$
-c$$$        d_yz_ip = 2./(1./eeta(ip,j,k)+1./eeta(i,j,k))
-c$$$     .           *g_sub_elem(2,3,xp,y0,z0,.false.)
-c$$$        d_yz_im = 2./(1./eeta(im,j,k)+1./eeta(i,j,k))
-c$$$     .           *g_sub_elem(2,3,xm,y0,z0,.false.)
-c$$$
-c$$$        d_xz_kp = 2./(1./eeta(i,j,kp)+1./eeta(i,j,k))
-c$$$     .           *g_sub_elem(1,3,x0,y0,zp,.false.)
-c$$$        d_xz_km = 2./(1./eeta(i,j,km)+1./eeta(i,j,k))
-c$$$     .           *g_sub_elem(1,3,x0,y0,zm,.false.)
-c$$$
-c$$$        d_xz_ip = 2./(1./eeta(ip,j,k)+1./eeta(i,j,k))
-c$$$     .           *g_sub_elem(1,3,xp,y0,z0,.false.)
-c$$$        d_xz_im = 2./(1./eeta(im,j,k)+1./eeta(i,j,k))
-c$$$     .           *g_sub_elem(1,3,xm,y0,z0,.false.)
-c$$$
-c$$$        dwa = -dzh(kg)*dyh(jg)
-c$$$     .              *(d_zz_ip*(ay(ip,j,k)-ay(i ,j,k))/dx(ig  )
-c$$$     .               -d_zz_im*(ay(i ,j,k)-ay(im,j,k))/dx(ig-1) )
-c$$$        dwb = -dxh(ig)*dyh(jg)
-c$$$     .              *(d_xx_kp*(ay(i,j,kp)-ay(i,j,k ))/dz(kg  )
-c$$$     .               -d_xx_km*(ay(i,j,k )-ay(i,j,km))/dz(kg-1) )
-c$$$        dwc = -dyh(jg)/2.
-c$$$     .              *(-d_xz_ipkp*(ay(ip,j,kp)-ay(i ,j,k ))
-c$$$     .                +d_xz_imkm*(ay(i ,j,k )-ay(im,j,km))
-c$$$     .                +d_xz_ipkm*(ay(ip,j,km)-ay(i ,j,k ))
-c$$$     .                -d_xz_imkp*(ay(i ,j,k )-ay(im,j,kp)))
-c$$$        dwd =  dxh(ig)/4.
-c$$$     .              *(d_xx_kp*(az(i,jp,kp)-az(i,jm,kp)
-c$$$     .                        +az(i,jp,k )-az(i,jm,k ))
-c$$$     .               -d_xx_km*(az(i,jp,km)-az(i,jm,km)
-c$$$     .                        +az(i,jp,k )-az(i,jm,k )))
-c$$$        dwe = -dyh(jg)/4.
-c$$$     .              *(d_xy_kp*(az(ip,j,kp)-az(im,j,kp)
-c$$$     .                        +az(ip,j,k )-az(im,j,k ))
-c$$$     .               -d_xy_km*(az(ip,j,km)-az(im,j,km)
-c$$$     .                        +az(ip,j,k )-az(im,j,k )))
-c$$$        dwf =  dxh(ig)*dyh(jg)
-c$$$     .              *(d_xy_kp*(ax(i,j,kp)-ax(i,j,k ))/dz(kg)
-c$$$     .               -d_xy_km*(ax(i,j,k )-ax(i,j,km))/dz(kg-1))
-c$$$        dwg = -dxh(ig)/4.
-c$$$     .              *(d_xz_kp*(ax(i,jp,kp)-ax(i,jm,kp)
-c$$$     .                        +ax(i,jp,k )-ax(i,jm,k ))
-c$$$     .               -d_xz_km*(ax(i,jp,km)-ax(i,jm,km)
-c$$$     .                        +ax(i,jp,k )-ax(i,jm,k )))
-c$$$        dwh =  dzh(kg)/4.
-c$$$     .              *(d_zz_ip*(ax(ip,jp,k)-ax(ip,jm,k)
-c$$$     .                        +ax(i ,jp,k)-ax(i ,jm,k))
-c$$$     .               -d_zz_im*(ax(im,jp,k)-ax(im,jm,k)
-c$$$     .                        +ax(i ,jp,k)-ax(i ,jm,k)))
-c$$$        dwi =  dyh(jg)*dzh(kg)
-c$$$     .              *(d_yz_ip*(az(ip,j,k)-az(i ,j,k))/dx(ig  )
-c$$$     .               -d_yz_im*(az(i ,j,k)-az(im,j,k))/dx(ig-1))
-c$$$        dwj = -dzh(kg)/4.
-c$$$     .              *(d_xz_ip*(az(ip,jp,k)-az(ip,jm,k)
-c$$$     .                        +az(i ,jp,k)-az(i ,jm,k))
-c$$$     .               -d_xz_im*(az(im,jp,k)-az(im,jm,k)
-c$$$     .                        +az(i ,jp,k)-az(i ,jm,k)))
-c$$$        dwk = -dyh(jg)/4.
-c$$$     .              *(d_yz_ip*(ax(ip,j,kp)-ax(ip,j,km)
-c$$$     .                        +ax(i ,j,kp)-ax(i ,j,km))
-c$$$     .               -d_yz_im*(ax(im,j,kp)-ax(im,j,km)
-c$$$     .                        +ax(i ,j,kp)-ax(i ,j,km)))
-c$$$
-c$$$      case(3)
-c$$$
-c$$$        d_xx_jp = 2./(1./eeta(i,jp,k)+1./eeta(i,j,k))
-c$$$     .           *g_sub_elem(1,1,x0,yp,z0,.false.)
-c$$$        d_xx_jm = 2./(1./eeta(i,jm,k)+1./eeta(i,j,k))
-c$$$     .           *g_sub_elem(1,1,x0,ym,z0,.false.)
-c$$$
-c$$$        d_yy_ip = 2./(1./eeta(ip,j,k)+1./eeta(i,j,k))
-c$$$     .           *g_sub_elem(2,2,xp,y0,z0,.false.)
-c$$$        d_yy_im = 2./(1./eeta(im,j,k)+1./eeta(i,j,k))
-c$$$     .           *g_sub_elem(2,2,xm,y0,z0,.false.)
-c$$$
-c$$$        d_xy_ipjp = 4./(1./eeta(ip,jp,k)+1./eeta(ip,j,k )
-c$$$     .                 +1./eeta(i ,jp,k)+1./eeta(i ,j,k ))
-c$$$     .             *g_sub_elem(1,2,xp,yp,z0,.false.)
-c$$$        d_xy_ipjm = 4./(1./eeta(ip,jm,k)+1./eeta(ip,j,k )
-c$$$     .                 +1./eeta(i ,jm,k)+1./eeta(i ,j,k ))
-c$$$     .             *g_sub_elem(1,2,xp,ym,z0,.false.)
-c$$$        d_xy_imjp = 4./(1./eeta(im,jp,k)+1./eeta(im,j,k )
-c$$$     .                 +1./eeta(i ,jp,k)+1./eeta(i ,j,k ))
-c$$$     .             *g_sub_elem(1,2,xm,yp,z0,.false.)
-c$$$        d_xy_imjm = 4./(1./eeta(im,jm,k)+1./eeta(im,j,k )
-c$$$     .                 +1./eeta(i ,jm,k)+1./eeta(i ,j,k ))
-c$$$     .             *g_sub_elem(1,2,xm,ym,z0,.false.)
-c$$$
-c$$$        d_xy_jp = 2./(1./eeta(i,jp,k)+1./eeta(i,j,k))
-c$$$     .           *g_sub_elem(1,2,x0,yp,z0,.false.)
-c$$$        d_xy_jm = 2./(1./eeta(i,jm,k)+1./eeta(i,j,k))
-c$$$     .           *g_sub_elem(1,2,x0,ym,z0,.false.)
-c$$$
-c$$$        d_yz_ip = 2./(1./eeta(ip,j,k)+1./eeta(i,j,k))
-c$$$     .           *g_sub_elem(2,3,xp,y0,z0,.false.)
-c$$$        d_yz_im = 2./(1./eeta(im,j,k)+1./eeta(i,j,k))
-c$$$     .           *g_sub_elem(2,3,xm,y0,z0,.false.)
-c$$$
-c$$$        d_xy_ip = 2./(1./eeta(ip,j,k)+1./eeta(i,j,k))
-c$$$     .           *g_sub_elem(1,2,xp,y0,z0,.false.)
-c$$$        d_xy_im = 2./(1./eeta(im,j,k)+1./eeta(i,j,k))
-c$$$     .           *g_sub_elem(1,2,xm,y0,z0,.false.)
-c$$$
-c$$$        d_xz_jp = 2./(1./eeta(i,jp,k)+1./eeta(i,j,k))
-c$$$     .           *g_sub_elem(1,3,x0,yp,z0,.false.)
-c$$$        d_xz_jm = 2./(1./eeta(i,jm,k)+1./eeta(i,j,k))
-c$$$     .           *g_sub_elem(1,3,x0,ym,z0,.false.)
-c$$$
-c$$$        dwa = -dzh(kg)*dyh(jg)
-c$$$     .              *(d_yy_ip*(az(ip,j,k)-az(i ,j,k))/dx(ig  )
-c$$$     .               -d_yy_im*(az(i ,j,k)-az(im,j,k))/dx(ig-1) )
-c$$$        dwb = -dxh(ig)*dzh(kg)
-c$$$     .              *(d_xx_jp*(az(i,jp,k)-az(i,j ,k))/dy(jg  )
-c$$$     .               -d_xx_jm*(az(i,j ,k)-az(i,jm,k))/dy(jg-1) )
-c$$$        dwc = -dzh(kg)/2.
-c$$$     .              *(-d_xy_ipjp*(az(ip,jp,k)-az(i ,j ,k))
-c$$$     .                +d_xy_imjm*(az(i ,j ,k)-az(im,jm,k))
-c$$$     .                +d_xy_ipjm*(az(ip,jm,k)-az(i ,j ,k))
-c$$$     .                -d_xy_imjp*(az(i ,j ,k)-az(im,jp,k)))
-c$$$        dwd =  dxh(ig)/4.
-c$$$     .              *(d_xx_jp*(ay(i,jp,kp)-ay(i,jp,km)
-c$$$     .                        +ay(i,j ,kp)-ay(i,j ,km))
-c$$$     .               -d_xx_jm*(ay(i,jm,kp)-ay(i,jm,km)
-c$$$     .                        +ay(i,j ,kp)-ay(i,j ,km)))
-c$$$        dwe=  -dxh(ig)/4.
-c$$$     .              *(d_xy_jp*(ax(i,jp,kp)-ax(i,jp,km)
-c$$$     .                        +ax(i,j ,kp)-ax(i,j ,km))
-c$$$     .               -d_xy_jm*(ax(i,jm,kp)-ax(i,jm,km)
-c$$$     .                        +ax(i,j ,kp)-ax(i,j ,km)))
-c$$$        dwf =  dxh(ig)*dzh(kg)
-c$$$     .              *(d_xz_jp*(ax(i,jp,k)-ax(i,j ,k))/dy(jg)
-c$$$     .               -d_xz_jm*(ax(i,j ,k)-ax(i,jm,k))/dy(jg-1))
-c$$$        dwg = -dzh(kg)/4.
-c$$$     .              *(d_xz_jp*(ay(ip,jp,k)-ay(im,jp,k)
-c$$$     .                        +ay(ip,j ,k)-ay(im,j ,k))
-c$$$     .               -d_xz_jm*(ay(ip,jm,k)-ay(im,jm,k)
-c$$$     .                        +ay(ip,j ,k)-ay(im,j ,k)))
-c$$$        dwh =  dyh(jg)/4.
-c$$$     .              *(d_yy_ip*(ax(ip,j,kp)-ax(ip,j,km)
-c$$$     .                        +ax(i ,j,kp)-ax(i ,j,km))
-c$$$     .               -d_yy_im*(ax(im,j,kp)-ax(im,j,km)
-c$$$     .                        +ax(i ,j,kp)-ax(i ,j,km)))
-c$$$        dwi =  dyh(jg)*dzh(kg)
-c$$$     .              *(d_yz_ip*(ay(ip,j,k)-ay(i ,j,k))/dx(ig  )
-c$$$     .               -d_yz_im*(ay(i ,j,k)-ay(im,j,k))/dx(ig-1))
-c$$$        dwj = -dzh(kg)/4.
-c$$$     .              *(d_yz_ip*(ax(ip,jp,k)-ax(ip,jm,k)
-c$$$     .                        +ax(i ,jp,k)-ax(i ,jm,k))
-c$$$     .               -d_yz_im*(ax(im,jp,k)-ax(im,jm,k)
-c$$$     .                        +ax(i ,jp,k)-ax(i ,jm,k)))
-c$$$        dwk = -dyh(jg)/4.
-c$$$     .              *(d_xy_ip*(ay(ip,j,kp)-ay(ip,j,km)
-c$$$     .                        +ay(i ,j,kp)-ay(i ,j,km))
-c$$$     .               -d_xy_im*(ay(im,j,kp)-ay(im,j,km)
-c$$$     .                        +ay(i ,j,kp)-ay(i ,j,km)))
-c$$$      case default
-c$$$
-c$$$        write (*,*) 'Error in component in curlcurl'
-c$$$        write (*,*) 'Aborting...'
-c$$$        stop
-c$$$
-c$$$      end select
-c$$$
-c$$$      curlcurl = dwa+dwb+dwc+dwd+dwe+dwf+dwg+dwh+dwi+dwj+dwk
-c$$$
-c$$$c     End program
-c$$$
-c$$$      end function curlcurl_cov_ijk
 
 c     veclap_stg_mesh
 c     ###############################################################
@@ -8494,17 +8112,6 @@ c     Compute div(cov)
 c     Assemble curl(curl) on the mesh
 
       veclap =-curlcurl_stg_mesh(g_def,igrid,cov)
-
-c$$$      !Old way
-c$$$      veclap = 0d0
-c$$$      do k=0,nz
-c$$$        do j=0,ny
-c$$$          do i=0,nx
-c$$$            veclap(i,j,k,:)= -curlcurl_stg_ijk(g_def,i,j,k,nx,ny,nz
-c$$$     .                                        ,igrid,igrid,igrid,cov)
-c$$$          enddo
-c$$$        enddo
-c$$$      enddo
 
 c     Assemble vector Laplacian on the mesh
 

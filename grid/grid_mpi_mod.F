@@ -14,10 +14,6 @@ c ######################################################################
 
         implicit none
 
-c$$$        INTERFACE dot
-c$$$          module procedure dot1,dot2,dot3
-c$$$        END INTERFACE
-
         INTERFACE find_global
           module procedure find_global_field_vec,find_global_field_scl
         END INTERFACE
@@ -50,7 +46,6 @@ c$$$        END INTERFACE
      .               ,my_rank=0
      .               ,group_world
      .               ,group_sp,tag=0,dest=0,root=0
-cc     .               ,status(MPI_STATUS_SIZE)
      .               ,tag_send,tag_recv,request
 
         integer    :: l_lim(3,0:1)
@@ -63,33 +58,6 @@ cc     .               ,status(MPI_STATUS_SIZE)
         type(grid_mg_def),pointer,private :: g_mpi_def
 
       contains
-
-ccc     initFortranMPI
-ccc     #####################################################################
-cc      subroutine initFortranMPI(mpi_comm,nxg,nyg,nzg,mx,my,mz)
-cc
-ccc     ---------------------------------------------------------------------
-ccc     Initializes MPI variables.
-ccc     ---------------------------------------------------------------------
-cc
-cc        implicit none
-cc
-ccc     Call variables
-cc
-cc        integer,INTENT(IN) :: nxg,nyg,nzg,mpi_comm
-cc        integer,INTENT(OUT):: mx,my,mz
-cc
-ccc     Local variables
-cc
-ccc     Begin program
-cc
-cc        call initMPI(mpi_comm,np,my_rank)
-cc
-ccc     Allocate processors
-cc
-cc        call processorAlloc(nxg,nyg,nzg,mx,my,mz)
-cc
-cc      end subroutine initFortranMPI
 
 c     create_MPI_comms
 c     #################################################################
@@ -399,76 +367,6 @@ c     End program
 
       end subroutine fillPetscGhostCells
 
-c$$$c     fillPetscGhostCells
-c$$$c     #################################################################
-c$$$      subroutine fillPetscGhostCells(dactx,array)
-c$$$
-c$$$c     -----------------------------------------------------------------
-c$$$c     Performs communication to fill ghost cells in array using PETSc
-c$$$c     distributed arrays in DA context dactx.
-c$$$c     -----------------------------------------------------------------
-c$$$
-c$$$        implicit none
-c$$$
-c$$$c     Call variables
-c$$$
-c$$$        type(petsc_da_ctx),pointer :: dactx
-c$$$
-c$$$        real(8) :: array(dactx%ilm:dactx%ihp
-c$$$     .                  ,dactx%jlm:dactx%jhp 
-c$$$     .                  ,dactx%klm:dactx%khp)
-c$$$
-c$$$c     Local variables
-c$$$
-c$$$        Vec :: localX
-c$$$
-c$$$        PetscScalar,pointer :: lx_v(:,:,:)
-c$$$
-c$$$        integer    :: ierr
-c$$$
-c$$$c     Begin program
-c$$$
-c$$$c     Fill known values of dactx%Xg
-c$$$
-c$$$        !Get pointer to vector data
-c$$$        call DMCreateLocalVector(dactx%da,localX,ierr)
-c$$$
-c$$$        call DMDAVecGetArrayF90(dactx%da,localX,lx_v,ierr)
-c$$$        
-c$$$        write (*,*) "before",array(:,1,1)
-c$$$        
-c$$$        !Assignment: array -> lx_v
-c$$$        call fillLocalVec(dactx,array,lx_v)
-c$$$
-c$$$        !Restore vector
-c$$$        call DMDAVecRestoreArrayF90(dactx%da,localX,lx_v,ierr)
-c$$$
-c$$$c     Fill ghost cells
-c$$$
-c$$$        call DMLocalToLocalBegin(dactx%da,localX,INSERT_VALUES,localX
-c$$$     .                          ,ierr)
-c$$$        
-c$$$        call DMLocalToLocalEnd(dactx%da,localX,INSERT_VALUES,localX
-c$$$     .                        ,ierr)
-c$$$
-c$$$        call DMDAVecGetArrayF90(dactx%da,localX,lx_v,ierr)
-c$$$
-c$$$        !Assignment: array <- lx_v
-c$$$        call emptyLocalVec(dactx,array,lx_v)
-c$$$
-c$$$        write (*,*) "after",array(:,1,1)
-c$$$        
-c$$$        !Restore vector
-c$$$        call DMDAVecRestoreArrayF90(dactx%da,localX,lx_v,ierr)
-c$$$
-c$$$c     Deallocate memory
-c$$$
-c$$$        call DMRestoreLocalVector(dactx%da,localX,ierr)
-c$$$
-c$$$c     End program
-c$$$
-c$$$      end subroutine fillPetscGhostCells
-c$$$      
 c     initMPI
 c     #####################################################################
       subroutine initMPI(mpi_comm,np,my_rank)
@@ -2371,7 +2269,6 @@ c     Calculate array sizes
 
       lsize = dl(1)*dl(2)*dl(3)
 
-cc      gsize = dl(1)*npx*dl(2)*npy*dl(3)*npz
       gsize = dg(1)*dg(2)*dg(3)
 
       npxl = dg(1)/dl(1)
