@@ -264,9 +264,10 @@ c     Local variables
 
 c     Begin program
 
-      eps = var
       if (.not.test) return
       
+      eps = var
+
       if (roundoff == 0d0) roundoff=findRoundOff()
 
       where (abs(var) < 1000*roundoff) eps = 0d0
@@ -471,6 +472,7 @@ c     Subroutine to generate J_n(x) and Y_n(x) with given x and
 c     up to N=NMAX-NTEL.
 c
 c     -------------------------------------------------------------------
+      IMPLICIT NONE
 
 c     Call variables
 
@@ -487,7 +489,7 @@ c     Local variables
 
 c     Begin program
 
-      PI = 4d0*ATAN(1d0)
+      PI = ACOS(-1d0)
       GAMMA = 0.577215664901532860606512
 
       B1(NMAX)   = 0d0
@@ -577,8 +579,10 @@ c$$$END
 !     C.W.CLENSHAW, CHEBYSHEV SERIES FOR MATHEMATICAL FUNCTIONS,
 !     MATHEMATICAL TABLES, VOL.5, 1962.
 !
+      implicit none
+      integer :: IACC, N,J,M
+      REAL(8) :: X,BESSI,TOX,BIM,BI,BIP,BIGNO,BIGNI
       PARAMETER (IACC = 40,BIGNO = 1.D10, BIGNI = 1.D-10)
-      REAL(8) :: X,BESSI,TOX,BIM,BI,BIP
       IF (N.EQ.0) THEN
       BESSI = BESSI0(X)
       RETURN
@@ -613,6 +617,7 @@ c$$$END
 ! ----------------------------------------------------------------------
 ! Auxiliary Bessel functions for N=0, N=1
       FUNCTION BESSI0(X)
+      IMPLICIT NONE
       REAL(8) :: X,BESSI0,Y,P1,P2,P3,P4,P5,P6,P7,
      .     Q1,Q2,Q3,Q4,Q5,Q6,Q7,Q8,Q9,AX,BX
       DATA P1,P2,P3,P4,P5,P6,P7/1.D0,3.5156229D0,3.0899424D0,
@@ -634,6 +639,7 @@ c$$$END
       END FUNCTION
 ! ----------------------------------------------------------------------
       FUNCTION BESSI1(X)
+      IMPLICIT NONE
       REAL(8) :: X,BESSI1,Y,P1,P2,P3,P4,P5,P6,P7,
      .     Q1,Q2,Q3,Q4,Q5,Q6,Q7,Q8,Q9,AX,BX
       DATA P1,P2,P3,P4,P5,P6,P7/0.5D0,0.87890594D0,0.51498869D0,
@@ -1601,9 +1607,9 @@ c     -------------------------------------------------------------------------
       !   lcg64   --- 2
       !   cmrg    --- 3
       !   mlfg    --- 4
-      !   pmlcg   --- 5
-      
-      gtype = 1       !lcg
+      !   pmlcg   --- 5      
+      gtype = 1
+
       if (PRESENT(seed)) then
         sd = 985456376 + 37*seed
       else
@@ -2484,7 +2490,7 @@ c     ##################################################################
 
 c     blockSolve
 c     #################################################################
-      subroutine blockSolve(size,mat,icol,rhs,x)
+      subroutine blockSolve(size,mat,icol,rhs,x,ret_inv,ierr)
 
 c     -----------------------------------------------------------------
 c     Solves block systems using a direct solve approach. Requires
@@ -2496,36 +2502,52 @@ c       * mat  (real array): block matrix
 c       * icol (integer) : number of columns of rhs
 c       * rhs  (real array): rhs of equation
 c       * x    ( "     "   ): solution (output)
-c       * smoother (character): identifies calling subroutine (JB, GS)
+c       * ret_inv (logical): return inverse in mat
 c     -----------------------------------------------------------------
 
         implicit none
 
 c     Call variables
 
-        integer    :: size,icol
+        integer  :: size,icol
 
-        real(8)    :: mat(size,size),rhs(size,icol),x(size,icol)
+        real(8)  :: mat(size,size),rhs(size,icol),x(size,icol)
+
+        logical,optional :: ret_inv
+        integer,optional :: ierr
 
 c     Local variables
 
-        integer    :: ipiv(size),info
+        integer  :: ipiv(size),info
 
-        real(8)    :: mat2(size,size)
+        real(8)  :: mat2(size,size)
 
         external dgesv
 
 c     Begin program
 
-        mat2 = mat !Avoid overwritting mat
         x = rhs
 
-        call dgesv(size,icol,mat2,size,ipiv,x,size,info) !LAPACK routine
+        if (PRESENT(ret_inv)) then
 
-        call LAPACK_error("blockSolve",info)
+          call dgesv(size,icol,mat ,size,ipiv,x,size,info) !LAPACK routine
 
+        else
+
+          mat2 = mat            !Avoid overwritting mat
+
+          call dgesv(size,icol,mat2,size,ipiv,x,size,info) !LAPACK routine
+
+        endif
+
+        if (PRESENT(ierr)) then
+          ierr = info
+        else
+          call LAPACK_error("blockSolve",info)
+        endif
+        
       end subroutine blockSolve
-
+      
 c     blockInv
 c     #################################################################
       subroutine blockInv(size,mat)

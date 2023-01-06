@@ -9,8 +9,6 @@ c     ##################################################################
       PUBLIC :: EM
 
       INTEGER :: NCOV
-
-      integer,private :: mpierr
       
       CONTAINS
 
@@ -87,6 +85,9 @@ c    Local variables
      &                                   ,XUU     !(many not need)
      &                                   ,DV      !Determinant of V
 
+      ! timing parameters
+      real(8) :: t_start,t_end
+
 c    Begin program
 
       IF (MITER > MITERMAX) THEN
@@ -118,13 +119,16 @@ C    Setup GM EM algorithm
 
       CALL INIT_GM(NIND,NATT,NG,X,WX,IDT,XMU,XVAR,T,WTOT,DV,V)
 
-C    Initialize output G-params to be 0D0
+      ! Start timing CW-EM
+      call cpu_time(t_start)
+
+C     Initialize output G-params to be 0D0
 
       TOUT(1:NG)                  = 0D0
       XMUOUT(1:NG,1:NATT)         = 0D0
       XVAROUT(1:NG,1:NATT,1:NATT) = 0D0
       
-C    Parameters initialization for EM
+C     Parameters initialization for EM
 
       NG_ORG  = NG              ! original (starting) number of components
       XLOGL   = 0D0
@@ -240,6 +244,10 @@ C      enforce conservation
      .       ,V(1:NG,:,:),WSUM(1:NG),XLOGL(IOUNT-1),MLENG(IOUNT-1))
        
       END DO !SPLIT-LOOP
+
+      ! end timing CW-EM
+      call cpu_time(t_end)
+      if (std_io) write (*,*) 'cw-em runtime =',t_end-t_start
 
 c     Final work after convergence
       

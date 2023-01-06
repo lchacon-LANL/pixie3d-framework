@@ -116,6 +116,7 @@ c     Output per time step
 
 c     Store previous record (for time derivatives in diagnostics)
 
+        call equateDerivedType(u_nm2,u_n)
         call equateDerivedType(u_n,u_np)
 
 c     Check for tmax
@@ -299,25 +300,28 @@ c Runtime initializations
 
 #if defined(petsc)
       !Read PETSc runtime options
-      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-npx',npx
-     .                       ,petsc_flg,ierr)
-      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-npy',npy
-     .                       ,petsc_flg,ierr)
-      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-npz',npz
-     .                       ,petsc_flg,ierr)
+      call PetscOptionsGetInt(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     .   ,"-npx",npx,petsc_flg,ierr)
+      call PetscOptionsGetInt(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     .   ,"-npy",npy,petsc_flg,ierr)
+      call PetscOptionsGetInt(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     .   ,"-npz",npz,petsc_flg,ierr)
 
-      call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-tmax',tmax
-     .                        ,petsc_flg,ierr)
+      call PetscOptionsGetReal(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     .   ,"-tmax",tmax,petsc_flg,ierr)
 
-      call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-dplot',dplot
-     .                        ,petsc_flg,ierr)
+      call PetscOptionsGetReal(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     .   ,"-dplot",dplot,petsc_flg,ierr)
 
-      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-numtime',numtime
-     .                       ,petsc_flg,ierr)
+      call PetscOptionsGetInt(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     .   ,"-ndplot",ndplot,petsc_flg,ierr)
+
+      call PetscOptionsGetInt(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     .   ,"-numtime",numtime,petsc_flg,ierr)
       if (petsc_flg) tmax = 0d0
 
-      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-ndstep',ndstep
-     .                       ,petsc_flg,ierr)
+      call PetscOptionsGetInt(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     .   ,"-ndstep",ndstep,petsc_flg,ierr)
       if (petsc_flg) dstep = 0d0
 #endif
 

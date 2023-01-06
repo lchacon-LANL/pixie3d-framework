@@ -180,7 +180,7 @@ c       Deallocate memory
         deallocate(xx,yy,zz)
         deallocate(bx,by,bz)
         deallocate(jac,xmap,bxcar,bycar,bzcar)
-        call deallocateGridStructure(g_poinc)
+        call destroyGrid(g_poinc)
 
         return
 
@@ -639,7 +639,7 @@ c     ##################################################################
       subroutine dealloc_poincare_data
 
         deallocate(bg,bcarg,jacg,carg)
-        call deallocateGridStructure(g_poinc)
+        call destroyGrid(g_poinc)
 
       end subroutine dealloc_poincare_data
 

@@ -32,7 +32,7 @@ c Local variables
 
       integer :: mgcf,mgcs
 
-      logical :: petsc_flg,petsc_flg2
+      logical :: petsc_flg,petsc_flg2,petsc_flg3
      .          ,bc_debg=.false.
      .          ,mg_coarse=.true.
 
@@ -51,128 +51,137 @@ c Account for MK equation
 c Read PETSc runtime options
 
 #if defined(petsc) && !defined(petsc_c)
-      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-nxd',nxd
-     .                       ,petsc_flg,ierr)
-      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-nyd',nyd
-     .                       ,petsc_flg,ierr)
-      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-nzd',nzd
-     .                       ,petsc_flg,ierr)
+      call PetscOptionsGetInt(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     .    ,"-nxd",nxd,petsc_flg,ierr)
+      call PetscOptionsGetInt(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     .   ,"-nyd",nyd,petsc_flg,ierr)
+      call PetscOptionsGetInt(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     .   ,"-nzd",nzd,petsc_flg,ierr)
 
-      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-npx',npx
-     .                       ,petsc_flg,ierr)
-      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-npy',npy
-     .                       ,petsc_flg,ierr)
-      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-npz',npz
-     .                       ,petsc_flg,ierr)
+      call PetscOptionsGetInt(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     .   ,"-npx",npx,petsc_flg,ierr)
+      call PetscOptionsGetInt(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     .   ,"-npy",npy,petsc_flg,ierr)
+      call PetscOptionsGetInt(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     .   ,"-npz",npz,petsc_flg,ierr)
 
-      call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-pc_debug'
-     .                         ,pc_debug,petsc_flg,ierr)
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     .   ,"-pc_debug",pc_debug,petsc_flg,ierr)
 
-      call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-bc_debug'
-     .                         ,bc_debg,petsc_flg,ierr)
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     .   ,"-bc_debug",bc_debg,petsc_flg,ierr)
       if (petsc_flg) call set_BC_debug(bc_debg)
 
-      call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-rtol',rtol
-     .                        ,petsc_flg,ierr)
+      call PetscOptionsGetReal(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     .   ,"-rtol",rtol,petsc_flg,ierr)
 
 #if defined(coarse_MG)
-      call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-mg_coarse'
-     .                         ,mg_coarse,petsc_flg,ierr)
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     .   ,"-mg_coarse",mg_coarse,petsc_flg,ierr)
       if (petsc_flg) call MG_set_coarse_solve(mg_coarse)
 
-      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-mgcf',mgcf
-     .                       ,petsc_flg,ierr)
+      call PetscOptionsGetInt(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     .   ,"-mgcf",mgcf,petsc_flg,ierr)
       if (petsc_flg) call MG_set_proc_coarsen_factor(mgcf)
 
-      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-mgcs',mgcs
-     .                       ,petsc_flg,ierr)
+      call PetscOptionsGetInt(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     .   ,"-mgcs",mgcs,petsc_flg,ierr)
       if (petsc_flg) call MG_set_coarse_size(mgcs)
 #endif
 
-      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-ilevel',ilevel
-     .                       ,petsc_flg,ierr)
+      call PetscOptionsGetInt(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     .   ,"-ilevel",ilevel,petsc_flg,ierr)
 
-      call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-dt',dt
-     .                        ,petsc_flg,ierr)
+      !Should NOT specify dt at run time, as APP internal checks may use input deck one
+c$$$      call PetscOptionsGetReal(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+c$$$     .   ,"-dt",dt,petsc_flg,ierr)
 
-      call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-bdf1'
-     .                         ,petsc_flg,petsc_flg2,ierr)
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     .   ,"-bdf1",petsc_flg,petsc_flg2,ierr)
       if (petsc_flg.and.petsc_flg2) then
         cnfactor = 0d0 ; sm_flag = 0
       endif
 
-      call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-bdf2'
-     .                         ,petsc_flg,petsc_flg2,ierr)
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     .   ,"-bdf2",petsc_flg,petsc_flg2,ierr)
       if (petsc_flg.and.petsc_flg2) then
         cnfactor = 0d0 ; sm_flag = 2
       endif
 
-      call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-cn'
-     .                         ,petsc_flg,petsc_flg2,ierr)
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     .   ,"-cn",petsc_flg,petsc_flg2,ierr)
       if (petsc_flg.and.petsc_flg2) then
         cnfactor = 0.5d0 ; sm_flag = 0
       endif
 
-      call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-rannacher'
-     .                         ,petsc_flg,petsc_flg2,ierr)
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     .   ,"-rannacher",petsc_flg,petsc_flg2,ierr)
       if (petsc_flg.and.petsc_flg2) then
         sm_flag = 1
       endif
 
-      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-numtime',numtime
-     .                       ,petsc_flg,ierr)
+      call PetscOptionsGetInt(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     .   ,"-numtime",numtime,petsc_flg,ierr)
       if (petsc_flg) tmax = 0d0
 
-      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-ndstep',ndstep
-     .                       ,petsc_flg,ierr)
+      call PetscOptionsGetInt(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     .   ,"-ndstep",ndstep,petsc_flg,ierr)
       if (petsc_flg) dstep = 0d0
 
-      call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-tmax',tmax
-     .                        ,petsc_flg,ierr)
+      call PetscOptionsGetReal(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     .   ,"-tmax",tmax,petsc_flg,ierr)
       if (petsc_flg) numtime = 0
 
-      call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-dstep',dstep
-     .                        ,petsc_flg,ierr)
+      call PetscOptionsGetReal(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     .   ,"-dstep",dstep,petsc_flg,ierr)
       if (petsc_flg) ndstep = 0
 
-      call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-chk_src'
-     .                         ,chk_src,petsc_flg,ierr)
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     .   ,"-chk_src",chk_src,petsc_flg,ierr)
 
-      call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-adapt_dt'
-     .                         ,ts_adapt_dt,petsc_flg,ierr)
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     .   ,"-adapt_dt",ts_adapt_dt,petsc_flg,ierr)
 
-      call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-restart'
-     .                         ,ts_restart,petsc_flg2,ierr)
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     .   ,"-restart",ts_restart,petsc_flg2,ierr)
       
-      call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-trestart',trestart
-     .                        ,petsc_flg,ierr)
+      call PetscOptionsGetReal(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     .   ,"-trestart",trestart,petsc_flg,ierr)
       if (petsc_flg.and.(.not.petsc_flg2)) ts_restart = .true.
 
-      call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-fpa',fpa
-     .                         ,petsc_flg,ierr)
-      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-fpa_it',fpa_it
-     .                       ,petsc_flg,ierr)
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     $   ,"-dt_ramp_up",ts_ramp_up_dt,petsc_flg,ierr)
+      call PetscOptionsGetReal(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     $   ,"-dt_ramp_up_frac",ts_ramp_up_dt_fraction,petsc_flg2,ierr)
+      call PetscOptionsGetReal(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     $   ,"-dt_ramp_up_recov",ts_ramp_up_dt_recovery,petsc_flg3,ierr)
+      if ((petsc_flg2.or.petsc_flg3).and.(.not.petsc_flg))
+     .                         ts_ramp_up_dt = .true.
 
-      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-nwt_it',maxitnwt
-     .                       ,petsc_flg,ierr)
-      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-ksp_it',maxksp
-     .                       ,petsc_flg,ierr)
-      call PetscOptionsGetInt(PETSC_NULL_CHARACTER,'-gm_it',maxitgm
-     .                       ,petsc_flg,ierr)
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     .   ,"-fpa",fpa,petsc_flg,ierr)
+      call PetscOptionsGetInt(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     .   ,"-fpa_it",fpa_it,petsc_flg,ierr)
 
-      call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-rtol',rtol
-     .                        ,petsc_flg,ierr)
-      call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-atol',atol
-     .                        ,petsc_flg,ierr)
-      call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-stol',stol
-     .                        ,petsc_flg,ierr)
+      call PetscOptionsGetInt(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     .   ,"-nwt_it",maxitnwt,petsc_flg,ierr)
+      call PetscOptionsGetInt(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     .   ,"-ksp_it",maxksp,petsc_flg,ierr)
+      call PetscOptionsGetInt(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     .   ,"-gm_it",maxitgm,petsc_flg,ierr)
 
-      call PetscOptionsGetReal(PETSC_NULL_CHARACTER,'-cpu_quota',quota
-     .                        ,petsc_flg,ierr)
+      call PetscOptionsGetReal(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     .   ,"-rtol",rtol,petsc_flg,ierr)
+      call PetscOptionsGetReal(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     .   ,"-atol",atol,petsc_flg,ierr)
+      call PetscOptionsGetReal(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     .   ,"-stol",stol,petsc_flg,ierr)
 
-      call PetscOptionsGetTruth(PETSC_NULL_CHARACTER,'-test'
-     .                         ,tst_flg,petsc_flg,ierr)
+      call PetscOptionsGetReal(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     .   ,"-cpu_quota",quota,petsc_flg,ierr)
 
+      call PetscOptionsGetBool(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     .   ,"-test",tst_flg,petsc_flg,ierr)
 #else
 !!$  n_args = COMMAND_ARGUMENT_COUNT()
 !!$
@@ -418,9 +427,9 @@ c Introduce perturbation at restart
 
 c Impose BCs (to initialize all auxiliary variables)
 
-      old_time_eval = .true.
+      old_time_eval = .true. ; init_time_eval = .true.
       call applyBC(igrid,u_np,gv%aux)
-      old_time_eval = .false.
+      old_time_eval = .false.; init_time_eval = .false.
 
 #if defined(MK)
       if (mk_grid) call MK_applyBC(igrid,u_np%array_var(neqd)%array)

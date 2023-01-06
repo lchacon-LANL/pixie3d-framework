@@ -38,8 +38,11 @@ function(generate package base_dir)
     file(GLOB_RECURSE includes ${include_globs})
     # add target
     add_library(${package} STATIC ${sources} ${includes})
-    # set Fortran standard to allow modern compilers to build these
-    target_compile_options(${package} PRIVATE -std=legacy)
+    # GNU Fortran
+    if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
+        # set Fortran standard to allow modern compilers to build these
+        target_compile_options(${package} PRIVATE -std=legacy)
+    endif()
     # do not build automatically, only if linked to other targets or explicitly specified
     set_target_properties(${package} PROPERTIES EXCLUDE_FROM_ALL TRUE)
     # add to the all target

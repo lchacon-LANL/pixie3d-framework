@@ -283,7 +283,8 @@ c     Begin program
 #else
      .       // 'a\'  // achar(39) //' -e"'
 #endif
-     .       // trim(line)   // '" -e"}" '
+     .       // trim(line)   // '" -e"}" '    !'
+
      .       // trim(file)
 
         ierr = shellcmd(trim(command))
@@ -315,7 +316,7 @@ c     Begin program
 #else
      .       // 'c\'  // achar(39) //' -e"'
 #endif
-     .       // trim(line)   // '" -e"}" '
+     .       // trim(line)   // '" -e"}" '   !'
      .       // trim(file)
 
       ierr = shellcmd(trim(command))
@@ -347,6 +348,42 @@ c     Begin program
 
       end function delete_line
 
+c     lines_in_file
+c     ####################################################################
+      function lines_in_file(file) result(nlines)
+
+c     --------------------------------------------------------------------
+c     Computes number of lines in "file"
+c     --------------------------------------------------------------------
+
+      implicit none
+
+      integer :: nlines
+
+      character(*) :: file
+
+      integer :: ifile,i,reason
+      
+c     Begin program
+
+      ifile = find_unit(1234)
+      open(unit=ifile,FILE=trim(file),action="read")
+
+      !how many
+      i = 0
+      do
+       read(ifile,FMT='(a)',iostat=reason)
+       if (reason/=0) EXIT
+       i = i+1
+      end do
+
+      nlines = i
+
+      close(ifile)
+c$$$      write(*,'(a,I0)') "Number of lines in file: " , nlines
+      
+      end function lines_in_file
+      
 c     sstop
 c     ################################################################
       subroutine sstop(rank,routine,message)
@@ -361,6 +398,7 @@ c     ---------------------------------------------------------------
         character(*)  :: routine, message
 
         integer :: ierr
+        character(200) :: command
 
 c     Begin program
 
@@ -374,12 +412,60 @@ c     Begin program
         call MPI_Finalize(ierr)
 #endif
 
-        call exit(FATAL)  !Fatal termination
+        call app_exit(rank,FATAL)  !Fatal termination
 
 c     End program
 
       end subroutine sstop
 
+c     push_exit_code
+c     ################################################################
+      subroutine push_exit_code(code)
+
+c     ---------------------------------------------------------------
+c     Pushes application exit code to file for script processing
+c     ---------------------------------------------------------------
+
+        implicit none
+
+        integer :: code,funit
+
+c     Begin program
+
+        funit = find_unit(123)
+        open(unit=funit,file="exit_code.txt",status="unknown")
+        write (funit,10) code
+ 10     format(i0)
+        close(funit)
+
+c     End program
+
+      end subroutine push_exit_code
+
+c     app_exit
+c     ################################################################
+      subroutine app_exit(rank,code)
+
+c     ---------------------------------------------------------------
+c     Ends application
+c     ---------------------------------------------------------------
+
+        implicit none
+
+        integer :: rank,code
+
+c     Begin program
+
+      if (rank == 0) then
+        call push_exit_code(code)
+      endif
+
+      call exit(code)
+
+c     End program
+
+      end subroutine app_exit
+      
 c     int2char
 c     ################################################################
       function int2char(n) result (chr)
@@ -538,6 +624,7 @@ c     -----------------------------------------------------------------
       implicit none
 
 c     Call variables
+
       integer,pointer,dimension(:) :: munit
 
 c     Local variables
@@ -556,5 +643,61 @@ c     Begin program
 c     End programs
 
       end subroutine closeFiles
+
+c     getFiles
+c     #################################################################
+      function getFiles(bname,munit,info) result(ierr)
+
+c     -----------------------------------------------------------------
+c     Get files with basename bname
+c     -----------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: ierr,info
+      integer,pointer,dimension(:) :: munit
+      character(*) :: bname
+
+c     Local variables
+
+      integer :: ifile
+      real(8) :: r
+      integer :: i,reason,NFiles
+      character(LEN=100) :: dumstr
+
+c     Begin program
+
+      !get the files
+      ierr = shellcmd('ls ./'//trim(bname)//'* > fileContents.txt')
+
+      if (ierr /= 0) return
+      
+      NFiles = lines_in_file('fileContents.txt')
+
+      if (NFiles == 0) then
+        ierr = 1
+        return
+      endif
+
+      !Open files
+      ifile = find_unit(1234)
+      open(ifile,file='fileContents.txt',status='old')
+      allocate(munit(NFiles))
+      do i = 1,NFiles
+        read(ifile,'(a)') dumstr
+        if (info > 0) write(*,'(a,a)') " Opening file ",trim(dumstr)
+        munit(i) = find_unit(12345)
+        open(unit=munit(i),file=trim(dumstr),status='old')
+      end do 
+
+      close(ifile)
+
+      ierr = shellcmd('rm fileContents.txt')
+      
+c     End programs
+
+      end function getFiles
 
       end module file_io

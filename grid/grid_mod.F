@@ -19,7 +19,7 @@ c #####################################################################
 
 c     readGridConfig
 c     #################################################################
-      subroutine readGridConfig(file,dump)
+      subroutine readGridConfig(file,dump,no_error)
 
 c     -----------------------------------------------------------------
 c     Initializes grid parameters
@@ -31,12 +31,14 @@ c     Call variables
 
       character(*) :: file
       logical :: dump
+      logical,optional :: no_error
 
 c     Local variables
 
       integer        :: dim(1),loc(1),ioerr,uinput=1234
       character*(3)  :: bcs(6)
       type(grid_pack):: gp1,gp2,gp3
+      logical        :: no_err
 
 c     Namelists
 
@@ -47,11 +49,17 @@ c     Namelists
 
 c     Begin program
 
+      if(PRESENT(no_error)) then
+        no_err = no_error
+      else
+        no_err = .false.
+      endif
+      
 c     Set defaults
 
-      nxd      = 64            ! Mesh points in x-direction
-      nyd      = 64            ! Mesh points in y-direction
-      nzd      = 64            ! Mesh points in z-direction
+      nxd      = 1             ! Mesh points in x-direction
+      nyd      = 1             ! Mesh points in y-direction
+      nzd      = 1             ! Mesh points in z-direction
 
       coords   = 'car'         ! Coordinate system (see grid_anal_mod.F)
 
@@ -103,7 +111,10 @@ c     Read initialization parameters
 
       read(uinput,setup,iostat=ioerr)
 
-      if (ioerr/=0)call pstop('readGridInput','Problem reading "setup"')
+      no_err = no_err.or.(ioerr==0)
+      
+      if (.not.no_err)
+     $     call pstop('readGridConfig','Problem reading "setup"')
 
       close(unit=uinput)
 
@@ -120,7 +131,7 @@ c     Consistency check
 
 c     Translate boundary conditions
 
-      ioerr = initBCS(bcs)
+      ioerr = initBCs(bcs)
 
       if (ioerr /= 0.and.my_rank == 0) then
         loc = 1 - mod(minloc(bcond),2)

@@ -229,17 +229,13 @@ c     Define TS parameters
 c     Time step update
 
       if (cnfactor <= 5d-1) then
-        call findGuess(u_nm,u_n,vnp)
-cc        call AXPYDerivedType(-cn/cnp,u_n,-cnm/cnp,u_nm,vnp)
+        old_time_eval = .true. !Processing n time level info
+        call evaluate_NLF(1,vnp,fold)
+        old_time_eval = .false.
 
-!        if (.not.implicit_mid_point) then
-          old_time_eval = .true. !Processing n time level info
-          call evaluate_NLF(1,vnp,fold)
-          old_time_eval = .false.
-!        else
-!          fold = 0d0
-!        endif
-        
+#if !defined(NO_BDF2_XOLD)
+        call AXPYDerivedType(-cn/cnp,u_n,-cnm/cnp,u_nm,vnp)
+#endif
         call mapStructureToVector(gv%gparams,x,vnp) !BDF2 ref
 
         x_old = x

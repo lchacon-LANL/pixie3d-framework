@@ -8,39 +8,7 @@ c ######################################################################
 #else
         use prj_int
 
-        logical,private :: ts_after_restart = .false.
-
       contains
-
-c     TS_chk_after_restart
-c     ###############################################################
-      function TS_chk_after_restart(time_slices) result(flag)
-
-c     ---------------------------------------------------------------
-c     Check for end of time loop
-c     ---------------------------------------------------------------
-
-      implicit none
-
-c     Call variables
-
-      logical :: flag
-
-      integer :: time_slices
-
-c     Local variables
-
-      integer :: counter
-
-c     Begin program
-
-      counter = itime-inewtime + 1
-
-      flag = ts_after_restart.and.(counter <= time_slices)
-
-c     End program
-
-      end function TS_chk_after_restart
 
 c     TS_correct_dt
 c     ###############################################################
@@ -200,8 +168,8 @@ c$$$        endif
                 dt = dt*sign(1d0,dtbase)
                 ts_ramp_up_dt = (dt /= dtbase) !Stop dt ramp-up
               endif
-            elseif (ts_restart) then
-              dt = dt*coef2**(-15) !Quiet BDF2 start to ramp up in a few time steps
+c$$$            elseif (ts_restart) then
+c$$$              dt = dt*coef2**(-15) !Quiet BDF2 start to ramp up in a few time steps
             elseif (ts_adapt_dt) then
               if (itm == 1) then
                 call set_explicit_dt(dt)

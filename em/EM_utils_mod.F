@@ -17,8 +17,6 @@ C          maximum value of the A term in exp(-A) used when calculating
 C          the density of a point. Above this value exp(-A) is equated
 C          to zero.
 
-      integer,private :: mpierr
-
       CONTAINS
 
 c     CAPART
@@ -296,20 +294,22 @@ c$$$        KILL_G = (T(K) .LT. 5D-3)
           ! need to remove the probabilities of dead component from GUM
           ! (01/28/2020)
           DO JJ=1,NIND
-            GUM(JJ)=abs(GUM(JJ)-AL(JJ,K))+1d-14
+            GUM(JJ)= GUM(JJ)-AL(JJ,K)+1d-14
           END DO
 
         else
 
+          !Eliminate killed Gaussians from list
           if(NG_Killed>0) then
             K_tmp = K-NG_killed
-            T(K_tmp) = T(K)
-            WSUM(K_tmp) = WSUM(K)
+            T(K_tmp) = T(K) ; T(K) = 0d0          ! Truong's fix (01/31/2022)
+            WSUM(K_tmp) = WSUM(K) ; WSUM(K) = 0d0
           else
             K_tmp = K
           end if
           
-          T(1:NG) = T(1:NG)/SUM(T(1:NG)) ! Follow Figueiredo&Jain2002
+          ! Truong's fix (01/31/2022)
+          T(1:NG_OLD) = T(1:NG_OLD)/SUM(T(1:NG_OLD)) ! Follow Figueiredo&Jain2002
 
           call update_gaussian_moments(NIND,NATT,K,X,W(:,K),DV(K_tmp)
      .                                ,XMU(K_tmp,:),XVAR(K_tmp,:,:)
@@ -336,6 +336,7 @@ C	 after update its moments (means & cov)
           END DO                     !particle
 
         end if
+
         K = K + 1               !Next gaussian          
 
       END DO                    !Gaussians - end-do-while(K)
@@ -357,13 +358,14 @@ c     SIM_AEM_step
 c     ###############################################################
       subroutine SIM_AEM_step(NIND,NATT,NG,X,WX,W,AL,GUM,DV,T,XMU,XVAR
      .                      ,V,WSUM,WTOT,ALIVE_GRP)
-      ! This subroutine do adaptive EM step in a simultaneous manner
+      ! This subroutine do adaptive EM step in a simultaneous manner,
+      ! reordering the Gaussian list so that finite Gaussians are contiguous.
 
       ! (TN -- 02/08/2021): while this works great for the simultaneous EM
       ! approach, it is not compatible with the current set up for AA,
       ! called in AMEM() subroutine. For now, we made a copy of this
-      ! subroutine, named it SIM_AEM_step_2(), which does the samething
-      ! but with a different data organization.
+      ! subroutine, named it SIM_AEM_step_2(), which does the same thing
+      ! but without Gaussian list reordering.
 
       implicit none
       
@@ -377,11 +379,13 @@ c     Call variables
 c     Local variables
 
       real(8) :: NPARBY2
-      real(8) :: p_ik,T_OLD(NG),TK,ISQDV,CN,LWSUM
+      real(8) :: p_ik,T_OLD(NG),TK,ISQDV,CN,LWSUM,EIG_SPRD
       real(8) :: semiAL(NIND,NG),AL_JJ(NG),XMUK(NATT),VK(NATT,NATT)
 
       integer :: K,KK,JJ,NG_OLD,NG_Killed,K_tmp,NINDT
 
+      logical :: KILL_G
+      
 c     Begin program
 
 #if defined(petsc)
@@ -423,65 +427,54 @@ c     Begin program
 C	Mixing proportion calc. by Figuireido's 2002 paper
 
         T(K) = max(WSUM(K)-NPARBY2,0d0)/(WTOT-NG_OLD*NPARBY2)
-cc        T(1:NG) = T(1:NG)/SUM(T(1:NG))  ! Follow Figueiredo&Jain2002
 
-C	!Weed out too-small Gaussians and/or update moments
-C	!The following IF-statement is consistent with algorithm
-C	!listed in Figueiredo's 2002 paper
+	!Weed out too-small Gaussians and/or update moments
+	!The following IF-statement is consistent with algorithm
+	!listed in Figueiredo's 2002 paper
 c        if(T(K) .LT. 5D-6 .and. NG > 1) then	! kill grp K if T(K)==0
-C	!An easier condition for killing Gaussian: 
-        if((T(K)*NINDT) < 2**NATT .and. NG > 1) then	! kill grp K if .LT. 2**NATT pcles
+
+        !An easier condition for killing Gaussian:
+        !Kill if it cannot support at least 2*NATT pcles, or if too elongated
+        !(very inaccurate Cholesky factorization). Elongation is 
+        !estimated by ratio of arithmetic over geometric eigenvalue average.
+
+        EIG_SPRD = trace(NATT,XVAR(K,:,:))/NATT
+     $           /(det(XVAR(K,:,:)))**(1d0/NATT)
+        
+        KILL_G = (T(K)*NINDT < 2**NATT).or.(EIG_SPRD > 2d1)
+
+        if(KILL_G .and. NG > 1) then !Zero out Gaussian qtys
 
           T(K) = 0D0
           XMU(K,1:NATT) = 0D0
           XVAR(K,1:NATT,1:NATT) = 0D0
+          WSUM(K) = 0d0 ; DV(K) = 0d0 ; V(K,:,:) = 0d0
+
           NG = NG - 1
           NG_Killed = NG_killed+1
         
-        else
+        else                         !Recompute Gaussian qtys
 
-          if(NG_Killed>0) then
-            K_tmp = K-NG_killed
-            T(K_tmp) = T(K)
-            WSUM(K_tmp) = WSUM(K)
-          else
-            K_tmp = K
-          end if
-
-cc          T(1:NG) = T(1:NG)/SUM(T(1:NG)) ! Follow Figueiredo&Jain2002
+          K_tmp = K-NG_killed
+          T(K_tmp) = T(K)
+          WSUM(K_tmp) = WSUM(K)
 
           call update_gaussian_moments(NIND,NATT,K,X,W(:,K),DV(K_tmp)
      .                                ,XMU(K_tmp,:),XVAR(K_tmp,:,:)
      .                                ,V(K_tmp,:,:),WSUM(K_tmp))
-           
-cC        Compute particle prob. semiAL(:,K) of grp K 
-cC	 after update its moments (means & cov)
-c
-c          XMUK = XMU(K_tmp,:)
-c          VK   = V(K_tmp,:,:)
-c          ISQDV= CN/SQRT(DV(K_tmp))
-ccc          TK   = T(K_tmp)
-c          DO JJ=1,NIND              !particle
-c             !Calculate component density
-c             CALL Mahalanobis(NATT,X(JJ,:),XMUK,VK,p_ik)
-c
-c             !Compute particle probability for Gaussian K
-c             p_ik=(-0.5d0)*MIN(p_ik,1d0*DENMAX)
-c             semiAL(JJ,K_tmp)=EXP(p_ik)*ISQDV
-c          END DO                     !particle
 
         end if
+
         K = K + 1               !Next gaussian          
 
       END DO                    !Gaussians - end-do-while(K)
 
-
       !Recompute mixing coefficients to avoid round-off errors
       if(NG>1) then
-         T(1:NG) = T(1:NG)/SUM(T(1:NG))         
-!         T(NG) = 1d0-sum(T(1:NG-1)) 
+        T(1:NG) = T(1:NG)/SUM(T(1:NG))
+        !T(NG) = 1d0-sum(T(1:NG-1)) 
       else
-         T(NG) = 1d0
+        T(NG) = 1d0
       end if
 
 C     We do not need to update AL & GUM for the Picard solution
@@ -502,16 +495,13 @@ c      END DO                     !particle
       
       end subroutine SIM_AEM_step
 
-
-
 c     SIM_AEM_step_2
 c     ###############################################################
       subroutine SIM_AEM_step_2(NIND,NATT,NG_ORG,NG,X,WX,W,AL,GUM,DV
      .                      ,T,XMU,XVAR,V,WSUM,WTOT,ALIVE_GRP)
-      ! (TN--02/08/2021): This subroutine do adaptive EM step in a simultaneous manner
-      ! and follows the implementation of the stand-alone code.
-      ! This implementation should be compatible with the current
-      ! implementation of AA inside AMEM() subroutine
+      ! This subroutine do adaptive EM step in a simultaneous manner
+      ! without Gaussian list reordering. 
+      ! This implementation is compatible with AA in AMEM() subroutine
 
       ! NG_ORG = starting/original number of components
       ! NG = current number of components @ current iteration
@@ -528,12 +518,14 @@ c     Call variables
 c     Local variables
 
       real(8) :: NPARBY2
-      real(8) :: p_ik,T_OLD(NG_ORG),TK,ISQDV,CN,LWSUM
+      real(8) :: p_ik,T_OLD(NG_ORG),TK,ISQDV,CN,LWSUM,EIG_SPRD
       real(8) :: semiAL(NIND,NG_ORG),AL_JJ(NG_ORG)
-     ,     ,XMUK(NATT),VK(NATT,NATT)
+     ,          ,XMUK(NATT),VK(NATT,NATT)
 
-      integer :: K,KK,JJ,NG_OLD,NG_Killed,K_tmp,NINDT
+      integer :: K,KK,JJ,NG_OLD,K_tmp,NINDT
 
+      logical :: KILL_G
+      
 c     Begin program
 
 #if defined(petsc)
@@ -549,7 +541,6 @@ c     Begin program
 
       WSUM(1:NG_ORG) = 0d0
       NG_OLD = NG   ! NG=current number of alive grps
-      NG_Killed = 0
 
       ! Make a copy of Gaussians' proportions at the current
       ! iteration before updating it for merging purposes
@@ -573,22 +564,24 @@ c     Begin program
           WSUM(K) = LWSUM
 #endif
 
-          ! Calculate grp's proportion using MML criterian
+          !Calculate grp's proportion using MML criterian
           T(K)=max(WSUM(K)-NPARBY2,0d0)/(WTOT-NG_OLD*NPARBY2)
 
-C         !An easier condition for killing Gaussian: 
-          if( (T(K)*NINDT) < 2**NATT ) then    ! kill grp K if .LT. 2**NATT pcles
-            T(K) = 0D0
-            XMU(K,1:NATT) = 0D0
-            XVAR(K,1:NATT,1:NATT) = 0D0
-            NG = NG - 1
-            ALIVE_GRP(K) = 0
-          else
-            K_tmp = K
-            call update_gaussian_moments(NIND,NATT,K,X,W(:,K),DV(K_tmp)
-     .                                ,XMU(K_tmp,:),XVAR(K_tmp,:,:)
-     .                                ,V(K_tmp,:,:),WSUM(K_tmp)) 
-          end if ! in (T(K)*NINDT) < 2**NATT .and. NG > 1
+          !Kill Gaussians 
+
+          EIG_SPRD = trace(NATT,XVAR(K,:,:))/NATT
+     $           /(det(XVAR(K,:,:)))**(1d0/NATT)
+          KILL_G = (T(K)*NINDT < 2**NATT).or.(EIG_SPRD > 2d1)
+
+          if (KILL_G .and. NG>1) then !Zero out corresponding qtys
+            T(K) = 0D0  ; XMU(K,:) = 0D0   ; XVAR(K,:,:) = 0D0
+            NG = NG-1   ; ALIVE_GRP(K) = 0
+            DV(K) = 0d0 ; V(K,:,:) = 0d0   ; WSUM(K) = 0d0
+          else                        !Recompute Gaussian qtys
+            call update_gaussian_moments(NIND,NATT,K,X,W(:,K),DV(K)
+     .                                ,XMU(K,:),XVAR(K,:,:)
+     .                                ,V(K,:,:),WSUM(K))
+          end if
 
         END IF   ! in ALIVE_GRP(K) == 1
       END DO     ! in K=1,NG_ORG

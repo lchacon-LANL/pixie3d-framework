@@ -134,7 +134,6 @@ c     Call variables
 c     Local variables
 
       integer    :: i,j,k,iii,ieq,nx,ny,nz
-      real(8)    :: ldot
 
 c     Begin program
 
@@ -156,13 +155,15 @@ c     Begin program
           enddo
         enddo
       enddo
-
+      
 #if defined(petsc)
-      if (.not.asm) then
-        ldot = dot
-        call MPI_Allreduce(ldot,dot,1,MPI_DOUBLE_PRECISION
-     .                  ,MPI_SUM,mgctx%mpi_comm,mpierr)
-      endif
+      dot = psum((/dot/),mpi_comm=mgctx%mpi_comm)
+c$$$      if (.not.asm) then
+c$$$        ldot = dot
+c$$$        call MPI_Allreduce(ldot,gdot,1,MPI_DOUBLE_PRECISION
+c$$$     .                    ,MPI_SUM,mgctx%mpi_comm,mpierr)
+c$$$      endif
+c$$$      dot = gdot(1)
 #endif
 
       end function MGdot
@@ -4221,8 +4222,6 @@ c     Call variables
         
         character(2),optional :: mg_smooth
 
-        external   matvec
-
         INTERFACE
           subroutine matvec(g_def,gpos,neq,ntot,x,y,igrid,bcnd)
             use grid
@@ -4765,8 +4764,6 @@ c     Call variables
       integer :: igc,gposc,bcnd(:,:)
       real(8) :: x(:),y(:)
 
-      external   matvec
-
       INTERFACE
         subroutine matvec(g_def,gpos,neq,ntot,x,y,igrid,bcnd)
           use grid
@@ -4905,8 +4902,6 @@ c     Call variables
 
       real(8)    :: diag1(:,:)
 
-      external      matvec
-
       INTERFACE
         subroutine matvec(g_def,gpos,neq,ntot,x,y,igrid,bcnd)
           use grid
@@ -5027,8 +5022,6 @@ c     Call variables
       integer :: bbcnd(:,:),igrid,nclrs
 
       real(8) :: dg(:,:)
-
-      external   matvec
 
       INTERFACE
         subroutine matvec(g_def,gpos,neq,ntot,x,y,igrid,bcnd)
@@ -5245,8 +5238,6 @@ c     Call variables
 
       real(8) :: dg(:,:)
 
-      external   matvec
-
       INTERFACE
         subroutine matvec(g_def,gpos,neq,ntot,x,y,igrid,bcnd)
           use grid
@@ -5434,8 +5425,6 @@ c     Call variables
 
       real(8) :: dg(:,:)
 
-      external   matvec
-
       INTERFACE
         subroutine matvec(g_def,gpos,neq,ntot,x,y,igrid,bcnd)
           use grid
@@ -5533,8 +5522,6 @@ c     Call variables
 
       logical  :: volw,glrkin
 
-      external    matvec
-
       INTERFACE
         subroutine matvec(g_def,gpos,neq,ntot,x,y,igrid,bcnd)
           use grid
@@ -5589,8 +5576,6 @@ c     Call variables
       integer    :: neq,ntot,bbcnd(6,neq),igrid
 
       real(8)    :: mat(ntot,ntot)
-
-      external      matvec
 
       INTERFACE
         subroutine matvec(g_def,gpos,neq,ntot,x,y,igrid,bcnd)
@@ -5718,8 +5703,6 @@ c Call variables
       real(8) :: x(ntot),y(ntot)
 
       type (solver_options),target :: options
-
-      external matvec
 
       INTERFACE
         subroutine matvec(g_def,gpos,neq,ntot,x,y,igrid,bcnd)
@@ -7757,8 +7740,6 @@ c Call variables
 
       type (solver_options) :: options
 
-      external     matvec
-
       INTERFACE
         subroutine matvec(g_def,gpos,neq,ntot,x,y,igrid,bcnd)
           use grid
@@ -8136,11 +8117,13 @@ c     ###################################################################
         enddo
 
 #if defined(petsc)
-        if (.not.asm) then
-          lmag = mag
-          call MPI_Allreduce(lmag,mag,1,MPI_DOUBLE_PRECISION
-     .                       ,MPI_SUM,mgctx%mpi_comm,mpierr)
-        endif
+        if (.not.asm) mag = psum((/mag/),mpi_comm=mgctx%mpi_comm)
+c$$$        if (.not.asm) then
+c$$$          lmag(1:1) = mag
+c$$$          call MPI_Allreduce(lmag(1:1),gmag,1,MPI_DOUBLE_PRECISION
+c$$$     .                       ,MPI_SUM,mgctx%mpi_comm,mpierr)
+c$$$        endif
+c$$$        mag = gmag(1)
 #endif
 
         mag = sqrt(mag)
@@ -8178,8 +8161,6 @@ c Call variables
 
       type (solver_options) :: options
 
-      external     matvec
-
       INTERFACE
         subroutine matvec(g_def,gpos,neq,ntot,x,y,igrid,bcnd)
           use grid
@@ -8201,8 +8182,8 @@ c Local variables
 
       integer    :: ic,jc,kc,iv,jv,kv,if,jf,kf,nxf,nyf,nzf
       integer    :: ii,iii,iib,iiib,iiv,ivg,iblock,jblock,kblock,nblk
-      real(8)    :: mag0,mag1,magsp,magsp0,mag,lmag,magz,magz0
-     $             ,yy(ntot),ones(ntot)
+      real(8)    :: mag0,mag1,magsp,magsp0,mag,lmag(1),magz,magz0
+     $             ,yy(ntot),ones(ntot),gmag(1)
 
       integer    :: ncolors,irbg1,irbg2,irbg3,nrbg1,nrbg2,nrbg3
 
@@ -8571,11 +8552,13 @@ cc                    summ = summ + zz(iii+1:iii+neq)
         call MG_set_zebra_dir(0)
 
 #if defined(petsc)
-        if (.not.asm) then
-          lmag = mag
-          call MPI_Allreduce(lmag,mag,1,MPI_DOUBLE_PRECISION
-     .                       ,MPI_SUM,mgctx%mpi_comm,mpierr)
-        endif
+        if (.not.asm) mag = psum((/mag/),mpi_comm=mgctx%mpi_comm)
+c$$$        if (.not.asm) then
+c$$$          lmag = mag
+c$$$          call MPI_Allreduce(lmag,gmag,1,MPI_DOUBLE_PRECISION
+c$$$     .                       ,MPI_SUM,mgctx%mpi_comm,mpierr)
+c$$$        endif
+c$$$        mag = gmag(1)
 #endif
 
         mag = sqrt(mag)
@@ -8672,11 +8655,13 @@ c     ###################################################################
         enddo
 
 #if defined(petsc)
-        if (.not.asm) then
-          lmag = mag
-          call MPI_Allreduce(lmag,mag,1,MPI_DOUBLE_PRECISION
-     .                       ,MPI_SUM,mgctx%mpi_comm,mpierr)
-        endif
+        if (.not.asm) mag = psum((/mag/),mpi_comm=mgctx%mpi_comm)
+c$$$        if (.not.asm) then
+c$$$          lmag = mag
+c$$$          call MPI_Allreduce(lmag,gmag,1,MPI_DOUBLE_PRECISION
+c$$$     .                       ,MPI_SUM,mgctx%mpi_comm,mpierr)
+c$$$        endif
+c$$$        mag = gmag(1)
 #endif
 
         mag = sqrt(mag)
@@ -8814,11 +8799,13 @@ c     ###################################################################
         enddo
 
 #if defined(petsc)
-        if (.not.asm) then
-          lmag = mag
-          call MPI_Allreduce(lmag,mag,1,MPI_DOUBLE_PRECISION
-     .                       ,MPI_SUM,mgctx%mpi_comm,mpierr)
-        endif
+        if (.not.asm) mag = psum((/mag/),mpi_comm=mgctx%mpi_comm)
+c$$$        if (.not.asm) then
+c$$$          lmag(1:1) = mag
+c$$$          call MPI_Allreduce(lmag,gmag,1,MPI_DOUBLE_PRECISION
+c$$$     .                       ,MPI_SUM,mgctx%mpi_comm,mpierr)
+c$$$        endif
+c$$$        mag = gmag(1)
 #endif
 
         mag = sqrt(mag)

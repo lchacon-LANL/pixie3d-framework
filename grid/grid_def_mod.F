@@ -30,29 +30,29 @@ c #####################################################################
 #if defined(samrai)
           sequence
 #endif
-          real(8),pointer,dimension(:,:,:,:)     :: car   !Node positions in cartesian space
-          real(8),pointer,dimension(:,:,:)       :: dvol  !Local cell physical volume
-          real(8),pointer,dimension(:,:,:)       :: dlvol !Local cell logical volume
-          real(8),pointer,dimension(:,:,:)       :: jac   !Jacobian factor at grid cells
-          real(8),pointer,dimension(:,:,:,:,:)   :: gsub  !Covariant metric tensor at cells
-          real(8),pointer,dimension(:,:,:,:,:)   :: gsup  !Contravariant metric tensor at cells
-          real(8),pointer,dimension(:,:,:,:,:,:) :: Gamma !Christoffel symbol at cell centers
-          real(8),pointer,dimension(:,:,:,:,:)   :: cov   !Covariant vectors
-          real(8),pointer,dimension(:,:,:,:,:)   :: cnv   !Contravariant vectors
+          real(8),pointer,dimension(:,:,:,:)     :: car   => null()!Node positions in cartesian space
+          real(8),pointer,dimension(:,:,:)       :: dvol  => null()!Local cell physical volume
+          real(8),pointer,dimension(:,:,:)       :: dlvol => null()!Local cell logical volume
+          real(8),pointer,dimension(:,:,:)       :: jac   => null()!Jacobian factor at grid cells
+          real(8),pointer,dimension(:,:,:,:,:)   :: gsub  => null()!Covariant metric tensor at cells
+          real(8),pointer,dimension(:,:,:,:,:)   :: gsup  => null()!Contravariant metric tensor at cells
+          real(8),pointer,dimension(:,:,:,:,:,:) :: Gamma => null()!Christoffel symbol at cell centers
+          real(8),pointer,dimension(:,:,:,:,:)   :: cov   => null()!Covariant vectors
+          real(8),pointer,dimension(:,:,:,:,:)   :: cnv   => null()!Contravariant vectors
 
-          real(8),pointer,dimension(:,:,:,:)     :: car_v !Vertex positions in cartesian space
-          real(8),pointer,dimension(:,:,:)       :: jac_v !Jacobian factor at grid vertices
-          real(8),pointer,dimension(:,:,:,:,:)   :: gsub_v!Covariant metric tensor at vertices
-          real(8),pointer,dimension(:,:,:,:,:)   :: gsup_v!Contravariant metric tensor at vertices
-          real(8),pointer,dimension(:,:,:,:,:)   :: cov_v !Covariant vectors at vertices
-          real(8),pointer,dimension(:,:,:,:,:)   :: cnv_v !Contravariant vectors at vertices
+          real(8),pointer,dimension(:,:,:,:)     :: car_v => null()!Vertex positions in cartesian space
+          real(8),pointer,dimension(:,:,:)       :: jac_v => null()!Jacobian factor at grid vertices
+          real(8),pointer,dimension(:,:,:,:,:)   :: gsub_v=> null()!Covariant metric tensor at vertices
+          real(8),pointer,dimension(:,:,:,:,:)   :: gsup_v=> null()!Contravariant metric tensor at vertices
+          real(8),pointer,dimension(:,:,:,:,:)   :: cov_v => null()!Covariant vectors at vertices
+          real(8),pointer,dimension(:,:,:,:,:)   :: cnv_v => null()!Contravariant vectors at vertices
         end type grid_metrics
 
         type :: MG_grid_metrics
 #if defined(samrai)
           sequence 
 #endif
-          type(grid_metrics),pointer,dimension(:) :: grid
+          type(grid_metrics),pointer,dimension(:) :: grid => null()
         end type MG_grid_metrics
 
         type :: grid_mg_def
@@ -101,66 +101,65 @@ c #####################################################################
      .              ,MPI_COMM_PER(3)=MPI_COMM_NULL
      .              ,MPI_COMM_CRSE  =MPI_COMM_NULL  !Groups procs for coarse MG solve
 #endif
-          integer :: ngrdx                                !Grid levels in X, MG specific
-          integer :: ngrdy                                !Grid levels in Y, MG specific
-          integer :: ngrdz                                !Grid levels in Z, MG specific
-          integer :: ngrid                                !Max grid levels for MG
+          integer :: ngrdx                                         !Grid levels in X, MG specific
+          integer :: ngrdy                                         !Grid levels in Y, MG specific
+          integer :: ngrdz                                         !Grid levels in Z, MG specific
+          integer :: ngrid                                         !Max grid levels for MG
 
-          integer :: nlx                                  !Local number of mesh points in X
-          integer :: nly                                  !Local number of mesh points in Y
-          integer :: nlz                                  !Local number of mesh points in Z
+          integer :: nlx                                           !Local number of mesh points in X
+          integer :: nly                                           !Local number of mesh points in Y
+          integer :: nlz                                           !Local number of mesh points in Z
 
-          integer   ,pointer,dimension(:)  :: ilo         !Global lower limit in X in all grids
-          integer   ,pointer,dimension(:)  :: jlo         !Global lower limit in Y in all grids
-          integer   ,pointer,dimension(:)  :: klo         !Global lower limit in Z in all grids
-          integer   ,pointer,dimension(:)  :: ihi         !Global higher limit in X in all grids
-          integer   ,pointer,dimension(:)  :: jhi         !Global higher limit in Y in all grids
-          integer   ,pointer,dimension(:)  :: khi         !Global higher limit in Z in all grids
+          integer   ,pointer,dimension(:)  :: ilo => null()        !Global lower limit in X in all grids
+          integer   ,pointer,dimension(:)  :: jlo => null()        !Global lower limit in Y in all grids
+          integer   ,pointer,dimension(:)  :: klo => null()        !Global lower limit in Z in all grids
+          integer   ,pointer,dimension(:)  :: ihi => null()        !Global higher limit in X in all grids
+          integer   ,pointer,dimension(:)  :: jhi => null()        !Global higher limit in Y in all grids
+          integer   ,pointer,dimension(:)  :: khi => null()        !Global higher limit in Z in all grids
 
-          ! can the following set of variables be de-allocated ???
-          real(8)   ,pointer,dimension(:)  :: xg          !Global grid nodes in X (top grid only), x co-ordinates of global domain useful for a packed tensor grid
-          real(8)   ,pointer,dimension(:)  :: yg          !Global grid nodes in Y (")
-          real(8)   ,pointer,dimension(:)  :: zg          !Global grid nodes in Z (")
-          real(8)   ,pointer,dimension(:)  :: xx          !Local grid nodes in X (all grids)
-          real(8)   ,pointer,dimension(:)  :: yy          !Local grid nodes in Y (")
-          real(8)   ,pointer,dimension(:)  :: zz          !Local grid nodes in Z (")
+          real(8)   ,pointer,dimension(:)  :: xg => null()         !Global grid nodes in X (top grid only), x co-ordinates of global domain useful for a packed tensor grid
+          real(8)   ,pointer,dimension(:)  :: yg => null()         !Global grid nodes in Y (")
+          real(8)   ,pointer,dimension(:)  :: zg => null()         !Global grid nodes in Z (")
+          real(8)   ,pointer,dimension(:)  :: xx => null()         !Local grid nodes in X (all grids)
+          real(8)   ,pointer,dimension(:)  :: yy => null()         !Local grid nodes in Y (")
+          real(8)   ,pointer,dimension(:)  :: zz => null()         !Local grid nodes in Z (")
 
-          real(8)   ,pointer,dimension(:)  :: dx          !Grid spacings in X for integer mesh (all grids)
-          real(8)   ,pointer,dimension(:)  :: dy          !Grid spacings in Y for integer mesh (")
-          real(8)   ,pointer,dimension(:)  :: dz          !Grid spacings in Z for integer mesh (")
-          real(8)   ,pointer,dimension(:)  :: dxh         !Grid spacings in X for half mesh (")
-          real(8)   ,pointer,dimension(:)  :: dyh         !Grid spacings in Y for half mesh (")
-          real(8)   ,pointer,dimension(:)  :: dzh         !Grid spacings in Z for half mesh (")
+          real(8)   ,pointer,dimension(:)  :: dx => null()         !Grid spacings in X for integer mesh (all grids)
+          real(8)   ,pointer,dimension(:)  :: dy => null()         !Grid spacings in Y for integer mesh (")
+          real(8)   ,pointer,dimension(:)  :: dz => null()         !Grid spacings in Z for integer mesh (")
+          real(8)   ,pointer,dimension(:)  :: dxh=> null()         !Grid spacings in X for half mesh (")
+          real(8)   ,pointer,dimension(:)  :: dyh=> null()         !Grid spacings in Y for half mesh (")
+          real(8)   ,pointer,dimension(:)  :: dzh=> null()         !Grid spacings in Z for half mesh (")
 
-          integer   ,pointer,dimension(:)  :: nxv         !Local # of grid nodes in X  (all MG grids)
-          integer   ,pointer,dimension(:)  :: nyv         !Local # of grid nodes in Y  (")
-          integer   ,pointer,dimension(:)  :: nzv         !Local # of grid nodes in Z  (")
-          integer   ,pointer,dimension(:)  :: nxgl        !Global # of grid nodes in X  (")
-          integer   ,pointer,dimension(:)  :: nygl        !Global # of grid nodes in Y  (")
-          integer   ,pointer,dimension(:)  :: nzgl        !Global # of grid nodes in Z  (")
+          integer   ,pointer,dimension(:)  :: nxv => null()        !Local # of grid nodes in X  (all MG grids)
+          integer   ,pointer,dimension(:)  :: nyv => null()        !Local # of grid nodes in Y  (")
+          integer   ,pointer,dimension(:)  :: nzv => null()        !Local # of grid nodes in Z  (")
+          integer   ,pointer,dimension(:)  :: nxgl=> null()        !Global # of grid nodes in X  (")
+          integer   ,pointer,dimension(:)  :: nygl=> null()        !Global # of grid nodes in Y  (")
+          integer   ,pointer,dimension(:)  :: nzgl=> null()        !Global # of grid nodes in Z  (")
 
-          integer   ,pointer,dimension(:)  :: istartx     !Pointer for MG vectors in X
-          integer   ,pointer,dimension(:)  :: istarty     !Pointer for MG vectors in Y
-          integer   ,pointer,dimension(:)  :: istartz     !Pointer for MG vectors in Z
-          integer   ,pointer,dimension(:)  :: istartp     !Pointer for global MG vectors
-          integer   ,pointer,dimension(:)  :: mg_ratio_x  !MG coarsening ratio in X
-          integer   ,pointer,dimension(:)  :: mg_ratio_y  !MG coarsening ratio in Y
-          integer   ,pointer,dimension(:)  :: mg_ratio_z  !MG coarsening ratio in Z
-          integer   ,pointer,dimension(:)  :: iline       !Restrict ops. to i=iline in MG
-          integer   ,pointer,dimension(:)  :: jline       !Restrict ops. to j=jline in MG
-          integer   ,pointer,dimension(:)  :: kline       !Restrict ops. to k=kline in MG
+          integer   ,pointer,dimension(:)  :: istartx   => null()  !Pointer for MG vectors in X
+          integer   ,pointer,dimension(:)  :: istarty   => null()  !Pointer for MG vectors in Y
+          integer   ,pointer,dimension(:)  :: istartz   => null()  !Pointer for MG vectors in Z
+          integer   ,pointer,dimension(:)  :: istartp   => null()  !Pointer for global MG vectors
+          integer   ,pointer,dimension(:)  :: mg_ratio_x=> null()  !MG coarsening ratio in X
+          integer   ,pointer,dimension(:)  :: mg_ratio_y=> null()  !MG coarsening ratio in Y
+          integer   ,pointer,dimension(:)  :: mg_ratio_z=> null()  !MG coarsening ratio in Z
+          integer   ,pointer,dimension(:)  :: iline     => null()  !Restrict ops. to i=iline in MG
+          integer   ,pointer,dimension(:)  :: jline     => null()  !Restrict ops. to j=jline in MG
+          integer   ,pointer,dimension(:)  :: kline     => null()  !Restrict ops. to k=kline in MG
 
           real(8)                          :: params(ngparams)   !Grid configuration parameters
 
-          type(MG_grid_metrics),pointer    :: gmetric     !Grid metrics at all levels
+          type(MG_grid_metrics),pointer    :: gmetric => null()  !Grid metrics at all levels
 
           type(grid_pack),dimension(3)     :: g_pack      !Grid packing information
 
 #if defined(petsc) && !defined(samrai)
-          type(petsc_da_ctx),pointer,dimension(:)::dactx  !PETSc DA context
+          type(petsc_da_ctx),pointer,dimension(:) :: dactx => null()  !PETSc DA context
 #endif
 
-          type(grid_mg_def),pointer :: g_crse_def => null()
+          type(grid_mg_def),pointer        :: g_crse_def => null()
 
         end type grid_mg_def
 
@@ -390,7 +389,7 @@ cc        nnmg = (2+ngrdt-ngrd)*nn
 
 c     deallocateGridStructure
 c     #################################################################
-      recursive subroutine deallocateGridStructure(grid_st)
+      subroutine deallocateGridStructure(grid_st)
 c     -----------------------------------------------------------------
 c     Allocates grid structure
 c     -----------------------------------------------------------------
@@ -406,16 +405,16 @@ c     Local variables
         integer :: igr
 
 #if defined(petsc) && !defined(samrai)
-        type(petsc_da_ctx),pointer :: da_ctx
+        type(petsc_da_ctx),pointer :: da_ctx => null()
 #endif
 
 c     Begin program
         
         if (.not.associated(grid_st)) return
 
-c     Deallocate coarser levels
-
-        call deallocateGridStructure(grid_st%g_crse_def)
+c$$$c     Deallocate coarser levels
+c$$$
+c$$$        call deallocateGridStructure(grid_st%g_crse_def)
 
 c     Deallocate gmetric
 
@@ -435,36 +434,6 @@ c     Deallocate PETSC DA context
 #endif
 
 c     Deallocate MG storage variables
-
-c$$$        grid_st%ngrdx = 0
-c$$$        grid_st%ngrdy = 0
-c$$$        grid_st%ngrdz = 0
-c$$$        grid_st%ngrid = 0
-c$$$
-c$$$        grid_st%nglx = 0
-c$$$        grid_st%ngly = 0
-c$$$        grid_st%nglz = 0
-c$$$
-c$$$        grid_st%ilog = 0
-c$$$        grid_st%ihig = 0
-c$$$        grid_st%jlog = 0
-c$$$        grid_st%jhig = 0
-c$$$        grid_st%klog = 0
-c$$$        grid_st%khig = 0
-c$$$
-c$$$        grid_st%gxmin = UNDEF_DP
-c$$$        grid_st%gxmax = UNDEF_DP
-c$$$        grid_st%gymin = UNDEF_DP
-c$$$        grid_st%gymax = UNDEF_DP
-c$$$        grid_st%gzmin = UNDEF_DP
-c$$$        grid_st%gzmax = UNDEF_DP
-c$$$
-c$$$        grid_st%lxmin = UNDEF_DP
-c$$$        grid_st%lxmax = UNDEF_DP
-c$$$        grid_st%lymin = UNDEF_DP
-c$$$        grid_st%lymax = UNDEF_DP
-c$$$        grid_st%lzmin = UNDEF_DP
-c$$$        grid_st%lzmax = UNDEF_DP
 
         if (associated(grid_st%xx)) then
           deallocate(grid_st%xg)
@@ -509,172 +478,174 @@ c     End program
 
       end subroutine deallocateGridStructure
 
-c     equateGridStructure
-c     #################################################################
-      subroutine equateGridStructure(grid_st2,grid_st1)
-
-c     -----------------------------------------------------------------
-c     Performs grid_st2 = grid_st1, where MG storage arrays are 
-c     strictly copied, PETSC DA are regenerated, and grid metrics
-c     are simply pointed to.
-c     -----------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-        type(grid_mg_def),pointer :: grid_st1
-        type(grid_mg_def),pointer :: grid_st2
-
-c     Local variables
-
-        integer :: ngridx,ngridy,ngridz,nx,ny,nz
-     .            ,nglx,ngly,nglz,mx,my,mz
-     .            ,ilog,ihig,jlog,jhig,klog,khig
-
-c     Begin program
-
-        ngridx = grid_st1%ngrdx
-        ngridy = grid_st1%ngrdy
-        ngridz = grid_st1%ngrdz
-
-        nx = grid_st1%nxv(1)
-        ny = grid_st1%nyv(1)
-        nz = grid_st1%nzv(1)
-
-        nglx = grid_st1%nglx
-        ngly = grid_st1%ngly
-        nglz = grid_st1%nglz
-
-        mx = grid_st1%mx
-        my = grid_st1%my
-        mz = grid_st1%mz
-
-        ilog = grid_st1%ilog
-        ihig = grid_st1%ihig
-        jlog = grid_st1%jlog
-        jhig = grid_st1%jhig
-        klog = grid_st1%klog
-        khig = grid_st1%khig
-
-        if (associated(grid_st2)) then
-          if (    grid_st2%ngrdx /= ngridx
-     .        .or.grid_st2%ngrdy /= ngridy
-     .        .or.grid_st2%ngrdz /= ngridz
-     .        .or.grid_st2%nxv(1)/= nx
-     .        .or.grid_st2%nyv(1)/= ny
-     .        .or.grid_st2%nzv(1)/= nz
-     .        .or.grid_st2%nglx  /= nglx
-     .        .or.grid_st2%ngly  /= ngly
-     .        .or.grid_st2%nglz  /= nglz)
-     .      call deallocateGridStructure(grid_st2)
-        endif
-
-c       Create basic structure
-
-        call allocateGridStructure(ngridx,ngridy,ngridz,mx,my,mz
-     .                            ,nglx,ngly,nglz,grid_st2)
-
-c       Copy values
-
-        grid_st2%xg         = grid_st1%xg        
-        grid_st2%yg         = grid_st1%yg        
-        grid_st2%zg         = grid_st1%zg        
-        grid_st2%xx         = grid_st1%xx        
-        grid_st2%yy         = grid_st1%yy        
-        grid_st2%zz         = grid_st1%zz        
-        grid_st2%dx         = grid_st1%dx        
-        grid_st2%dy         = grid_st1%dy        
-        grid_st2%dz         = grid_st1%dz        
-        grid_st2%dxh        = grid_st1%dxh       
-        grid_st2%dyh        = grid_st1%dyh       
-        grid_st2%dzh        = grid_st1%dzh       
-        grid_st2%nxv        = grid_st1%nxv       
-        grid_st2%nyv        = grid_st1%nyv       
-        grid_st2%nzv        = grid_st1%nzv       
-        grid_st2%nxgl       = grid_st1%nxgl       
-        grid_st2%nygl       = grid_st1%nygl       
-        grid_st2%nzgl       = grid_st1%nzgl       
-        grid_st2%ilo        = grid_st1%ilo
-        grid_st2%jlo        = grid_st1%jlo
-        grid_st2%klo        = grid_st1%klo
-        grid_st2%ihi        = grid_st1%ihi
-        grid_st2%jhi        = grid_st1%jhi
-        grid_st2%khi        = grid_st1%khi
-        grid_st2%gcw        = grid_st1%gcw
-        grid_st2%istartx    = grid_st1%istartx   
-        grid_st2%istarty    = grid_st1%istarty   
-        grid_st2%istartz    = grid_st1%istartz   
-        grid_st2%istartp    = grid_st1%istartp   
-        grid_st2%mg_ratio_x = grid_st1%mg_ratio_x
-        grid_st2%mg_ratio_y = grid_st1%mg_ratio_y
-        grid_st2%mg_ratio_z = grid_st1%mg_ratio_z
-        grid_st2%iline      = grid_st1%iline
-        grid_st2%jline      = grid_st1%jline
-        grid_st2%kline      = grid_st1%kline
-
-        !Grid info
-        grid_st2%gxmin      = grid_st1%gxmin
-        grid_st2%gxmax      = grid_st1%gxmax
-        grid_st2%gymin      = grid_st1%gymin
-        grid_st2%gymax      = grid_st1%gymax
-        grid_st2%gzmin      = grid_st1%gzmin
-        grid_st2%gzmax      = grid_st1%gzmax
-        grid_st2%lxmin      = grid_st1%lxmin
-        grid_st2%lxmax      = grid_st1%lxmax
-        grid_st2%lymin      = grid_st1%lymin
-        grid_st2%lymax      = grid_st1%lymax
-        grid_st2%lzmin      = grid_st1%lzmin
-        grid_st2%lzmax      = grid_st1%lzmax
-
-        grid_st2%g_pack     = grid_st1%g_pack
-        grid_st2%params     = grid_st1%params
-
-        !MPI info
-#if defined(petsc)
-        grid_st2%mpi_comm   = grid_st1%mpi_comm
-        grid_st2%np         = grid_st1%np
-        grid_st2%rank       = grid_st1%rank
-        grid_st2%mx         = grid_st1%mx
-        grid_st2%my         = grid_st1%my
-        grid_st2%mz         = grid_st1%mz
-        grid_st2%MPI_COMM_SP  = grid_st1%MPI_COMM_SP    
-        grid_st2%MPI_COMM_POL = grid_st1%MPI_COMM_POL   
-        grid_st2%MPI_COMM_RAD = grid_st1%MPI_COMM_RAD   
-        grid_st2%MPI_COMM_X   = grid_st1%MPI_COMM_X     
-        grid_st2%MPI_COMM_Y   = grid_st1%MPI_COMM_Y     
-        grid_st2%MPI_COMM_Z   = grid_st1%MPI_COMM_Z     
-        grid_st2%MPI_COMM_XY  = grid_st1%MPI_COMM_XY    
-        grid_st2%MPI_COMM_XZ  = grid_st1%MPI_COMM_XZ    
-        grid_st2%MPI_COMM_YZ  = grid_st1%MPI_COMM_YZ    
-        grid_st2%MPI_COMM_PER = grid_st2%MPI_COMM_PER
-        grid_st2%MPI_COMM_CRSE= grid_st2%MPI_COMM_CRSE
-#endif
-
-c       Create and copy grid metric
-
-        if (associated(grid_st1%gmetric)) then
-          call equateGridMetric(grid_st2%gmetric
-     .                         ,grid_st1%gmetric,grid_st1)
-        else
-          nullify(grid_st2%gmetric)
-        endif
-
-c       Create and copy coarse grid metric
-
-        if (associated(grid_st1%g_crse_def)) then
-          grid_st2%g_crse_def => grid_st1%g_crse_def
-        endif
-
-c       Create fortran PETSc parallel grid hierarchy (parallel version)
-
-#if defined(petsc)
-        call createPETScGrid(grid_st2,0)
-#endif
-
-c     End program
-
-      end subroutine equateGridStructure
+c$$$c     equateGridStructure
+c$$$c     #################################################################
+c$$$      subroutine equateGridStructure(grid_st2,grid_st1)
+c$$$
+c$$$c     -----------------------------------------------------------------
+c$$$c     Performs grid_st2 = grid_st1, where MG storage arrays are 
+c$$$c     strictly copied, PETSC DA are regenerated, and grid metrics
+c$$$c     are simply pointed to.
+c$$$c     -----------------------------------------------------------------
+c$$$
+c$$$        implicit none
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$        type(grid_mg_def),pointer :: grid_st1
+c$$$        type(grid_mg_def),pointer :: grid_st2
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$        integer :: ngridx,ngridy,ngridz,nx,ny,nz
+c$$$     .            ,nglx,ngly,nglz,mx,my,mz
+c$$$     .            ,ilog,ihig,jlog,jhig,klog,khig
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$        ngridx = grid_st1%ngrdx
+c$$$        ngridy = grid_st1%ngrdy
+c$$$        ngridz = grid_st1%ngrdz
+c$$$
+c$$$        nx = grid_st1%nxv(1)
+c$$$        ny = grid_st1%nyv(1)
+c$$$        nz = grid_st1%nzv(1)
+c$$$
+c$$$        nglx = grid_st1%nglx
+c$$$        ngly = grid_st1%ngly
+c$$$        nglz = grid_st1%nglz
+c$$$
+c$$$        mx = grid_st1%mx
+c$$$        my = grid_st1%my
+c$$$        mz = grid_st1%mz
+c$$$
+c$$$        ilog = grid_st1%ilog
+c$$$        ihig = grid_st1%ihig
+c$$$        jlog = grid_st1%jlog
+c$$$        jhig = grid_st1%jhig
+c$$$        klog = grid_st1%klog
+c$$$        khig = grid_st1%khig
+c$$$
+c$$$        if (associated(grid_st2)) then
+c$$$          if (    grid_st2%ngrdx /= ngridx
+c$$$     .        .or.grid_st2%ngrdy /= ngridy
+c$$$     .        .or.grid_st2%ngrdz /= ngridz
+c$$$     .        .or.grid_st2%nxv(1)/= nx
+c$$$     .        .or.grid_st2%nyv(1)/= ny
+c$$$     .        .or.grid_st2%nzv(1)/= nz
+c$$$     .        .or.grid_st2%nglx  /= nglx
+c$$$     .        .or.grid_st2%ngly  /= ngly
+c$$$     .        .or.grid_st2%nglz  /= nglz)
+c$$$     .      call deallocateGridStructure(grid_st2)
+c$$$        endif
+c$$$
+c$$$c       Create basic structure
+c$$$
+c$$$        call allocateGridStructure(ngridx,ngridy,ngridz,mx,my,mz
+c$$$     .                            ,nglx,ngly,nglz,grid_st2)
+c$$$
+c$$$c       Copy values
+c$$$
+c$$$        grid_st2%xg         = grid_st1%xg        
+c$$$        grid_st2%yg         = grid_st1%yg        
+c$$$        grid_st2%zg         = grid_st1%zg        
+c$$$        grid_st2%xx         = grid_st1%xx        
+c$$$        grid_st2%yy         = grid_st1%yy        
+c$$$        grid_st2%zz         = grid_st1%zz        
+c$$$        grid_st2%dx         = grid_st1%dx        
+c$$$        grid_st2%dy         = grid_st1%dy        
+c$$$        grid_st2%dz         = grid_st1%dz        
+c$$$        grid_st2%dxh        = grid_st1%dxh       
+c$$$        grid_st2%dyh        = grid_st1%dyh       
+c$$$        grid_st2%dzh        = grid_st1%dzh       
+c$$$        grid_st2%nxv        = grid_st1%nxv       
+c$$$        grid_st2%nyv        = grid_st1%nyv       
+c$$$        grid_st2%nzv        = grid_st1%nzv       
+c$$$        grid_st2%nxgl       = grid_st1%nxgl       
+c$$$        grid_st2%nygl       = grid_st1%nygl       
+c$$$        grid_st2%nzgl       = grid_st1%nzgl       
+c$$$        grid_st2%ilo        = grid_st1%ilo
+c$$$        grid_st2%jlo        = grid_st1%jlo
+c$$$        grid_st2%klo        = grid_st1%klo
+c$$$        grid_st2%ihi        = grid_st1%ihi
+c$$$        grid_st2%jhi        = grid_st1%jhi
+c$$$        grid_st2%khi        = grid_st1%khi
+c$$$        grid_st2%gcw        = grid_st1%gcw
+c$$$        grid_st2%istartx    = grid_st1%istartx   
+c$$$        grid_st2%istarty    = grid_st1%istarty   
+c$$$        grid_st2%istartz    = grid_st1%istartz   
+c$$$        grid_st2%istartp    = grid_st1%istartp   
+c$$$        grid_st2%mg_ratio_x = grid_st1%mg_ratio_x
+c$$$        grid_st2%mg_ratio_y = grid_st1%mg_ratio_y
+c$$$        grid_st2%mg_ratio_z = grid_st1%mg_ratio_z
+c$$$        grid_st2%iline      = grid_st1%iline
+c$$$        grid_st2%jline      = grid_st1%jline
+c$$$        grid_st2%kline      = grid_st1%kline
+c$$$
+c$$$        !Grid info
+c$$$        grid_st2%gxmin      = grid_st1%gxmin
+c$$$        grid_st2%gxmax      = grid_st1%gxmax
+c$$$        grid_st2%gymin      = grid_st1%gymin
+c$$$        grid_st2%gymax      = grid_st1%gymax
+c$$$        grid_st2%gzmin      = grid_st1%gzmin
+c$$$        grid_st2%gzmax      = grid_st1%gzmax
+c$$$        grid_st2%lxmin      = grid_st1%lxmin
+c$$$        grid_st2%lxmax      = grid_st1%lxmax
+c$$$        grid_st2%lymin      = grid_st1%lymin
+c$$$        grid_st2%lymax      = grid_st1%lymax
+c$$$        grid_st2%lzmin      = grid_st1%lzmin
+c$$$        grid_st2%lzmax      = grid_st1%lzmax
+c$$$
+c$$$        grid_st2%g_pack     = grid_st1%g_pack
+c$$$        grid_st2%params     = grid_st1%params
+c$$$
+c$$$        !MPI info
+c$$$#if defined(petsc)
+c$$$        grid_st2%mpi_comm   = grid_st1%mpi_comm
+c$$$        grid_st2%np         = grid_st1%np
+c$$$        grid_st2%rank       = grid_st1%rank
+c$$$        grid_st2%mx         = grid_st1%mx
+c$$$        grid_st2%my         = grid_st1%my
+c$$$        grid_st2%mz         = grid_st1%mz
+c$$$        grid_st2%MPI_COMM_SP  = grid_st1%MPI_COMM_SP    
+c$$$        grid_st2%MPI_COMM_POL = grid_st1%MPI_COMM_POL   
+c$$$        grid_st2%MPI_COMM_RAD = grid_st1%MPI_COMM_RAD   
+c$$$        grid_st2%MPI_COMM_X   = grid_st1%MPI_COMM_X     
+c$$$        grid_st2%MPI_COMM_Y   = grid_st1%MPI_COMM_Y     
+c$$$        grid_st2%MPI_COMM_Z   = grid_st1%MPI_COMM_Z     
+c$$$        grid_st2%MPI_COMM_XY  = grid_st1%MPI_COMM_XY    
+c$$$        grid_st2%MPI_COMM_XZ  = grid_st1%MPI_COMM_XZ    
+c$$$        grid_st2%MPI_COMM_YZ  = grid_st1%MPI_COMM_YZ    
+c$$$        grid_st2%MPI_COMM_PER = grid_st2%MPI_COMM_PER
+c$$$        grid_st2%MPI_COMM_CRSE= grid_st2%MPI_COMM_CRSE
+c$$$#endif
+c$$$
+c$$$c       Create and copy grid metric
+c$$$
+c$$$        if (associated(grid_st1%gmetric)) then
+c$$$          call equateGridMetric(grid_st2%gmetric
+c$$$     .                         ,grid_st1%gmetric,grid_st1)
+c$$$        else
+c$$$          nullify(grid_st2%gmetric)
+c$$$        endif
+c$$$
+c$$$c       Create and copy coarse grid metric
+c$$$
+c$$$        if (associated(grid_st1%g_crse_def)) then
+c$$$          grid_st2%g_crse_def => grid_st1%g_crse_def
+c$$$        else
+c$$$          nullify(grid_st2%g_crse_def)
+c$$$        endif
+c$$$
+c$$$c       Create fortran PETSc parallel grid hierarchy (parallel version)
+c$$$
+c$$$#if defined(petsc)
+c$$$        call createPETScGrid(grid_st2,0)
+c$$$#endif
+c$$$
+c$$$c     End program
+c$$$
+c$$$      end subroutine equateGridStructure
 
 c     writeGridStructure
 c     #################################################################
@@ -746,13 +717,13 @@ c     End program
 
 c     allocateGridMetric
 c     #################################################################
-      subroutine allocateGridMetric(gmetric,gparams)
+      subroutine allocateGridMetric(gmetric,gdef)
 
         implicit none
 
 c     Call variables
 
-        type(grid_mg_def),pointer :: gparams
+        type(grid_mg_def),pointer :: gdef
         type(MG_grid_metrics),pointer :: gmetric
 
 c     Local variables
@@ -763,14 +734,14 @@ c     Begin program
 
         if (.not.associated(gmetric)) then
           allocate(gmetric)
-          allocate(gmetric%grid(gparams%ngrid))
-          do igrid=1,gparams%ngrid
+          allocate(gmetric%grid(gdef%ngrid))
+          do igrid=1,gdef%ngrid
             ilom = 0
             jlom = 0
             klom = 0
-            ihip = gparams%nxv(igrid)+1
-            jhip = gparams%nyv(igrid)+1
-            khip = gparams%nzv(igrid)+1
+            ihip = gdef%nxv(igrid)+1
+            jhip = gdef%nyv(igrid)+1
+            khip = gdef%nzv(igrid)+1
             allocate(gmetric%grid(igrid)
      $           %car  (ilom:ihip,jlom:jhip,klom:khip,3))
             allocate(gmetric%grid(igrid)
@@ -827,7 +798,7 @@ c     End program
 
 c     equateGridMetric
 c     #################################################################
-      subroutine equateGridMetric(gmetric2,gmetric1,gparams)
+      subroutine equateGridMetric(gmetric2,gmetric1,gdef)
 
 c     -----------------------------------------------------------------
 c     Performs gmetric2 = gmetric1
@@ -838,7 +809,7 @@ c     -----------------------------------------------------------------
 c     Call variables
 
         type(MG_grid_metrics),pointer :: gmetric2,gmetric1
-        type(grid_mg_def),pointer :: gparams
+        type(grid_mg_def),pointer :: gdef
 
 c     Local variables
 
@@ -847,9 +818,9 @@ c     Local variables
 c     Begin program
 
         if (.not.associated(gmetric2))
-     .       call allocateGridMetric(gmetric2,gparams)
+     .       call allocateGridMetric(gmetric2,gdef)
 
-        do igrid=1,gparams%ngrid
+        do igrid=1,gdef%ngrid
           gmetric2%grid(igrid)%car  = gmetric1%grid(igrid)%car  
           gmetric2%grid(igrid)%dvol = gmetric1%grid(igrid)%dvol 
           gmetric2%grid(igrid)%dlvol= gmetric1%grid(igrid)%dlvol 
@@ -919,7 +890,7 @@ c     End program
 
 c     createPETScGrid
 c     #################################################################
-      subroutine createPETScGrid(gparams,igr)
+      subroutine createPETScGrid(gdef,igr)
 
 c     -----------------------------------------------------------------
 c     Creates PETSc constructs for boundary communication in fortran.
@@ -930,55 +901,55 @@ c     -----------------------------------------------------------------
 c     Call variables
 
         integer :: igr
-        type(grid_mg_def),pointer :: gparams
+        type(grid_mg_def),pointer :: gdef
 
 c     Local variables
 
         integer :: nxgl,nygl,nzgl,igrid,mpi_comm
-        type(petsc_da_ctx),pointer :: da_ctx
+        type(petsc_da_ctx),pointer :: da_ctx => null()
 
 c     Begin program
 
-        mpi_comm = gparams%mpi_comm
+        mpi_comm = gdef%mpi_comm
 
 c     Create PETSc DA MG hierachy
 
         select case(igr)
         case(1)
 
-          da_ctx => gparams%dactx(igr)
+          da_ctx => gdef%dactx(igr)
 
           da_ctx%MPI_COMM_DA = mpi_comm
 
           da_ctx%igrid = igr
 
-          da_ctx%mx = gparams%mx
-          da_ctx%my = gparams%my
-          da_ctx%mz = gparams%mz
+          da_ctx%mx = gdef%mx
+          da_ctx%my = gdef%my
+          da_ctx%mz = gdef%mz
 
-          da_ctx%nxgl = gparams%nglx
-          da_ctx%nygl = gparams%ngly
-          da_ctx%nzgl = gparams%nglz
+          da_ctx%nxgl = gdef%nglx
+          da_ctx%nygl = gdef%ngly
+          da_ctx%nzgl = gdef%nglz
 
           call createPETScFortranDA(da_ctx)
 
         case(0)
 
-          do igrid=2,gparams%ngrid
+          do igrid=2,gdef%ngrid
 
-            da_ctx => gparams%dactx(igrid)
+            da_ctx => gdef%dactx(igrid)
 
             da_ctx%MPI_COMM_DA = mpi_comm
 
             da_ctx%igrid = igrid
 
-            da_ctx%mx = gparams%mx
-            da_ctx%my = gparams%my
-            da_ctx%mz = gparams%mz
+            da_ctx%mx = gdef%mx
+            da_ctx%my = gdef%my
+            da_ctx%mz = gdef%mz
 
-            da_ctx%nxgl = gparams%nxgl(igrid)
-            da_ctx%nygl = gparams%nygl(igrid)
-            da_ctx%nzgl = gparams%nzgl(igrid)
+            da_ctx%nxgl = gdef%nxgl(igrid)
+            da_ctx%nygl = gdef%nygl(igrid)
+            da_ctx%nzgl = gdef%nzgl(igrid)
 
             call createPETScFortranDA(da_ctx)
 
@@ -986,24 +957,26 @@ c     Create PETSc DA MG hierachy
 
         case default
 
-          da_ctx => gparams%dactx(igr)
+          da_ctx => gdef%dactx(igr)
 
           da_ctx%MPI_COMM_DA = mpi_comm
 
           da_ctx%igrid = igr
 
-          da_ctx%mx = gparams%mx
-          da_ctx%my = gparams%my
-          da_ctx%mz = gparams%mz
+          da_ctx%mx = gdef%mx
+          da_ctx%my = gdef%my
+          da_ctx%mz = gdef%mz
 
-          da_ctx%nxgl = gparams%nxgl(igr)
-          da_ctx%nygl = gparams%nygl(igr)
-          da_ctx%nzgl = gparams%nzgl(igr)
+          da_ctx%nxgl = gdef%nxgl(igr)
+          da_ctx%nygl = gdef%nygl(igr)
+          da_ctx%nzgl = gdef%nzgl(igr)
 
           call createPETScFortranDA(da_ctx)
 
         end select
 
+        nullify(da_ctx)
+        
 c     End program
 
       end subroutine createPETScGrid

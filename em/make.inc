@@ -8,6 +8,7 @@ COMMONDIR = ..
 
 SUBDIRS = $(COMMONDIR)/math\
 	  $(COMMONDIR)/io\
+	  $(COMMONDIR)/grid\
 	  $(COMMONDIR)/OMP
 
 ifndef BOPT

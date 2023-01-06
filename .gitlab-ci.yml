@@ -1,44 +1,46 @@
-# image based on ubuntu docker image
-image: hlx87/ifp-build
-
-variables:
-  GIT_SUBMODULE_STRATEGY: recursive
+# configuration for CI pipelines
 
 stages:
-  - pre-build
-  - build
-  - test
+    - main
+
+# set common variables
+.basic_config:
+    tags:
+        # force to run on darwin
+        - darwin-slurm-shared
+
+    variables:
+        # proxy settings to reach gitlab
+        http_proxy: "http://proxyout.lanl.gov:8080"
+        https_proxy: "http://proxyout.lanl.gov:8080"
+            # load submodules
+        GIT_SUBMODULE_STRATEGY: recursive
+            # slurm options
+        SCHEDULER_PARAMETERS: "--nodes=1 --partition=general --qos=debug --constraint='cpu_family:broadwell|cpu_family:haswell'"
 
 ###############################################################################
-# setting definitions
+# define configuration as products
 
-#######################################
-# compilers
-# currently only using GCC, so compiler is set by image
-
-.gcc: &gcc
-        GCC: "gcc"
-        GCXX: "g++"
-        GFC: "gfortran"
-        
-#######################################
-# parallel
-
-.serial: &serial
-        USE_PETSC: "OFF"
-
-.parallel: &parallel
-        USE_PETSC: "ON"
-
-#######################################
-# build types
-
-.debug: &debug
-        BUILD_TYPE: "Debug"
-
-.release: &release
-        BUILD_TYPE: "Release"
-
+.config_matrix:
+    extends: .basic_config
+    # define job matrix
+    parallel:
+        matrix:
+            - COMPILER: [gcc/10.3.0]
+              PARALLELIZATION: [serial, openmpi/3.1.6]
+              PETSC: [petsc/3.17.3]
+              ADIOS: [adios/2.8.2]
+              BUILD_TYPE: [debug, release]
+            - COMPILER: [gcc/10.3.0, gcc/11.2.0] #, intel/2022.0.2]
+              PARALLELIZATION: [serial]
+              PETSC: [none]
+              ADIOS: [adios/2.8.2]
+              BUILD_TYPE: [release]
+            - COMPILER: [gcc/10.3.0, gcc/11.2.0] #, intel/2022.0.2]
+              PARALLELIZATION: [openmpi/3.1.6, openmpi/4.1.2, mpich/3.4.3]
+              PETSC: [petsc/3.17.3]
+              ADIOS: [adios/2.8.2]
+              BUILD_TYPE: [release]
 
 ###############################################################################
 # setup script
@@ -57,106 +59,30 @@ before_script:
       export THREADS=1
     fi
 
-###############################################################################
-# pre-build script debug
+  # clone scripts
+  - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.lanl.gov/tbiifp/ifp-analysis.git scripts
 
-.pre_build: &pre_build_serial
-    stage: pre-build
-    script:
-        - mkdir build
-        - cd build
-        - |
-          cmake ../ -DCMAKE_PREFIX_PATH=$LIB_INSTALL_DIR_SERIAL \
-                    -DUSE_PETSc=$USE_PETSC \
-                    -DCMAKE_BUILD_TYPE=$BUILD_TYPE
-    artifacts:
-        paths:
-            - contrib/
-            - build/
-        expire_in: 2 days
-###############################################################################
-# pre-build script
-
-.pre_build: &pre_build_parallel
-    stage: pre-build
-    script:
-        - mkdir build
-        - cd build
-        - |
-          cmake ../ -DCMAKE_PREFIX_PATH=$LIB_INSTALL_DIR_PARALLEL \
-                    -DUSE_PETSc=$USE_PETSC \
-                    -DCMAKE_BUILD_TYPE=$BUILD_TYPE
-    artifacts:
-        paths:
-            - contrib/
-            - build/
-        expire_in: 2 days
+  # load environment
+  - source scripts/build/load_environment $COMPILER $BUILD_TYPE $PARALLELIZATION $ADIOS $PETSC
+  # output modules for debuggin
+  - module list
+  # set path for build folder
+  - build_path=build/$COMPILER/$PARALLELIZATION/$PETSC/$ADIOS/$TYPE/$BUILD_TYPE
 
 ###############################################################################
-# build script
-#.build: &build
+# script to build and test
+# this has to be done in one step to avoid problems with the prefix paths
+# of the parallel runners. CMake uses absolute paths, and if the configure
+# runs on a different runner than the build/test, this will cause non-deterministic
+# behavior and failurs
 
-.build: &build
-    stage: build
+build:
+    stage: main
+    extends: .config_matrix
     script:
-        - cd build
+        - mkdir -p $build_path
+        - cd $build_path
+        - pwd
+        - $CMAKE_COMMAND
         - make framework
-    artifacts:
-        paths:
-            - build/
-        expire_in: 2 days
-
-###############################################################################
-# pre-build matrix
-
-prebuild_gcc_serial_debug:
-    <<: [*pre_build_serial]
-    variables:
-        <<: [*gcc, *serial, *debug]
-
-prebuild_gcc_parallel_debug:
-    <<: [*pre_build_parallel]
-    variables:
-        <<: [*gcc, *parallel, *debug]
-
-prebuild_gcc_serial_release:
-    <<: [*pre_build_serial]
-    variables:
-        <<: [*gcc, *serial, *release]
-
-prebuild_gcc_parallel_release:
-    <<: [*pre_build_parallel]
-    variables:
-        <<: [*gcc, *parallel, *release]
-
-###############################################################################
-# build matrix
-
-build_gcc_serial_debug:
-    <<: [*build]
-    variables:
-        <<: [*gcc, *serial, *debug]
-    dependencies:
-        - prebuild_gcc_serial_debug
-
-build_gcc_parallel_debug:
-    <<: [*build]
-    variables:
-        <<: [*gcc, *parallel, *debug]
-    dependencies:
-        - prebuild_gcc_parallel_debug
-
-build_gcc_serial_release:
-    <<: [*build]
-    variables:
-        <<: [*gcc, *serial, *release]
-    dependencies:
-        - prebuild_gcc_serial_release
-
-build_gcc_parallel_release:
-    <<: [*build]
-    variables:
-        <<: [*gcc, *parallel, *release]
-    dependencies:
-        - prebuild_gcc_parallel_release
-
+        - ctest --output-on-failure

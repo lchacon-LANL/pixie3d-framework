@@ -72,7 +72,7 @@ $(SUBDIRS):
 
 #Cleaning targets
 
-clean: ;
+clean:: ;
 	-@rm -f *.o *.*mod *.a || true
 
 distclean: clean

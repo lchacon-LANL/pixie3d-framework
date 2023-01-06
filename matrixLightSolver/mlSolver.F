@@ -44,8 +44,6 @@ c Call variables
       integer :: neq,ntot,igrid,iter,guess,out,depth,bcnd(6,neq)
       real(8) :: x(ntot),b(ntot)
 
-      external    matvec
-
       INTERFACE
         subroutine matvec(g_def,gpos,neq,ntot,x,y,igrid,bcnd)
           use grid
@@ -124,8 +122,6 @@ c Call variables
 
       type (solver_options):: options
       character*(2)  solver
-
-      external       matvec
 
       INTERFACE
         subroutine matvec(g_def,gpos,neq,ntot,x,y,igrid,bcnd)
@@ -208,8 +204,6 @@ c Call variables
 
       type (solver_options) :: options
 
-      external     matvec
-
       INTERFACE
         subroutine matvec(g_def,gpos,neq,ntot,x,y,igrid,bcnd)
           use grid
@@ -221,7 +215,7 @@ c Call variables
 
 c Local variables
 
-      integer    :: niter,stp_test,depth1,ierr,mpi_comm
+      integer    :: niter,stp_test,depth1,ierr,mpicomm
       integer    :: i,iter,smit,nn,vcycle,precout
       real(8)    :: alpha,beta,mag,mag1,rr0,rho0,rho1
       real(8)    :: rtol,atol,stol
@@ -254,9 +248,9 @@ c Extract options
 
 #if defined(petsc)
       if (associated(options%mg_grid_def)) then
-        mpi_comm = options%mg_grid_def%mpi_comm
+        mpicomm = options%mg_grid_def%mpi_comm
       else
-        mpi_comm = MPI_COMM_WORLD
+        mpicomm = MPI_COMM_WORLD
       endif
 #endif
 
@@ -282,9 +276,9 @@ c     For arbitrary initial guess (rr = b - Ax)
 c CG solve
 
       if (stp_test.eq.1) then
-        rr0 = sqrt(dot3(rr,rr,mpi_comm=mpi_comm))
+        rr0 = sqrt(dot3(rr,rr,mpi_comm=mpicomm))
       else
-        rr0 = sqrt(dot3(b,b,mpi_comm=mpi_comm))
+        rr0 = sqrt(dot3(b,b,mpi_comm=mpicomm))
       endif
 
       if (rr0.lt.atol) then
@@ -301,7 +295,7 @@ c     Preconditioner (zz = P rr)
 
 c     CG preparation
 
-      rho1 = dot3(rr,zz,mpi_comm=mpi_comm)
+      rho1 = dot3(rr,zz,mpi_comm=mpicomm)
 
       pp = zz
 
@@ -313,7 +307,7 @@ c     CG step
 
         call matvec(options%mg_grid_def,0,neq,ntot,pp,qq,igrid,bcnd)
 
-        alpha = rho0/dot3(pp,qq,mpi_comm=mpi_comm)
+        alpha = rho0/dot3(pp,qq,mpi_comm=mpicomm)
 
         x  = x  + alpha*pp
 
@@ -321,7 +315,7 @@ c     CG step
 
 c     Check convergence
 
-        mag = sqrt(dot3(rr,rr,mpi_comm=mpi_comm))
+        mag = sqrt(dot3(rr,rr,mpi_comm=mpicomm))
         mag1 = mag/rr0
         if (out.ge.2.and. my_rank == 0) write (*,10) iter,mag,mag1
 
@@ -342,7 +336,7 @@ c     Preconditioner (zz = P rr)
 
 c     Prepare next step
 
-        rho1 = dot3(rr,zz,mpi_comm=mpi_comm)
+        rho1 = dot3(rr,zz,mpi_comm=mpicomm)
 
         beta = rho1/rho0
 
@@ -395,8 +389,6 @@ c Call variables
 
       type (solver_options) :: options
 
-      external      matvec
-
       INTERFACE
         subroutine matvec(g_def,gpos,neq,ntot,x,y,igrid,bcnd)
           use grid
@@ -413,7 +405,7 @@ c Local variables
      .             ,smx_est,smn_est,smx_new,smn_new,snmx,snmn,csmx,csmn
      .             ,tol,atol,rtol,stol
 
-      integer    :: i,j,i1,k,k1,ii,jj,mpi_comm
+      integer    :: i,j,i1,k,k1,ii,jj,mpicomm
       integer    :: nn,rstrt,irstrt,precout,maxits
 
       real(8),allocatable,dimension(:)  :: c,s,rs,xsvmn,xsvmx
@@ -463,9 +455,9 @@ c Extract options
 
 #if defined(petsc)
       if (associated(options%mg_grid_def)) then
-        mpi_comm = options%mg_grid_def%mpi_comm
+        mpicomm = options%mg_grid_def%mpi_comm
       else
-        mpi_comm = MPI_COMM_WORLD
+        mpicomm = MPI_COMM_WORLD
       endif
 #endif
 
@@ -502,9 +494,9 @@ c Calculate restarting loops
 c Calculate magnitude of initial residual
 
       if (stp_test == 1) then
-        rold = sqrt(dot3(vv(:,1),vv(:,1),mpi_comm=mpi_comm))
+        rold = sqrt(dot3(vv(:,1),vv(:,1),mpi_comm=mpicomm))
       else
-        rold = sqrt(dot3(b,b,mpi_comm=mpi_comm))
+        rold = sqrt(dot3(b,b,mpi_comm=mpicomm))
       endif
 
       if (rold < atol) then
@@ -526,7 +518,7 @@ c Restarted GMRES loop
       do irstrt = 1,rstrt
 
         if (stp_test /= 1)
-     .       ro = sqrt(dot3(vv(:,1),vv(:,1),mpi_comm=mpi_comm))
+     .       ro = sqrt(dot3(vv(:,1),vv(:,1),mpi_comm=mpicomm))
 
         tt = 1.0d0/ro
         vv(:,1) = vv(:,1)*tt
@@ -553,12 +545,12 @@ c        Call preconditioner
 c        Modified gram - schmidt.
 
           do j=1, i
-            tt = dot3(vv(:,j),vv(:,i1),mpi_comm=mpi_comm)
+            tt = dot3(vv(:,j),vv(:,i1),mpi_comm=mpicomm)
             hh(j,i) = tt
             vv(:,i1) = vv(:,i1) - tt*vv(:,j)
           enddo
 
-          tt = sqrt(dot3(vv(:,i1),vv(:,i1),mpi_comm=mpi_comm))
+          tt = sqrt(dot3(vv(:,i1),vv(:,i1),mpi_comm=mpicomm))
           hh(i1,i) = tt
 
           if ( tt .ne. 0.0d0) then
@@ -764,7 +756,7 @@ c diag ******
 cc        if (sing_mat) then
 cc          call matvec(0,neq,ntot,x,dx,igrid,bcnd)
 cc          dx = b - dx
-cc          ro = sqrt(dot3(dx,dx,mpi_comm=mpi_comm))
+cc          ro = sqrt(dot3(dx,dx,mpi_comm=mpicomm))
 cc          write (*,*) 'DIAG -- gm; Real residual=',ro
 cc        endif
 c diag ******

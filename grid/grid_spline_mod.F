@@ -6,7 +6,7 @@ c #####################################################################
 
         use OMP
 
-        use math, ONLY:fmed
+        use math, ONLY:fmed,blockSolve
 
         use grid_mpi, ONLY:pstop,my_rank,grid_mg_def
 
@@ -1881,93 +1881,93 @@ c     End program
 
       end subroutine evalXi
 
-c     blockSolve
-c     #################################################################
-      subroutine blockSolve(size,mat,icol,rhs,x,ret_inv)
-
-c     -----------------------------------------------------------------
-c     Solves block systems using a direct solve approach. Requires
-c     linking with LAPACK.
-c
-c     In the call sequence, we have:
-c       * size (integer): block size
-c       * mat  (real array): block matrix
-c       * icol (integer) : number of columns of rhs
-c       * rhs  (real array): rhs of equation
-c       * x    ( "     "   ): solution (output)
-c       * ret_inv (logical): return inverse in mat
-c     -----------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-        integer  :: size,icol
-
-        real(8)  :: mat(size,size),rhs(size,icol),x(size,icol)
-
-        logical,optional :: ret_inv
-
-c     Local variables
-
-        integer  :: ipiv(size),info
-
-        real(8)  :: mat2(size,size)
-
-        external dgesv
-
-c     Begin program
-
-        x = rhs
-
-        if (PRESENT(ret_inv)) then
-
-          call dgesv(size,icol,mat ,size,ipiv,x,size,info) !LAPACK routine
-
-        else
-
-          mat2 = mat            !Avoid overwritting mat
-
-          call dgesv(size,icol,mat2,size,ipiv,x,size,info) !LAPACK routine
-
-        endif
-
-        call LAPACK_error(info)
-
-      end subroutine blockSolve
-
-c     LAPACK_error
-c     #################################################################
-      subroutine LAPACK_error(info)
-
-c     -----------------------------------------------------------------
-c     Error routine for LAPACK calls
-c     -----------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-        integer    :: info
-
-c     Local variables
-
-c     Begin program
-
-        if (info /= 0) then
-          if (info < 0) then
-            write (*,*) 'Problem in factorization in argument '
-     .                 ,-info
-            stop
-          else
-            write (*,*) 'Matrix in blocksolve is singular'
-            stop
-          endif
-        endif
-
-c     End program
-
-      end subroutine LAPACK_error
+c$$$c     blockSolve
+c$$$c     #################################################################
+c$$$      subroutine blockSolve(size,mat,icol,rhs,x,ret_inv)
+c$$$
+c$$$c     -----------------------------------------------------------------
+c$$$c     Solves block systems using a direct solve approach. Requires
+c$$$c     linking with LAPACK.
+c$$$c
+c$$$c     In the call sequence, we have:
+c$$$c       * size (integer): block size
+c$$$c       * mat  (real array): block matrix
+c$$$c       * icol (integer) : number of columns of rhs
+c$$$c       * rhs  (real array): rhs of equation
+c$$$c       * x    ( "     "   ): solution (output)
+c$$$c       * ret_inv (logical): return inverse in mat
+c$$$c     -----------------------------------------------------------------
+c$$$
+c$$$        implicit none
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$        integer  :: size,icol
+c$$$
+c$$$        real(8)  :: mat(size,size),rhs(size,icol),x(size,icol)
+c$$$
+c$$$        logical,optional :: ret_inv
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$        integer  :: ipiv(size),info
+c$$$
+c$$$        real(8)  :: mat2(size,size)
+c$$$
+c$$$        external dgesv
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$        x = rhs
+c$$$
+c$$$        if (PRESENT(ret_inv)) then
+c$$$
+c$$$          call dgesv(size,icol,mat ,size,ipiv,x,size,info) !LAPACK routine
+c$$$
+c$$$        else
+c$$$
+c$$$          mat2 = mat            !Avoid overwritting mat
+c$$$
+c$$$          call dgesv(size,icol,mat2,size,ipiv,x,size,info) !LAPACK routine
+c$$$
+c$$$        endif
+c$$$
+c$$$        call LAPACK_error(info)
+c$$$
+c$$$      end subroutine blockSolve
+c$$$
+c$$$c     LAPACK_error
+c$$$c     #################################################################
+c$$$      subroutine LAPACK_error(info)
+c$$$
+c$$$c     -----------------------------------------------------------------
+c$$$c     Error routine for LAPACK calls
+c$$$c     -----------------------------------------------------------------
+c$$$
+c$$$        implicit none
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$        integer    :: info
+c$$$
+c$$$c     Local variables
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$        if (info /= 0) then
+c$$$          if (info < 0) then
+c$$$            write (*,*) 'Problem in factorization in argument '
+c$$$     .                 ,-info
+c$$$            stop
+c$$$          else
+c$$$            write (*,*) 'Matrix in blocksolve is singular'
+c$$$            stop
+c$$$          endif
+c$$$        endif
+c$$$
+c$$$c     End program
+c$$$
+c$$$      end subroutine LAPACK_error
 
 c     evalJ
 c     #################################################################
@@ -2193,7 +2193,8 @@ c     ------------------------------------------------------------------
 
 c     Call variables
 
-      real(8) :: x,ss(3)
+      real(8) :: x
+      real(8),INTENT(OUT) :: ss(3)
 
 c     Local variables
 

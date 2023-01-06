@@ -1,23 +1,15 @@
-c perf_fft
+c spectrum
 c#######################################################################
-      subroutine perf_fft(nn,psi,x,inter,ism)
+      subroutine spectrum(nn,psi,x,inter,ism)
 
 c***********************************************************************
-c     Preprocesses and calculates FFT of input 'psi', and gives output
-c     in psir (real part) and psii (imaginary part).
-c
-c     Preprocessor assumes real signal; odd entries in data() are the 
-c     actual time series, i.e. real part, even entries in data() are the 
-c     imaginary part.
-c
-c     Taken from J. M. Finn.
+c     Computes and plots FFT spectrum of input 'psi'.
 c
 c     In call:
 c        + 'nn' is dimension of psi
 c        + 'psi' is signal in real space
-c        + 'ntot' is dimension of x
 c        + 'x' is signal independent variable (i.e.,time)
-c        + 'int' decides if interpolation is required (1).
+c        + 'inter' decides if interpolation is required (1).
 c        + 'ism' decides if Hanning smoothing is performed (1).
 c***********************************************************************
 
@@ -25,14 +17,14 @@ c***********************************************************************
 
 c Call variables
 
-      integer*4     nn,inter,ism
-      real*8        psi(nn),x(nn)
+      integer ::    nn,inter,ism
+      real(8) ::    psi(nn),x(nn)
 
 c Local variables
 
-      real*8        dxx,fk_r(nn),fk_i(nn),omega(nn)
+      real(8) ::    dxx,fk_r(nn),fk_i(nn),omega(nn)
      .             ,ps(nn)
-      integer*4     nx,i
+      integer ::    nx,i
 
 c Begin program
 
@@ -102,8 +94,7 @@ cc      enddo
 
 c End program
 
-      return
-      end
+      end subroutine spectrum
 
 c fft
 c#######################################################################
@@ -137,21 +128,21 @@ c***********************************************************************
 
 c Call variables
 
-      integer*4   nx,nv,inter,ism
-      real*8      psi(nx),x(nx)
-      real*8      psir(nv),psii(nv),ak(nv)
+      integer ::  nx,nv,inter,ism
+      real(8) ::  psi(nx),x(nx)
+      real(8) ::  psir(nv),psii(nv),ak(nv)
 
 c Local variables
 
-      integer*4   i
-      real*8      twopi,xmed,lx
-      real*8      psi_wrk(nv),x_wrk(nv),data(2*nv)
+      integer ::  i
+      real(8) ::  twopi,xmed,lx
+      real(8) ::  psi_wrk(nv),x_wrk(nv),data(2*nv)
 
 c Begin program
 
       twopi=2*pi
 
-      lx   = (x(nx)-x(1))/(nx-1)*nx
+      lx   = (x(nx)-x(1))/(nx-1)*nx !Domain length
       xmed = 0.5*(x(nx)+x(1))
 
 c Smooth initial data (Hanning)
@@ -198,8 +189,7 @@ c FFT
 
 c End program
 
-      return
-      end
+      end subroutine fft
 
 c ifft
 c#######################################################################
@@ -226,21 +216,19 @@ c***********************************************************************
 
       use oned_int
 
-cc      implicit none     !For safe Fortran
+      implicit none     !For safe Fortran
 
 c Call variables
 
-      implicit real*8(a-h,o-z)
+      integer ::  nx,nv,inter
 
-      integer*4     nx,nv,inter
-
-      real*8        psi(nx),x(nx)
-      real*8        psir(nv),psii(nv),ak(nv)
+      real(8) ::  psi(nx),x(nx)
+      real(8) ::  psir(nv),psii(nv),ak(nv)
 
 c Local variables
 
-      integer*4     im
-      real*8        zero(nv),data(2*nv),psi_wrk(nv),x_wrk(nv),lx
+      integer ::  im,i
+      real(8) ::  zero(nv),data(2*nv),psi_wrk(nv),x_wrk(nv),lx,twopi
 
 c Begin program
 
@@ -260,14 +248,14 @@ c Begin program
 
 c Reconstruct uniform grid from ak
 
-      lx   = (x(nx)-x(1))/(nx-1)*nx
+      lx = (x(nx)-x(1))/(nx-1)*nx  !Domain length
 
       x_wrk(1) = x(1)
       do i=2,nv
          if(i.le.nv/2+1) then
-           im = int(lx*ak(i)/twopi+1d-3)
+           im =    nint(lx*ak(i)/twopi)
          else
-           im = nv+int(lx*ak(i)/twopi-1d-3)
+           im = nv+nint(lx*ak(i)/twopi)
          endif
         x_wrk(i) = x_wrk(1) + lx/nv*im
       enddo
@@ -283,13 +271,11 @@ c Interpolate ifft to original grid
 
 c End program
 
-      return
-      end
+      end subroutine ifft
 
 c four1
 c########################################################################
       subroutine four1(data,nx,isign)
-cc      implicit none       !For safe Fortran
 c************************************************************************
 c     Performs direct and inverse Fourier transform of 'data'.
 c
@@ -303,16 +289,21 @@ c        + 'isign' determines if direct (1) or inverse (-1) FFT is to be
 c          performed. 
 c************************************************************************
 
-c Variables
+      implicit none       !For safe Fortran
 
-      implicit real*8(a-h,o-z)
+c Call variables
 
-      integer*4   nx
-      real*8 data(2*nx)
+      integer :: nx,isign
+      real(8) :: data(2*nx)
+
+c Local variables
+
+      integer :: nn,n,j,i,m,nmmax,istep,mmax
+      real(8) :: pi,twopi,tempr,tempi,theta,wpr,wpi,wr,wi,wtemp
 
 c Begin program
 
-      pi=4*atan(1.0)
+      pi=acos(-1d0)
       twopi=2*pi
       nn=nx
       n=2*nn
@@ -342,8 +333,8 @@ c Begin program
          theta=twopi/(isign*mmax)
          wpr=-2*sin(0.5*theta)**2
          wpi=sin(theta)
-         wr=1
-         wi=0
+         wr=1d0
+         wi=0d0
          do m=1,mmax,2
             do i=m,n,istep
                j=i+mmax
@@ -362,5 +353,4 @@ c Begin program
       go to 2
       endif
 
-      return
-      end
+      end subroutine four1

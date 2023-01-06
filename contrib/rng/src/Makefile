@@ -55,7 +55,7 @@ lib: target
 	-mv $(LIBNAME) $(LIB_PATH)
 
 target: common message $(OBJMOD) $(OBJS) $(COMMON_OBJS)
-	-cp *.mod *.MOD $(LIB_PATH) 2>/dev/null
+	-cp *.mod *.MOD $(LIB_PATH) 2>/dev/null || true
 
 message: ;
 	@echo ''
@@ -67,16 +67,16 @@ $(SUBDIRS):
 	$(MAKE) -e -C $@ target
 
 clean: ;
-	-@rm -f *.o *.mod $(LIB_PATH)/*.a
+	-@rm -f *.o *.mod $(LIB_PATH)/*.a || true
 
 distclean: clean
-	-@rm $(LIB_PATH)/*.a $(LIB_PATH)/*.mod $(LIB_PATH)/*.MOD 2>/dev/null
+	-@rm $(LIB_PATH)/*.a $(LIB_PATH)/*.mod $(LIB_PATH)/*.MOD 2>/dev/null || true
 	-@for subdir in $(SUBDIRS) ; do \
 		$(MAKE) -C $$subdir clean;  done
 
 setup: ;
 	-@for subdir in `find . -name "make.local" -exec dirname {} \;` ; do \
-		-rm $$subdir/Makefile 2>/dev/null ; \
+		-rm $$subdir/Makefile 2>/dev/null || true ; \
 		ln -s -f $(PWD)/Makefile $$subdir/Makefile 2>/dev/null ; done
 
 #Define dependencies

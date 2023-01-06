@@ -2330,7 +2330,7 @@ c     Read POINCARE data (this sets up orbit, splines)
 
 c     Recreate grid structure according to POINCARE data (but current mesh size)
 
-        call deallocateGridStructure(g_def)
+        call destroyGrid(g_def)
         call createGrid(nxd,nyd,nzd,xmin,xmax,ymin,ymax,zmin,zmax,g_def)
 
 c     Interpolate LOCAL map from POINCARE data
@@ -2349,7 +2349,7 @@ c     Interpolate LOCAL map from POINCARE data
      .                              ,ig,jg,kg,x1,x2,x3)
 c$$$                call find_polar_coords(g_def,igrid,i,j,k,x1,x2,x3
 c$$$     .                                ,coords)
-c$$$                call chk_pos(x1,x2,x3,warning=.false.,ierr=ierr)
+                call chk_pos(x1,x2,x3,warning=.false.,ierr=ierr)
                 if(ierr/=0.and.(.not.bcPER(1)))x1=min(max(x1,xmin),xmax)
                 if(ierr/=0.and.(.not.bcPER(2)))x2=min(max(x2,ymin),ymax)
                 if(ierr/=0.and.(.not.bcPER(3)))x3=min(max(x3,zmin),zmax)

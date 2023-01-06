@@ -6,6 +6,8 @@ c ######################################################################
 
         use graphics_io, ONLY: no_graphics_io,nplot,ndplot,tmplot,dplot
 
+        logical :: ts_after_restart = .false.
+
       contains
 
 c     TS_init_timers
@@ -27,7 +29,7 @@ c     Begin program
 c     PETSc CPU counters and profiling
       
 #if defined(petsc)
-      call PetscGetTime   (prof_time(1),prof_err)
+      call PetscTime   (prof_time(1),prof_err)
       call PetscGetCPUTime(prof_time(2),prof_err)
 #endif
 
@@ -54,7 +56,7 @@ c     Begin program
 c     PETSc CPU counters and profiling
       
 #if defined(petsc)
-      call PetscGetTime   (prof_time(3),prof_err)
+      call PetscTime   (prof_time(3),prof_err)
       call PetscGetCPUTime(prof_time(4),prof_err)
 #endif
 
@@ -251,7 +253,7 @@ c     Begin program
       dump = (nplot == ndplot.and.nplot > 0)
 cc     .   .or.((time-tmplot) >= dplot-0.9*dt .and. dplot > 0d0)
      .   .or.(sign(1d0,dt)*(time-tmplot)>=dplot-.1*abs(dt).and.dplot>0.)
-     .   .or.(sign(1d0,dt)*(tmax-time  )<=1d-10           .and.dplot>0.)
+     .   .or.(          abs(tmax-time  )<=1d-10           .and.dplot>0.)
      .   .or.(time == 0d0)
 
       if (reset.and.dump) then
@@ -263,4 +265,34 @@ c     End program
 
       end function TS_chk_plot_dump
 
+c     TS_chk_after_restart
+c     ###############################################################
+      function TS_chk_after_restart(time_slices) result(flag)
+
+c     ---------------------------------------------------------------
+c     Check for end of time loop
+c     ---------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      logical :: flag
+
+      integer :: time_slices
+
+c     Local variables
+
+      integer :: counter
+
+c     Begin program
+
+      counter = itime-inewtime + 1
+
+      flag = ts_after_restart.and.(counter <= time_slices)
+
+c     End program
+
+      end function TS_chk_after_restart
+      
       end module ts_io

@@ -147,7 +147,7 @@ c     Global variables
 
 c     Local variables
 
-        integer,parameter :: nit=50,neq=4
+        integer,parameter :: nit=100,neq=4
 
         integer :: i
         real(8) :: jac(neq,neq),ijac,dxi(nit,neq),res(nit,neq),xi(neq)
@@ -257,81 +257,92 @@ c     ---------------------------------------------------------------
 c     Prepares Gaussian profile for grid packing
 c     ---------------------------------------------------------------
 
+      integer :: ierr
+
+      ierr = 0
+      
       if (Lp == Lm) then
         Lp = Lp*(1d0+1d-8)
         Lm = Lm*(1d0-1d-8)
       endif
 
-      !Initial condition (assume alpha ~ 0.5 + delta, delta << 1 and solve)
+      !Initial condition (assume alpha ~ 0.5 + delta, delta << 1, eta >> 1 and solve)
       eta = 1d1
-      do i=1,5
-        eta =2*sqrt(abs(log(0.5*LL*slope/(2*eta*Lp/sqrt(pi)))))
+      do i=1,20
+        eta= max(2d0
+     $       *sqrt(abs(log(0.5d0*LL*slope/(2d0*eta*Lp/sqrt(pi)))))
+     $       ,2.5d0)   !Failsafe to ensure eta > 1
+cc        write (*,*) i,eta
       enddo
-      alpha = 0.5*(1-log(Lm/Lp)/eta/eta)
-      a1 = sqrt(4/pi)*eta*Lm/LL
-      a2 = sqrt(4/pi)*eta*Lp/LL
+      alpha = max(min(abs(0.5d0*(1d0-log(Lm/Lp)/(eta*eta))),9d-1),1d-1)
+      a1 = sqrt(4d0/pi)*eta*Lm/LL
+      a2 = sqrt(4d0/pi)*eta*Lp/LL
 
+cc      write (*,*) "sol           0",a1,a2,alpha,eta
+        
       !Newton iteration (variable order: a1,a2,alpha=Ep/L,eta=L/sqrt(sigma))
       do i=1,nit
-        erfv1 = sqrt(pi/4.)*erf((1-alpha)*eta)
-        erfv2 = sqrt(pi/4.)*erf(   alpha *eta)
-        erfv  = sqrt(pi/4.)*erf(          eta)
+        erfv1 = sqrt(pi/4d0)*erf((1d0-alpha)*eta)
+        erfv2 = sqrt(pi/4d0)*erf(     alpha *eta)
+        erfv  = sqrt(pi/4d0)*erf(            eta)
 
-        derfv1 = exp(-((1-alpha)*eta)**2)
-        derfv2 = exp(-((  alpha)*eta)**2)
+        derfv1 = exp(-((1d0-alpha)*eta)**2)
+        derfv2 = exp(-((    alpha)*eta)**2)
         derfv  = exp(-eta**2)
         
-        exp1    = exp(eta**2*(1-2*alpha))
-        dexp1d1 =-2*eta*eta*exp1         !wrt alpha
-        dexp1d2 = 2*eta*(1-2*alpha)*exp1 !wrt eta
+        exp1    = exp(eta**2*(1d0-2d0*alpha))
+        dexp1d1 =-2d0*eta*eta*exp1           !wrt alpha
+        dexp1d2 = 2d0*eta*(1d0-2d0*alpha)*exp1 !wrt eta
         
         exp2    = exp(-(alpha*eta)**2)
-        dexp2d1 = -2*alpha*eta*eta*exp2  !wrt alpha
-        dexp2d2 = -2*eta*alpha*alpha*exp2!wrt eta
+        dexp2d1 = -2d0*alpha*eta*eta*exp2    !wrt alpha
+        dexp2d2 = -2d0*eta*alpha*alpha*exp2  !wrt eta
 
         ff  = eta/erfv
-        dff = 1./erfv - eta*derfv/(erfv*erfv)
+        dff = 1d0/erfv - eta*derfv/(erfv*erfv)
         
         !Residual
         res(i,1) = Lm/LL*eta - a1*erfv1 - a2*erfv + a2*erfv2
         res(i,2) = a1 + a2 - ff
-        res(i,3) = a1 - a2*alpha*exp1/(1-alpha)
-        res(i,4) = slope - a2*exp2/(1-alpha)
+        res(i,3) = a1 - a2*alpha*exp1/(1d0-alpha)
+        res(i,4) = slope - a2*exp2/(1d0-alpha)
 
         !Jacobian solution
         jac(1,1) = -erfv1
         jac(1,2) = +erfv2-erfv
         jac(1,3) = a1*eta*derfv1 + a2*eta*derfv2
         jac(1,4) = Lm/LL
-     .           - a1*(1-alpha)*derfv1
+     .           - a1*(1d0-alpha)*derfv1
      .           - a2*derfv
      .           + a2*alpha*derfv2
 
-        jac(2,1) = 1.
-        jac(2,2) = 1.
+        jac(2,1) = 1d0
+        jac(2,2) = 1d0
         jac(2,3) = 0d0
         jac(2,4) = -dff
 
-        jac(3,1) = 1.
-        jac(3,2) = -alpha*exp1/(1-alpha)
-        jac(3,3) = -a2*(1-alpha)**(-2)*exp1
-     .             -a2*alpha/(1-alpha)*dexp1d1
-        jac(3,4) = -a2*alpha*dexp1d2/(1-alpha)
+        jac(3,1) = 1d0
+        jac(3,2) = -alpha*exp1/(1d0-alpha)
+        jac(3,3) = -a2*(1d0-alpha)**(-2)*exp1
+     .             -a2*alpha/(1d0-alpha)*dexp1d1
+        jac(3,4) = -a2*alpha*dexp1d2/(1d0-alpha)
 
-        jac(4,1) = 0.
-        jac(4,2) = -exp2/(1-alpha)
-        jac(4,3) = -a2*(1-alpha)**(-2)*exp2 - a2*dexp2d1/(1-alpha)
-        jac(4,4) = -a2*dexp2d2/(1-alpha)
+        jac(4,1) = 0d0
+        jac(4,2) = -exp2/(1d0-alpha)
+        jac(4,3) = -a2*(1d0-alpha)**(-2)*exp2 - a2*dexp2d1/(1d0-alpha)
+        jac(4,4) = -a2*dexp2d2/(1d0-alpha)
 
-        call blockSolve(neq,jac,1,res(i,:),dxi(i,:))
+        call blockSolve(neq,jac,1,res(i,:),dxi(i,:),ierr=ierr)
+
+        if (ierr/=0) call sstop(0,"prep_gaussian","Singular Jacobian")
 
         !Update solution
         a1    = abs(   a1 - dxi(i,1))  !Enforce a1 > 0
         a2    = abs(   a2 - dxi(i,2))  !Enforce a1 > 0
-        alpha = abs(alpha - dxi(i,3))  !Enforce alpha > 0
-        eta   = abs(  eta - dxi(i,4))  !Enforce eta >= 0d0
+        alpha = min(abs(alpha - dxi(i,3)),0.999)  !Enforce 0 < alpha < 1
+        eta   = max(abs(  eta - dxi(i,4)),1.001)  !Enforce eta > 1d0
 
-cc        write (*,*) i,a1,a2,alpha,eta
+cc        write (*,*) "sol",i,a1,a2,alpha,eta
         
         !Check convergence
 cc        write (*,*) i,dxi(i,:),res(i,:)
@@ -578,7 +589,7 @@ c     Call variables
         
 c     Local variables
 
-        real(8) :: xi0,xibar,LL,bb,dx
+        real(8) :: xi0,xibar,LL,bb,dx,coeff
 
         integer,parameter :: nit=100
 
@@ -607,9 +618,6 @@ c     Begin program
 
         else
 
-          if (der > 0)
-     .         call sstop(0,'cubic_scl','Derivative not implemented')
-          
           LL = xmax-xmin
           bb = eta/LL**2
 
@@ -621,17 +629,19 @@ c     Begin program
      .                   *LL*sqrt(4d0*(1d0-lambda)-eta)/sqrt(12.*eta)
 
             !Linear extrapolation to ensure equal mesh spacing at ghost points
-            if (xi > xmax) then
-              dx = xi - xmax
-              x =  x0 + lambda*(xmax-dx-xi0) + bb*(xmax-dx-xi0)**3
-              x = 2*xmax - x
-            elseif (xi < xmin) then
-              dx = xmin - xi
-              x =  x0 + lambda*(xmin+dx-xi0) + bb*(xmin+dx-xi0)**3
-              x = 2*xmin - x
-            else
-              x = x0 + lambda*(xi-xi0) + bb*(xi-xi0)**3
-            endif
+            select case(der)
+            case(0)
+              if (xi > xmax) then
+                dx = xi - xmax
+                x =  x0 + lambda*(xmax-dx-xi0) + bb*(xmax-dx-xi0)**3
+                x = 2*xmax - x
+              elseif (xi < xmin) then
+                dx = xmin - xi
+                x =  x0 + lambda*(xmin+dx-xi0) + bb*(xmin+dx-xi0)**3
+                x = 2*xmin - x
+              else
+                x = x0 + lambda*(xi-xi0) + bb*(xi-xi0)**3
+              endif
 c$$$            if (xi < xmin.and.bcSP(dim=dim)) then
 c$$$              dx = xmin - xi
 c$$$              x =  x0 + lambda*(xmin+dx-xi0) + bb*(xmin+dx-xi0)**3
@@ -639,6 +649,27 @@ c$$$              x = 2*xmin - x
 c$$$            else
 c$$$              x = x0 + lambda*(xi-xi0) + bb*(xi-xi0)**3
 c$$$            endif
+            case(1)
+              if (xi > xmax) then
+                dx = xi - xmax
+                x = lambda + 3*bb*(xmax-dx-xi0)**2
+              elseif (xi < xmin) then
+                dx = xmin - xi
+                x = lambda + 3*bb*(xmin+dx-xi0)**2
+              else
+                x = lambda + 3*bb*(xi-xi0)**2
+              endif
+            case(2)
+              if (xi > xmax) then
+                dx = xi - xmax
+                x = -6*bb*(xmax-dx-xi0)
+              elseif (xi < xmin) then
+                dx = xmin - xi
+                x = -6*bb*(xmin+dx-xi0)
+              else
+                x =  6*bb*(xi-xi0)
+              endif
+            end select
 
           !Pack at edges
           else
@@ -646,13 +677,16 @@ c$$$            endif
             xi0 = xmin - (xmin-x0)/lambda - bb*(xmin-x0)**pwr
 
             !Linear extrapolation to ensure equal mesh spacing at ghost points
-cc            if (xi > xmax) then
-cc              dx = xi - xmax
-cc            elseif (xi < xmin) then
-cc              dx = xi - xmin
-cc            else
-cc              dx = 0d0
-cc            endif
+            if (xi > xmax) then
+              dx = xi - xmax
+              coeff = -1d0
+            elseif (xi < xmin) then
+              dx = xi - xmin
+              coeff = -1d0
+            else
+              dx = 0d0
+              coeff = 1d0
+            endif
 
             !Initial guess
             x = xi! - 2*dx
@@ -694,6 +728,13 @@ cc            elseif (xi < xmin) then
 cc              x = 2*xmin - x
 cc            endif
 
+            select case(der)
+            case(1)
+              x = coeff/(1d0/lambda+pwr*bb*(x-x0)**(pwr-1))
+            case(2)
+              xi0 = coeff/(1d0/lambda+pwr*bb*(x-x0)**(pwr-1))
+              x = -pwr*(pwr-1)*bb*(x-x0)**(pwr-2)*xi0**3
+            end select
           endif
 
         endif
