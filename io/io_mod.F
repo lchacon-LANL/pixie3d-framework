@@ -406,20 +406,66 @@ c     Begin program
           write (*,*)
           write (*,*) trim(message)
           write (*,*) 'Program stopped at routine ',trim(routine)
-          command = 'echo '//int2char(FATAL)//' > exit_code.txt'
-          ierr = shellcmd(trim(command))
         endif
 
 #if defined(petsc)
         call MPI_Finalize(ierr)
 #endif
 
-        call exit(FATAL)  !Fatal termination
+        call app_exit(rank,FATAL)  !Fatal termination
 
 c     End program
 
       end subroutine sstop
 
+c     push_exit_code
+c     ################################################################
+      subroutine push_exit_code(code)
+
+c     ---------------------------------------------------------------
+c     Pushes application exit code to file for script processing
+c     ---------------------------------------------------------------
+
+        implicit none
+
+        integer :: code,funit
+
+c     Begin program
+
+        funit = find_unit(123)
+        open(unit=funit,file="exit_code.txt",status="unknown")
+        write (funit,10) code
+ 10     format(i0)
+        close(funit)
+
+c     End program
+
+      end subroutine push_exit_code
+
+c     app_exit
+c     ################################################################
+      subroutine app_exit(rank,code)
+
+c     ---------------------------------------------------------------
+c     Ends application
+c     ---------------------------------------------------------------
+
+        implicit none
+
+        integer :: rank,code
+
+c     Begin program
+
+      if (rank == 0) then
+        call push_exit_code(code)
+      endif
+
+      call exit(code)
+
+c     End program
+
+      end subroutine app_exit
+      
 c     int2char
 c     ################################################################
       function int2char(n) result (chr)

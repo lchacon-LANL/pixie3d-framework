@@ -172,12 +172,7 @@ c End program
 
       call DR_destroy
 
-      if (my_rank == 0) then
-        command = 'echo '//int2char(EXIT_STATUS)//' > exit_code.txt'
-        ierr = shellcmd(trim(command))
-      endif
-
-      call exit(EXIT_STATUS)
+      call app_exit(my_rank,EXIT_STATUS)
 
       end program
 

@@ -2,7 +2,7 @@ c module grid_mpi
 c ######################################################################
       module grid_mpi
 
-        use io, ONLY: FATAL,sstop
+        use io, ONLY: FATAL,app_exit
 
         use grid_operations
 
@@ -1414,21 +1414,17 @@ c     Call SAMRAI's error handler
 #else
 c     Call local error handler
 
-c$$$      call sstop(my_rank,routine,message)
-
         if (my_rank == 0) then
           write (*,*)
           write (*,*) trim(message)
           write (*,*) 'Program stopped at routine ',trim(routine)
-          command = 'echo '//int2char(FATAL)//' > exit_code.txt'
-          ierr = shellcmd(trim(command))
         endif
 
 #if defined(petsc)
         call PetscFinalize(ierr)
 #endif
 
-        call exit(FATAL)  !Fatal termination
+        call app_exit(my_rank,FATAL)  !Fatal termination
 
 #endif
 
