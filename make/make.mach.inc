@@ -534,7 +534,7 @@ ifeq ($(findstring pn2033419,$(HOST)),pn2033419)
     endif
       
   else
-    LIBS += -L/opt/local/lib/lapack -llapack -lblas
+    LIBS += -llapack -lblas
 
     HDF5 = t
 
