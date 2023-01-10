@@ -71,6 +71,10 @@ c Initial output
       if (mk_grid) call MK_output
 #endif
 
+c Default exit code to irrecoverable error in case of system-related run failure later on
+
+      if (my_rank == 0) call push_exit_code(FATAL)
+
 c Time loop
 
       finish_t_loop = TS_chk_end()
