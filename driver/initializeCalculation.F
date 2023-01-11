@@ -640,11 +640,14 @@ c Open record file
           !Dump initial data
           call writeRecordFile(file,0,0d0,dt,0d0,u_0)
           call writeRecordFile(file,0,0d0,dt,0d0,u_np)
-        elseif (getEarlyTimeRestartFlag()) then
+c$$$        elseif (getEarlyTimeRestartFlag()) then
+c$$$          file = new_dumpfile(itime)
+c$$$          call writeRecordFile(file,itime,time,dt,gammat,u_np)
+c$$$        else
+c$$$          call setAppendIOMode
+        else
           file = new_dumpfile(itime)
           call writeRecordFile(file,itime,time,dt,gammat,u_np)
-        else
-          call setAppendIOMode
         endif
       endif
 
