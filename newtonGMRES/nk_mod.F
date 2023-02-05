@@ -46,9 +46,11 @@ c ###################################################################
       integer,private :: jit=0
 
       logical :: pseudo_dt=.false.
-     .          ,prnt,is_matvec
+     .          ,prnt
      .          ,is_residual=.true.
 
+      logical,private :: is_matvec
+      
       type :: nk_options  !Explanation below
         integer      :: etak_meth=0
         integer      :: global_meth=0
@@ -84,6 +86,26 @@ c ###################################################################
       type(nk_options),save :: nk_conf
 
       contains
+
+c     NK_is_residual
+c     ###############################################################
+      function nk_is_residual() result(is_res)
+
+      logical :: is_res
+
+      is_res = is_residual
+      
+      end function nk_is_residual
+
+c     NK_is_matvec
+c     ###############################################################
+      function nk_is_matvec() result(is_mtvc)
+
+      logical :: is_mtvc
+
+      is_mtvc = is_matvec
+      
+      end function nk_is_matvec
 
 c     NK_current_Newton_iteration
 c     ###############################################################
@@ -645,8 +667,10 @@ cc      flimit= atol + rtol*f0
         nk_conf%xk = x
 
         !Evaluate rhs and norms
+        is_residual = .true.
         call evaluateNewtonResidual(ntot,x,nk_conf%rk)
-
+        is_residual = .false.
+        
         !Check Newton convergence/failure
         if (chk_convergence(ddx,nk_conf%rk,.false.)) exit
 
