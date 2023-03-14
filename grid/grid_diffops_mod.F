@@ -7919,57 +7919,57 @@ c     End program
 
       end subroutine curlcurl_cov_z
 
-c$$$c     curlcurl_mesh2
-c$$$c     ###############################################################
-c$$$      function curlcurl_mesh2(g_def,igrid,vec,iscnv) result(vec_out)
-c$$$
-c$$$c     ---------------------------------------------------------------
-c$$$c     Calculates curlcurl(A) in general non-orthogonal coordinates.
-c$$$c     The vector A can be covariant or contravariant, and returns
-c$$$c     corresponding components.
-c$$$c     ---------------------------------------------------------------
-c$$$
-c$$$      implicit none           !For safe fortran
-c$$$
-c$$$c     Call variables
-c$$$
-c$$$      type(grid_mg_def),pointer :: g_def
-c$$$
-c$$$      integer :: igrid
-c$$$
-c$$$      real(8),target :: vec(0:,0:,0:,:)
-c$$$     .                 ,vec_out(0:size(vec,1)-1
-c$$$     $                         ,0:size(vec,2)-1
-c$$$     $                         ,0:size(vec,3)-1,3)
-c$$$
-c$$$      logical :: iscnv
-c$$$
-c$$$c     Local variables
-c$$$
-c$$$      real(8),pointer,dimension(:,:,:,:) :: cnv,cov
-c$$$
-c$$$c     Begin program
-c$$$
-c$$$      if (iscnv) then
-c$$$        cnv => vec
-c$$$        cov => vec_out
-c$$$        cov = XformToCov(g_def,igrid,cnv)
-c$$$      else
-c$$$        cov => vec
-c$$$        cnv => vec_out
-c$$$        cnv = XformToCnv(g_def,igrid,cov)
-c$$$      endif
-c$$$      
-c$$$      vec_out =-veclap_cov(g_def,igrid,cov)
-c$$$     .         +gradDiv   (g_def,igrid,cnv)
-c$$$
-c$$$      if (iscnv) vec_out = XformToCnv(g_def,igrid,vec_out)
-c$$$
-c$$$      nullify(cnv,cov)
-c$$$      
-c$$$c     End program
-c$$$
-c$$$      end function curlcurl_mesh2
+c     curlcurl_mesh2
+c     ###############################################################
+      function curlcurl_mesh2(g_def,igrid,vec,iscnv) result(vec_out)
+
+c     ---------------------------------------------------------------
+c     Calculates curlcurl(A) in general non-orthogonal coordinates.
+c     The vector A can be covariant or contravariant, and returns
+c     corresponding components.
+c     ---------------------------------------------------------------
+
+      implicit none           !For safe fortran
+
+c     Call variables
+
+      type(grid_mg_def),pointer :: g_def
+
+      integer :: igrid
+
+      real(8),target :: vec(0:,0:,0:,:)
+     .                 ,vec_out(0:size(vec,1)-1
+     $                         ,0:size(vec,2)-1
+     $                         ,0:size(vec,3)-1,3)
+
+      logical :: iscnv
+
+c     Local variables
+
+      real(8),pointer,dimension(:,:,:,:) :: cnv,cov
+
+c     Begin program
+
+      if (iscnv) then
+        cnv => vec
+        cov => vec_out
+        cov = XformToCov(g_def,igrid,cnv)
+      else
+        cov => vec
+        cnv => vec_out
+        cnv = XformToCnv(g_def,igrid,cov)
+      endif
+      
+      vec_out =-veclap_cov(g_def,igrid,cov)
+     .         +gradDiv   (g_def,igrid,cnv)
+
+      if (iscnv) vec_out = XformToCnv(g_def,igrid,vec_out)
+
+      nullify(cnv,cov)
+      
+c     End program
+
+      end function curlcurl_mesh2
 
 c     curlcurl_mesh
 c     ###############################################################
