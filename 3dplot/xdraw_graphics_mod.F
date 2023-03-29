@@ -55,11 +55,12 @@ c     Initialize contour files
           if (graph(igroup)%cartesian) then
             call M_contour(ugraph(igroup),nqty(igroup)
      .                     ,graph(igroup)%array_graph(1:nqty(igroup))
-     .                     ,0,car=gv%gparams%gmetric%grid(iggx)%car)
+     .                     ,0,cont_conf
+     $                     ,car=gv%gparams%gmetric%grid(iggx)%car)
           else
             call M_contour(ugraph(igroup),nqty(igroup)
      .                     ,graph(igroup)%array_graph(1:nqty(igroup))
-     .                     ,0)
+     .                     ,0,cont_conf,xi=xi)
           endif
         enddo
 
@@ -204,11 +205,12 @@ c     Begin program
           if (graph(igroup)%cartesian) then
             call M_contour(ugraph(igroup),nqty(igroup)
      .                     ,graph(igroup)%array_graph(1:nqty(igroup))
-     .                     ,1,car=gv%gparams%gmetric%grid(iggx)%car)
+     .                     ,1,cont_conf
+     $                     ,car=gv%gparams%gmetric%grid(iggx)%car)
           else
             call M_contour(ugraph(igroup),nqty(igroup)
      .                     ,graph(igroup)%array_graph(1:nqty(igroup))
-     .                     ,1)
+     .                     ,1,cont_conf,xi=xi)
           endif
         enddo
 
@@ -410,7 +412,8 @@ c     ##################################################################
           if (graph(igroup)%cartesian)
      .         call M_contour(ugraph(igroup),nqty(igroup)
      .                    ,graph(igroup)%array_graph(1:nqty(igroup))
-     .                    ,2,car=gv%gparams%gmetric%grid(iggx)%car)
+     .                    ,2,cont_conf
+     $                    ,car=gv%gparams%gmetric%grid(iggx)%car)
 
           close(unit=ugraph(igroup))
           close(unit=uprofile(igroup))
