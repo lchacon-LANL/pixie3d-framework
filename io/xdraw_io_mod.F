@@ -166,7 +166,8 @@ cc          write(nunit) (imxg-imng),(jmxg-jmng),(kmxg-kmng)
 
 c     M_contour
 c     #####################################################################
-      subroutine M_contour(nunit,nqty,array_graph,iopt,car)
+      subroutine M_contour(nunit,nqty,array_graph,iopt,conf,car,xi
+     $                    ,imax_g,imin_g,jmax_g,jmin_g,kmax_g,kmin_g)
 
 c     ---------------------------------------------------------------------
 c     Dumps graph arrays in array_graph in M and M2 xdraw format. It does
@@ -190,38 +191,60 @@ c     Call variables
 
         type (graph_var_def),dimension(nqty) :: array_graph
 
-        real(8),optional,target,dimension(:,:,:,:) :: car
+        real(8),optional,target,dimension(:,:,:,:) :: car,xi
+        integer,optional :: imax_g,imin_g,jmax_g,jmin_g,kmax_g,kmin_g
 
+        type(cont_info) :: conf
+        
 c     Local variables
 
         integer :: nsblk,nusblk
+     $            ,imax_sv,imin_sv,jmax_sv,jmin_sv,kmax_sv,kmin_sv
         integer :: i,j,k,igr,plt(3)
-        logical :: cut(3),M2
+        logical :: cut(3),M1,M2
 
 c     Begin program
 
         nsblk  = 1              ! Number of structured blocks
         nusblk = 0              ! Number of unstructured blocks
 
+        M1 = PRESENT(xi)
         M2 = PRESENT(car)
-          
+        
+        imax_sv = imaxg
+        imin_sv = iming
+        jmax_sv = jmaxg
+        jmin_sv = jming
+        kmax_sv = kmaxg
+        kmin_sv = kming
+
+        if (PRESENT(imax_g)) imax_sv = imax_g
+        if (PRESENT(imin_g)) imin_sv = imin_g
+        if (PRESENT(jmax_g)) jmax_sv = jmax_g
+        if (PRESENT(jmin_g)) jmin_sv = jmin_g
+        if (PRESENT(kmax_g)) kmax_sv = kmax_g
+        if (PRESENT(kmin_g)) kmin_sv = kmin_g
+
 c     Select 2D cuts
 
-        plt = cont_conf%coords
+        plt = conf%coords
 
         cut = .false.
-        cut(cont_conf%plane) = .true.
+        cut(conf%plane) = .true.
 
 c     Perform 2d cuts
 
         if (cut(1)) then
-          call twodcut(plt(1),plt(1),plt(1),jming,jmaxg,kming,kmaxg
+          call twodcut(plt(1)
+     $                ,plt(1),plt(1),jmin_sv,jmax_sv,kmin_sv,kmax_sv
      .                ,'XDRAW X-slice contour at i=')
         elseif (cut(2)) then
-          call twodcut(plt(2),iming,imaxg,plt(2),plt(2),kming,kmaxg
+          call twodcut(plt(2)
+     $                ,imin_sv,imax_sv,plt(2),plt(2),kmin_sv,kmax_sv
      .                ,'XDRAW Y-slice contour at j=')
         else
-          call twodcut(plt(3),iming,imaxg,jming,jmaxg,plt(3),plt(3)
+          call twodcut(plt(3)
+     $                ,imin_sv,imax_sv,jmin_sv,jmax_sv,plt(3),plt(3)
      .                ,'XDRAW Z-slice contour at k=')
         endif
 
@@ -363,9 +386,9 @@ c     Call variables
 
 c     Local variables
 
-        integer :: ii
+        integer :: ii,im,jm,km
 
-        real(8),pointer,dimension(:,:,:,:) :: lcar
+        real(8),pointer,dimension(:,:,:,:) :: lcar,lxi
 
 c     Begin program
 
@@ -384,13 +407,20 @@ c     Begin program
 
         else             !Write logical coordinates
 
-          write(nunit) (((real(xi(i,j,k,i1),4),i=imng,imxg)
-     .                                        ,j=jmng,jmxg)
-     .                                        ,k=kmng,kmxg)
-     .                ,(((real(xi(i,j,k,i2),4),i=imng,imxg)
-     .                                        ,j=jmng,jmxg)
-     .                                        ,k=kmng,kmxg)
+          lxi => xi      !lxi starts at i=j=k=1, not 0!!
 
+          im = imng-1    !To make starting point @ i=1
+          jm = jmng-1    !To make starting point @ j=1
+          km = kmng-1    !To make starting point @ k=1
+
+          write(nunit) (((real(lxi(i-im,j-jm,k-km,i1),4),i=imng,imxg)
+     .                                                  ,j=jmng,jmxg)
+     .                                                  ,k=kmng,kmxg)
+     .                ,(((real(lxi(i-im,j-jm,k-km,i2),4),i=imng,imxg)
+     .                                                  ,j=jmng,jmxg)
+     .                                                  ,k=kmng,kmxg)
+          nullify(lxi)
+          
         endif
 
       end subroutine write_coords
@@ -822,8 +852,8 @@ c     ----------------------------------------------------------------
 
 c     Call variables
 
-        integer     :: nvar,variables(xdraw_cont_lim)
-        character(*):: binf,drawfile,graphlabel,options,descr(ngraph)
+        integer     :: nvar,variables(:)
+        character(*):: binf,drawfile,graphlabel,options,descr(:)
         character(*):: ivart,ivarx,ivary
         logical     :: cartesian
 
@@ -864,7 +894,7 @@ c     Begin program
         enddo
         write (mfile,'(/,a)') 'iqty       options     window title'
 
-        lim = min(i-1,xdraw_cont_lim)
+        lim = min(i-1,size(variables))
         do i=1,lim
           if (variables(i) > 0) then
             write (mfile,'(i2,4a)') variables(i)

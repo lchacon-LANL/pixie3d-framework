@@ -94,7 +94,7 @@ c     Begin program
 #if defined(RFX)
       dump = (nrst.eq.ndstep.or.tmrst.ge.dstep)
 #else
-      dump = (nrst.eq.ndstep).or.(sign(1d0,dt)*(tmrst-dstep)>=1d-10)
+      dump = (nrst.eq.ndstep).or.(sign(1d0,dt)*(tmrst-dstep)>=0d0)!1d-10)
 #endif
 
       if (reset.and.dump) nrst = 0
