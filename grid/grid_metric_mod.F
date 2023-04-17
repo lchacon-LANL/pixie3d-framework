@@ -27,13 +27,8 @@ c ---------------------------------------------------------------------
 
 c     PRIVATE VARIABLES & PROCEDURES
 
-        integer,private :: ilo ,ihi ,jlo ,jhi ,klo ,khi
-     .                    ,ilom,ihip,jlom,jhip,klom,khip
-
-        integer,private ::
-     .             i,j,k,igx,igy,igz
-     .            ,i0,ip,im,j0,jp,jm,k0,kp,km,l,m,n,p
-     .            ,ig,ig0,igm,igp,jg,jg0,jgm,jgp,kg,kg0,kgm,kgp
+        integer,private :: i,j,k,i0,ip,im,j0,jp,jm,k0,kp,km,l,m,n,p
+     .                    ,ig,ig0,igm,igp,jg,jg0,jgm,jgp,kg,kg0,kgm,kgp
 
         logical,private :: map_present,vmap_present
 
@@ -41,7 +36,7 @@ c     PRIVATE VARIABLES & PROCEDURES
           module procedure find_dr_1st,find_dr_2nd !4th
         END INTERFACE
 
-        private :: topol_bc,findGridmetrics,find_dr
+        private :: findGridmetrics,find_dr
 
       contains
 
@@ -74,514 +69,6 @@ c     Begin program
         is_map = checkAnalMapDatabase().or.(coords=='ext')
 
       end function checkMapDatabase
-
-c     find_dr_1st
-c     #####################################################################
-      function find_dr_1st(g_def,i,j,k,igrid,hex,hey,hez,x) result(dr)
-
-c     ---------------------------------------------------------------------
-c     This routine finds dx/d_xi tensor at the point (i,j,k)
-c     from the position vector x. It can do this for:
-c        * Cell centers: (hex,hey,hez)=(0,0,0)
-c        * Faces, e.g. (hex,hey,hez)=(1,0,0) for i+1/2 face.
-c        * Corners, e.g. (hex,hey,hez)=(1,1,1) for i+1/2,j+1/2,k+1/2 corner.
-c     on an arbitrary grid level.
-c     ---------------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-        type(grid_mg_def),pointer :: g_def
-
-        integer    :: i,j,k,igrid,hex,hey,hez
-        real(8)    :: dr(3,3),x(0:,0:,0:,:)
-
-c     Local variables
-
-        integer    :: ip,im,jp,jm,kp,km,ig,jg,kg
-     .               ,igp,igm,jgp,jgm,kgp,kgm,hel,nx,ny,nz
-
-        real(8)    :: carp(3),carm(3),dh(3),coeff
-
-c     Begin program
-
-        nx = g_def%nxv(igrid)
-        ny = g_def%nyv(igrid)
-        nz = g_def%nzv(igrid)
-
-        ip=min(i+1,nx+1)
-        im=max(i-1,0)
-        jp=min(j+1,ny+1)
-        jm=max(j-1,0)
-        kp=min(k+1,nz+1)
-        km=max(k-1,0)
-
-        call getMGmap(g_def,i,j,k,igrid,igrid,igrid,ig,jg,kg)
-
-c     Exceptions
-
-        if (hex == 1) im = i
-        if (hey == 1) jm = j
-        if (hez == 1) km = k
-
-        !X
-cc        if (nx == 1) then
-cc          dr(1,:) = (/ 1d0, 0d0, 0d0 /)
-cc        else
-          igp = ig+(ip-i)
-          igm = ig-(i-im)
-
-          dh(1)= (g_def%xx(igp)-g_def%xx(igm))
-
-          carp = x(ip,j,k,:)
-          carm = x(im,j,k,:)
-          coeff = 1d0
-
-          if (hey == 1) then
-            carp = carp + x(ip,jp,k,:)
-            carm = carm + x(im,jp,k,:)
-            coeff = 0.5
-          endif
-
-          if (hez == 1) then
-            carp = carp + x(ip,j,kp,:)
-            carm = carm + x(im,j,kp,:)
-            coeff = 0.5
-          endif
-
-          if (hey == 1 .and. hez == 1) then
-            carp = carp + x(ip,jp,kp,:)
-            carm = carm + x(im,jp,kp,:)
-            coeff = 0.25
-          endif
-
-          dr(:,1) = coeff*(carp-carm)/dh(1)
-cc        endif
-
-        !Y
-cc        if (ny == 1) then
-cc          dr(2,:) = (/ 0d0, 1d0, 0d0 /)
-cc        else
-          jgp = jg+(jp-j)
-          jgm = jg-(j-jm)
-
-          dh(2)= (g_def%yy(jgp)-g_def%yy(jgm))
-
-          carp = x(i,jp,k,:)
-          carm = x(i,jm,k,:)
-          coeff = 1d0
-
-          if (hex == 1) then
-            carp = carp + x(ip,jp,k,:)
-            carm = carm + x(ip,jm,k,:)
-            coeff = 0.5
-          endif
-
-          if (hez == 1) then
-            carp = carp + x(i,jp,kp,:)
-            carm = carm + x(i,jm,kp,:)
-            coeff = 0.5
-          endif
-
-          if (hex == 1 .and. hez == 1) then
-            carp = carp + x(ip,jp,kp,:)
-            carm = carm + x(ip,jm,kp,:)
-            coeff = 0.25
-          endif
-
-          dr(:,2) = coeff*(carp-carm)/dh(2)
-cc        endif
-
-        !Z
-cc        if (nz == 1) then
-cc          dr(3,:) = (/ 0d0, 0d0, 1d0 /)
-cc        else
-          kgp = kg+(kp-k)
-          kgm = kg-(k-km)
-
-          dh(3)= (g_def%zz(kgp)-g_def%zz(kgm))
-
-          carp = x(i,j,kp,:)
-          carm = x(i,j,km,:)
-          coeff = 1d0
-
-          if (hex == 1) then
-            carp = carp + x(ip,j,kp,:)
-            carm = carm + x(ip,j,km,:)
-            coeff = 0.5
-          endif
-
-          if (hey == 1) then
-            carp = carp + x(i,jp,kp,:)
-            carm = carm + x(i,jp,km,:)
-            coeff = 0.5
-          endif
-
-          if (hex == 1 .and. hey == 1) then
-            carp = carp + x(ip,jp,kp,:)
-            carm = carm + x(ip,jp,km,:)
-            coeff = 0.25
-          endif
-
-          dr(:,3) = coeff*(carp-carm)/dh(3)
-cc        endif
-
-      end function find_dr_1st
-
-c     find_dr_2nd
-c     #####################################################################
-      function find_dr_2nd(g_def,i,j,k,igrid,x) result(dr)
-
-c     ---------------------------------------------------------------------
-c     This routine finds dx/d_xi tensor at the point (i,j,k)
-c     from the position vector x. 
-c     ---------------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-        type(grid_mg_def),pointer :: g_def
-
-        integer :: i,j,k,igrid
-        real(8) :: dr(3,3),x(0:,0:,0:,:)
-
-c     Local variables
-
-        integer :: ip,im,i0,jp,jm,j0,kp,km,k0,ig,jg,kg
-     .            ,igp,igm,jgp,jgm,kgp,kgm,nx,ny,nz
-
-        real(8) :: carp(3),carm(3),car0(3),coeff
-
-c     Begin program
-
-        nx = g_def%nxv(igrid)
-        ny = g_def%nyv(igrid)
-        nz = g_def%nzv(igrid)
-
-        !X
-        i0 = min(max(i,1),nx)
-        ip = i0+1
-        im = i0-1
-
-        call getMGmap(g_def,i0,j,k,igx,igy,igz,ig,jg,kg)
-
-        igp = ig+1
-        igm = ig-1
-
-        carp = x(ip,j,k,:)
-        car0 = x(i0,j,k,:)
-        carm = x(im,j,k,:)
-
-        dr(:,1) = dr_dxi(g_def%xx(igm),carm
-     .                  ,g_def%xx(ig ),car0
-     .                  ,g_def%xx(igp),carp
-     .                  ,i-i0)
-
-        !Y
-        j0 = min(max(j,1),ny)
-        jp = j0+1
-        jm = j0-1
-
-        call getMGmap(g_def,i,j0,k,igx,igy,igz,ig,jg,kg)
-
-        jgp = jg+1
-        jgm = jg-1
-
-        carp = x(i,jp,k,:)
-        car0 = x(i,j0,k,:)
-        carm = x(i,jm,k,:)
-
-        dr(:,2) = dr_dxi(g_def%yy(jgm),carm
-     .                  ,g_def%yy(jg ),car0
-     .                  ,g_def%yy(jgp),carp
-     .                  ,j-j0)
-
-        !Z
-        k0 = min(max(k,1),nz)
-        kp = k0+1
-        km = k0-1
-
-        call getMGmap(g_def,i,j,k0,igx,igy,igz,ig,jg,kg)
-
-        kgp = kg+1
-        kgm = kg-1
-
-        carp = x(i,j,kp,:)
-        car0 = x(i,j,k0,:)
-        carm = x(i,j,km,:)
-
-        dr(:,3) = dr_dxi(g_def%zz(kgm),carm
-     .                  ,g_def%zz(kg ),car0
-     .                  ,g_def%zz(kgp),carp
-     .                  ,k-k0)
-
-      contains
-
-c     dr_dxi
-c     #################################################################
-      function dr_dxi(xm,rm,x0,r0,xp,rp,pos) result(dr)
-
-        implicit none
-
-        integer :: pos
-        real(8) :: xm,x0,xp,rm(3),r0(3),rp(3),dr(3)
-
-        real(8) :: dx1,dx2
-
-c     Begin program
-
-        dx1=x0-xm
-        dx2=xp-x0
-
-        select case(pos)
-        case(-1)  !Left boundary
-          dr = (-rp* dx1/(dx2*(dx1+dx2))
-     .          +r0*(1d0/dx1+1d0/dx2)
-     .          -rm*(1d0/dx1+1d0/(dx1+dx2)))
-        case(1)  !Right boundary
-          dr = ( rm* dx2/(dx1*(dx1+dx2))
-     .          -r0*(1d0/dx1+1d0/dx2)
-     .          +rp*(1d0/dx2+1d0/(dx1+dx2)))
-        case(0)
-          dr = ( rp* dx1/(dx2*(dx1+dx2))
-     .          +r0*(1d0/dx1-1d0/dx2)
-     .          -rm* dx2/(dx1*(dx1+dx2)))
-        case default
-          write (*,*) 'Error in dr_dxi'
-          stop
-        end select
-
-      end function dr_dxi
-
-      end function find_dr_2nd
-
-c     find_dr_4th
-c     #####################################################################
-      function find_dr_4th(g_def,i,j,k,igrid,x) result(dr)
-
-c     ---------------------------------------------------------------------
-c     This routine finds dx/d_xi tensor at the point (i,j,k)
-c     from the position vector x. 
-c     ---------------------------------------------------------------------
-
-        use oned_int
-      
-        implicit none
-
-c     Call variables
-
-        type(grid_mg_def),pointer :: g_def
-
-        integer :: i,j,k,igrid
-        real(8) :: dr(3,3),x(0:,0:,0:,:)
-
-c     Local variables
-
-        integer :: ipp,ip,i0,im,imm
-     .            ,jpp,jp,j0,jm,jmm
-     .            ,kpp,kp,k0,km,kmm
-     .            ,igpp,igp,ig0,igm,igmm
-     .            ,jgpp,jgp,jg0,jgm,jgmm
-     .            ,kgpp,kgp,kg0,kgm,kgmm
-     .            ,ig,jg,kg,nx,ny,nz
-
-        real(8) :: carpp(3),carp(3),car0(3),carm(3),carmm(3),coeff
-
-c     Begin program
-
-        nx = g_def%nxv(igrid)
-        ny = g_def%nyv(igrid)
-        nz = g_def%nzv(igrid)
-
-        call getMGmap(g_def,i,j,k,igx,igy,igz,ig,jg,kg)
-
-c     Exceptions
-
-        !X
-        if (nx > 3) then
-          
-          i0 = min(max(i,2),nx-1)
-          ipp = i0+2
-          ip  = i0+1
-          im  = i0-1
-          imm = i0-2
-
-          call getMGmap(g_def,i0,j,k,igx,igy,igz,ig0,jg,kg)
-
-          igpp = ig0+2
-          igp  = ig0+1
-          igm  = ig0-1
-          igmm = ig0-2
-
-          carpp = x(ipp,j,k,:)
-          carp  = x(ip ,j,k,:)
-          car0  = x(i0 ,j,k,:)
-          carm  = x(im ,j,k,:)
-          carmm = x(imm,j,k,:)
-        
-          dr(:,1) = quartic_interp(g_def%xx(igmm),carmm
-     .                            ,g_def%xx(igm ),carm
-     .                            ,g_def%xx(ig0 ),car0
-     .                            ,g_def%xx(igp ),carp
-     .                            ,g_def%xx(igpp),carpp
-     .                            ,g_def%xx(ig),1)
-
-        else
-          i0 = min(max(i,1),nx)
-          ip = i0+1
-          im = i0-1
-
-          call getMGmap(g_def,i0,j,k,igx,igy,igz,ig0,jg,kg)
-
-          igp = ig0+1
-          igm = ig0-1
-
-          carp = x(ip,j,k,:)
-          car0 = x(i0,j,k,:)
-          carm = x(im,j,k,:)
-
-          dr(:,1) = dr_dxi(g_def%xx(igm),carm
-     .                    ,g_def%xx(ig0),car0
-     .                    ,g_def%xx(igp),carp
-     .                    ,i-i0)
-        endif
-          
-        !Y
-        if (ny > 3) then
-          j0 = min(max(j,2),ny-1)
-          jpp = j0+2
-          jp  = j0+1
-          jm  = j0-1
-          jmm = j0-2
-
-          call getMGmap(g_def,i,j0,k,igx,igy,igz,ig,jg0,kg)
-
-          jgpp = jg0+2
-          jgp  = jg0+1
-          jgm  = jg0-1
-          jgmm = jg0-2
-
-          carpp = x(i,jpp,k,:)
-          carp  = x(i,jp ,k,:)
-          car0  = x(i,j0 ,k,:)
-          carm  = x(i,jm ,k,:)
-          carmm = x(i,jmm,k,:)
-        
-          dr(:,2) = quartic_interp(g_def%yy(jgmm),carmm
-     .                            ,g_def%yy(jgm ),carm
-     .                            ,g_def%yy(jg0 ),car0
-     .                            ,g_def%yy(jgp ),carp
-     .                            ,g_def%yy(jgpp),carpp
-     .                            ,g_def%yy(jg),1)
-
-        else
-          j0 = min(max(j,1),ny)
-          jp = j0+1
-          jm = j0-1
-
-          call getMGmap(g_def,i,j0,k,igx,igy,igz,ig,jg0,kg)
-
-          jgp = jg0+1
-          jgm = jg0-1
-
-          carp = x(i,jp,k,:)
-          car0 = x(i,j0,k,:)
-          carm = x(i,jm,k,:)
-
-          dr(:,2) = dr_dxi(g_def%yy(jgm),carm
-     .                    ,g_def%yy(jg0),car0
-     .                    ,g_def%yy(jgp),carp
-     .                    ,j-j0)
-        endif
-        
-        !Z
-        if (nz > 3) then
-          k0 = min(max(k,2),nz-1)
-          kpp = k0+2
-          kp  = k0+1
-          km  = k0-1
-          kmm = k0-2
-
-          call getMGmap(g_def,i,j,k0,igx,igy,igz,ig,jg,kg0)
-
-          kgpp = kg0+2
-          kgp  = kg0+1
-          kgm  = kg0-1
-          kgmm = kg0-2
-
-          carpp = x(i,j,kpp,:)
-          carp  = x(i,j,kp ,:)
-          car0  = x(i,j,k0 ,:)
-          carm  = x(i,j,km ,:)
-          carmm = x(i,j,kmm,:)
-        
-          dr(:,2) = quartic_interp(g_def%zz(kgmm),carmm
-     .                            ,g_def%zz(kgm ),carm
-     .                            ,g_def%zz(kg0 ),car0
-     .                            ,g_def%zz(kgp ),carp
-     .                            ,g_def%zz(kgpp),carpp
-     .                            ,g_def%zz(kg),1)
-        else
-          k0 = min(max(k,1),nz)
-          kp = k0+1
-          km = k0-1
-
-          call getMGmap(g_def,i,j,k0,igx,igy,igz,ig,jg,kg0)
-
-          kgp = kg0+1
-          kgm = kg0-1
-
-          carp = x(i,j,kp,:)
-          car0 = x(i,j,k0,:)
-          carm = x(i,j,km,:)
-
-          dr(:,3) = dr_dxi(g_def%zz(kgm),carm
-     .                    ,g_def%zz(kg0),car0
-     .                    ,g_def%zz(kgp),carp
-     .                    ,k-k0)
-        endif
-        
-      contains
-
-c     dr_dxi
-c     #################################################################
-      function dr_dxi(xm,rm,x0,r0,xp,rp,pos) result(dr)
-
-        implicit none
-
-        integer :: pos
-        real(8) :: xm,x0,xp,rm(3),r0(3),rp(3),dr(3)
-
-        real(8) :: dx1,dx2
-
-c     Begin program
-
-        dx1=x0-xm
-        dx2=xp-x0
-
-        select case(pos)
-        case(-1)  !Left boundary
-          dr = (-rp* dx1/(dx2*(dx1+dx2))
-     .          +r0*(1d0/dx1+1d0/dx2)
-     .          -rm*(1d0/dx1+1d0/(dx1+dx2)))
-        case(1)  !Right boundary
-          dr = ( rm* dx2/(dx1*(dx1+dx2))
-     .          -r0*(1d0/dx1+1d0/dx2)
-     .          +rp*(1d0/dx2+1d0/(dx1+dx2)))
-        case(0)
-          dr = ( rp* dx1/(dx2*(dx1+dx2))
-     .          +r0*(1d0/dx1-1d0/dx2)
-     .          -rm* dx2/(dx1*(dx1+dx2)))
-        case default
-          write (*,*) 'Error in dr_dxi'
-          stop
-        end select
-
-      end function dr_dxi
-
-      end function find_dr_4th
 
 c     find_d2r
 c     #####################################################################
@@ -618,9 +105,9 @@ c     Begin program
 
 c     Evaluate dr=dx/dxi vectors at vertices
 
-        do k = klom,khi
-          do j = jlom,jhi
-            do i = ilom,ihi
+        do k = 0,nz
+          do j = 0,ny
+            do i = 0,nx
               dr(i,j,k,:,:) = find_dr(g_def,i,j,k,igrid,1,1,1,x)
             enddo
           enddo
@@ -628,9 +115,9 @@ c     Evaluate dr=dx/dxi vectors at vertices
 
 c     Evaluate d2r=d2x/dxi/dxj hessian at cell centers
 
-        do k = klo,khi
-          do j = jlo,jhi
-            do i = ilo,ihi
+        do k = 1,nz
+          do j = 1,ny
+            do i = 1,nx
               do m= 1,3
                 d2r(i,j,k,:,:,m)=find_dr(g_def,i-1,j-1,k-1,igrid,1,1,1
      .                                  ,dr(:,:,:,:,m))
@@ -883,57 +370,39 @@ c     Begin program
 
         return_error = PRESENT(ierr)
 
-        if (return_error) lerr = 0
+        lerr = 0
 
-        igx = igrid
-        igy = igrid
-        igz = igrid
-
-        ilo = 1
-        jlo = 1
-        klo = 1
-        ihi = g_def%nxv(igrid)
-        jhi = g_def%nyv(igrid)
-        khi = g_def%nzv(igrid)
-
-        ilom = ilo-1
-        jlom = jlo-1
-        klom = klo-1
-        ihip = ihi+1
-        jhip = jhi+1
-        khip = khi+1
-
-        nx = ihi-ilo+1
-        ny = jhi-jlo+1
-        nz = khi-klo+1
+        nx = g_def%nxv(igrid)
+        ny = g_def%nyv(igrid)
+        nz = g_def%nzv(igrid)
 
 c       ANALYTICAL QUANTITIES **********************************
 
         if ((.not.numerical_grid).and.anal_map) then
 
           !Cell-centered metrics
-          do k = klom,khip
-            do j = jlom,jhip
-              do i = ilom,ihip
+          do k = 0,nz+1
+            do j = 0,ny+1
+              do i = 0,nx+1
                 g_def%gmetric%grid(igrid)%car  (i,j,k,:)
-     .                    = map     (g_def,i,j,k,igx,igy,igz)
+     .                    = map     (g_def,i,j,k,igrid,igrid,igrid)
                 g_def%gmetric%grid(igrid)%jac  (i,j,k)
-     .                    = jacobian(g_def,i,j,k,igx,igy,igz)
+     .                    = jacobian(g_def,i,j,k,igrid,igrid,igrid)
                 g_def%gmetric%grid(igrid)%gsub (i,j,k,:,:)
-     .                    = g_sub   (g_def,i,j,k,igx,igy,igz)
+     .                    = g_sub   (g_def,i,j,k,igrid,igrid,igrid)
                 g_def%gmetric%grid(igrid)%gsup (i,j,k,:,:)
-     .                    = g_sup   (g_def,i,j,k,igx,igy,igz)
+     .                    = g_sup   (g_def,i,j,k,igrid,igrid,igrid)
                 g_def%gmetric%grid(igrid)%Gamma(i,j,k,:,:,:)
-     .                    = christ_2knd(g_def,i,j,k,igx,igy,igz)
+     .                    = christ_2knd(g_def,i,j,k,igrid,igrid,igrid)
                 do l=1,3
                   g_def%gmetric%grid(igrid)%cov(i,j,k,l,:)
-     .                 = covariantVector    (g_def,l,i,j,k,igx,igy,igz)
+     .                = covariantVector(g_def,l,i,j,k,igrid,igrid,igrid)
                   g_def%gmetric%grid(igrid)%cnv(i,j,k,l,:)
-     .                 = contravariantVector(g_def,l,i,j,k,igx,igy,igz)
+     .            = contravariantVector(g_def,l,i,j,k,igrid,igrid,igrid)
                 enddo
 
                 !Cell volume
-                call getMGmap(g_def,i,j,k,igx,igy,igz,ig,jg,kg)
+                call getMGmap(g_def,i,j,k,igrid,igrid,igrid,ig,jg,kg)
 
                 g_def%gmetric%grid(igrid)%dlvol(i,j,k) = 1d0
 
@@ -960,22 +429,22 @@ c       ANALYTICAL QUANTITIES **********************************
           enddo
 
           !Vertex metrics
-          do k = klom,khip
-            do j = jlom,jhip
-              do i = ilom,ihip
+          do k = 0,nz+1
+            do j = 0,ny+1
+              do i = 0,nx+1
                 g_def%gmetric%grid(igrid)%jac_v(i,j,k)
-     .                 = jacobian(g_def,i,j,k,igx,igy,igz,vertex=.true.)
+     .           = jacobian(g_def,i,j,k,igrid,igrid,igrid,vertex=.true.)
                 g_def%gmetric%grid(igrid)%gsub_v(i,j,k,:,:)
-     .                 = g_sub   (g_def,i,j,k,igx,igy,igz,vertex=.true.)
+     .           = g_sub   (g_def,i,j,k,igrid,igrid,igrid,vertex=.true.)
                 g_def%gmetric%grid(igrid)%gsup_v (i,j,k,:,:)
-     .                 = g_sup   (g_def,i,j,k,igx,igy,igz,vertex=.true.)
+     .           = g_sup   (g_def,i,j,k,igrid,igrid,igrid,vertex=.true.)
                 do l=1,3
                   g_def%gmetric%grid(igrid)%cov_v(i,j,k,l,:)
-     .                 = covariantVector    (g_def,l,i,j,k,igx,igy,igz
-     .                                         ,vertex=.true.)
+     .                 = covariantVector(g_def,l,i,j,k,igrid,igrid,igrid
+     .                                  ,vertex=.true.)
                   g_def%gmetric%grid(igrid)%cnv_v(i,j,k,l,:)
-     .                 = contravariantVector(g_def,l,i,j,k,igx,igy,igz
-     .                                         ,vertex=.true.)
+     .             = contravariantVector(g_def,l,i,j,k,igrid,igrid,igrid
+     .                                   ,vertex=.true.)
                 enddo
 
               enddo
@@ -983,7 +452,7 @@ c       ANALYTICAL QUANTITIES **********************************
           enddo
 
           !Zero force condition on Christoffel symbols (only on finest grid)
-          if (igrid == 1) call hessianZeroForceCorr(g_def)
+          if (igrid == 1) call hessianZeroForceCorr(g_def,igrid)
 
 c       NUMERICAL QUANTITIES ***********************************
 
@@ -995,11 +464,11 @@ c       NUMERICAL QUANTITIES ***********************************
 
           call findVertexMap(g_def,igrid)
 
-          call findCellMetrics(g_def)
+          call findCellMetrics(g_def,igrid)
 
-          call findVertexMetrics(g_def)
+          call findVertexMetrics(g_def,igrid)
 
-          call Christoffel(g_def)
+          call Christoffel(g_def,igrid)
 
         endif
 
@@ -1007,8 +476,7 @@ c     Gather error flags
 
         if (return_error) then
 #if defined(petsc)
-          call MPI_Allreduce(lerr,ierr,1,MPI_INTEGER
-     .                      ,MPI_MAX,g_def%mpi_comm,mpierr)
+          ierr = pmax(lerr,mpi_comm=g_def%mpi_comm)
 #else
           ierr = lerr
 #endif
@@ -1020,7 +488,7 @@ c     End program
 
 c     findVertexMetrics
 c     #################################################################
-      subroutine findVertexMetrics(g_def)
+      subroutine findVertexMetrics(g_def,igrid)
 
 c     -----------------------------------------------------------------
 c     Finds metrics at vertices (i+1/2,j+1/2,k+1/2) (stored at (i,j,k))
@@ -1032,6 +500,8 @@ c     Call variables
 
         type(grid_mg_def),pointer :: g_def
 
+        integer :: igrid
+        
 c     Local variables
 
         integer :: he,nx,ny,nz
@@ -1045,23 +515,23 @@ c     Begin program
 
         he = 1
 
-        allocate(dr(ilom:ihip,jlom:jhip,klom:khip,3,3))
-
 c     Local grid size
 
-        nx = ihi-ilo+1
-        ny = jhi-jlo+1
-        nz = khi-klo+1
+        nx = g_def%nxv(igrid)
+        ny = g_def%nyv(igrid)
+        nz = g_def%nzv(igrid)
 
 c     Evaluate dr=dx/dxi vectors at vertices
+
+        allocate(dr(0:nx+1,0:ny+1,0:nz+1,3,3))
 
         xc => g_def%gmetric%grid(igrid)%car
 
         dr = 0d0
 
-        do k = klom,khi
-          do j = jlom,jhi
-            do i = ilom,ihi
+        do k = 0,nz
+          do j = 0,ny
+            do i = 0,nx
               dr(i,j,k,:,:) = find_dr(g_def,i,j,k,igrid,he,he,he,xc)
             enddo
           enddo
@@ -1073,9 +543,9 @@ c     Impose BCs on dr
 
 c     Evaluate grid quantities (at vertices)
 
-        do k = klom,khip
-          do j = jlom,jhip
-            do i = ilom,ihip
+        do k = 0,nz+1
+          do j = 0,ny+1
+            do i = 0,nx+1
               r = dr(i,j,k,:,:)
 
               !Jacobian <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
@@ -1085,7 +555,7 @@ c     Evaluate grid quantities (at vertices)
               if (jac <= 0d0
      .           .and. (.not.isSP2(g_def,i+1,igrid))) then
                 if (.not.(check_grid.or.return_error)) then
-                  write (*,*) 'Negative Jacobian in half mesh'
+                  write (*,*) 'Negative or zero Jacobian in half mesh'
                   write (*,*) 'Grid level',igrid
                   write (*,*) 'Processor rank=',my_rank
                   write (*,*) 'Grid position=',i,j,k
@@ -1145,7 +615,7 @@ c     End program
 
 c     findCellMetrics
 c     #################################################################
-      subroutine findCellMetrics(g_def)
+      subroutine findCellMetrics(g_def,igrid)
 
 c     -----------------------------------------------------------------
 c     Finds metrics at cell centers.
@@ -1157,9 +627,11 @@ c     Call variables
 
         type(grid_mg_def),pointer :: g_def
 
+        integer :: igrid
+        
 c     Local variables
 
-        integer :: he,imin,imax,jmin,jmax,kmin,kmax,nx,ny,nz,bcs(6)
+        integer :: he,nx,ny,nz,bcs(6)
 
         real(8) :: r(3,3),car0(3),carp(3),carm(3),jac,ijac
      .            ,cnv(3,3),cov(3,3),gsub(3,3),gsup(3,3),vec(3)
@@ -1170,55 +642,32 @@ c     Local variables
 
 c     Begin program
 
-        imin = ilom
-        imax = ihip
-
-        jmin = jlom
-        jmax = jhip
-
-        kmin = klom
-        kmax = khip
-
 c     Local grid size
 
-        nx = ihi-ilo+1
-        ny = jhi-jlo+1
-        nz = khi-klo+1
+        nx = g_def%nxv(igrid)
+        ny = g_def%nyv(igrid)
+        nz = g_def%nzv(igrid)
 
 c     Evaluate dr=dx/dxi vectors
 
         xc => g_def%gmetric%grid(igrid)%car
 
-        allocate(dr(ilom:ihip,jlom:jhip,klom:khip,3,3))
+        allocate(dr(0:nx+1,0:ny+1,0:nz+1,3,3))
 
         dr = 0d0
 
         if (igrid == 1) then  !Second order for finest grid
-          do k = kmin,kmax
-            do j = jmin,jmax
-              do i = imin,imax
+          do k = 0,nz+1
+            do j = 0,ny+1
+              do i = 0,nx+1
                 dr(i,j,k,:,:) = find_dr(g_def,i,j,k,igrid,xc)
               enddo
             enddo
           enddo
-c$$$          write (*,*) "x_1",dr(10,:,1,1,1)
-c$$$          write (*,*) "y_1",dr(10,:,1,2,1)
-c$$$          write (*,*) "z_1",dr(10,:,1,3,1)
-c$$$          write (*,*) "x_2",dr(10,:,1,1,2)
-c$$$          write (*,*) "y_2",dr(10,:,1,2,2)
-c$$$          write (*,*) "z_2",dr(10,:,1,3,2)
-c$$$          write (*,*) "x_3",dr(10,:,1,1,3)
-c$$$          write (*,*) "y_3",dr(10,:,1,2,3)
-c$$$          write (*,*) "z_3",dr(10,:,1,3,3)
-c$$$          write (*,*) "jac", (triple_product(dr(10,j,1,:,1)
-c$$$     .                                      ,dr(10,j,1,:,2)
-c$$$     .                                      ,dr(10,j,1,:,3))
-c$$$     .                       ,j=0,33)
-c$$$          pause
         else                  !First order in coarser grids (to avoid negative jacobians)
-          do k = kmin,kmax
-            do j = jmin,jmax
-              do i = imin,imax
+          do k = 0,nz+1
+            do j = 0,ny+1
+              do i = 0,nx+1
                 dr(i,j,k,:,:) = find_dr(g_def,i,j,k,igrid,0,0,0,xc)
               enddo
             enddo
@@ -1231,9 +680,9 @@ c     Apply BCs on dr (including SP)
 
 c     Evaluate rest of grid quantities
 
-        do k = kmin,kmax
-          do j = jmin,jmax
-            do i = imin,imax
+        do k = 0,nz+1
+          do j = 0,ny+1
+            do i = 0,nx+1
               r = dr(i,j,k,:,:)
 
               !Jacobian <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
@@ -1286,7 +735,7 @@ c     Evaluate rest of grid quantities
               g_def%gmetric%grid(igrid)%gsup(i,j,k,:,:) = gsup
 
               !Cell volume <<<<<<<<<<<<<<<<<<
-              call getMGmap(g_def,i,j,k,igx,igy,igz,ig,jg,kg)
+              call getMGmap(g_def,i,j,k,igrid,igrid,igrid,ig,jg,kg)
 
               g_def%gmetric%grid(igrid)%dlvol(i,j,k) = 1d0
 
@@ -1322,7 +771,7 @@ c     End program
 
 c     Christoffel
 c     #################################################################
-      subroutine Christoffel(g_def)
+      subroutine Christoffel(g_def,igrid)
 
 c     -----------------------------------------------------------------
 c     Compute Christoffel symbols of the second kind at cell centers
@@ -1334,7 +783,11 @@ c     Call variables
 
         type(grid_mg_def),pointer :: g_def
 
+        integer :: igrid
+        
 c     Local variables
+
+        integer :: nx,ny,nz
 
         integer :: i,j,k,l,m,n,he,bcs(6,3)
         real(8) :: r(3,3),cov(3,3),gamma(3,3,3)
@@ -1345,17 +798,21 @@ c     Local variables
 
 c     Begin program
 
+        nx = g_def%nxv(igrid)
+        ny = g_def%nyv(igrid)
+        nz = g_def%nzv(igrid)
+
         xc => g_def%gmetric%grid(igrid)%car
 
 c     NEW WAY: compute directly second-order derivatives
 
-        allocate(d2r(ilom:ihip,jlom:jhip,klom:khip,3,3,3))
+        allocate(d2r(0:nx+1,0:ny+1,0:nz+1,3,3,3))
 
         d2r = find_d2r(g_def,igrid,xc)
 
-        do k = klo,khi
-          do j = jlo,jhi
-            do i = ilo,ihi
+        do k = 1,nz
+          do j = 1,ny
+            do i = 1,nx
 
               cov = g_def%gmetric%grid(igrid)%cov(i,j,k,:,:)
               
@@ -1420,14 +877,14 @@ c$$$        deallocate(dr)
 
 c     Enforce zero-force condition on Christoffle symbols
         
-        if (igrid == 1) call hessianZeroForceCorr(g_def)
+        if (igrid == 1) call hessianZeroForceCorr(g_def,igrid)
 
 c     Apply BCs to Christoffel symbols
 
         !Regularize
-        do k = klo,khi
-          do j = jlo,jhi
-            do i = ilo,ihi
+        do k = 1,nz
+          do j = 1,ny
+            do i = 1,nx
                g_def%gmetric%grid(igrid)%Gamma(i,j,k,:,:,:) =
      .              g_def%gmetric%grid(igrid)%Gamma(i,j,k,:,:,:)
      .             *g_def%gmetric%grid(igrid)%jac  (i,j,k)
@@ -1451,9 +908,9 @@ c     Apply BCs to Christoffel symbols
         enddo
 
         !Transform back
-        do k = klom,khip
-          do j = jlom,jhip
-            do i = ilom,ihip
+        do k = 0,nz+1
+          do j = 0,ny+1
+            do i = 0,nx+1
                g_def%gmetric%grid(igrid)%Gamma(i,j,k,:,:,:) =
      .              g_def%gmetric%grid(igrid)%Gamma(i,j,k,:,:,:)
      .             /g_def%gmetric%grid(igrid)%jac  (i,j,k)
@@ -1467,7 +924,7 @@ c     End program
       
 c     hessianZeroForceCorr
 c     #################################################################
-      subroutine hessianZeroForceCorr(g_def)
+      subroutine hessianZeroForceCorr(g_def,igrid)
 
 c     -----------------------------------------------------------------
 c     Postprocess Christoffel symbol to satisfy zero-force condition
@@ -1480,9 +937,11 @@ c     Call variables
 
         type(grid_mg_def),pointer :: g_def
 
+        integer :: igrid
+        
 c     Local variables
 
-        integer :: i,j,k,ii,ll,kk,mm,jj,ig,jg,kg
+        integer :: i,j,k,ii,ll,kk,mm,jj,ig,jg,kg,nx,ny,nz
         real(8) :: x1,y1,z1,summ,summ2,dh,jac,jacp,jacm,const,hlf
         real(8) :: hess(3,3,3),table(3,3,3),gamma(3,3,3)
      .            ,gsub(3,3),gsup(3,3),gsupp(3,3),gsupm(3,3)
@@ -1490,15 +949,19 @@ c     Local variables
 
 c     Begin program
 
-        do k = klo,khi
-          do j = jlo,jhi
-            do i = ilo,ihi
+        nx = g_def%nxv(igrid)
+        ny = g_def%nyv(igrid)
+        nz = g_def%nzv(igrid)
+
+        do k = 1,nz
+          do j = 1,ny
+            do i = 1,nx
 
             gamma = g_def%gmetric%grid(igrid)%Gamma(i,j,k,:,:,:)
             gsub  = g_def%gmetric%grid(igrid)%gsub(i,j,k,:,:)
             gsup  = g_def%gmetric%grid(igrid)%gsup(i,j,k,:,:)
 
-            call getMGmap(g_def,i,j,k,igx,igy,igz,ig,jg,kg)
+            call getMGmap(g_def,i,j,k,igrid,igrid,igrid,ig,jg,kg)
 
             do ii=1,3 !cycle through Chistoffel symbols
 
@@ -1822,12 +1285,12 @@ c     Call variables
 
         integer :: igrid
         type(grid_mg_def),pointer :: g_def
+        logical :: coarsen
 
 c     Local variables
 
         integer :: nx,ny,nz
         real(8),pointer,dimension(:,:,:,:) :: xf,xc
-        logical :: coarsen
 
 c     Begin program
 
@@ -1851,10 +1314,10 @@ c     Begin program
 
           if (checkAnalMapDatabase()) then
 
-            do k = klom,khip
-              do j = jlom,jhip
-                do i = ilom,ihip
-                  xc(i,j,k,:) = map(g_def,i,j,k,igx,igy,igz)
+            do k = 0,nz+1
+              do j = 0,ny+1
+                do i = 0,nx+1
+                  xc(i,j,k,:) = map(g_def,i,j,k,igrid,igrid,igrid)
                 enddo
               enddo
             enddo
@@ -1907,7 +1370,7 @@ c     Begin program
             do k = 0,nz
               do j = 0,ny
                 do i = 0,nx
-                  xv(i,j,k,:) = map(g_def,i,j,k,igx,igy,igz
+                  xv(i,j,k,:) = map(g_def,i,j,k,igrid,igrid,igrid
      .                             ,vertex=.true.)
                 enddo
               enddo
@@ -1924,7 +1387,7 @@ c$$$
 c$$$            do k = 0,nz
 c$$$              do j = 0,ny
 c$$$                do i = 0,nx
-c$$$                  call getCurvilinearCoordinates(g_def,i,j,k,igx,igy,igz
+c$$$                  call getCurvilinearCoordinates(g_def,i,j,k,igrid,igrid,igrid
 c$$$     .                                          ,ig1,jg1,kg1,x1,y1,z1
 c$$$     .                                          ,vertex=.true.)
 c$$$
@@ -1955,61 +1418,6 @@ c     End program
 
       end subroutine findVertexMap
 
-c     topol_bc
-c     #################################################################
-      subroutine topol_bc(gdef,igrid,nxl,nyl,nzl,array,bcs)
-
-c     -----------------------------------------------------------------
-c     Enforce topological constraints on array
-c     -----------------------------------------------------------------
-
-        implicit  none
-
-c     Call variables
-
-        type(grid_mg_def),pointer :: gdef
-        integer :: igrid,nxl,nyl,nzl,bcs(6)
-        real(8) :: array(0:nxl+1,0:nyl+1,0:nzl+1)
-
-c     Local variables
-
-#if defined(petsc)
-        type(petsc_da_ctx),pointer :: da_ctx
-#endif
-
-c     External
-
-c     Begin program
-
-#if !defined(petsc)
-        if (bcs(1) == PER .or. bcs(2) == PER) then
-          array(0    ,:,:) = array(nxl,:,:)
-          array(nxl+1,:,:) = array(1  ,:,:)
-        endif
-
-        if (bcs(3) == PER .or. bcs(4) == PER) then
-          array(:,0    ,:) = array(:,nyl,:)
-          array(:,nyl+1,:) = array(:,1  ,:)
-        endif
-        
-        if (bcs(5) == PER .or. bcs(6) == PER) then
-          array(:,:,0    ) = array(:,:,nzl)
-          array(:,:,nzl+1) = array(:,:,1  )
-        endif
-#else
-#if !defined(samrai)
-        da_ctx => gdef%dactx(igrid)
-        call fillPetscGhostCells(da_ctx,array)
-#else
-        write(*,*) 'WARNING: metrics in SAMRAI are not being'
-     .            ,' communicated yet.'
-#endif
-#endif
-
-c     End program
-
-      end subroutine topol_bc
-      
 c     dr_bc
 c     #################################################################
       subroutine dr_bc(g_def,igrid,dr)
@@ -2025,7 +1433,7 @@ c     Call variables
         type(grid_mg_def),pointer :: g_def
 
         integer :: igrid
-        real(8) :: dr(0:,0:,0:,:,:)
+        real(8) :: dr(:,:,:,:,:)
 
 c     Local variables
 
@@ -2109,9 +1517,12 @@ c     Start with topological BCs
 
 c     Set up i=0, j=0, k=0 boundaries (do NOTHING: dr is trustworthy there)
 
-        where (bcs(1,:) /= PER) bcs(1,:) = DEF
-        where (bcs(3,:) /= PER) bcs(3,:) = DEF
-        where (bcs(5,:) /= PER) bcs(5,:) = DEF
+c$$$        where (bcs(1,:) /= PER) bcs(1,:) = DEF
+c$$$        where (bcs(3,:) /= PER) bcs(3,:) = DEF
+c$$$        where (bcs(5,:) /= PER) bcs(5,:) = DEF
+        where (bcs(1,:) == DEF) bcs(1,:) = EXT
+        where (bcs(3,:) == DEF) bcs(3,:) = EXT 
+        where (bcs(5,:) == DEF) bcs(5,:) = EXT 
 
 c     Set up i=imax, j=jmax, k=kmax boundaries
 
@@ -2169,6 +1580,8 @@ c     Local variables
 
 c     Begin program
 
+        lerr = 0
+        
 c     Checks
 
         map_present = PRESENT(xcar)
@@ -2194,14 +1607,6 @@ c     Allocate arrays
         if (vmap_present) g_def%gmetric%grid(igrmin)%car_v = xcarv
 
 c     Find grid metrics at all grid levels
-
-c$$$        call findGridMetrics(g_def,igrmin,.false.,ierr=lerr)
-c$$$        do igrid=igrmin+1,igrmax
-c$$$          call coarsenGridMetrics(g_def,igrid,ierr=lerr)
-c$$$c$$$          if (my_rank == 0) write (*,*) 'igrid=',igrid,
-c$$$c$$$     $                            'coarsenGridMetrics error',lerr
-c$$$          if (lerr /= 0) exit
-c$$$        enddo
 
         do igrid=igrmin,igrmax
           call findGridMetrics(g_def,igrid,.not.PRESENT(igr),ierr=lerr)
@@ -2249,10 +1654,6 @@ c     Local variables
      .            ,nxc,nyc,nzc,nxf,nyf,nzf,l,m,bcs(6)
 
 c     Begin program
-
-c$$$cc        write (*,*) 'DIAG -- coarsenGridMetrics'
-c$$$        call findGridMetrics(g_def,igc)
-c$$$        return
 
         !From analytical mapping
         if ((.not.numerical_grid).and.anal_map) then
@@ -2466,5 +1867,513 @@ c     Fill ghost cells by 2nd-order extrapolation
       end subroutine coarsen
 
       end subroutine coarsenGridMetrics
+
+c     find_dr_1st
+c     #####################################################################
+      function find_dr_1st(g_def,i,j,k,igrid,hex,hey,hez,x) result(dr)
+
+c     ---------------------------------------------------------------------
+c     This routine finds dx/d_xi tensor at the point (i,j,k)
+c     from the position vector x. It can do this for:
+c        * Cell centers: (hex,hey,hez)=(0,0,0)
+c        * Faces, e.g. (hex,hey,hez)=(1,0,0) for i+1/2 face.
+c        * Corners, e.g. (hex,hey,hez)=(1,1,1) for i+1/2,j+1/2,k+1/2 corner.
+c     on an arbitrary grid level.
+c     ---------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        type(grid_mg_def),pointer :: g_def
+
+        integer    :: i,j,k,igrid,hex,hey,hez
+        real(8)    :: dr(3,3),x(0:,0:,0:,:)
+
+c     Local variables
+
+        integer    :: ip,im,jp,jm,kp,km,ig,jg,kg
+     .               ,igp,igm,jgp,jgm,kgp,kgm,hel,nx,ny,nz
+
+        real(8)    :: carp(3),carm(3),dh(3),coeff
+
+c     Begin program
+
+        nx = g_def%nxv(igrid)
+        ny = g_def%nyv(igrid)
+        nz = g_def%nzv(igrid)
+
+        ip=min(i+1,nx+1)
+        im=max(i-1,0)
+        jp=min(j+1,ny+1)
+        jm=max(j-1,0)
+        kp=min(k+1,nz+1)
+        km=max(k-1,0)
+
+        call getMGmap(g_def,i,j,k,igrid,igrid,igrid,ig,jg,kg)
+
+c     Exceptions
+
+        if (hex == 1) im = i
+        if (hey == 1) jm = j
+        if (hez == 1) km = k
+
+        !X
+cc        if (nx == 1) then
+cc          dr(1,:) = (/ 1d0, 0d0, 0d0 /)
+cc        else
+          igp = ig+(ip-i)
+          igm = ig-(i-im)
+
+          dh(1)= (g_def%xx(igp)-g_def%xx(igm))
+
+          carp = x(ip,j,k,:)
+          carm = x(im,j,k,:)
+          coeff = 1d0
+
+          if (hey == 1) then
+            carp = carp + x(ip,jp,k,:)
+            carm = carm + x(im,jp,k,:)
+            coeff = 0.5
+          endif
+
+          if (hez == 1) then
+            carp = carp + x(ip,j,kp,:)
+            carm = carm + x(im,j,kp,:)
+            coeff = 0.5
+          endif
+
+          if (hey == 1 .and. hez == 1) then
+            carp = carp + x(ip,jp,kp,:)
+            carm = carm + x(im,jp,kp,:)
+            coeff = 0.25
+          endif
+
+          dr(:,1) = coeff*(carp-carm)/dh(1)
+cc        endif
+
+        !Y
+cc        if (ny == 1) then
+cc          dr(2,:) = (/ 0d0, 1d0, 0d0 /)
+cc        else
+          jgp = jg+(jp-j)
+          jgm = jg-(j-jm)
+
+          dh(2)= (g_def%yy(jgp)-g_def%yy(jgm))
+
+          carp = x(i,jp,k,:)
+          carm = x(i,jm,k,:)
+          coeff = 1d0
+
+          if (hex == 1) then
+            carp = carp + x(ip,jp,k,:)
+            carm = carm + x(ip,jm,k,:)
+            coeff = 0.5
+          endif
+
+          if (hez == 1) then
+            carp = carp + x(i,jp,kp,:)
+            carm = carm + x(i,jm,kp,:)
+            coeff = 0.5
+          endif
+
+          if (hex == 1 .and. hez == 1) then
+            carp = carp + x(ip,jp,kp,:)
+            carm = carm + x(ip,jm,kp,:)
+            coeff = 0.25
+          endif
+
+          dr(:,2) = coeff*(carp-carm)/dh(2)
+cc        endif
+
+        !Z
+cc        if (nz == 1) then
+cc          dr(3,:) = (/ 0d0, 0d0, 1d0 /)
+cc        else
+          kgp = kg+(kp-k)
+          kgm = kg-(k-km)
+
+          dh(3)= (g_def%zz(kgp)-g_def%zz(kgm))
+
+          carp = x(i,j,kp,:)
+          carm = x(i,j,km,:)
+          coeff = 1d0
+
+          if (hex == 1) then
+            carp = carp + x(ip,j,kp,:)
+            carm = carm + x(ip,j,km,:)
+            coeff = 0.5
+          endif
+
+          if (hey == 1) then
+            carp = carp + x(i,jp,kp,:)
+            carm = carm + x(i,jp,km,:)
+            coeff = 0.5
+          endif
+
+          if (hex == 1 .and. hey == 1) then
+            carp = carp + x(ip,jp,kp,:)
+            carm = carm + x(ip,jp,km,:)
+            coeff = 0.25
+          endif
+
+          dr(:,3) = coeff*(carp-carm)/dh(3)
+cc        endif
+
+      end function find_dr_1st
+
+c     find_dr_2nd
+c     #####################################################################
+      function find_dr_2nd(g_def,i,j,k,igrid,x) result(dr)
+
+c     ---------------------------------------------------------------------
+c     This routine finds dx/d_xi tensor at the point (i,j,k)
+c     from the position vector x. 
+c     ---------------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        type(grid_mg_def),pointer :: g_def
+
+        integer :: i,j,k,igrid
+        real(8) :: dr(3,3),x(0:,0:,0:,:)
+
+c     Local variables
+
+        integer :: ip,im,i0,jp,jm,j0,kp,km,k0,ig,jg,kg
+     .            ,igp,igm,jgp,jgm,kgp,kgm,nx,ny,nz
+
+        real(8) :: carp(3),carm(3),car0(3),coeff
+
+c     Begin program
+
+        nx = g_def%nxv(igrid)
+        ny = g_def%nyv(igrid)
+        nz = g_def%nzv(igrid)
+
+        !X
+        i0 = min(max(i,1),nx)
+        ip = i0+1
+        im = i0-1
+
+        call getMGmap(g_def,i0,j,k,igrid,igrid,igrid,ig,jg,kg)
+
+        igp = ig+1
+        igm = ig-1
+
+        carp = x(ip,j,k,:)
+        car0 = x(i0,j,k,:)
+        carm = x(im,j,k,:)
+
+        dr(:,1) = dr_dxi(g_def%xx(igm),carm
+     .                  ,g_def%xx(ig ),car0
+     .                  ,g_def%xx(igp),carp
+     .                  ,i-i0)
+
+        !Y
+        j0 = min(max(j,1),ny)
+        jp = j0+1
+        jm = j0-1
+
+        call getMGmap(g_def,i,j0,k,igrid,igrid,igrid,ig,jg,kg)
+
+        jgp = jg+1
+        jgm = jg-1
+
+        carp = x(i,jp,k,:)
+        car0 = x(i,j0,k,:)
+        carm = x(i,jm,k,:)
+
+        dr(:,2) = dr_dxi(g_def%yy(jgm),carm
+     .                  ,g_def%yy(jg ),car0
+     .                  ,g_def%yy(jgp),carp
+     .                  ,j-j0)
+
+        !Z
+        k0 = min(max(k,1),nz)
+        kp = k0+1
+        km = k0-1
+
+        call getMGmap(g_def,i,j,k0,igrid,igrid,igrid,ig,jg,kg)
+
+        kgp = kg+1
+        kgm = kg-1
+
+        carp = x(i,j,kp,:)
+        car0 = x(i,j,k0,:)
+        carm = x(i,j,km,:)
+
+        dr(:,3) = dr_dxi(g_def%zz(kgm),carm
+     .                  ,g_def%zz(kg ),car0
+     .                  ,g_def%zz(kgp),carp
+     .                  ,k-k0)
+
+      contains
+
+c     dr_dxi
+c     #################################################################
+      function dr_dxi(xm,rm,x0,r0,xp,rp,pos) result(dr)
+
+        implicit none
+
+        integer :: pos
+        real(8) :: xm,x0,xp,rm(3),r0(3),rp(3),dr(3)
+
+        real(8) :: dx1,dx2
+
+c     Begin program
+
+        dx1=x0-xm
+        dx2=xp-x0
+
+        select case(pos)
+        case(-1)  !Left boundary
+          dr = (-rp* dx1/(dx2*(dx1+dx2))
+     .          +r0*(1d0/dx1+1d0/dx2)
+     .          -rm*(1d0/dx1+1d0/(dx1+dx2)))
+        case(1)  !Right boundary
+          dr = ( rm* dx2/(dx1*(dx1+dx2))
+     .          -r0*(1d0/dx1+1d0/dx2)
+     .          +rp*(1d0/dx2+1d0/(dx1+dx2)))
+        case(0)
+          dr = ( rp* dx1/(dx2*(dx1+dx2))
+     .          +r0*(1d0/dx1-1d0/dx2)
+     .          -rm* dx2/(dx1*(dx1+dx2)))
+        case default
+          write (*,*) 'Error in dr_dxi'
+          stop
+        end select
+
+      end function dr_dxi
+
+      end function find_dr_2nd
+
+c     find_dr_4th
+c     #####################################################################
+      function find_dr_4th(g_def,i,j,k,igrid,x) result(dr)
+
+c     ---------------------------------------------------------------------
+c     This routine finds dx/d_xi tensor at the point (i,j,k)
+c     from the position vector x. 
+c     ---------------------------------------------------------------------
+
+        use oned_int
       
+        implicit none
+
+c     Call variables
+
+        type(grid_mg_def),pointer :: g_def
+
+        integer :: i,j,k,igrid
+        real(8) :: dr(3,3),x(0:,0:,0:,:)
+
+c     Local variables
+
+        integer :: ipp,ip,i0,im,imm
+     .            ,jpp,jp,j0,jm,jmm
+     .            ,kpp,kp,k0,km,kmm
+     .            ,igpp,igp,ig0,igm,igmm
+     .            ,jgpp,jgp,jg0,jgm,jgmm
+     .            ,kgpp,kgp,kg0,kgm,kgmm
+     .            ,ig,jg,kg,nx,ny,nz
+
+        real(8) :: carpp(3),carp(3),car0(3),carm(3),carmm(3),coeff
+
+c     Begin program
+
+        nx = g_def%nxv(igrid)
+        ny = g_def%nyv(igrid)
+        nz = g_def%nzv(igrid)
+
+        call getMGmap(g_def,i,j,k,igrid,igrid,igrid,ig,jg,kg)
+
+c     Exceptions
+
+        !X
+        if (nx > 3) then
+          
+          i0 = min(max(i,2),nx-1)
+          ipp = i0+2
+          ip  = i0+1
+          im  = i0-1
+          imm = i0-2
+
+          call getMGmap(g_def,i0,j,k,igrid,igrid,igrid,ig0,jg,kg)
+
+          igpp = ig0+2
+          igp  = ig0+1
+          igm  = ig0-1
+          igmm = ig0-2
+
+          carpp = x(ipp,j,k,:)
+          carp  = x(ip ,j,k,:)
+          car0  = x(i0 ,j,k,:)
+          carm  = x(im ,j,k,:)
+          carmm = x(imm,j,k,:)
+        
+          dr(:,1) = quartic_interp(g_def%xx(igmm),carmm
+     .                            ,g_def%xx(igm ),carm
+     .                            ,g_def%xx(ig0 ),car0
+     .                            ,g_def%xx(igp ),carp
+     .                            ,g_def%xx(igpp),carpp
+     .                            ,g_def%xx(ig),1)
+
+        else
+          i0 = min(max(i,1),nx)
+          ip = i0+1
+          im = i0-1
+
+          call getMGmap(g_def,i0,j,k,igrid,igrid,igrid,ig0,jg,kg)
+
+          igp = ig0+1
+          igm = ig0-1
+
+          carp = x(ip,j,k,:)
+          car0 = x(i0,j,k,:)
+          carm = x(im,j,k,:)
+
+          dr(:,1) = dr_dxi(g_def%xx(igm),carm
+     .                    ,g_def%xx(ig0),car0
+     .                    ,g_def%xx(igp),carp
+     .                    ,i-i0)
+        endif
+          
+        !Y
+        if (ny > 3) then
+          j0 = min(max(j,2),ny-1)
+          jpp = j0+2
+          jp  = j0+1
+          jm  = j0-1
+          jmm = j0-2
+
+          call getMGmap(g_def,i,j0,k,igrid,igrid,igrid,ig,jg0,kg)
+
+          jgpp = jg0+2
+          jgp  = jg0+1
+          jgm  = jg0-1
+          jgmm = jg0-2
+
+          carpp = x(i,jpp,k,:)
+          carp  = x(i,jp ,k,:)
+          car0  = x(i,j0 ,k,:)
+          carm  = x(i,jm ,k,:)
+          carmm = x(i,jmm,k,:)
+        
+          dr(:,2) = quartic_interp(g_def%yy(jgmm),carmm
+     .                            ,g_def%yy(jgm ),carm
+     .                            ,g_def%yy(jg0 ),car0
+     .                            ,g_def%yy(jgp ),carp
+     .                            ,g_def%yy(jgpp),carpp
+     .                            ,g_def%yy(jg),1)
+
+        else
+          j0 = min(max(j,1),ny)
+          jp = j0+1
+          jm = j0-1
+
+          call getMGmap(g_def,i,j0,k,igrid,igrid,igrid,ig,jg0,kg)
+
+          jgp = jg0+1
+          jgm = jg0-1
+
+          carp = x(i,jp,k,:)
+          car0 = x(i,j0,k,:)
+          carm = x(i,jm,k,:)
+
+          dr(:,2) = dr_dxi(g_def%yy(jgm),carm
+     .                    ,g_def%yy(jg0),car0
+     .                    ,g_def%yy(jgp),carp
+     .                    ,j-j0)
+        endif
+        
+        !Z
+        if (nz > 3) then
+          k0 = min(max(k,2),nz-1)
+          kpp = k0+2
+          kp  = k0+1
+          km  = k0-1
+          kmm = k0-2
+
+          call getMGmap(g_def,i,j,k0,igrid,igrid,igrid,ig,jg,kg0)
+
+          kgpp = kg0+2
+          kgp  = kg0+1
+          kgm  = kg0-1
+          kgmm = kg0-2
+
+          carpp = x(i,j,kpp,:)
+          carp  = x(i,j,kp ,:)
+          car0  = x(i,j,k0 ,:)
+          carm  = x(i,j,km ,:)
+          carmm = x(i,j,kmm,:)
+        
+          dr(:,2) = quartic_interp(g_def%zz(kgmm),carmm
+     .                            ,g_def%zz(kgm ),carm
+     .                            ,g_def%zz(kg0 ),car0
+     .                            ,g_def%zz(kgp ),carp
+     .                            ,g_def%zz(kgpp),carpp
+     .                            ,g_def%zz(kg),1)
+        else
+          k0 = min(max(k,1),nz)
+          kp = k0+1
+          km = k0-1
+
+          call getMGmap(g_def,i,j,k0,igrid,igrid,igrid,ig,jg,kg0)
+
+          kgp = kg0+1
+          kgm = kg0-1
+
+          carp = x(i,j,kp,:)
+          car0 = x(i,j,k0,:)
+          carm = x(i,j,km,:)
+
+          dr(:,3) = dr_dxi(g_def%zz(kgm),carm
+     .                    ,g_def%zz(kg0),car0
+     .                    ,g_def%zz(kgp),carp
+     .                    ,k-k0)
+        endif
+        
+      contains
+
+c     dr_dxi
+c     #################################################################
+      function dr_dxi(xm,rm,x0,r0,xp,rp,pos) result(dr)
+
+        implicit none
+
+        integer :: pos
+        real(8) :: xm,x0,xp,rm(3),r0(3),rp(3),dr(3)
+
+        real(8) :: dx1,dx2
+
+c     Begin program
+
+        dx1=x0-xm
+        dx2=xp-x0
+
+        select case(pos)
+        case(-1)  !Left boundary
+          dr = (-rp* dx1/(dx2*(dx1+dx2))
+     .          +r0*(1d0/dx1+1d0/dx2)
+     .          -rm*(1d0/dx1+1d0/(dx1+dx2)))
+        case(1)  !Right boundary
+          dr = ( rm* dx2/(dx1*(dx1+dx2))
+     .          -r0*(1d0/dx1+1d0/dx2)
+     .          +rp*(1d0/dx2+1d0/(dx1+dx2)))
+        case(0)
+          dr = ( rp* dx1/(dx2*(dx1+dx2))
+     .          +r0*(1d0/dx1-1d0/dx2)
+     .          -rm* dx2/(dx1*(dx1+dx2)))
+        case default
+          write (*,*) 'Error in dr_dxi'
+          stop
+        end select
+
+      end function dr_dxi
+
+      end function find_dr_4th
+
       end module grid_metric_init

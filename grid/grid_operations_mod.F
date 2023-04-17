@@ -380,9 +380,29 @@ cc        private :: transformFromCurvToCurv
 cc     .             transformVectorToCartesian
 cc     .            ,transformVectorToCurvilinear
 
-        logical :: no_map=.false.
+        logical,private :: no_map=.false.
 
       contains
+
+c     have_map
+c     #################################################################
+      function have_map()
+
+      logical :: have_map
+
+      have_map = .not.no_map
+      
+      end function have_map
+
+c     set_map
+c     #################################################################
+      subroutine set_map(is_map)
+
+      logical :: is_map
+
+      no_map = .not.is_map
+      
+      end subroutine set_map
 
 c     getMGmap
 c     #################################################################
@@ -1585,7 +1605,7 @@ c     Input variables
 
         type(grid_mg_def),pointer :: g_def
 
-        integer    :: i,j,k,igrid,he,hex,hey,hez
+        integer    :: i,j,k,igrid,he
         real(8)    :: cov(3),cnv(3)
 
 c     Local variables
@@ -1759,41 +1779,41 @@ c     Begin program
           enddo
         enddo
         
-        if (isSP2(g_def,1,igrid)) then
-          mm = 1
-          if (coords=='hel') mm = nint(g_def%params(1))
-          jlog = g_def%jlo(igrid)
-
-          !Order of interpolation
-          oint = 3
-          !Vertex positions
-          call getMGmap(g_def,1,1,1,igrid,igrid,igrid,ig,jg,kg)
-          xx(1:oint+1) = 0.5*(g_def%xx(ig  :ig+oint+1)
-     .                       +g_def%xx(ig+1:ig+oint+2))
-
-          do k=0,nz
-            !Compute extrapolation at r=0
-            do j=0,ny
-              call IntDriver1d(oint+1,xx(1:oint+1),cov(1:oint+1,j,k,1),1
-     .                        ,(/0d0/),cov0(j:j,1),oint)
-              call IntDriver1d(oint+1,xx(1:oint+1),cov(1:oint+1,j,k,2),1
-     .                        ,(/0d0/),cov0(j:j,2),oint)
-              call IntDriver1d(oint+1,xx(1:oint+1),cov(1:oint+1,j,k,3),1
-     .                        ,(/0d0/),cov0(j:j,3),oint)
-            enddo
-c$$$            !Assign value
-c$$$            cov(0,:,k,:) = cov0(:,:)
-            !Average extrapolation at r=0 across rays
-            do j=0,ny
-              jglobal = j + jlog - 1
-              jj = mod(jglobal+mm*ny/2,ny)
-              if (jj == 0) jj = ny
-              cov(0,j,k,1) = 0.5*(cov0(j,1)-cov0(jj,1)) !Average r+ and r- to origin
-              cov(0,j,k,2) = 0.5*(cov0(j,2)+cov0(jj,2)) !Average r+ and r- to origin
-              cov(0,j,k,3) = 0.5*(cov0(j,3)+cov0(jj,3)) !Average r+ and r- to origin
-            enddo
-          enddo
-        endif
+c$$$        if (isSP2(g_def,1,igrid)) then
+c$$$          mm = 1
+c$$$          if (coords=='hel') mm = nint(g_def%params(1))
+c$$$          jlog = g_def%jlo(igrid)
+c$$$
+c$$$          !Order of interpolation
+c$$$          oint = 3
+c$$$          !Vertex positions
+c$$$          call getMGmap(g_def,1,1,1,igrid,igrid,igrid,ig,jg,kg)
+c$$$          xx(1:oint+1) = 0.5*(g_def%xx(ig  :ig+oint+1)
+c$$$     .                       +g_def%xx(ig+1:ig+oint+2))
+c$$$
+c$$$          do k=0,nz
+c$$$            !Compute extrapolation at r=0
+c$$$            do j=0,ny
+c$$$              call IntDriver1d(oint+1,xx(1:oint+1),cov(1:oint+1,j,k,1),1
+c$$$     .                        ,(/0d0/),cov0(j:j,1),oint)
+c$$$              call IntDriver1d(oint+1,xx(1:oint+1),cov(1:oint+1,j,k,2),1
+c$$$     .                        ,(/0d0/),cov0(j:j,2),oint)
+c$$$              call IntDriver1d(oint+1,xx(1:oint+1),cov(1:oint+1,j,k,3),1
+c$$$     .                        ,(/0d0/),cov0(j:j,3),oint)
+c$$$            enddo
+c$$$c$$$            !Assign value
+c$$$c$$$            cov(0,:,k,:) = cov0(:,:)
+c$$$            !Average extrapolation at r=0 across rays
+c$$$            do j=0,ny
+c$$$              jglobal = j + jlog - 1
+c$$$              jj = mod(jglobal+mm*ny/2,ny)
+c$$$              if (jj == 0) jj = ny
+c$$$              cov(0,j,k,1) = 0.5*(cov0(j,1)-cov0(jj,1)) !Average r+ and r- to origin
+c$$$              cov(0,j,k,2) = 0.5*(cov0(j,2)+cov0(jj,2)) !Average r+ and r- to origin
+c$$$              cov(0,j,k,3) = 0.5*(cov0(j,3)+cov0(jj,3)) !Average r+ and r- to origin
+c$$$            enddo
+c$$$          enddo
+c$$$        endif
 
 c diag ****
 c$$$        write (*,*)
@@ -1829,7 +1849,7 @@ c$$$     .            ,1,110)
 c$$$        close(110)
 c diag ****
 
-        end function XformToCov_vrtx_mesh
+      end function XformToCov_vrtx_mesh
 
 c     vectorNorm_ijk
 c     ################################################################
@@ -2628,6 +2648,8 @@ c     Begin program
         nyl = size(car,2)-2
         nzl = size(car,3)-2
 
+        curv = 0d0
+        
         do k = 0,nzl
           do j = 0,nyl
             do i = 0,nxl

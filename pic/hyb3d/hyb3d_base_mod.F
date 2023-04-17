@@ -36,7 +36,7 @@ c ######################################################################
       type(species),allocatable,dimension(:) :: spcs
 
       integer,parameter :: Imass=1,Imom=2,Ien=3,Icmx=4,Icmy=5,Icmz=6
-      real(8) :: m_np(_Dim+3),m_n(_Dim+3),PoynFlux,cm_ex(3)
+      real(8) :: m_np(_Dim+5),m_n(_Dim+5),PoynFlux,cm_ex(3)
 
       integer :: nip=0                   !Number of inactive particles
 
@@ -1613,7 +1613,11 @@ c module pic_map
 c ######################################################################
       module pic_map
 
-      use spline_field
+      use math
+
+      use grid_operations
+
+      use grid_splines
 
       use pic_shape_f
 
@@ -1623,7 +1627,7 @@ c ######################################################################
       real(8),pointer,dimension(:,:,:,:) :: map_g
       integer,private :: nxl,nyl,nzl,nnl,nxg,nyg,nzg,nng
       real(8),private :: ihx,ihy,ihz,h_x,h_y,h_z
-      logical,private ::   global_splines=.false.
+      logical,private :: global_splines=.false.
       logical,protected :: no_map=.true.
 
       real(8),private :: x_min,x_max,y_min,y_max,z_min,z_max
@@ -3433,12 +3437,16 @@ c ######################################################################
 
       use pic_map
 
-      use grid, ONLY: find_local,setbc,setmgbc ! No setmgbc_stg.
+      use grid, ONLY: find_local,setbc,setmgbc,setmgbc_stg ! stg for DPIC mass consv. diag.
 
       use variables, ONLY: gv
 
       !Moments
       integer,parameter:: Ins=0,Ipx=1,Ipy=2,Ipz=3,IS11=4,IS22=5,IS33=6
+#if defined(HYB_MASS_DIAG)
+      integer,parameter:: InDPIC=7,IpxDPIC=8,IpyDPIC=9,IpzDPIC=10
+#endif
+
       integer,private :: order_moms=1
 
       integer,pointer,dimension(:,:) :: mom_bcs
@@ -3470,11 +3478,17 @@ c     Begin program
       nyl = ny; nyg = nyd;
       nzl = nz; nzg = nzd;
 
+#if defined(HYB_MASS_DIAG)
+      allocate(moms  (0:nx +1,0:ny +1,0:nz +1,n_sp,0:10)) !0=>n,1=>px,2=>py,3=>pz,4=>vx*vx,5=>vy*vy,6=>vz*vz
+      allocate(momsn (0:nx +1,0:ny +1,0:nz +1,n_sp,0:10)) !7=>n,8=>px,9=>py,10=>pz using DPIC definitions
+      allocate(moms_g(0:nxd+1,0:nyd+1,0:nzd+1,n_sp,0:10))
+      allocate(mom_bcs(6,0:10))
+#else
       allocate(moms  (0:nx +1,0:ny +1,0:nz +1,n_sp,0:6)) !0=>n,1=>px,2=>py,3=>pz,4=>vx*vx,5=>vy*vy,6=>vz*vz
       allocate(momsn (0:nx +1,0:ny +1,0:nz +1,n_sp,0:6))
       allocate(moms_g(0:nxd+1,0:nyd+1,0:nzd+1,n_sp,0:6))
-
       allocate(mom_bcs(6,0:6))
+#endif
 
       moms = 0d0
       momsn= 0d0
@@ -3535,6 +3549,13 @@ c     Begin program
       mom_bcs(:,Ipy) = bc_vy
       mom_bcs(:,Ipz) = bc_vz
 
+#if defined(HYB_MASS_DIAG)
+      mom_bcs(:,InDPIC)  = bc_rho
+      mom_bcs(:,IpxDPIC) = bc_vx
+      mom_bcs(:,IpyDPIC) = bc_vy
+      mom_bcs(:,IpzDPIC) = bc_vz
+#endif
+
 c     End program
 
       end subroutine defineBCs_moms
@@ -3587,7 +3608,17 @@ c     Local variables
      $          ,garr_vx2(0:nxg+1,0:nyg+1,0:nzg+1)
      $          ,garr_vy2(0:nxg+1,0:nyg+1,0:nzg+1)
      $          ,garr_vz2(0:nxg+1,0:nyg+1,0:nzg+1)
+#if defined(HYB_MASS_DIAG)
+     $          ,garr_nDPIC (0:nxg+1,0:nyg+1,0:nzg+1)
+     $          ,garr_vxDPIC(0:nxg+1,0:nyg+1,0:nzg+1)
+     $          ,garr_vyDPIC(0:nxg+1,0:nyg+1,0:nzg+1)
+     $          ,garr_vzDPIC(0:nxg+1,0:nyg+1,0:nzg+1)
 
+      real(_prec) :: Mx1(2,1,1),My1(1,2,1),Mz1(1,1,2)
+      real(_prec) :: Myz2(3,3),Mzx2(3,3),Mxy2(3,3)
+      real(_prec) :: dumA(3,1), dumB(1,3), dumC(1,3)
+
+#endif
       real(_prec) :: Mx2(3,1,1),My2(1,3,1),Mz2(1,1,3)
       real(_prec) :: M_w_prod(3,3,3)
 
@@ -3615,13 +3646,26 @@ c     Begin program
         garr_vy2= 0d0
         garr_vz2= 0d0
 
+#if defined(HYB_MASS_DIAG)
+        garr_nDPIC  = 0d0
+        garr_vxDPIC = 0d0
+        garr_vyDPIC = 0d0
+        garr_vzDPIC = 0d0
+#endif
+
 !     note that there is some issue with valgrind and libgomp.
-!$omp parallel DEFAULT(SHARED) private(ip,xp,yp,zp,i_np,j_np,k_np,vcurv,i
-!$omp.                                ,Mx2,My2,Mz2,M_w_prod,v2,w_pcle)
+!$omp parallel DEFAULT(SHARED) private(ip,xp,yp,zp,i_np,j_np,k_np,vcurv,
+#if defined(HYB_MASS_DIAG)
+!$omp.                                 Mx1,My1,Mz1,Myz2,Mzx2,Mxy2,
+#endif
+!$omp.                                 i,Mx2,My2,Mz2,M_w_prod,v2,w_pcle)
 !$      call set_omp_thread_id()
 !$omp DO 
 !$omp.reduction(+:garr_n,garr_vx,garr_vy,garr_vz
 !$omp.           ,garr_vx2,garr_vy2,garr_vz2
+#if defined(HYB_MASS_DIAG)
+!$omp.           ,garr_nDPIC,garr_vxDPIC,garr_vyDPIC,garr_vzDPIC
+#endif
 !$omp.         ) 
         do ip=nip+1,numpcles
 
@@ -3637,9 +3681,9 @@ c     Begin program
           if (no_map) then
              vcurv = spcs(isp)%pcles(ip)%v_np
           else
-             call pstop('gather_3d_moments', 'No curvilinear yet')
-!             vcurv = find_vcurv(i_np,j_np,k_np,spcs(isp)%pcles(ip)%x_n
-!     .                                   ,spcs(isp)%pcles(ip)%v_n)
+!             call pstop('gather_3d_moments', 'No curvilinear yet')
+             vcurv = find_vcurv(i_np,j_np,k_np,spcs(isp)%pcles(ip)%x_n
+     .                                   ,spcs(isp)%pcles(ip)%v_n)
           endif
 
           do i=1,_Npg
@@ -3647,6 +3691,22 @@ c     Begin program
              My2(1,:,1) = shape2_offset_scalar(yp(i))
              Mz2(1,1,:) = shape2_offset_scalar(zp(i))
              M_w_prod(:,:,:) = opt_vecvecvec_3(Mx2,My2,Mz2)
+
+#if defined(HYB_MASS_DIAG)
+            Mx1(:,1,1) = shape1_offset_scalar(xp(i))
+            My1(1,:,1) = shape1_offset_scalar(yp(i))
+            Mz1(1,1,:) = shape1_offset_scalar(zp(i))
+            Mxy2(:,:) = opt_vecvec_3(Mx2(:,:,1),My2(:,:,1))
+
+            dumA(:,1) = My2(1,:,1)
+            dumB(1,:) = Mz2(1,1,:)
+            Myz2(:,:) = opt_vecvec_3(dumA,dumB)
+
+            dumA(:,1) = Mz2(1,1,:)
+            dumB(1,:) = Mx2(:,1,1)
+            Mzx2(:,:) = opt_vecvec_3(dumA,dumB)
+#endif
+
 
              garr_n(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)+1
      .             ,k_np(i)-1:k_np(i)+1) = 
@@ -3690,6 +3750,36 @@ c     Begin program
      .       garr_vz2(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)+1
      .            ,k_np(i)-1:k_np(i)+1) + v2*(M_w_prod*w_pcle(i))
 
+
+#if defined(HYB_MASS_DIAG)
+             garr_nDPIC(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)+1
+     .            ,k_np(i)-1:k_np(i)+1) =
+     .       garr_nDPIC(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)+1
+     .            ,k_np(i)-1:k_np(i)+1)
+     .            + M_w_prod*w_pcle(i)
+
+             !accumulate vx (linear in x, 2nd in y, 2nd in z)
+             garr_vxDPIC(i_np(i)-1:i_np(i),j_np(i)-1:j_np(i)+1
+     .              ,k_np(i)-1:k_np(i)+1) =
+     .       garr_vxDPIC(i_np(i)-1:i_np(i),j_np(i)-1:j_np(i)+1
+     .              ,k_np(i)-1:k_np(i)+1) +
+     .            vcurv(i,1)*opt_omatvec_233(Myz2,Mx1)*w_pcle(i)
+
+             !accumulate vy (2nd in x, linear in y, 2nd in z)
+             garr_vyDPIC(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)
+     .            ,k_np(i)-1:k_np(i)+1) =
+     .       garr_vyDPIC(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)
+     .            ,k_np(i)-1:k_np(i)+1) +
+     .            vcurv(i,2)*opt_omatvec_323(Mzx2,My1)*w_pcle(i)
+
+             !accumulate vz (2nd in x, 2nd in y, linear in z)
+             garr_vzDPIC(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)+1
+     .            ,k_np(i)-1:k_np(i)) =
+     .       garr_vzDPIC(i_np(i)-1:i_np(i)+1,j_np(i)-1:j_np(i)+1
+     .            ,k_np(i)-1:k_np(i)) +
+     .            vcurv(i,3)*opt_omatvec_332(Mxy2,Mz1)*w_pcle(i)
+#endif
+
           end do
         enddo
 !$omp end do 
@@ -3703,6 +3793,13 @@ c     Begin program
         mments(:,:,:,isp,Ipy ) = garr_vy
         mments(:,:,:,isp,Ipz ) = garr_vz
         mments(:,:,:,isp,Ins ) = garr_n
+
+#if defined(HYB_MASS_DIAG)
+        mments(:,:,:,isp,InDPIC ) = garr_n
+        mments(:,:,:,isp,IpxDPIC) = garr_vxDPIC
+        mments(:,:,:,isp,IpyDPIC) = garr_vyDPIC
+        mments(:,:,:,isp,IpzDPIC) = garr_vzDPIC
+#endif
 
       enddo
 
@@ -3840,6 +3937,29 @@ c     Begin program
         enddo
       enddo
 
+
+#if defined(HYB_MASS_DIAG)
+      icomp=35 ! Adam: Check this.
+      !Densities
+      do isp = 1,n_sp
+        call setBC(gv%gparams,icomp,nx,ny,nz
+     .          ,moms(:,:,:,isp,InDPIC)
+     .          ,dummy
+     .          ,mom_bcs(:,InDPIC)
+     .          ,igrid,igrid,igrid,iorder=order_moms)
+      enddo
+
+      !Momenta
+      do isp = 1,n_sp
+        call setMGBC_stg(gv%gparams,0,3,nx,ny,nz,igrid
+     $              ,moms(:,:,:,isp,IpxDPIC:IpzDPIC)
+     $              ,mom_bcs(:,IpxDPIC:IpzDPIC)
+     .              ,is_cnv=.true.,icomp=(/icomp+1/)
+     .              ,iorder=order_moms)
+      enddo
+#endif
+
+
       deallocate(dummy)
 
       end subroutine applyBC_moms
@@ -3867,7 +3987,7 @@ c     Define current
 
       rho(:,:,:) = 0d0
       do isp = 1,n_sp
-        rho = rho + spcs(isp)%m*moms(:,:,:,isp,Ins)*idlvol
+        rho = rho + spcs(isp)%q*moms(:,:,:,isp,Ins)*idlvol
       enddo
 
       end subroutine find_rho_from_pcles
@@ -3896,14 +4016,79 @@ c     Define current
       pcnv = 0d0
       do isp = 1,n_sp
         pcnv(:,:,:,1) = pcnv(:,:,:,1)
-     .                + spcs(isp)%m*moms(:,:,:,isp,Ipx)*idlvol
+     .                + spcs(isp)%q*moms(:,:,:,isp,Ipx)*idlvol
         pcnv(:,:,:,2) = pcnv(:,:,:,2)
-     .                + spcs(isp)%m*moms(:,:,:,isp,Ipy)*idlvol
+     .                + spcs(isp)%q*moms(:,:,:,isp,Ipy)*idlvol
         pcnv(:,:,:,3) = pcnv(:,:,:,3)
-     .                + spcs(isp)%m*moms(:,:,:,isp,Ipz)*idlvol
+     .                + spcs(isp)%q*moms(:,:,:,isp,Ipz)*idlvol
       enddo
 
       end subroutine find_P_from_pcles
+
+c     find_rho_from_pcles_DPIC
+c     ##################################################################
+      subroutine find_rho_from_pcles_DPIC(rho)
+
+      implicit none
+
+c     Call variables
+
+      real(8) :: rho(0:,0:,0:)
+
+c     Local variables
+
+      integer :: isp
+      real(8) :: rho0,ihx,ihy,ihz
+
+c     Define current
+
+      call get_inverse_h(ihx,ihy,ihz)
+
+      idlvol = ihx*ihy*ihz
+
+      rho(:,:,:) = 0d0
+#if defined(HYB_MASS_DIAG)
+      do isp = 1,n_sp
+        rho = rho + spcs(isp)%m*moms(:,:,:,isp,InDPIC)*idlvol
+      enddo
+#endif
+
+      end subroutine find_rho_from_pcles_DPIC
+
+c     find_P_from_pcles_DPIC
+c     ############################################################
+      subroutine find_P_from_pcles_DPIC(pcnv)
+
+      implicit none
+
+c     Call variables
+
+      real(8) :: pcnv(0:,0:,0:,:)
+
+c     Local variables
+
+      integer :: isp
+      real(8) :: ihx,ihy,ihz
+
+c     Define current
+
+      call get_inverse_h(ihx,ihy,ihz)
+
+      idlvol = ihx*ihy*ihz
+
+      pcnv = 0d0
+#if defined(HYB_MASS_DIAG)
+      do isp = 1,n_sp
+        pcnv(:,:,:,1) = pcnv(:,:,:,1)
+     .                + spcs(isp)%m*moms(:,:,:,isp,IpxDPIC)*idlvol
+        pcnv(:,:,:,2) = pcnv(:,:,:,2)
+     .                + spcs(isp)%m*moms(:,:,:,isp,IpyDPIC)*idlvol
+        pcnv(:,:,:,3) = pcnv(:,:,:,3)
+     .                + spcs(isp)%m*moms(:,:,:,isp,IpzDPIC)*idlvol
+      enddo
+#endif
+
+      end subroutine find_P_from_pcles_DPIC
 
       end module hybrid_moments
 
@@ -4788,9 +4973,7 @@ c ######################################################################
 
       use pic_mass_matrix
 
-cc      use pic_io
-
-      use grid, ONLY: npx,npy,npz,gparams
+      use grid, ONLY: npx,npy,npz,gparams,np
 #if defined(petsc)
      .               ,add_profile_stage
 #endif
@@ -4844,11 +5027,13 @@ cc      use pic_io
      .          ,v0_x (nsp_max)=0d0        !Drift velocity
      .          ,v0_y (nsp_max)=0d0        !Drift velocity
      .          ,v0_z (nsp_max)=0d0        !Drift velocity
+     .          ,theta=0d0                 !Angle B forms with x-axis, for rotated anisotropic distributions
 
       real(8) :: nsubstep(nsp_max)=1       !for fixed number of substeps
      .          ,eps_omg=0d0               !Perturbation frequency 
      .          ,eps_pic=0d0               !Perturbation of particle positions
- 
+     .          ,eps_v  =0d0               !Perturbation in velocity
+
       logical :: phase_space_plot =.false. !Whether to plot phase space or not
      .          ,quiet_start      =.false. !For using quiet start 
      .          ,eps_prop         =.false. !Perturbation propagate
@@ -4879,9 +5064,9 @@ c     Local variables
 
 c     Namelists
 
-      namelist /picdef/ npcles,v0_x,v0_y,v0_z,v_thx,v_thy,v_thz
+      namelist /picdef/ npcles,v0_x,v0_y,v0_z,v_thx,v_thy,v_thz,theta
      .     ,n_sp,omega_p,q_m,min_pcles,npcles_cell
-     .     ,quiet_start,nsubstep,eps_prop,eps_omg,eps_pic
+     .     ,quiet_start,nsubstep,eps_prop,eps_omg,eps_pic,eps_v
      .     ,n_b,i_b,r_b,nip,vinject,C_bkgrnd
      .     ,phase_space_plot,mass_matrix_solve,particle_sort
 
@@ -5106,9 +5291,10 @@ c     Find PIC physical quantities
      $        ,Jpz(0:nxg+1,0:nyg+1,0:nzg+1,n_sp)
      $        ,Jpx(0:nxg+1,0:nyg+1,0:nzg+1,n_sp))
 
-      do isp=1,n_sp
-        Jns(:,:,:,isp)  = moms_g(:,:,:,isp,Ins)*jac(:,:,:)
-      enddo
+!      do isp=1,n_sp
+!        Jns(:,:,:,isp)  = moms_g(:,:,:,isp,Ins)*jac(:,:,:)
+!      enddo
+      Jns = moms_g(:,:,:,:,Ins) !ADAM: PIX3D has moms=J*n already.
       Jpz = moms_g(:,:,:,:,IPz)
       Jpx = moms_g(:,:,:,:,IPx)
 
@@ -5219,7 +5405,9 @@ c     ##################################################################
 
       use iso_c_binding, only: c_int, c_double
       use F_call_C
-
+      
+      use hammersley_seq
+      
       implicit none
 c     ------------------------------------------------------------------
 c     Load particles in phase space
@@ -5241,6 +5429,7 @@ c     Local variables
      $          ,rx (_Npg),ry (_Npg),rz (_Npg)
      .          ,xp(_Npg),yp(_Npg),zp(_Npg),dxp,vx2,vt2
      .          ,signx,signy,signz,pp,pr,betaj
+      real(8) :: vpar(_Npg),vperp(_Npg)
       real(8) :: v_tot(1:n_sp+n_b,_Dim)
       integer, save :: seed
       real(8) :: vt(3), v0(3)
@@ -5271,10 +5460,14 @@ c     Begin program
      .              ,"Slow shock quiet start not implemented")
         case('kaw_ii')
 #include "problem_init/kawiiLoadPartls_qs.f"
-        case('landau','2strm','iaw','langdon')
+        case('landau','2strm','langdon') ! took out 'iaw'
 #include "problem_init/UniformLoadPartls_qs.f"
+        case('aniso')
+#include "problem_init/AnisoLoadPartls_qs.f"
         case default  
 #include "problem_init/DefaultLoadPartls_qs.f"
+
+
         end select
 
       else                      !quiet_start
@@ -5286,7 +5479,7 @@ c     Begin program
 #include "problem_init/slowShockLoadPartls.f"
         case('kaw_ii')   
 #include "problem_init/kawiiLoadPartls.f"
-        case('landau','2strm','iaw','langdon')
+        case('landau','2strm','iaw','langdon')! took out 'iaw'.
 #include "problem_init/UniformLoadPartls.f"
         case default
 #include "problem_init/DefaultLoadPartls.f"
@@ -5298,7 +5491,7 @@ c     Begin program
 
       contains
 
-      include 'problem_init/qsRandn.f'
+cc      include 'problem_init/qsRandn.f'
 
 c     compute_pcle_spat_dist
 c     ##################################################################
@@ -5486,6 +5679,7 @@ C    perturb particles after matching given equilibrium
       select case(trim(test))
       case('ic','tm')
 !#include "problem_init/icPerturb.f"
+      case('dtm','dgem')
       case('slow_shock')
 !#include "problem_init/slowShockPerturb.f"
       case('kaw_ii')
@@ -5499,19 +5693,20 @@ c$$$     .                          ,(/nh1,nh2,0/)
 c$$$     .                          ,(/0d0,0d0,0d0/)
 c$$$     .                          ,(/0d0,0d0,eps_pic/))
 c$$$        end if
-      case('weibel','wbl_bc','bpnch')
+      case('weibel','wbl_bc','aniso','bpnch')
         if(quiet_start) then
+           print*,'eps_v=',eps_v
             call perturb_pcle_xv(1
      .                          ,(/nh1,nh2,0/)
-     .                          ,(/0d0,0d0,0d0/)
+     .                          ,(/0d0,0d0,eps_v/)
      .                          ,(/0d0,0d0,eps_pic/),delta_fun=.true.)
         end if
-      case('2strm','iaw','landau','langdon')
+      case('2strm','iaw','iash','msw','landau','langdon','whsl2')
         do isp=1,n_sp
           call perturb_pcle_xv(isp
      .                        ,(/nh1,nh2,0/)
      .                        ,(/eps_pic,0d0,0d0/)
-     .                        ,(/0d0,0d0,0d0/))
+     .                        ,(/eps_v,0d0,0d0/),delta_fun=.false.)!(/0d0,0d0,eps_v/))
         enddo
       case default
         print *, "test is not set correctly in the input, "
@@ -5572,6 +5767,11 @@ c     Begin program
 
       k0 = 2d0*pi*dble(mode)/(/Lx,Ly,Lz/)
 
+      if (my_rank == 0) then
+        print*,'delta=',delta
+        print*,'eps_vel=',eps_vel
+      endif
+
       do ip=1,numpcles
 
         call xform_pcle_idx(spcs(isp)%pcles(ip)%ijk_n,nxg,nyg
@@ -5595,18 +5795,29 @@ c     Begin program
      .                                  + dx(j,:)
 
            if(delta) then
-             if (i_np(j)==nxg/2+1.and.j_np(j)==nyg/2+1) then
+             if (i_np(j)==nxg/2+1) then!.and.j_np(j)==nyg/2+1) then
                spcs(isp)%pcles(ip)%v_n(j,:)
      .              = spcs(isp)%pcles(ip)%v_n(j,:) + eps_vel(:)
                spcs(isp)%pcles(ip)%v_np(j,:)
      .              = spcs(isp)%pcles(ip)%v_n(j,:)
              endif
            else
-             where (kxp /= 0d0) 
-               dv(j,:) = eps_vel*cos(kxp)
-             elsewhere
-               dv(j,:) = 0d0
-             end where
+!             where (kxp(1) /= 0d0)
+              select case(trim(test))
+              case('whsl2')
+               dv(j,2) = -eps_vel(1)*cos(kxp(1))
+               dv(j,3) = eps_vel(1)*sin(kxp(1))
+
+              case default
+               dv(j,:) = eps_vel*sin(kxp(1))!eps_vel*cos(kxp)
+              end select
+
+ !            elsewhere
+ !              dv(j,:) = 0d0
+ !            end where
+
+ !            print*,'kxp=',kxp
+ !            print*,'dv=',dv
 
              spcs(isp)%pcles(ip)%v_n(j,:)
      .            = spcs(isp)%pcles(ip)%v_n(j,:) + dv(j,:)

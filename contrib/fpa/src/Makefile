@@ -67,10 +67,10 @@ $(SUBDIRS):
 	$(MAKE) -e -C $@ target
 
 clean: ;
-	-@rm -f *.o *.mod *.a
+	-@rm -f *.o *.mod *.a || true
 
 distclean: clean
-	-@rm $(LIB_PATH)/*.a $(LIB_PATH)/*.mod $(LIB_PATH)/*.MOD 2>/dev/null
+	-@rm $(LIB_PATH)/*.a $(LIB_PATH)/*.mod $(LIB_PATH)/*.MOD 2>/dev/null || true
 	-@for subdir in $(SUBDIRS) ; do \
 		$(MAKE) -C $$subdir clean;  done
 

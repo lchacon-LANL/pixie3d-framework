@@ -38,7 +38,7 @@ c     -----------------------------------------------------------------
      .                      ,OPN=10  !Open boundary conditions
      .                      ,SYNC=11 !Parallel sync
 
-        integer,parameter :: BCLIM=7 !Defines # of BC cases (excludes DEF,SYM,FSYM,OPN)
+        integer,parameter :: BCLIM=7 !Defines # of BC cases (excludes SYNC,SYM,FSYM,OPN)
      .                      ,BCTOT=10!Total number of BC defs
 
         logical :: asm_dir(3)=.false.,asm=.false.
@@ -341,17 +341,18 @@ c ######################################################################
 
         use bc_def
 
-        implicit none
-
 #if defined(petsc)
 
-#include "finclude/petsc.h"
-#include "finclude/petscvec.h"
-#include "finclude/petscda.h"
-#include "finclude/petscvec.h90"
+        use mpi
+
+#include <petsc/finclude/petscvec.h>
+        use Petscvec
+        
+#include <petsc/finclude/petscdmda.h>
+        use Petscdmda
 
         type :: petsc_da_ctx
-          DA         :: da
+          DM         :: da
           Vec        :: Xg
           integer    :: xs,xe,xm,gxs,gxe,gxm
           integer    :: ys,ye,ym,gys,gye,gym
@@ -389,46 +390,40 @@ c     Call variables
 
 c     Local variables
 
-        integer :: BC,ierr,mpierr,i,ix,iy,iz,neighbors(27)
-
+        integer :: BC1,BC2,BC3,ierr,mpierr,i,ix,iy,iz,neighbors(27)
+        
 c     Begin program
 
-        if     (bcond(1)==PER.and.bcond(3)==PER.and.bcond(5)==PER) then
-          BC = DA_XYZPERIODIC
-        elseif (bcond(1)==PER.and.bcond(3)==PER.and.bcond(5)/=PER) then
-          BC = DA_XYPERIODIC
-        elseif (bcond(1)==PER.and.bcond(3)/=PER.and.bcond(5)==PER) then
-          BC = DA_XZPERIODIC
-        elseif (bcond(1)/=PER.and.bcond(3)==PER.and.bcond(5)==PER) then
-          BC = DA_YZPERIODIC
-        elseif (bcond(1)==PER.and.bcond(3)/=PER.and.bcond(5)/=PER) then
-          BC = DA_XPERIODIC
-        elseif (bcond(1)/=PER.and.bcond(3)==PER.and.bcond(5)/=PER) then
-          BC = DA_YPERIODIC
-        elseif (bcond(1)/=PER.and.bcond(3)/=PER.and.bcond(5)==PER) then
-          BC = DA_ZPERIODIC
-        elseif (bcond(1)/=PER.and.bcond(3)/=PER.and.bcond(5)/=PER) then
-          BC = DA_NONPERIODIC
+c$$$        if (dactx%mx == 0) dactx%mx = PETSC_DECIDE
+c$$$        if (dactx%my == 0) dactx%my = PETSC_DECIDE
+c$$$        if (dactx%mz == 0) dactx%mz = PETSC_DECIDE
+        if (dactx%mx == 0 .or. dactx%my == 0 .or. dactx%mz == 0) then
+          STOP "Unspecified proc. alloc. in createPETScFortranDA"
         endif
+          
+        !Serial periodic BCs no longer done by PETSc
+        BC1 = DM_BOUNDARY_NONE
+        if (bcond(1)==PER.and.dactx%mx > 1) BC1 = DM_BOUNDARY_PERIODIC
+        BC2 = DM_BOUNDARY_NONE
+        if (bcond(3)==PER.and.dactx%my > 1) BC2 = DM_BOUNDARY_PERIODIC
+        BC3 = DM_BOUNDARY_NONE
+        if (bcond(5)==PER.and.dactx%mz > 1) BC3 = DM_BOUNDARY_PERIODIC
 
-        if (dactx%mx == 0) dactx%mx = PETSC_DECIDE
-        if (dactx%my == 0) dactx%my = PETSC_DECIDE
-        if (dactx%mz == 0) dactx%mz = PETSC_DECIDE
+        call DMDACreate3d(dactx%MPI_COMM_DA,BC1,BC2,BC3,DMDA_STENCIL_BOX
+     $                   ,dactx%nxgl,dactx%nygl,dactx%nzgl
+     &                   ,dactx%mx,dactx%my,dactx%mz,1,1
+     &                   ,PETSC_NULL_INTEGER,PETSC_NULL_INTEGER
+     &                   ,PETSC_NULL_INTEGER,dactx%da,ierr)
+        call DMSetUp(dactx%da,ierr)
 
-        call DACreate3d(dactx%MPI_COMM_DA,BC,DA_STENCIL_BOX
-     $                 ,dactx%nxgl,dactx%nygl,dactx%nzgl
-     &                 ,dactx%mx,dactx%my,dactx%mz,1,1
-     &                 ,PETSC_NULL_INTEGER,PETSC_NULL_INTEGER
-     &                 ,PETSC_NULL_INTEGER,dactx%da,ierr)
-
-        call DACreateGlobalVector(dactx%da,dactx%Xg,ierr)
+        call DMCreateGlobalVector(dactx%da,dactx%Xg,ierr)
 
 c       Get local grid boundaries in global grid
 
-        call DAGetCorners(dactx%da
+        call DMDAGetCorners(dactx%da
      .         ,dactx%xs,dactx%ys,dactx%zs
      .         ,dactx%xm,dactx%ym,dactx%zm,ierr)
-        call DAGetGhostCorners(dactx%da
+        call DMDAGetGhostCorners(dactx%da
      .         ,dactx%gxs,dactx%gys,dactx%gzs
      .         ,dactx%gxm,dactx%gym,dactx%gzm,ierr)
 
@@ -482,21 +477,31 @@ c     Store MPI info
         call MPI_Comm_rank(dactx%MPI_COMM_DA,dactx%rank,mpierr)
         call MPI_Comm_size(dactx%MPI_COMM_DA,dactx%np  ,mpierr)
 
-        !Processor topology
-        call DAGetNeighbors(dactx,neighbors,mpierr)
+        call DMDAGetNeighbors(dactx%da,neighbors,mpierr)
 
-        do i=1,27
-          iz = (i-1)/9
-          iy = (i-1 - 9*iz)/3
-          ix = i-1 - iy*3 - iz*9
-          dactx%proc_neighbors(ix-1,iy-1,iz-1)=neighbors(i)
-        enddo
+        where (neighbors < 0) neighbors = MPI_PROC_NULL
+        
+        dactx%proc_neighbors = reshape(neighbors,(/3,3,3/))
 
-c$$$        if (dactx%rank == 0) then
-c$$$          write (*,*) dactx%proc_neighbors( 0  , 1,0)
-c$$$          write (*,*) dactx%proc_neighbors(-1:1, 0,0)
-c$$$          write (*,*) dactx%proc_neighbors( 0  ,-1,0)
-c$$$        endif
+        !Make "self" a fake neighbor in serial directions
+        if (bcond(1)==PER.and.dactx%mx == 1) then
+          dactx%proc_neighbors(-1,0,0) = dactx%proc_neighbors(0,0,0)
+          dactx%proc_neighbors( 1,0,0) = dactx%proc_neighbors(0,0,0)
+        endif
+        if (bcond(3)==PER.and.dactx%my == 1) then
+          dactx%proc_neighbors(0,-1,0) = dactx%proc_neighbors(0,0,0)
+          dactx%proc_neighbors(0, 1,0) = dactx%proc_neighbors(0,0,0)
+        endif
+        if (bcond(5)==PER.and.dactx%mz == 1) then
+          dactx%proc_neighbors(0,0,-1) = dactx%proc_neighbors(0,0,0)
+          dactx%proc_neighbors(0,0, 1) = dactx%proc_neighbors(0,0,0)
+        endif
+
+c$$$        write (*,*) dactx%rank,MPI_PROC_NULL
+c$$$        write (*,*) dactx%rank,neighbors
+c$$$        write (*,*) dactx%rank,dactx%proc_neighbors( 0  , 1,0)
+c$$$        write (*,*) dactx%rank,dactx%proc_neighbors(-1:1, 0,0)
+c$$$        write (*,*) dactx%rank,dactx%proc_neighbors( 0  ,-1,0)
 c$$$        stop
 
 c     End program
@@ -524,7 +529,7 @@ c     Local variables
 c     Begin program
 
         call VecDestroy(dactx%Xg,ierr)
-        call DADestroy (dactx%da,ierr)
+        call DMDestroy (dactx%da,ierr)
 
 c     End program
 

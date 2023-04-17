@@ -111,14 +111,16 @@ c     Local variables
         real(8) :: xx,yy,zz,jac_mat(3,3),rhs(3),dx(3),rr,rr0,dd
      .            ,aa,bb,major_r,mm,kk,eps,phi,gp(ngparams)
      .            ,xlog(3),period1,period2
-        real(8) :: xmax,ymax,zmax,xmin,ymin,zmin
-     .            ,kappa,delta,zeta,cs,sn,Z0
+        real(8) :: xmax,ymax,zmax,xmin,ymin,zmin,shftR,shftZ
+     .            ,kappa,delta,zeta,cs,sn,Z0,kappa_sp
 ! Daniele, 11/07/2017. Local variables needed for shaped toroidal coordinates
         integer :: i
         real(8) :: ai(10),bi(10)
 ! Daniele, 11/08/2017. Local variables needed for stellarator (helias) coordinates
         real(8) :: nn,uu,vv,d10,d0,d20,d1m1,d2m1,d2m2,rc,zc
 
+c$$$        logical,save :: dump=.true.
+        
 c     Begin program
 
         xmin = gl_def%gxmin
@@ -236,9 +238,9 @@ c$$$          enddo
 
         case ('sh3')
 ! Shaped toroidal coordinates system from X. Z. Tang
-! x = (R0 + r*a*cos(theta+asin(delta*sin(theta))))*cos(-phi)
-! y = (R0 + r*a*cos(theta+asin(delta*sin(theta))))*sin(-phi)
-! z =  Z0 + r*kappa*sin(theta + zeta*sin(2*theta))
+! x = (R0 + r*a*(cos(theta+asin(delta*r**2*sin(theta)))-dR))*cos(-phi)
+! y = (R0 + r*a*(cos(theta+asin(delta*r**2*sin(theta)))-dR))*sin(-phi)
+! z =  Z0 + r*kappa*(sin(theta + zeta*r**2*sin(2*theta))-dZ)
 
           major_r = gp(1)  !R-coord of magnetic axis (major radius)
           Z0      = gp(2)  !Z-coord of magnetic axis
@@ -246,25 +248,49 @@ c$$$          enddo
           kappa   = gp(4)  !Elongation
           delta   = gp(5)  !Triangularity
           zeta    = gp(6)  !Squareness
+          kappa_sp= gp(7)  !Elongation at magnetic axis
+          shftR   = gp(8)  !Origin shift in R
+          shftZ   = gp(9)  !Origin shift in Z
 
-          bb = aa*kappa
+          if (kappa_sp > 0d0) then
+            bb = aa*((1d0-xlog(1))*kappa_sp + xlog(1)*kappa)
+          else
+            bb = aa*kappa
+          endif
           
-          cs = cos(xlog(2)+asin(delta*xlog(1)**2*sin(xlog(2))))
-          sn = sin(xlog(2)+zeta*xlog(1)**2*sin(2*xlog(2)))
+          !Scale shift to account for ellipticity and to decay with r->0
+          shftR = shftR*xlog(1)/aa
+          shftZ = shftZ*xlog(1)/bb
+          
+          cs = cos(xlog(2)+asin(delta*xlog(1)**2*sin(xlog(2))))-shftR
+          sn = sin(xlog(2)+zeta*xlog(1)**2*sin(2*xlog(2)))     -shftZ
           
           car(1)=(major_r + aa*xlog(1)*cs)*cos(-xlog(3))
           car(2)=(major_r + aa*xlog(1)*cs)*sin(-xlog(3))
           car(3)= Z0      + bb*xlog(1)*sn
 
+c$$$          if (dump) then
+c$$$            dump = .false.
+c$$$            write (*,*) gp
+c$$$            write (*,*) "EFITdiag"
+c$$$            do i=1,100
+c$$$              xlog(2) = 2*pi/100*i
+c$$$              bb = aa*kappa
+c$$$              cs = cos(xlog(2)+asin(delta*sin(xlog(2))))-gp(8)/aa
+c$$$              sn = sin(xlog(2)+zeta*sin(2*xlog(2)))     -gp(9)/bb
+c$$$              write (*,*) "EFITdiag",(major_r + aa*cs),Z0+bb*sn
+c$$$            enddo
+c$$$          endif
+c$$$          stop
         case ('tsq')            !Square torus
-          major_r = gp(1)  !Major radius
-          aa      = gp(2)  !Horizontal dimension
-          bb      = gp(3)  !Vertical   dimension
+          rc = gp(1)  !Domain center R-coord
+          zc = gp(2)  !Domain center Z-coord
+          aa = gp(3)  !Horizontal thickness
+          bb = gp(4)  !Vertical   thickness
 
-          car(1) = (major_r + aa*(xlog(1)-0.5))*cos(-xlog(3))
-          car(2) = (major_r + aa*(xlog(1)-0.5))*sin(-xlog(3))
-          car(3) =            bb*(xlog(2)-0.5)
-
+          car(1) = (rc + aa*(xlog(1)-0.5))*cos(-xlog(3))
+          car(2) = (rc + aa*(xlog(1)-0.5))*sin(-xlog(3))
+          car(3) =  zc + bb*(xlog(2)-0.5)
         case ('sin')
           eps = gp(1)
 
@@ -352,7 +378,7 @@ c$$$          enddo
 
 c     xi_x_sp
 c     #################################################################
-      function xi_x_sp(g_def,x,y,z,ghost_cell,polar) result(xlog)
+      subroutine xi_x_sp(g_def,xlog,xcar,ghost_cell,polar)
 
 c     -----------------------------------------------------------------
 c     Find inverse map xi(x) around SP.
@@ -362,7 +388,7 @@ c     -----------------------------------------------------------------
 
 c     Input variables
 
-      real(8) :: x,y,z,xlog(3)
+      real(8) :: xcar(3),xlog(3)
       logical :: ghost_cell,polar
 
       type(grid_mg_def),pointer :: g_def
@@ -370,7 +396,7 @@ c     Input variables
 c     Local variables
 
       integer :: ig,jg,kg
-      real(8) :: x1,x2,x3,gp(ngparams),mm,kk,aa,bb,R0,R2,dR2,rr,th,zz
+      real(8) :: x,y,z,gp(ngparams),mm,kk,aa,bb,R0,R1,R2,dR2,rr,th,zz
      .          ,Jac,rhs,da,db,Z2,dZ2,iaa,ibb,da_a,db_b,rold,Rs,gc_cf
      .          ,phi
 
@@ -381,6 +407,8 @@ c     Begin program
 
       gc_cf = 1d0
       if (ghost_cell) gc_cf = -1d0
+
+      x = xcar(1) ; y = xcar(2) ; z = xcar(3)
       
 c     Find radius and angle
 
@@ -388,13 +416,13 @@ c     Find radius and angle
       case('hel')
 
         if (polar) then
-          rr = gc_cf*sqrt(x**2+y**2)
+          rr = gc_cf*sqrt(x*x+y*y)
           th = atan2(y,x)
           if (rr < 0d0) th = th + pi
           zz = z
           th = mod(th+2*pi,2*pi) !Ensure angle is in [0,2pi]
         else
-          rr = gc_cf*sqrt(x**2+y**2)
+          rr = gc_cf*sqrt(x*x+y*y)
           phi = atan2(y,x)      !Physical angle
           if (rr < 0d0) phi = phi + pi
           mm = g_def%params(1)  !Poloidal mode number
@@ -406,7 +434,7 @@ c     Find radius and angle
         
       case('cyl')
 
-        rr = gc_cf*sqrt(x**2+y**2)
+        rr = gc_cf*sqrt(x*x+y*y)
         th = atan2(y,x)
         if (rr < 0d0) th = th + pi
         zz = z
@@ -418,15 +446,12 @@ c     Find radius and angle
         aa = g_def%params(2) !Horizontal radius
         bb = g_def%params(3) !Vertical   radius
 
-        R2 = ((sqrt(x*x+y*y)-R0)/aa) ; R2 = R2*R2          !In-plane radius
+        R1 = (sqrt(x*x+y*y)-R0)/aa          !In-plane radius
         
-        rr = gc_cf*sqrt(R2+z*z/(bb*bb))          !Poloidal radius
-        zz =-atan2(y,x)                          !Toroidal angle
+        rr = gc_cf*sqrt(R1*R1+z*z/(bb*bb))  !Poloidal radius
+        zz =-atan2(y,x)                     !Toroidal angle
 
-        th = cos(zz)
-        th = atan2(aa*z*th,bb*(x-R0*th)) !Poloidal angle
-cc        th = atan2(z/bb,sqrt(R2))                !Poloidal angle
-cc        th = asin(z/bb/rr)                       !Poloidal angle
+        th = atan2(z/bb,R1)                 !Poloidal angle
         
         if (rr < 0d0) th = th + pi
 
@@ -449,7 +474,7 @@ cc        th = asin(z/bb/rr)                       !Poloidal angle
         enddo
 
         !Poloidal angle
-        th = x2           !Don't expect packing in poloidal angle, so we can trust logical coord
+        th = xlog(2)      !Don't expect packing in poloidal angle, so we can trust logical coord
         
         !Toroidal angle
         zz =-atan2(y,x)   !Or x3, for same reason
@@ -463,9 +488,9 @@ cc        th = asin(z/bb/rr)                       !Poloidal angle
         aa = aa/cos(th)
         bb = bb/sin(th)
         
-        R2 = ((sqrt(x*x+y*y)-R0)/aa)**2          !In-plane radius
+        R1 = ((sqrt(x*x+y*y)-R0)/aa)          !In-plane radius
         
-        rr = gc_cf*sqrt(R2+z*z/(bb*bb))
+        rr = gc_cf*sqrt(R1*R1+z*z/(bb*bb))
         
         if (rr < 0d0) th = th + pi
 
@@ -487,7 +512,7 @@ cc        th = asin(z/bb/rr)                       !Poloidal angle
         enddo
 
         !Poloidal angle
-        th = x2           !Don't expect packing in poloidal angle, so we can trust logical coord
+        th = xlog(2)           !Don't expect packing in poloidal angle, so we can trust logical coord
         
         !Toroidal angle
         zz =-atan2(y,x)   !Or x3, for same reason
@@ -582,7 +607,7 @@ c     Find logical coords from (rr,th,zz) by inverting packing map (if appropria
         xlog = (/ rr, th, zz /)
       endif
 
-      end function xi_x_sp
+      end subroutine xi_x_sp
 
 c     find_polar_coords
 c     ########################################################################
@@ -609,21 +634,19 @@ c     Call variables
 c     Local variables
 
       integer :: ig,jg,kg
-      real(8) :: x1,x2,x3,x,y,z,xlog(3)
-
-      integer :: m,n
-      real(8) :: ai(10),bi(10)
+      real(8) :: xlog(3),xcar(3)
 
 c     Begin program
 
       call getCurvilinearCoordinates(g_def,i,j,k
      .                              ,igrid,igrid,igrid
-     .                              ,ig,jg,kg,x1,x2,x3)
+     .                              ,ig,jg,kg,xlog(1),xlog(2),xlog(3))
+
       call getCartesianCoordinates(g_def,i,j,k
      .                            ,igrid,igrid,igrid
-     .                            ,ig,jg,kg,x,y,z)
+     .                            ,ig,jg,kg,xcar(1),xcar(2),xcar(3))
 
-      xlog = xi_x_sp(g_def,x,y,z,(x1<0d0),.true.)
+      call xi_x_sp(g_def,xlog,xcar,(xlog(1)<0d0),.true.)
 
       rr = xlog(1)
       th = xlog(2)

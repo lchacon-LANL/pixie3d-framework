@@ -2,7 +2,7 @@ c module grid_mpi
 c ######################################################################
       module grid_mpi
 
-        use io, ONLY: FATAL,sstop
+        use io, ONLY: FATAL,app_exit
 
         use grid_operations
 
@@ -13,10 +13,6 @@ c ######################################################################
 #endif
 
         implicit none
-
-c$$$        INTERFACE dot
-c$$$          module procedure dot1,dot2,dot3
-c$$$        END INTERFACE
 
         INTERFACE find_global
           module procedure find_global_field_vec,find_global_field_scl
@@ -31,19 +27,25 @@ c$$$        END INTERFACE
           module procedure find_local_field_vec,find_local_field_scl
         END INTERFACE
 
+        INTERFACE psum
+          module procedure psum,ipsum,ipsum8
+        END INTERFACE
+
+        INTERFACE pmax
+          module procedure pmax,ipmax
+        END INTERFACE
+        
         integer :: mpierr
 
 #if defined(petsc)
 
-#include "finclude/petscdef.h"
-#include "finclude/petscvecdef.h"
-#include "finclude/petscdadef.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscdmda.h"
 
         integer    :: np=1
      .               ,my_rank=0
      .               ,group_world
      .               ,group_sp,tag=0,dest=0,root=0
-cc     .               ,status(MPI_STATUS_SIZE)
      .               ,tag_send,tag_recv,request
 
         integer    :: l_lim(3,0:1)
@@ -51,38 +53,11 @@ cc     .               ,status(MPI_STATUS_SIZE)
      .               ,rem_l_lim(3,0:1)
      .               ,rp_l_lim(3,0:1)
 
-        character(80) :: messg
+        character(300) :: messg
 
         type(grid_mg_def),pointer,private :: g_mpi_def
 
       contains
-
-ccc     initFortranMPI
-ccc     #####################################################################
-cc      subroutine initFortranMPI(mpi_comm,nxg,nyg,nzg,mx,my,mz)
-cc
-ccc     ---------------------------------------------------------------------
-ccc     Initializes MPI variables.
-ccc     ---------------------------------------------------------------------
-cc
-cc        implicit none
-cc
-ccc     Call variables
-cc
-cc        integer,INTENT(IN) :: nxg,nyg,nzg,mpi_comm
-cc        integer,INTENT(OUT):: mx,my,mz
-cc
-ccc     Local variables
-cc
-ccc     Begin program
-cc
-cc        call initMPI(mpi_comm,np,my_rank)
-cc
-ccc     Allocate processors
-cc
-cc        call processorAlloc(nxg,nyg,nzg,mx,my,mz)
-cc
-cc      end subroutine initFortranMPI
 
 c     create_MPI_comms
 c     #################################################################
@@ -124,7 +99,8 @@ c     X MPI communicator (domains that share the same Y, Z  slices)
         call splitMPIComm(g_mpi_def%MPI_COMM_X,selectRank_X
      .                     ,MPI_COMM_ORIG=g_mpi_def%mpi_comm)
 
-        if (bcSP()) g_mpi_def%MPI_COMM_RAD = g_mpi_def%MPI_COMM_X
+        if (bcSP()) call MPI_COMM_dup(g_mpi_def%MPI_COMM_X
+     $                               ,g_mpi_def%MPI_COMM_RAD,mpierr) 
         if (chk_mpi_comm)
      .       call check_MPI_COMM(g_mpi_def%MPI_COMM_X,'MPI_COMM_X')
 
@@ -133,7 +109,8 @@ c     Y MPI communicator (domains that share same X, Z slices)
         call splitMPIComm(g_mpi_def%MPI_COMM_Y,selectRank_Y
      .                     ,MPI_COMM_ORIG=g_mpi_def%mpi_comm)
 
-        if (bcSP()) g_mpi_def%MPI_COMM_POL = g_mpi_def%MPI_COMM_Y
+        if (bcSP()) call MPI_COMM_dup(g_mpi_def%MPI_COMM_Y
+     $                               ,g_mpi_def%MPI_COMM_POL,mpierr) 
         if (chk_mpi_comm)
      .       call check_MPI_COMM(g_mpi_def%MPI_COMM_Y,'MPI_COMM_Y')
 
@@ -233,6 +210,86 @@ c     End program
 
       end subroutine check_MPI_COMM
 
+c     destroy_MPI_comms
+c     #################################################################
+      subroutine destroy_MPI_comms(g_def)
+
+c     -----------------------------------------------------------------
+c     Creates required MPI communicators
+c     -----------------------------------------------------------------
+
+        implicit none
+
+c     Call variables
+
+        type(grid_mg_def),pointer,INTENT(IN)  :: g_def
+
+c     Local variables
+
+        integer :: my_sp_rank,np_sp
+
+        logical :: chk_mpi_comm=.false.
+
+c     Begin program
+
+        g_mpi_def => g_def
+
+        if (g_mpi_def%mpi_comm == MPI_COMM_SELF) return
+
+        call MPI_COMM_free(g_mpi_def%mpi_comm,mpierr)
+
+        call MPI_COMM_free(g_mpi_def%mpi_comm_crse,mpierr)
+
+c     Singular-point boundary MPI communicator
+
+        if (bcSP()) then
+          call MPI_COMM_free(g_mpi_def%MPI_COMM_SP,mpierr)
+          call MPI_COMM_free(g_mpi_def%MPI_COMM_RAD,mpierr)
+          call MPI_COMM_free(g_mpi_def%MPI_COMM_POL,mpierr)
+        endif
+
+c     X MPI communicator (domains that share the same Y, Z  slices)
+
+        call MPI_COMM_free(g_mpi_def%MPI_COMM_X,mpierr)
+
+c     Y MPI communicator (domains that share same X, Z slices)
+
+        call MPI_COMM_free(g_mpi_def%MPI_COMM_Y,mpierr)
+
+c     Z MPI communicator (domains that share same X, Z slices)
+
+        call MPI_COMM_free(g_mpi_def%MPI_COMM_Z,mpierr)
+
+c     XY MPI communicator (domains that share same Z slices)
+
+        call MPI_COMM_free(g_mpi_def%MPI_COMM_XY,mpierr)
+
+c     XZ MPI communicator (domains that share same Y slices)
+
+        call MPI_COMM_free(g_mpi_def%MPI_COMM_XZ,mpierr)
+
+c     YZ MPI communicator (domains that share same X slices)
+
+        call MPI_COMM_free(g_mpi_def%MPI_COMM_YZ,mpierr)
+
+c     Periodic BCs communicators
+
+        if (bcond(1) == PER) then
+          call MPI_COMM_free(g_mpi_def%MPI_COMM_PER(1),mpierr)
+        endif
+        if (bcond(3) == PER) then
+          call MPI_COMM_free(g_mpi_def%MPI_COMM_PER(2),mpierr)
+        endif
+        if (bcond(5) == PER) then
+          call MPI_COMM_free(g_mpi_def%MPI_COMM_PER(3),mpierr)
+        endif
+
+        if (chk_mpi_comm) write(*,*) 'Finished destroying MPI comms'
+
+c     End program
+
+      end subroutine destroy_MPI_comms
+      
 c     fillPetscGhostCells
 c     #################################################################
       subroutine fillPetscGhostCells(dactx,array)
@@ -265,7 +322,7 @@ c     Begin program
 c     Fill known values of dactx%Xg
 
         !Get pointer to vector data
-        call DAGetLocalVector(dactx%da,localX,ierr)
+        call DMGetLocalVector(dactx%da,localX,ierr)
 cc        call fchkerrq(ierr,'DAGetLocalVector')
 
         call VecGetArrayF90  (localX,lx_v,ierr)
@@ -277,23 +334,22 @@ cc        call fchkerrq(ierr,'DAGetLocalVector')
         call VecRestoreArrayF90(localX,lx_v,ierr)
 
         !Insert values into global vector
-        call DALocalToGlobal(dactx%da,localX
+        call DMLocalToGlobal(dactx%da,localX
      .                      ,INSERT_VALUES,dactx%Xg
      $                      ,ierr)
-cc        call DARestoreLocalVector(dactx%da,localX,ierr)
+cc        call DMRestoreLocalVector(dactx%da,localX,ierr)
 
 c     Fill ghost cells
 
         !Get pointer to vector data w/ghost cells
-cc        call DAGetLocalVector    (dactx%da,localX,ierr)
-        call DAGlobalToLocalBegin(dactx%da,dactx%Xg
+cc        call DMGetLocalVector    (dactx%da,localX,ierr)
+        call DMGlobalToLocalBegin(dactx%da,dactx%Xg
      .                           ,INSERT_VALUES,localX
      $                           ,ierr)
 
-        call DAGlobalToLocalEnd  (dactx%da,dactx%Xg
+        call DMGlobalToLocalEnd  (dactx%da,dactx%Xg
      .                           ,INSERT_VALUES,localX
      $                           ,ierr)
-
 
         call VecGetArrayF90(localX,lx_v,ierr)
 
@@ -305,7 +361,7 @@ cc        call DAGetLocalVector    (dactx%da,localX,ierr)
 
 c     Deallocate memory
 
-        call DARestoreLocalVector(dactx%da,localX,ierr)
+        call DMRestoreLocalVector(dactx%da,localX,ierr)
 
 c     End program
 
@@ -1238,6 +1294,9 @@ c     Call variables
 
 c     Local variables
 
+        integer :: ierr
+        character(200) :: command
+
 c     Begin program
 
 #if defined(samrai)
@@ -1252,8 +1311,19 @@ c     Call SAMRAI's error handler
         call pstop_samrai(trim(routine),trim(message))
 #else
 c     Call local error handler
-        
-        call sstop(my_rank,routine,message)
+
+        if (my_rank == 0) then
+          write (*,*)
+          write (*,*) trim(message)
+          write (*,*) 'Program stopped at routine ',trim(routine)
+        endif
+
+#if defined(petsc)
+        call PetscFinalize(ierr)
+#endif
+
+        call app_exit(my_rank,FATAL)  !Fatal termination
+
 #endif
 
       end subroutine pstop
@@ -1299,6 +1369,126 @@ c     Begin program
 
       end function psum
 
+c     ipsum
+c     ###################################################################
+      function ipsum(vec1,mpi_comm)
+
+c     -------------------------------------------------------------------
+c     Performs parallel sum of elements of a 1d-array using communicator
+c     mpi_comm. On input:
+c       * vec1: vector
+c       * mpi_comm: MPI communicator
+c     -------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer,optional :: mpi_comm
+      integer :: vec1(:),ipsum
+
+c     Local variables
+
+      integer    :: mpic,lsum
+
+c     Begin program
+
+#if defined(petsc)
+      if (PRESENT(mpi_comm)) then
+        mpic = mpi_comm
+      else
+        mpic = MPI_COMM_WORLD
+      endif
+
+      lsum = sum(vec1)
+      call MPI_Allreduce(lsum,ipsum,1,MPI_INT
+     .                  ,MPI_SUM,mpic,mpierr)
+#else
+      ipsum = sum(vec1)
+#endif
+
+      end function ipsum
+
+c     ipsum8
+c     ###################################################################
+      function ipsum8(vec1,mpi_comm)
+
+c     -------------------------------------------------------------------
+c     Performs parallel sum of elements of a 1d-array using communicator
+c     mpi_comm. On input:
+c       * vec1: vector
+c       * mpi_comm: MPI communicator
+c     -------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer,optional :: mpi_comm
+      integer(8) :: vec1(:),ipsum8
+
+c     Local variables
+
+      integer :: mpic
+      integer(8) :: lsum
+
+c     Begin program
+
+#if defined(petsc)
+      if (PRESENT(mpi_comm)) then
+        mpic = mpi_comm
+      else
+        mpic = MPI_COMM_WORLD
+      endif
+
+      lsum = sum(vec1)
+      call MPI_Allreduce(lsum,ipsum8,1,MPI_INTEGER8
+     .                  ,MPI_SUM,mpic,mpierr)
+#else
+      ipsum8 = sum(vec1)
+#endif
+
+      end function ipsum8
+
+c     plor
+c     ###################################################################
+      function plor(val,mpi_comm)
+
+c     -------------------------------------------------------------------
+c     Performs parallel logical OR using communicator mpi_comm. On input:
+c       * val: logical variable
+c       * mpi_comm: MPI communicator
+c     -------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer,optional :: mpi_comm
+      logical :: val,plor
+
+c     Local variables
+
+      logical    :: lval
+      integer    :: mpic
+
+c     Begin program
+
+#if defined(petsc)
+      if (PRESENT(mpi_comm)) then
+        mpic = mpi_comm
+      else
+        mpic = MPI_COMM_WORLD
+      endif
+
+      lval = val
+      call MPI_Allreduce(lval,plor,1,MPI_LOGICAL,MPI_LOR,mpic,mpierr)
+#else
+      plor = val
+#endif
+
+      end function plor
+      
 c     dot
 c     ###################################################################
       function dot1(ntot,vec1,vec2) result(dot)
@@ -1496,6 +1686,41 @@ c     Begin program
 
       end function pmax
 
+c     ipmax
+c     ###################################################################
+      function ipmax(val,mpi_comm)
+
+c     -------------------------------------------------------------------
+c     Performs parallel maximum value.
+c     -------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: ipmax,val
+      integer,optional :: mpi_comm
+
+c     Local variables
+
+      integer :: mpicomm
+
+c     Begin program
+
+#if defined(petsc)
+      if (PRESENT(mpi_comm)) then
+        mpicomm = mpi_comm
+      else
+        mpicomm = MPI_COMM_WORLD
+      endif
+
+      call MPI_Allreduce(val,ipmax,1,MPI_INT,MPI_MAX,mpicomm,mpierr)
+#else
+      ipmax = val
+#endif
+
+      end function ipmax
+      
 c     pmin
 c     ###################################################################
       function pmin(val,mpi_comm)
@@ -1532,6 +1757,41 @@ c     Begin program
 
       end function pmin
 
+c     ipmin
+c     ###################################################################
+      function ipmin(val,mpi_comm)
+
+c     -------------------------------------------------------------------
+c     Performs parallel maximum value.
+c     -------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      integer :: ipmin,val
+      integer,optional :: mpi_comm
+
+c     Local variables
+
+      integer :: mpicomm
+
+c     Begin program
+
+#if defined(petsc)
+      if (PRESENT(mpi_comm)) then
+        mpicomm = mpi_comm
+      else
+        mpicomm = MPI_COMM_WORLD
+      endif
+
+      call MPI_Allreduce(val,ipmin,1,MPI_INT,MPI_MIN,mpicomm,mpierr)
+#else
+      ipmin = val
+#endif
+
+      end function ipmin
+      
 c     isProc
 c     #################################################################
       function isProc(proc_id)
@@ -2009,7 +2269,6 @@ c     Calculate array sizes
 
       lsize = dl(1)*dl(2)*dl(3)
 
-cc      gsize = dl(1)*npx*dl(2)*npy*dl(3)*npz
       gsize = dg(1)*dg(2)*dg(3)
 
       npxl = dg(1)/dl(1)
@@ -2311,7 +2570,7 @@ c     Begin program
         elseif (flg == 1) then
           unit = find_unit(12345)
           open(unit=unit,file=trim(file),form='unformatted'
-     .        ,access='append',status='old')
+     .        ,position='append',status='old')
         endif
       endif
         
@@ -2453,7 +2712,8 @@ c     Eliminate specified directions
           npx = max(npx,1) ; npy = max(npy,1) ; npz = max(npz,1)
           return
         else
-          messg = 'np /= npx*npy*npz ... Aborting'
+          messg = 'np='//trim(int2char(np))//' /= npx*npy*npz='
+     $           //trim(int2char(npx*npy*npz))//' ... Aborting'
           call pstop('processorAlloc',messg)
         endif
       endif

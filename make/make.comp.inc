@@ -3,7 +3,7 @@
 #Defaults
 
 FC  ?= gfortran
-OPT ?= O
+OPT ?= Oom
 PREPROC ?= -D
 
 # Flags for Absoft f90
@@ -46,7 +46,8 @@ ifeq ($(findstring lf95,$(FC)),lf95)
 endif
 
 # Flags for Intel ifort
-ifeq ($(findstring ifort,$(FC)),ifort)
+ifeq ($(findstring ifort,$(shell $(FC) 2>&1)),ifort)
+#  OPTIMIZATION ?= -O3 -g -qopenmp-simd  -align all -march=$(M_ARCH) -fma
   OPTIMIZATION ?= -O3 -g -ip -qopenmp-simd  -align all -march=$(M_ARCH) -fma
 #  DEBUG        = -g -check bounds -traceback
   DEBUG        = -g -check noarg_temp_created,bounds,format,pointers,stack -traceback -fpe0 #-warn interfaces
@@ -59,6 +60,7 @@ ifeq ($(findstring ifort,$(FC)),ifort)
   CPPFLAGS    += $(PREPROC)ifort
   FOPENMP      = -qopenmp 
   LABEL        = intel
+  LIBS         = -llapack -lblas
 endif
 
 # Flags for g95
@@ -76,7 +78,7 @@ ifeq ($(findstring g95,$(FC)),g95)
 endif
 
 # Flags for gfortran
-ifeq ($(findstring gfortran,$(FC)),gfortran)
+ifeq ($(findstring gfortran,$(shell $(FC) 2>&1)),gfortran)
   ifeq ($(ARCH),Darwin)
     OPTIMIZATION ?= -Wa,-q -Wa,-Wno-unused-command-line-argument -O3 -g -march=$(M_ARCH) -fopenmp-simd #-fopt-info -ffast-math 
   else
@@ -90,10 +92,28 @@ ifeq ($(findstring gfortran,$(FC)),gfortran)
   ADDMODFLAG   = -I
   VERBOSE      = -v
   CPPFLAGS    += $(PREPROC)gfortran
-  FFLAGS      += #$(STATIC)
+  FFLAGS      += -std=legacy #$(STATIC)
   FOPENMP      = -fopenmp
   LDFLAGS     += -lgfortran 
   LABEL        = gnu
+  LIBS         = -llapack -lblas
+endif
+
+# Flags for Cray fortran
+ifeq ($(findstring ftn,$(shell $(FC) 2>&1)),ftn)
+  OPTIMIZATION ?= -O3
+  DEBUG        = -g -h bounds -K trap=fp  #-finit-real=snan #-finit-local-zero #-ggdb3
+  PROFILE      = -O2 -g -h profile_generate
+  STATIC       = -static
+  MODFLAG      = -I
+  ADDMODFLAG   = -I
+  VERBOSE      = -v
+  CPPFLAGS    += $(PREPROC)crayftn
+  FFLAGS      += #-std=legacy #$(STATIC)
+  FOPENMP      = -h omp
+  LDFLAGS     += 
+  LABEL        = cray
+  LIBS         = #-llapack -lblas
 endif
 
 ifeq ($(findstring vtf77,$(FC)),vtf77)
@@ -149,4 +169,4 @@ ifneq (,$(findstring om,$(OPT)))
 FFLAGS += $(FOPENMP)
 endif
 
-export FFLAGS MODFLAG ADDMODFLAG LDFLAGS PREPROC OPT LABEL
+export FFLAGS MODFLAG ADDMODFLAG LDFLAGS PREPROC OPT LABEL CPPFLAGS

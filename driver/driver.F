@@ -25,6 +25,8 @@ c Common variables
 c Local variables
 
       integer :: ierr=0
+      logical :: finish_t_loop
+      character(200) :: command
       
 c Interfaces
 
@@ -69,18 +71,25 @@ c Initial output
       if (mk_grid) call MK_output
 #endif
 
+c Default exit code to irrecoverable error in case of system-related run failure later on
+
+      if (my_rank == 0) call push_exit_code(FATAL)
+
 c Time loop
+
+      finish_t_loop = TS_chk_end()
 
       do
 
-        if (TS_chk_end()) exit
+        if (finish_t_loop) exit
 
 c     Find new time step and update time counters
 
         call TS_correct_dt(ierr)
 
-c     Store old time solution
+c     Store old time solutions
 
+        call equateDerivedType(u_nm2,u_nm)
         call equateDerivedType(u_nm,u_n)
         call equateDerivedType(u_n ,u_np)
 
@@ -101,6 +110,7 @@ c     Check for error in time stepping
 
           call equateDerivedType(u_np,u_n )
           call equateDerivedType(u_n ,u_nm)
+          call equateDerivedType(u_nm,u_nm2)
 
           call TS_rollback_counters()
 
@@ -144,7 +154,9 @@ c     Output per time step
 
 c     Time level data dump
 
-        call TS_dump(u_np,dump_now=TS_chk_end())  !Force restart dump at end
+        finish_t_loop = TS_chk_end()
+        
+        call TS_dump(u_np,dump_now=finish_t_loop)  !Force restart dump at end
 
 c     Exit if eigenvalue computation
 
@@ -164,7 +176,7 @@ c End program
 
       call DR_destroy
 
-      call exit(EXIT_STATUS)
+      call app_exit(my_rank,EXIT_STATUS)
 
       end program
 

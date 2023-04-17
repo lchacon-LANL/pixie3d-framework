@@ -16,6 +16,6 @@ lib: $(OBJS)
 	ar -r liblsode.a *.o
 
 clean:
-	-@rm *.o *.a 2> /dev/null
+	-@rm *.o *.a 2> /dev/null || true
 
 distclean: clean

@@ -23,6 +23,7 @@ c #####################################################################
 #endif
         logical,private :: map_grid_pack=.false.
 
+        real(8),parameter :: LMIN_NEQ_ONE=1d-3
       contains
 
 c     createGrid
@@ -81,7 +82,7 @@ c     Legacy assignments (backward compatibility)
 
 c     destroyGrid
 c     #################################################################
-      subroutine destroyGrid(gdef)
+      recursive subroutine destroyGrid(gdef)
 
 c     -----------------------------------------------------------------
 c     Deallocates grid memory space
@@ -95,8 +96,22 @@ c     Call variables
 
 c     Local variables
 
-c     Begin program
+c     Begin program        
 
+        if (.not.associated(gdef)) return
+
+c     Deallocate coarser levels
+
+        call destroyGrid(gdef%g_crse_def)
+
+c     Deallocate MPI COMMs
+        
+#if defined(petsc)
+        call destroy_MPI_comms(gdef)
+#endif
+
+c     Deallocate grid structure
+        
         call deallocateGridStructure(gdef)
 
       end subroutine destroyGrid
@@ -425,7 +440,7 @@ c     Cycle through grid hierarchies
               write (*,*) ' >>> defineGridMetric error',ierr
               write (*,*) ' >>> Discarding leftover meshes due to jac<0'
             endif
-            call deallocateGridStructure(gf_def%g_crse_def)
+            call destroyGrid(gf_def%g_crse_def)
             exit                
           endif
 
@@ -954,8 +969,8 @@ cc        if (map_grid_pack) numerical_grid = .true.
         case ('s3d','hsn')
           numerical_grid = .true.
         case ('car')
-          no_map = .not.map_grid_pack
-          if (no_map) numerical_grid = .false.
+          call set_map(map_grid_pack)
+          if (.not.have_map()) numerical_grid = .false.
         case ('cyl','hel','hl2')
           if (xmin /= 0d0 .and. bcSP()) then
             write (*,*) 'Error in setup: xmin =/0 is not singular point'
@@ -987,9 +1002,9 @@ cc        if (map_grid_pack) numerical_grid = .true.
         !Ensure ignorable directions are small for numerical computation
         !  of grid parameters
         if (numerical_grid .and. coords /= 'car') then
-          if    ((nxx == 1 .and. ((xmax-xmin)>1d-3))
-     .       .or.(nyy == 1 .and. ((ymax-ymin)>1d-3))
-     .       .or.(nzz == 1 .and. ((zmax-zmin)>1d-3))) then
+          if    ((nxx == 1 .and. ((xmax-xmin)>LMIN_NEQ_ONE))
+     .       .or.(nyy == 1 .and. ((ymax-ymin)>LMIN_NEQ_ONE))
+     .       .or.(nzz == 1 .and. ((zmax-zmin)>LMIN_NEQ_ONE))) then
             write (*,*) nxx,nyy,nzz
             write (*,*) xmax,xmin,ymax,ymin,zmax,zmin
             call pstop('consistencyCheck'
@@ -1465,15 +1480,17 @@ c     -----------------------------------------------------------------
       implicit none
 
       integer    :: nx,ny,nz,i,j,k,l,m,n,igrid,ivar
-     .             ,nxg,nyg,nzg
+     .             ,nxg,nyg,nzg,ig,jg,kg
       real(8)    :: tensor(3,3,3),vec(3)
 
-      integer   ,parameter :: nvar=50
+      integer   ,parameter :: nvar=100
       character(30) :: descr(nvar),drawfile,debugfile
 
       logical :: dump_diff
 
       real(8),allocatable,dimension(:,:,:) :: dbl
+      real(8),pointer,dimension(:,:,:) :: jac
+      real(8),pointer,dimension(:,:,:,:,:) :: cov,cnv
 
 c     Begin program
 
@@ -1515,6 +1532,10 @@ cc      dump_diff = anal_map.and.numerical_grid.and.(.not.map_grid_pack)
 c     Dump quantities
 
       do igrid=1,gdef%ngrid
+
+        jac => gdef%gmetric%grid(igrid)%jac
+        cov => gdef%gmetric%grid(igrid)%cov
+        cnv => gdef%gmetric%grid(igrid)%cov
 
         nx = gdef%nxv(igrid)
         ny = gdef%nyv(igrid)
@@ -1627,6 +1648,33 @@ cc     .              *gdef%gmetric%grid(igrid)%jac_v(i,j,k)
             call dumpGlobalField(gdef,debugfile,nx,ny,nz,nxg,nyg,nzg,dbl
      .                          ,1)
           enddo
+        enddo
+
+        !Fundamental property: div(J.cov)=0
+        dbl = 0d0
+        do l=1,3
+          write(funit,*) '   Dumping div(J.cov)',l
+          ivar = ivar+1
+          descr(ivar)='div(J.cov('//trim(int2char(l))//'))'
+
+          if (k /= 0 .and. k /= nz+1) then
+            do j=1,ny
+              do i=1,nx
+                call getMGmap(gdef,i,j,k,igrid,igrid,igrid,ig,jg,kg)
+
+                dbl(i,j,1) =
+     .                (jac(i+1,j,k)*cov(i+1,j,k,1,l)
+     .                -jac(i-1,j,k)*cov(i-1,j,k,1,l))/(2*gdef%dxh(ig))
+     .               +(jac(i,j+1,k)*cov(i,j+1,k,2,l)
+     .                -jac(i,j-1,k)*cov(i,j-1,k,2,l))/(2*gdef%dyh(jg))
+     .               +(jac(i,j,k+1)*cov(i,j,k+1,3,l)
+     .                -jac(i,j,k-1)*cov(i,j,k-1,3,l))/(2*gdef%dzh(kg))
+              enddo
+            enddo
+          endif
+
+          call dumpGlobalField(gdef,debugfile,nx,ny,nz,nxg,nyg,nzg,dbl
+     $                      ,1)
         enddo
 
         !Cnv vectors
@@ -2096,7 +2144,7 @@ c             Check zero-force property: g^lk G^i_lk + nabla_m(g^mi) = 0
                 gsupp=jacp*gdef%gmetric%grid(igrid)%gsup(i+1,j,k,:,:)
                 gsupm=jacm*gdef%gmetric%grid(igrid)%gsup(i-1,j,k,:,:)
 
-               summ = summ +(gsupp(1,ii)-gsupm(1,ii))/dh/jac
+                summ = summ +(gsupp(1,ii)-gsupm(1,ii))/dh/jac
 
                 dh = 2*gdef%dyh(jg)
                 if (alt_eom) then

@@ -24,37 +24,50 @@ c ######################################################################
         real(8) :: tmrst = 0d0   !Dump time for restart
      .            ,quota = 1d30  !Max CPU time (in seconds)
      .            ,dtexp = 0d0   !Explicit time accumulator
-     .            ,exec_time=0d0 !Execution time (in seconds)
 
 #if !defined(samrai)
-
-cc        real(8),pointer,dimension(:,:) :: old_f
-
-c$$$#if !defined(petsc_c)
-c$$$        type(var_array),pointer :: dn,dnm,dnp
-c$$$        real(8) :: l_np,l_n,et1,et2
-c$$$
       contains
 
-c$$$c     findGuess
-c$$$c     ###############################################################
-c$$$      subroutine findGuess(vn,vnp)
+c     findGuess
+c     ###############################################################
+      subroutine findGuess(vnm,vn,vnp)
+
+c     ---------------------------------------------------------------
+c     Correct time step
+c     ---------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      type(var_array),pointer :: vnm,vn,vnp
+
+c     Local variables
+
+c$$$      real(8),pointer,dimension(:,:) :: old_f
 c$$$
-c$$$c     ---------------------------------------------------------------
-c$$$c     Correct time step
-c$$$c     ---------------------------------------------------------------
-c$$$
-c$$$      implicit none
-c$$$
-c$$$c     Call variables
-c$$$
-c$$$      type(var_array),pointer :: vn,vnp
-c$$$
-c$$$c     Local variables
-c$$$
-c$$$c     Begin program
-c$$$
-c$$$      if (itime <= 2) then
+c$$$      type(var_array),pointer :: dn,dnm,dnp
+c$$$      real(8) :: l_np,l_n,et1,et2
+
+#if defined(EXT_NEWT_GUESS)
+      INTERFACE
+        function app_newt_guess(vnm,vn,vnp)
+        use var_setup
+        type(var_array),pointer :: vnm,vn,vnp
+        end function app_newt_guess
+      END INTERFACE
+#endif
+
+c     Begin program
+
+#if defined(EXT_NEWT_GUESS)
+      call app_newt_guess(vnm,vn,vnp)
+#else
+#if !defined(NO_BDF2_XOLD)
+      call AXPYDerivedType(-cn/cnp,vn,-cnm/cnp,vnm,vnp)
+#endif
+ 
+c$$$      if (itime < 2) then
 c$$$        !Previous time step
 c$$$        vnp = vn
 c$$$cc      elseif (itime == 2) then
@@ -70,27 +83,28 @@ c$$$        et2 =-l_np*l_n**2*(1+l_np)/(1+l_n)
 c$$$        call AXPYDerivedType(et1,dn,et2,dnm,dnp) !Recursion relation
 c$$$        call AXPYDerivedType(1d0,vn,1d0,dnp,vnp) !vnp = vn + dnp
 c$$$      endif
+
+c$$$      write (*,*) itime,l_np,l_n,et1,et2
 c$$$
-c$$$cc      write (*,*) itime,l_np,l_n,et1,et2
-c$$$
-c$$$cc      if (itime <= 2) then
-c$$$cc        !Previous time step
-c$$$cc        vnp = vn
-c$$$cccc      elseif (itime == 2) then
-c$$$cccc        !FE predictor
-c$$$cccc        dn = dt*old_f(:,1)
-c$$$cccc        call AXPYDerivedType(1d0,vn,-1d0,dn,vnp)
-c$$$cc      else
-c$$$cc        !AB@ predictor
-c$$$cc        old_f(:,2) = 0.5*dt*(3*old_f(:,1)-old_f(:,2))
-c$$$cc        dn = old_f(:,2)
-c$$$cc        call AXPYDerivedType(1d0,vn,-1d0,dn,vnp) !vnp = vn - dt/2*(3*f_n - f_n-1)
-c$$$cc      endif
-c$$$
-c$$$c     End program
-c$$$
-c$$$      end subroutine findGuess
-c$$$
+c$$$      if (itime <= 2) then
+c$$$        !Previous time step
+c$$$        vnp = vn
+c$$$cc      elseif (itime == 2) then
+c$$$cc        !FE predictor
+c$$$cc        dn = dt*old_f(:,1)
+c$$$cc        call AXPYDerivedType(1d0,vn,-1d0,dn,vnp)
+c$$$      else
+c$$$        !AB@ predictor
+c$$$        old_f(:,2) = 0.5*dt*(3*old_f(:,1)-old_f(:,2))
+c$$$        dn = old_f(:,2)
+c$$$        call AXPYDerivedType(1d0,vn,-1d0,dn,vnp) !vnp = vn - dt/2*(3*f_n - f_n-1)
+c$$$      endif
+#endif
+
+c     End program
+
+      end subroutine findGuess
+
 c$$$c     storeTSinfo
 c$$$c     ###############################################################
 c$$$      subroutine storeTSinfo(vn,vnp)
@@ -189,16 +203,26 @@ c     Call variables
 
 c     Local variables
 
+      real(8) :: e_time
+      
 c     Begin program
+
+#if defined(petsc)
+      call PetscTime(prof_time(3),prof_err)
+      e_time = prof_time(3)-prof_time(1)
+cc      if (my_rank == 0) write (*,*) "Time counters",e_time, quota
+#else
+      e_time = 0d0
+#endif
 
       exit_tloop= (tmax/=0d0.and.time>=(tmax-1d-13*itime*dt).and.dt>0d0)
      .        .or.(              time<=(tmax-1d-13*itime*dt).and.dt<0d0)
      .        .or.(numtime.ge.0.and.itime+1.ge.(numtime+inewtime))
-     .        .or.(exec_time > quota)
+     .        .or.(e_time > quota)
 
-      if (exit_tloop .and. exec_time <= quota) EXIT_STATUS = SUCCESS
+      if (exit_tloop .and. e_time <= quota) EXIT_STATUS = SUCCESS
 
-      if (exec_time > quota) EXIT_STATUS = NON_FATAL
+      if (exit_tloop .and. e_time > quota) EXIT_STATUS = NON_FATAL
       
 c     End program
 

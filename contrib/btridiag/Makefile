@@ -53,10 +53,10 @@ PWD = `pwd`
 lib: common $(OBJMOD) $(OBJS) $(COMMON_OBJS)
 	-ar rs $(LIBNAME) $(OBJMOD) $(OBJS) $(COMMON_OBJS)
 	-mv $(LIBNAME) $(LIB_PATH)
-	-cp *.mod *.MOD $(LIB_PATH) 2>/dev/null
+	-cp *.mod *.MOD $(LIB_PATH) 2>/dev/null || true
 
 target: common message $(OBJMOD) $(OBJS) $(COMMON_OBJS)
-	-cp *.mod *.MOD $(LIB_PATH) 2>/dev/null
+	-cp *.mod *.MOD $(LIB_PATH) 2>/dev/null || true
 
 message: ;
 	@echo ''
@@ -68,10 +68,10 @@ $(SUBDIRS):
 	$(MAKE) -e -C $@ target LIB_PATH=../$(LIB_PATH)
 
 clean: ;
-	-@rm -f *.o *.mod *.MOD *.a lib/*.a lib/*.mod lib/*.MOD
+	-@rm -f *.o *.mod *.MOD *.a lib/*.a lib/*.mod lib/*.MOD || true
 
 distclean: clean
-	-@rm lib/*.a lib/*.mod lib/*.MOD 2>/dev/null
+	-@rm lib/*.a lib/*.mod lib/*.MOD 2>/dev/null || true
 	-@for subdir in $(SUBDIRS) ; do \
 		$(MAKE) -C $$subdir clean;  done
 

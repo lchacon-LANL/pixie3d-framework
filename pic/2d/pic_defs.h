@@ -1,7 +1,7 @@
 #define _Dim 3
 #define _Dimx 2
 #define _prec 8
-#define _Npg 4
+#define _Npg 1
 
 c Norms (L1 fast)
 

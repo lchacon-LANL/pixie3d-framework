@@ -9,8 +9,6 @@ c     ##################################################################
       PUBLIC :: EM
 
       INTEGER :: NCOV
-
-      integer,private :: mpierr
       
       CONTAINS
 
@@ -87,6 +85,9 @@ c    Local variables
      &                                   ,XUU     !(many not need)
      &                                   ,DV      !Determinant of V
 
+      ! timing parameters
+      real(8) :: t_start,t_end
+
 c    Begin program
 
       IF (MITER > MITERMAX) THEN
@@ -118,13 +119,16 @@ C    Setup GM EM algorithm
 
       CALL INIT_GM(NIND,NATT,NG,X,WX,IDT,XMU,XVAR,T,WTOT,DV,V)
 
-C    Initialize output G-params to be 0D0
+      ! Start timing CW-EM
+      call cpu_time(t_start)
+
+C     Initialize output G-params to be 0D0
 
       TOUT(1:NG)                  = 0D0
       XMUOUT(1:NG,1:NATT)         = 0D0
       XVAROUT(1:NG,1:NATT,1:NATT) = 0D0
       
-C    Parameters initialization for EM
+C     Parameters initialization for EM
 
       NG_ORG  = NG              ! original (starting) number of components
       XLOGL   = 0D0
@@ -241,6 +245,10 @@ C      enforce conservation
        
       END DO !SPLIT-LOOP
 
+      ! end timing CW-EM
+      call cpu_time(t_end)
+      if (std_io) write (*,*) 'cw-em runtime =',t_end-t_start
+
 c     Final work after convergence
       
 c$$$      IF (IER.EQ.-111) THEN
@@ -251,23 +259,37 @@ c$$$      ENDIF
 
       CALL CAPART(NIND,NATT,NG,W,IDT,XCC)
 
-cC     Enforce conservation for moments
-c      CALL ENFORCE_MOMS_CONSERVATION(NG,NATT,TS,XMUS,XVARS
-c     $	,T(1:NG),XMU(1:NG,:),XVAR(1:NG,:,:))
+C     Enforce conservation for moments
+
+c$$$      CALL ENFORCE_MOMS_CONSERVATION(NG,NATT,TS,XMUS,XVARS
+c$$$     $	,T(1:NG),XMU(1:NG,:),XVAR(1:NG,:,:))
 
 CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
 c     IO
 CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
       IF (STD_IO.and.IOUNT>2) then
-        print *,"Final # groups:", NG
-        print *,"Final iteration:",IOUNT-1
-        print *,"Relative Tolerance:",TOL
-        print *,"Initial LOG-LIKELIHOOD:",XLOGL(1)
-        print *,"Last two LOG-LIKELIHOOD:",XLOGL(IOUNT-1)
-     .         ,XLOGL(IOUNT-2)
-        print *,"Initial Message-length:",MLENG(1)
-        print *,"Last two Message-length:",MLENG(IOUNT-1)
-     .         ,MLENG(IOUNT-2)
+        write (*,*) "Final # groups:", NG
+        write (*,*) "Final iteration:",IOUNT-1
+        write (*,*) "Relative Tolerance:",TOL
+        write (*,*) "Initial LOG-LIKELIHOOD:",XLOGL(1)
+        write (*,*) "Last two LOG-LIKELIHOOD:",XLOGL(IOUNT-1:IOUNT)
+        write (*,*) "Initial Message-length:",MLENG(1)
+        write (*,*) "Last two Message-length:",MLENG(IOUNT-1:IOUNT)
+
+        write (*,*)
+        write (*,*) "Mixture groups:"
+        write (*,*)
+        
+        DO K=1,NG
+          WRITE (*,*) "Weight=",T(K)
+          WRITE (*,*) "Mean  =",(XMU(K,J),J=1,NATT)
+          DO J=1,NATT
+            WRITE (*,*) "Variance=",(XVAR(K,I,J),I=1,J)
+          ENDDO
+          WRITE (*,*) "Det chk=",trace(NATT,XVAR(K,:,:))
+     $                         /(NATT*(det(XVAR(K,:,:)))**(1d0/NATT))
+          WRITE (*,*)
+        ENDDO
       ENDIF
 
       IF (DIAG_IO) THEN

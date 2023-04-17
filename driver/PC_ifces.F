@@ -333,7 +333,8 @@ c     Plot corresponding linear residual to PC solution
           call evaluateNewtonResidual(ntot,x,rr)
 
           mag0 = rms(rr)
-
+          if (nk_conf%vol_wgt) mag0 = mag0*ntot*npx*npy*npz
+          
           if (my_rank == 0) then
             write (*,*)
             write (*,*) 'NONLINEAR RESIDUAL'
@@ -347,6 +348,7 @@ c     Plot corresponding linear residual to PC solution
           call scatterVector(yyy,rr)
           do ieq=1,neqd
             mag = rms(yyy(:,ieq))
+            if (nk_conf%vol_wgt) mag = mag*ntot*npx*npy*npz/neqd
             if (my_rank == 0) write (*,*) 'RMS NL res',ieq,':',mag
           enddo
 

@@ -64,7 +64,7 @@
 
 !c    Variables for A-AMEM configuration via namelist
 
-       INTEGER,PUBLIC :: MVEC_AA =0          !# maximum number of past residualis ~5 or ~10
+       INTEGER,PUBLIC :: MVEC_AA =5          !# maximum number of past residualis ~5 or ~10
      .                  ,AASTART =0          !# delayed AA? - should use 0
        REAL(8),PUBLIC :: LAMDA   = 1.0D7     !# start with large values
      .                  ,KAPPA   = 25.0D0    !# value recommended by [Henderson&Varadhan2019]
@@ -74,7 +74,7 @@
      .                  ,EPS_C   = 1.0D-3    !# [Henderson&Varadhan2019] suggested to set to small
      .                  ,RVAL    = 1.0D0
      .                  ,DVAL    = 0.0D0
-       LOGICAL,PUBLIC :: REGULARIZED_FLAG=.false.        !# regularization flag
+       LOGICAL,PUBLIC :: REGULARIZED_FLAG=.true.        !# regularization flag
      .                  ,DIAG_AMEM=.false.               !# diagnostics flag
 
 !     List of variables to be read from aamem.in

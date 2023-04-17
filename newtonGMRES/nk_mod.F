@@ -189,9 +189,7 @@ c     Find machine round-off
       if (epsmac == 0d0) epsmac = findRoundOff()  !Used for RMS norm measures
 
 #if defined(petsc)
-      leps = epsmac
-      call MPI_Allreduce(leps,epsmac,1,MPI_DOUBLE_PRECISION
-     .                  ,MPI_MAX,MPI_COMM_WORLD,mpierr)
+      epsmac = pmax(epsmac)
 #endif
 
       roundoff = sqrt(1d0*ntot*npx*npy*npz)*epsmac  !Used for standard norm measures
@@ -344,7 +342,7 @@ c     ###################################################################
         real(8) :: rk(ntot),dx(ntot)
         logical :: exit_lp,init
 
-c     Check Anderson convergence/failure
+c     Check convergence/failure
 
         fkp = ntgl*rms(rk)
 
@@ -518,9 +516,7 @@ c     Find machine round-off
       if (epsmac == 0d0) epsmac = findRoundOff()  !Used for RMS norm measures
 
 #if defined(petsc)
-      leps = epsmac
-      call MPI_Allreduce(leps,epsmac,1,MPI_DOUBLE_PRECISION
-     .                  ,MPI_MAX,MPI_COMM_WORLD,mpierr)
+      epsmac = pmax(epsmac)
 #endif
 
       roundoff = sqrt(1d0*ntot*npx*npy*npz)*epsmac  !Used for standard norm measures
@@ -772,11 +768,11 @@ c     Begin program
 
 c     Initialize parameters
 
-      damp = 1d0    !Damping
+      damp  = 1d0   !Damping
       etak0 = etak  !Inexact Newton forcing
 
-      sigma0 = 0.1  !Lower limit in damping parameter decrease
-      sigma1 = 0.5  !Damping parameter decrease for linesearch backtracking
+      sigma0= 0.1   !Lower limit in damping parameter decrease
+      sigma1= 0.5   !Damping parameter decrease for linesearch backtracking
 
       alpha = 1d-1  !Residual reduction parameter
 
@@ -851,7 +847,7 @@ c     ###################################################################
         real(8) :: rk(ntot),dx(ntot)
         logical :: exit_lp,init
 
-c     Check Anderson convergence/failure
+c     Check convergence/failure
 
         fkp = ntgl*rms(rk)
 
@@ -995,9 +991,7 @@ c     Find machine round-off
       if (epsmac == 0d0) epsmac = findRoundOff()  !Used for RMS norm measures
 
 #if defined(petsc)
-      leps = epsmac
-      call MPI_Allreduce(leps,epsmac,1,MPI_DOUBLE_PRECISION
-     .                  ,MPI_MAX,MPI_COMM_WORLD,mpierr)
+      epsmac = pmax(epsmac)
 #endif
 
       roundoff = sqrt(1d0*ntot*npx*npy*npz)*epsmac  !Used for standard norm measures
@@ -1072,7 +1066,7 @@ c     ###################################################################
         real(8) :: rk(ntot)
         logical :: exit_lp
 
-c     Check Anderson convergence/failure
+c     Check convergence/failure
 
         fkp = ntgl*rms(rk)
 
@@ -1168,9 +1162,7 @@ c     Calculate magnitude of residuals
         call MPI_Allreduce(lravg,ravg,neq,MPI_DOUBLE_PRECISION
      .                    ,MPI_SUM,MPI_COMM_WORLD,mpierr)
 
-        lnn = nn
-        call MPI_Allreduce(lnn,nn,1,MPI_INTEGER
-     .                    ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+        nn = psum((/nn/))
       endif
 #endif
 
@@ -1982,7 +1974,7 @@ c     Call variables
 c     Local variables
 
       integer :: i
-      real(8) :: dummy(nn),yk(nn),pert,ipert,modz,modx,xdotz
+      real(8) :: dummy(nn),yk(nn),pert,ipert,modz,modx!,xdotz
 
 c     Begin program
 
@@ -2001,7 +1993,7 @@ c     Calculate J.x
 c       Calculate difference parameter
 
         modx  = dot2(nk_conf%xk,nk_conf%xk)  !x is grid based, and hence we compute volume-weighed norm
-        xdotz = dot2(z         ,nk_conf%xk)  !x is grid based, and hence we compute volume-weighed norm
+cc        xdotz = dot2(z         ,nk_conf%xk)  !x is grid based, and hence we compute volume-weighed norm
 
         if (modx < roundoff) then
           pert = nk_conf%mf_eps/sqrt(modz)

@@ -35,7 +35,9 @@ c ######################################################################
 
         logical :: nk_def_corr=.false.    !Whether we use deferred correction or not
 
-        logical :: nk_is_gmres=.false.    !Whether we use deferred correction or not
+        logical :: nk_is_gmres=.false.    !Whether NK is just a GMRES solve
+
+        logical :: implicit_mid_point=.false. !Whether we use deferred correction or not
 
         !FPA configuration
         logical :: fpa=.false.            !Whether to use Carlson's Fixed-Point-Accelerator instead of JFNK

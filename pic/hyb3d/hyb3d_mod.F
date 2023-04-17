@@ -67,12 +67,19 @@ c     Local variables
      $              ,garr_vx2(0:size(E,1)-1,0:size(E,2)-1,0:size(E,3)-1)
      $              ,garr_vy2(0:size(E,1)-1,0:size(E,2)-1,0:size(E,3)-1)
      $              ,garr_vz2(0:size(E,1)-1,0:size(E,2)-1,0:size(E,3)-1)
+#if defined(HYB_MASS_DIAG)
+     $           ,garr_nDPIC (0:size(E,1)-1,0:size(E,2)-1,0:size(E,3)-1)
+     $           ,garr_vxDPIC(0:size(E,1)-1,0:size(E,2)-1,0:size(E,3)-1)
+     $           ,garr_vyDPIC(0:size(E,1)-1,0:size(E,2)-1,0:size(E,3)-1)
+     $           ,garr_vzDPIC(0:size(E,1)-1,0:size(E,2)-1,0:size(E,3)-1)
 
       real(_prec) :: Mx1(_Npg,2,1,1),My1(_Npg,1,2,1),Mz1(_Npg,1,1,2)
+      real(_prec) :: Myz2(_Npg,3,3),Mzx2(_Npg,3,3),Mxy2(_Npg,3,3)
+      real(_prec) :: dumA(_Npg,3,1), dumB(_Npg,1,3), dumC(_Npg,1,3)
+#endif
+
       real(_prec) :: Mx2(_Npg,3,1,1),My2(_Npg,1,3,1),Mz2(_Npg,1,1,3)
-!      real(_prec) :: Myz2(_Npg,3,3),Mzx2(_Npg,3,3),Mxy2(_Npg,3,3)
       real(_prec) :: M_w_prod(_Npg,3,3,3)!,dum1(_Npg,3),dum2(_Npg,3)
-!      real(_prec) :: dumA(_Npg,3,1), dumB(_Npg,1,3), dumC(_Npg,1,3)
 
       real(_prec) :: rhon,rho,jip,ji,ecc,cml(3),pml(3),cmex(3)
      .              ,lacc(9),gacc(9)
@@ -132,18 +139,30 @@ c     Move particles
          garr_vx2= 0d0
          garr_vy2= 0d0
          garr_vz2= 0d0
+#if defined(HYB_MASS_DIAG)
+         garr_nDPIC  = 0d0
+         garr_vxDPIC = 0d0
+         garr_vyDPIC = 0d0
+         garr_vzDPIC = 0d0
+#endif
 
          m_sp = spcs(isp)%m
          q_sp = spcs(isp)%q
 
-!     some issue with valgrind and libgomp. Adam removed: dum1,dum2,dumA,dumB,dumC,Mxy2,Myz2,Mzx2.
+!     some issue with valgrind and libgomp.
 !$omp parallel DEFAULT(SHARED) private(ipc,it,v0,v2,dtp,dt_sub
 !$omp.              ,d_x,dx,xp,yp,zp,xfp,yfp,zfp,x_nh
-!$omp.              ,i,j,k,ii,i0,j0,k0,Mx1,Mx2,My1,My2,Mz1,Mz2
+!$omp.              ,i,j,k,ii,i0,j0,k0,Mx2,My2,Mz2
+#if defined(HYB_MASS_DIAG)
+!$omp.              ,Mx1,My1,Mz1,Myz2,Mzx2,Mxy2,dumA,dumB,dumC
+#endif
 !$omp.              ,w_pcle,psts,M_w_prod,pits,pcle_nu)
 !$         call set_omp_thread_id()
 !$omp DO SCHEDULE (DYNAMIC,4)
 !$omp.reduction(+:garr_n,garr_vx,garr_vy,garr_vz
+#if defined(HYB_MASS_DIAG)
+!$omp.           ,garr_nDPIC,garr_vxDPIC,garr_vyDPIC,garr_vzDPIC
+#endif
 !$omp.           ,garr_vx2,garr_vy2,garr_vz2,pml
 #if defined(PIC_CM_DIAG)        
 !$omp.           ,cmex,cml
@@ -218,13 +237,100 @@ c$$$             end if
              yp = x_nh(:,2)*ihy
              zp = x_nh(:,3)*ihz
 
-!             call shape1_offset(xp,Mx1(:,1:2,1,1)) ! May want to calculate for a local mass consv. diagnostic.
-!             call shape1_offset(yp,My1(:,1,1:2,1))
-!             call shape1_offset(zp,Mz1(:,1,1,1:2))
+#if defined(HYB_MASS_DIAG)
+             call shape1_offset(xp,Mx1(:,1:2,1,1)) ! May want to calculate for a local mass consv. diagnostic.
+             call shape1_offset(yp,My1(:,1,1:2,1))
+             call shape1_offset(zp,Mz1(:,1,1,1:2))
+#endif
 
              call shape2_offset(xp,Mx2(:,1:3,1,1))
              call shape2_offset(yp,My2(:,1,1:3,1))
              call shape2_offset(zp,Mz2(:,1,1,1:3))
+
+
+#if defined(HYB_MASS_DIAG)
+! Calculate mass convervation 3D DPIC style - expensive - turn this flag off by default.
+             xp = pcle_nu%x_n(:,1)*ihx ! pcle_nu is prev. step (not substep).
+             yp = pcle_nu%x_n(:,2)*ihy
+             zp = pcle_nu%x_n(:,3)*ihz
+             xfp = (pcle_nu%x_n(:,1)+dx(:,1))*ihx
+             yfp = (pcle_nu%x_n(:,2)+dx(:,2))*ihy
+             zfp = (pcle_nu%x_n(:,3)+dx(:,3))*ihz
+
+! ADAM: Compute S22(y,z)
+             call shape2_offset(yp,dumA(:,1:3,1))
+             call shape2_offset(zp,dumB(:,1,1:3))
+             do ii=1,_Npg
+              Myz2(ii,1:3,1:3)=opt_vecvec_3(dumA(ii,:,1)
+     $               ,dumB(ii,1,:))*2d0
+             end do
+
+             dumC=dumB
+             call shape2_offset(zfp,dumB(:,1,1:3))
+             do ii=1,_Npg
+              Myz2(ii,1:3,1:3)=Myz2(ii,1:3,1:3)
+     $               +opt_vecvec_3(dumA(ii,:,1),dumB(ii,1,:))
+             end do
+
+             call shape2_offset(yfp,dumA(:,1:3,1))
+             do ii=1,_Npg
+              Myz2(ii,1:3,1:3)=Myz2(ii,1:3,1:3)
+     $               +opt_vecvec_3(dumA(ii,:,1),dumC(ii,1,:))
+     $               +opt_vecvec_3(dumA(ii,:,1),dumB(ii,1,:))*2d0
+             end do
+
+! ADAM: COMPUTE S22(z,x)
+             call shape2_offset(zp,dumA(:,1:3,1))
+             call shape2_offset(xp,dumB(:,1,1:3))
+             do ii=1,_Npg
+              Mzx2(ii,1:3,1:3)=opt_vecvec_3(dumA(ii,:,1)
+     $               ,dumB(ii,1,:))*2d0
+             end do
+
+             dumC=dumB
+             call shape2_offset(xfp,dumB(:,1,1:3))
+             do ii=1,_Npg
+              Mzx2(ii,1:3,1:3)=Mzx2(ii,1:3,1:3)
+     $               +opt_vecvec_3(dumA(ii,:,1),dumB(ii,1,:))
+             end do
+
+             call shape2_offset(zfp,dumA(:,1:3,1))
+             do ii=1,_Npg
+              Mzx2(ii,1:3,1:3)=Mzx2(ii,1:3,1:3)
+     $               +opt_vecvec_3(dumA(ii,:,1),dumC(ii,1,:))
+     $               +opt_vecvec_3(dumA(ii,:,1),dumB(ii,1,:))*2d0
+             end do
+
+! ADAM: COMPUTE S22(x,y)
+             call shape2_offset(xp,dumA(:,1:3,1))
+             call shape2_offset(yp,dumB(:,1,1:3))
+
+             do ii=1,_Npg
+              Mxy2(ii,1:3,1:3)=opt_vecvec_3(dumA(ii,:,1)
+     $               ,dumB(ii,1,:))*2d0
+             end do
+
+             dumC=dumB
+             call shape2_offset(yfp,dumB(:,1,1:3))
+
+             do ii=1,_Npg
+              Mxy2(ii,1:3,1:3)=Mxy2(ii,1:3,1:3)
+     $               +opt_vecvec_3(dumA(ii,:,1),dumB(ii,1,:))
+             end do
+
+             call shape2_offset(xfp,dumA(:,1:3,1))
+
+             do ii=1,_Npg
+              Mxy2(ii,1:3,1:3)=Mxy2(ii,1:3,1:3)
+     $               +opt_vecvec_3(dumA(ii,:,1),dumC(ii,1,:))
+     $               +opt_vecvec_3(dumA(ii,:,1),dumB(ii,1,:))*2d0
+
+             end do
+
+             Myz2=Myz2/6d0
+             Mzx2=Mzx2/6d0
+             Mxy2=Mxy2/6d0
+#endif
 
 !             M_w_prod = opt_vecvecvec_3_pcle(Mx2,My2,Mz2) ! Adam: Could try this? Not sure allowed SIMD.
 
@@ -256,6 +362,27 @@ cccc!VECTORSIMD
      .        garr_vz(i(ii)-1:i(ii)+1,j(ii)-1:j(ii)+1,k(ii)-1:k(ii)+1) +
      .             dx(ii,3)*M_w_prod(ii,:,:,:)!*w_pcle(ii)
 
+
+#if defined(HYB_MASS_DIAG)
+             !DPIC style vx (linear in x, 2nd in y, 2nd in z)
+             garr_vxDPIC(i(ii)-1:i(ii),j(ii)-1:j(ii)+1,k(ii)-1:k(ii)+1)= 
+     .       garr_vxDPIC(i(ii)-1:i(ii),j(ii)-1:j(ii)+1,k(ii)-1:k(ii)+1)+
+     .            dx(ii,1)*opt_omatvec_233(Myz2(ii,:,:),Mx1(ii,:,1,1))*
+     .            w_pcle(ii)
+
+             !DPIC style vy (linear in y, 2nd in x, 2nd in z)
+             garr_vyDPIC(i(ii)-1:i(ii)+1,j(ii)-1:j(ii),k(ii)-1:k(ii)+1)=
+     .       garr_vyDPIC(i(ii)-1:i(ii)+1,j(ii)-1:j(ii),k(ii)-1:k(ii)+1)+
+     .            dx(ii,2)*opt_omatvec_323(Mzx2(ii,:,:),My1(ii,1,:,1))*
+     .            w_pcle(ii)
+
+             !DPIC style vz (linear in z, 2nd in x,y)
+             garr_vzDPIC(i(ii)-1:i(ii)+1,j(ii)-1:j(ii)+1,k(ii)-1:k(ii))=
+     .       garr_vzDPIC(i(ii)-1:i(ii)+1,j(ii)-1:j(ii)+1,k(ii)-1:k(ii))+
+     .            dx(ii,3)*opt_omatvec_332(Mxy2(ii,:,:),Mz1(ii,1,1,:))*
+     .            w_pcle(ii)
+#endif
+
              end do
                   
              !Prepare for next substep
@@ -275,9 +402,6 @@ cccc!VECTORSIMD
            yp = pcle_nu%x_n(:,2)*ihy
            zp = pcle_nu%x_n(:,3)*ihz
 
-!           call shape1_offset(xp,Mx1(:,1:2,1,1))
-!           call shape1_offset(yp,My1(:,1,1:2,1))
-!           call shape1_offset(zp,Mz1(:,1,1,1:2))
            call shape2_offset(xp,Mx2(:,1:3,1,1))
            call shape2_offset(yp,My2(:,1,1:3,1))
            call shape2_offset(zp,Mz2(:,1,1,1:3))
@@ -292,7 +416,7 @@ cccc!VECTORSIMD
            call xform_pcle_idx(pcle_nu%ijk_n,nxg,nyg,i0,j0,k0)
 
            do ii=1,_Npg
-! ADAM: Now orbit average n. But may also want to collect here for local mass consv. diag.
+! ADAM: Now orbit average n.
 !              !accumulate n
 !          garr_n(i0(ii)-1:i0(ii)+1,j0(ii)-1:j0(ii)+1,k0(ii)-1:k0(ii)+1)= 
 !     .    garr_n(i0(ii)-1:i0(ii)+1,j0(ii)-1:j0(ii)+1,k0(ii)-1:k0(ii)+1)+ 
@@ -313,6 +437,16 @@ cccc!VECTORSIMD
         garr_vz2(i0(ii)-1:i0(ii)+1,j0(ii)-1:j0(ii)+1,k0(ii)-1:k0(ii)+1)= 
      .  garr_vz2(i0(ii)-1:i0(ii)+1,j0(ii)-1:j0(ii)+1,k0(ii)-1:k0(ii)+1)+ 
      .                             v2(ii)*M_w_prod(ii,:,:,:)
+
+
+#if defined(HYB_MASS_DIAG)
+        !accumulate n DPIC style
+        garr_nDPIC(i0(ii)-1:i0(ii)+1,j0(ii)-1:j0(ii)+1,
+     .             k0(ii)-1:k0(ii)+1)=
+     .  garr_nDPIC(i0(ii)-1:i0(ii)+1,j0(ii)-1:j0(ii)+1,
+     .             k0(ii)-1:k0(ii)+1)+M_w_prod(ii,:,:,:)
+#endif
+
            end do 
 
 
@@ -347,12 +481,20 @@ c#endif
          moms_g(:,:,:,isp,Ipx) = garr_vx(:,:,:)/dtx
          moms_g(:,:,:,isp,Ipy) = garr_vy(:,:,:)/dtx
          moms_g(:,:,:,isp,Ipz) = garr_vz(:,:,:)/dtx
+#if defined(HYB_MASS_DIAG)
+         moms_g(:,:,:,isp,IpxDPIC) = garr_vxDPIC(:,:,:)/dtx
+         moms_g(:,:,:,isp,IpyDPIC) = garr_vyDPIC(:,:,:)/dtx
+         moms_g(:,:,:,isp,IpzDPIC) = garr_vzDPIC(:,:,:)/dtx
+#endif
 
          !non-orbit-averaged
 !         moms_g(:,:,:,isp,Ins ) = garr_n(:,:,:)         
          moms_g(:,:,:,isp,IS11) = garr_vx2(:,:,:)
          moms_g(:,:,:,isp,IS22) = garr_vy2(:,:,:)
          moms_g(:,:,:,isp,IS33) = garr_vz2(:,:,:)
+#if defined(HYB_MASS_DIAG)
+         moms_g(:,:,:,isp,InDPIC) = garr_nDPIC(:,:,:)
+#endif
 
       end do                    !species
 
@@ -660,8 +802,8 @@ c     ######################################################################
       if (no_map) then
         call scatter_fields_nomap(x0_loc,scatter_zeroes,dx,Ep,Bp)
       else
-       call pstop('initialize_it','No curvilinear currently')
-!        call scatter_fields_curv (x0_loc,scatter_zeroes,dx,Ep,Bp)
+!       call pstop('initialize_it','No curvilinear currently')
+        call scatter_fields_curv (x0_loc,scatter_zeroes,dx,Ep,Bp)
       endif
 
       am(:,1) = qm*(Ep(:,1) + vh(:,2)*Bp(:,3) - vh(:,3)*Bp(:,2))
@@ -751,8 +893,8 @@ c     Initial acceleration
         if (no_map) then
           call scatter_fields_nomap(x0_loc,scatter_zeroes,dx,Ep,Bp)
         else
-          call pstop('estimate_dtp','No curvilinear currently')
-!          call scatter_fields_curv (x0_loc,scatter_zeroes,dx,Ep,Bp)
+!          call pstop('estimate_dtp','No curvilinear currently')
+          call scatter_fields_curv (x0_loc,scatter_zeroes,dx,Ep,Bp)
         endif
         vh = v0_loc
 
@@ -782,8 +924,8 @@ c     test for dts (presumably no cell-crossing with a small timestep)
         if (no_map) then
            vhcurv = vh
         else
-           call pstop('estimate_dtp','No curvilinear currently')
-!           vhcurv = find_vcurv(i0,j0,k0,x0_loc,vh)
+!           call pstop('estimate_dtp','No curvilinear currently')
+           vhcurv = find_vcurv(i0,j0,k0,x0_loc,vh)
         endif
         v0curv = vhcurv
 
@@ -794,8 +936,8 @@ c     test for dts (presumably no cell-crossing with a small timestep)
         if (no_map) then
           call scatter_fields_nomap(x0_loc,dts,dx,Ep,Bp) !mid-point
         else
-          call pstop('estimate_dtp','No curvilinear currently')
-!          call scatter_fields_curv (x0_loc,dts,dx,Ep,Bp) !mid-point
+!          call pstop('estimate_dtp','No curvilinear currently')
+          call scatter_fields_curv (x0_loc,dts,dx,Ep,Bp) !mid-point
         endif
         
         !Velocity update
@@ -830,10 +972,10 @@ c     test for dts (presumably no cell-crossing with a small timestep)
           vhcurv = vh
         else
 
-          call pstop('estimate_dtp','No curvilinear currently')
+!          call pstop('estimate_dtp','No curvilinear currently')
 
-!          xp_vhcurv = x0_loc + 0.5*dx
-!          vhcurv = find_vcurv(i0,j0,k0,xp_vhcurv,vh) ! ADAM: Modified for 3D
+          xp_vhcurv = x0_loc + 0.5*dx
+          vhcurv = find_vcurv(i0,j0,k0,xp_vhcurv,vh) ! ADAM: Modified for 3D
 
 c WARNING: CHRISTOFFEL SYMBOL NOT IMPLEMENTED IN 3D.
 
@@ -891,8 +1033,8 @@ c     Begin program
         if (no_map) then
           call scatter_fields_nomap(x0,dt_sub,dx,Ep,Bp)
         else
-           call pstop('Boris_solve','No curvilinear currently')
-!          call scatter_fields_curv (x0,dt_sub,dx,Ep,Bp)
+!           call pstop('Boris_solve','No curvilinear currently')
+          call scatter_fields_curv (x0,dt_sub,dx,Ep,Bp)
         endif
 
         !Velocity update
@@ -923,9 +1065,9 @@ c     Begin program
         if (no_map) then
           vhcurv = vh
         else
-           call pstop('Boris_solve','No curvilinear currently')
-!          xp_vhcurv = x0 + 0.5*dx
-!          vhcurv = find_vcurv(i0,j0,k0,xp_vhcurv,vh) 
+!           call pstop('Boris_solve','No curvilinear currently')
+          xp_vhcurv = x0 + 0.5*dx
+          vhcurv = find_vcurv(i0,j0,k0,xp_vhcurv,vh) 
         endif
 
         dx(:,1) = dt_sub*vhcurv(:,1)
@@ -1074,22 +1216,44 @@ c     Call variables
 
 c     Local variables
 
-      integer :: i
-      real(_prec) :: xhp(_Npg,3),xnp(_Npg,3)
+      integer :: i,j
+      real(_prec) :: Exp,Eyp,Ezp,Bxp,Byp,Bzp
+     .              ,xhp(_Npg,3),xnp(_Npg,3),x0p(_Npg,3)
      .              ,x_nh(_Npg,3),cov(_Npg,3,3),cnv(_Npg,3,3)
-     .              ,xlog(_Npg,3),x0p(_Npg,3)
-     .              ,dum1(_Npg),dum2(_Npg,2),dum3(_Npg,3)
-     .              ,dum33(_Npg,3,3),dumA(_Npg,3,1),dumB(_Npg,1,3)
-     .              ,dumC(_Npg,1,3)
+     .              ,xlog(_Npg,3)
 
-      real(_prec) :: Sx2_n(_Npg,3),Sy2_n(_Npg,3),Sz2_n(_Npg,3)
-      real(_prec) :: Sx1(_Npg,2),Sx2(_Npg,3),DSx(_Npg,3)
-      real(_prec) :: Sy1(_Npg,2),Sy2(_Npg,3),DSy(_Npg,3)
-      real(_prec) :: Sz1(_Npg,2),Sz2(_Npg,3),DSz(_Npg,3)
-!      real(_prec) :: Sxd(_Npg,3),Syd(_Npg,3)
-      real(_prec) :: Sx2_o(_Npg,3),Sy2_o(_Npg,3),Sz2_o(_Npg,3)
+      real(_prec) :: Sx2(_Npg,3,1,1),Sy2(_Npg,1,3,1),Sz2(_Npg,1,1,3)
+      real(_prec) :: dum333(_Npg,3,3,3)
 
-c$$$c     Begin program
+c     Begin program
+
+      x_nh = x0 + dx*0.5d0
+      xhp(:,1) = x_nh(:,1)*ihx
+      xhp(:,2) = x_nh(:,2)*ihy
+      xhp(:,3) = x_nh(:,3)*ihz
+
+      call shape2_offset(xhp(:,1),Sx2(:,1:3,1,1))
+      call shape2_offset(xhp(:,2),Sy2(:,1,1:3,1))
+      call shape2_offset(xhp(:,3),Sz2(:,1,1,1:3))
+
+      dum333 = opt_vecvecvec_3_pcle(Sx2,Sy2,Sz2)
+
+c     Calculate Ep
+
+      Ep(:,1) = opt_matmat_333_xyz_pcle(dum333,E_1)
+      Ep(:,2) = opt_matmat_333_xyz_pcle(dum333,E_2)
+      Ep(:,3) = opt_matmat_333_xyz_pcle(dum333,E_3)
+
+c     Calculate Bp
+
+      Bp(:,1) = opt_matmat_333_xyz_pcle(dum333,B_1)
+      Bp(:,2) = opt_matmat_333_xyz_pcle(dum333,B_2)
+      Bp(:,3) = opt_matmat_333_xyz_pcle(dum333,B_3)
+
+
+
+
+
 c$$$
 c$$$      x0p(:,1) = x0(:,1)*ihx
 c$$$      x0p(:,2) = x0(:,2)*ihy
@@ -1297,28 +1461,28 @@ c$$$c$$$      Bp(:,3) = dum1
 c$$$c$$$      call dot_product_3_pcle(dum3,DSy,dum1)
 c$$$c$$$      Bp(:,3) = Bp(:,3) - dum1
 c$$$
-c$$$c     Transform to Cartesian
-c$$$
-c$$$      xlog(:,1) = x_nh(:,1)*ihx
-c$$$      xlog(:,2) = x_nh(:,2)*ihy
-c$$$      xlog(:,3) = x_nh(:,3)*ihz
-c$$$      call transf_vector_Bspl(i0,j0,k0,xlog,cov,cnv=cnv)
-c$$$      !VECTOR SIMD
-c$$$      do i=1, _Npg
-c$$$#ifdef __GNU
-c$$$        Ep(i,:) = opt_matvec_tr(Ep(i,:),cov(i,:,:))
-c$$$        Bp(i,:) = opt_matvec_tr(Bp(i,:),cnv(i,:,:))
-c$$$#else        
-c$$$        Ep(i,:) = matmul(Ep(i,:),cov(i,:,:))
-c$$$        Bp(i,:) = matmul(Bp(i,:),cnv(i,:,:))
-c$$$#endif
-c$$$      end do
-c$$$
-c$$$      Bp(:,1) = Bp(:,1) + B0(1)
-c$$$      Bp(:,2) = Bp(:,2) + B0(2)
-c$$$      Bp(:,3) = Bp(:,3) + B0(3)
-c$$$
-c$$$c     End program
+
+! ADAM: DON'T NEED TO DO THIS STEP WHEN SUPPLYING CARTESIAN FIELDS (IN NEWEST CURVILINEAR DERIVATION).
+
+      xlog(:,1) = x_nh(:,1)*ihx
+      xlog(:,2) = x_nh(:,2)*ihy
+      xlog(:,3) = x_nh(:,3)*ihz
+      call transf_vector_Bspl(i0,j0,k0,xlog,cov,cnv=cnv)
+
+      !VECTOR SIMD
+      do i=1, _Npg
+#ifdef __GNU
+        Ep(i,:) = opt_matvec_tr(Ep(i,:),cov(i,:,:))
+        Bp(i,:) = opt_matvec_tr(Bp(i,:),cnv(i,:,:))
+#else
+        Ep(i,:) = matmul(Ep(i,:),cov(i,:,:))
+        Bp(i,:) = matmul(Bp(i,:),cnv(i,:,:))
+#endif
+      end do
+
+!      Bp(:,1) = Bp(:,1) + B0(1)
+!      Bp(:,2) = Bp(:,2) + B0(2)
+!      Bp(:,3) = Bp(:,3) + B0(3)
 
       end subroutine scatter_fields_curv
 

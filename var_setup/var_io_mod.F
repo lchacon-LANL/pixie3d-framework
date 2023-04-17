@@ -7,6 +7,8 @@ c ######################################################################
 
         use file_io
 
+        use grid
+        
         use variables
 
 #if defined(adios)
@@ -731,10 +733,10 @@ cc      if (associated(gv%gparams)) then
      .          .or. nyl /= gv%gparams%nly
      .          .or. nzl /= gv%gparams%nlz )
 
-        lchck = check
-
-        call MPI_Allreduce(lchck,check,1
-     .                ,MPI_LOGICAL,MPI_LOR,MPI_COMM_WORLD,mpierr)
+        check = plor(check)
+c$$$        lchck = check
+c$$$        call MPI_Allreduce(lchck,check,1
+c$$$     .                ,MPI_LOGICAL,MPI_LOR,MPI_COMM_WORLD,mpierr)
 
         if (check) then
           write (*,*) my_rank,nxl,gv%gparams%nlx
@@ -908,6 +910,8 @@ c     Begin program
       file = 'record_it='//counter1//'.bin'
 #endif
 
+cc      if (my_rank == 0) write (*,*) "dumpfile=",trim(file)
+      
       end function new_dumpfile
       
 c     switch_dumpfile
@@ -918,7 +922,6 @@ c     -----------------------------------------------------------------
 c     Switches the dump file to bifurcated one due to restart
 c     -----------------------------------------------------------------
 
-      
       implicit none
 
 c     Call variables
@@ -937,8 +940,14 @@ c     Begin program
       
       do it=itime1,itime2
         file = new_dumpfile(it)
-#if defined(adios) || defined(ADIOS2)
-        switch = is_file(file)
+#if defined(adios)
+        switch = is_file(trim(file))
+#elif defined(ADIOS2)
+#if defined(ifort)
+        switch = is_dir(trim(file))
+#else
+        switch = is_file(trim(file))
+#endif
 #else
         switch = is_file(trim(file)//"_proc0")
 #endif
@@ -954,6 +963,7 @@ cc          write (*,*) itime1,itime2
         endif
         call closeGraphicsFiles
         ufile = openGraphicsFiles(file)
+        recordfile=file
       endif
 
       end function switch_dumpfile

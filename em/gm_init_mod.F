@@ -2,11 +2,11 @@ c     module gm_init
 c     ##################################################################
       module gm_init
 
+      use grid_mpi
+      
       use kmeans_mod
 
       use gs_kmeans_mod
-
-      integer,private :: mpierr
 
       REAL(8)                              :: TS
       REAL(8), DIMENSION(:  ), ALLOCATABLE :: XMUS
@@ -19,17 +19,16 @@ CGMM_OMP!$OMP THREADPRIVATE(NINDT)
       LOGICAL :: GMM_RANDOM_INIT=.false.           !Whether we use RANDOM GMM init (else GRP8)
      &          ,GMM_KMEANS_INIT=.false.           !Whether we use KMEANS GMM (on top of RND or GRP8)
      &          ,GMM_GS_KMEANS_MULTI_INIT=.false.  !Whether we use GS-MULTI-KMEANS GMM (on top of RND or GRP8)
-
+     &          ,GMM_TEST       =.false.           !Whether we are running tests
+      
       INTEGER :: KM_RUNS    = 10  ! number of K-means trials after optimal NG is obtained
      &          ,KM_REF_SET = 3   ! number of ref. sets to be used in gap-statistics
      &          ,KM_NG_MIN  = 2   ! min # of Gaussians
      &          ,KM_NG_MAX  = 10  ! max # of Gaussians
      &          ,KM_NG_ADJ  = 2   ! to avoid underestimate # of Gaussians
 
-c$$$      namelist /gmm_init/ gmm_random_init,gmm_kmeans_init
-c$$$     .                   ,gmm_gs_kmeans_multi_init,km_runs,km_ref_set
-c$$$     .                   ,km_ng_min,km_ng_max,km_ng_adj
-
+      REAL(8) :: KM_TOL = 1d-4  ! KMEANS convergence tolerance
+      
       contains
 
 c     DESTROY_GM
@@ -66,7 +65,7 @@ c    Local variables
 
       INTEGER :: I,J,K,KK,II,RANI
       real(8) :: r(NATT,NATT),sgn(3),NPARBY2
-      INTEGER :: info,IER,NULL
+      INTEGER :: info,IER
 
       ! Variables for GS-kmeans
       INTEGER :: OPT_NG,KMITER,GRP_COUNT(NG)
@@ -74,12 +73,7 @@ c    Local variables
 
 c     Begin program
 
-#if defined(petsc)
-      call MPI_Allreduce(NIND,NINDT,1,MPI_INTEGER
-     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-#else
-      NINDT = NIND
-#endif
+      NINDT = psum((/NIND/))
 
       ALLOCATE(XMUS(NATT),XVARS(NATT,NATT))
 
@@ -96,12 +90,7 @@ c     Begin program
 
       W(1:NIND,1) = WX(1:NIND)
 
-      WTOT = sum(WX) !adding all particle weights for calculating the total variance 
-#if defined(petsc)
-      lwtot = WTOT
-      call MPI_Allreduce(lwtot,WTOT,1,MPI_DOUBLE_PRECISION
-     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-#endif
+      WTOT = psum(WX) !adding all particle weights for calculating the total variance 
       WSUM = WTOT
 
       if (GMM_RANDOM_INIT) then
@@ -113,7 +102,7 @@ CGMM_OMP!$OMP END MASTER
 
         call GMM_INIT_RANDOM(NIND,NATT,NG,W,WSUM,X,XMU,XVAR,T)
 
-      elseif (GMM_KMEANS_INIT) THEN
+      elseif (GMM_KMEANS_INIT.OR.GMM_GS_KMEANS_MULTI_INIT) THEN
 
 CGMM_OMP!$OMP MASTER
         if (my_rank_gmm==0.and.std_io)
@@ -126,17 +115,15 @@ c      Option to use GS--Multi-Kmeans initialization
         ! components
         if (GMM_GS_KMEANS_MULTI_INIT) THEN
           CALL OPTIMAL_K(NIND,NATT,WX,X,KM_REF_SET
-     $                ,KM_NG_MIN,KM_NG_MAX,OPT_NG)
+     $                ,KM_NG_MIN,KM_NG_MAX,KM_TOL,OPT_NG)
 
           NG = MIN(OPT_NG + KM_NG_ADJ,NG)
           if (STD_IO) write (*,*) "Optimal Kmeans # gaussians",NG
           if (DIAG_IO) write (FYLENO,*) "Optimal Kmeans # gaussians",NG
-c$$$        else
-c$$$          NG = NG
         end if
 
         ! Given the 'optimal' no. of component, do multi-Kmeans & select the best:
-        CALL GMM_KMEANS_MULTI_INIT(NIND,NATT,NG,500,WX,X
+        CALL GMM_KMEANS_MULTI_INIT(NIND,NATT,NG,500,KM_TOL,WX,X
      $          ,XMU(1:NG,:),XVAR(1:NG,:,:)
      $          ,T(1:NG),IDT,NK(1:NG),WTOT,KMITER,KM_RUNS)
 
@@ -163,21 +150,21 @@ CGMM_OMP!$OMP END MASTER
 
 C    !Invert covariance matrices, returned by GS-KMeans init
 
-      IER = 0 ; NULL = 0
+      IER = 0
 
-      CALL GDET(NATT,NG,XVAR(1:NG,:,:),V(1:NG,:,:),DV(1:NG),IER,NULL)
+      CALL GDET(NATT,NG,XVAR(1:NG,:,:),V(1:NG,:,:),DV(1:NG),IER)
 
-      IER=0
+      IER = 0
 
 C     Calculate total data size when data is weighted ie weighted
 C     likelihood and sum of weights does not equal one.
 
-      WTOT=sum(WX)
-#if defined(petsc)
-      lwtot = WTOT
-      call MPI_Allreduce(lwtot,WTOT,1,MPI_DOUBLE_PRECISION
-     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-#endif
+      WTOT = psum(WX)
+c$$$#if defined(petsc)
+c$$$      lwtot = WTOT
+c$$$      call MPI_Allreduce(lwtot,WTOT,1,MPI_DOUBLE_PRECISION
+c$$$     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+c$$$#endif
 
       ! If (adaptive/GS)--K-means is used then NG is changed.
       ! Here, 
@@ -220,16 +207,17 @@ c     Compute initial single-Gaussian moments
       CALL LCALK(NIND,NATT,X,W(1:NIND,K),WSUM(K),XMU(K,1:NATT)
      .          ,XVAR(K,1:NATT,1:NATT))
 
-      DO 450 K=1,1 !NG (ASK Gy)
+      DO K=1,1 !NG (ASK Gy)
         IF (STD_IO) WRITE (*      ,445) K
         IF (DIAG_IO) WRITE (FYLENO,445) K
  445    FORMAT (/2X,'Global mean, covariance matrix  ',I2)
         IF (STD_IO) WRITE (*     ,415) 'XMU',(XMU(K,J),J=1,NATT)
         IF (DIAG_IO)WRITE (FYLENO,415) 'XMU',(XMU(K,J),J=1,NATT)
-        DO 450 J=1,NATT
+        DO J=1,NATT
           IF (STD_IO) WRITE (*     ,415) 'XVAR',(XVAR(K,I,J),I=1,J)
           IF (DIAG_IO)WRITE (FYLENO,415) 'XVAR',(XVAR(K,I,J),I=1,J)
- 450  CONTINUE
+        ENDDO
+      ENDDO
 
  415  FORMAT (2X,5G30.12)
 
@@ -241,7 +229,7 @@ c     Make copies of global prop, mean & covariance for conservation check
 
 c     Initialize weights:
 
-      T(1:NG) = 1.0/DBLE(NG)
+      T(1:NG) = 1d0/DBLE(NG)
 
 c     Initialize variances according to global variance
 
@@ -283,8 +271,14 @@ c     Initialize means randomly
           call MPI_Bcast(RCORE,1,MPI_INTEGER,0
      .                  ,MPI_COMM_WORLD,mpierr)
           if (my_rank_gmm == RCORE) then
-           !Pick specified particle locations (not parallel)
-            RANI = max(int(NIND*(dble(K))/dble(NG)),1)              
+            if (.not.GMM_TEST) then
+              !Pick random particle locations
+              call unif_rng(RAN)
+              RANI = ceiling(NIND*RAN)
+            else
+              !Pick specified particle locations (not parallel)
+              RANI = ceiling(NIND*(dble(K))/dble(NG))            
+            endif
             XMU(K,1:NATT) = X(RANI,1:NATT)
           endif
           call MPI_Bcast(XMU(K,1:NATT),NATT,MPI_DOUBLE_PRECISION,RCORE
@@ -292,11 +286,14 @@ c     Initialize means randomly
         END DO
 #else
         DO K = 1,NG
-c$$$          !Pick random particle locations (not parallel)
-c$$$          call unif_rng(RAN)  !Works in parallel
-c$$$          RANI = ceiling(NIND*RAN)
-          !Pick specified particle locations (not parallel)
-          RANI = max(int(NIND*(dble(K))/dble(NG)),1)              
+          if (.not.GMM_TEST) then
+            !Pick random particle locations
+            call unif_rng(RAN)
+            RANI = ceiling(NIND*RAN)
+          else
+            !Pick specified particle locations (not parallel)
+            RANI = ceiling(NIND*(dble(K))/dble(NG))         
+          endif
           XMU(K,1:NATT) = X(RANI,1:NATT)
         END DO
 #endif
@@ -320,7 +317,7 @@ c     Call variables
 c     Local variables
 
       INTEGER :: K,KK,I,J
-      real(8) :: r(NATT,NATT),sgn(3)
+      real(8) :: r(NATT,NATT),sgn(3),C1,C2,C3
       integer  info
       
 c     Begin program
@@ -336,42 +333,24 @@ CGMM_OMP!$OMP CRITICAL
 CGMM_OMP!$OMP END CRITICAL
       endif
       
-c     Calculate initial Gaussian moments
-      
-      K = 1
-      CALL LCALK(NIND,NATT,X,W(1:NIND,K),WSUM(K),XMU(K,1:NATT)
-     .          ,XVAR(K,1:NATT,1:NATT))
+c     Calculate and store (to check conservation) initial Gaussian moments
 
-      DO K = 2,NG
-        XVAR(K,1:NATT,1:NATT) = XVAR(1,1:NATT,1:NATT)/8d0 !smaller initial variance may perform better.
-      END DO
-
-      DO 450 K=1,1 !NG (ASK Gy)
-        IF (STD_IO) WRITE (*,445) K
-        IF (DIAG_IO) WRITE (FYLENO,445) K
- 445    FORMAT (/2X,'Global mean, covariance matrix  ',I2)
-        IF (STD_IO) WRITE (*,415) (XMU(K,J),J=1,NATT)
-        IF (DIAG_IO)WRITE (FYLENO,415) (XMU(K,J),J=1,NATT)
-        DO 450 J=1,NATT
-          IF (STD_IO) WRITE (*,415) (XVAR(K,I,J),I=1,J)
-          IF (DIAG_IO)WRITE (FYLENO,415) (XVAR(K,I,J),I=1,J)
- 450  CONTINUE
-
- 415  FORMAT (2X,5G30.12)
-
-c     Make copies of global prop, mean & covariance for conservation checks
-      
       TS = 1D0
-      XMUS(1:NATT) = XMU(1,1:NATT)
-      XVARS(1:NATT,1:NATT) = XVAR(1,1:NATT,1:NATT)
+
+      K = 1
+      CALL LCALK(NIND,NATT,X,W(1:NIND,K),WSUM(K),XMUS,XVARS)
 
 c     Assign Gaussians in groups of 8 according to principal axes
-      
+
+      C1 = 1d0/8d0 !(1d0/NG)**(1d0/3)    !Apply N_mxwl^(1/3) scaling
+      C3 = 1d0 !dinvnorm(0.75d0)     !dinvnorm((0.5+1d0)*0.5)
+
       if (NIND > 0) then
-        r(1:NATT,1:NATT) = XVAR(1,1:NATT,1:NATT)
+        r = XVARS
       
-        call r8po_fa( NATT, r, info)
-        sgn = -1
+        call r8po_fa(NATT,r)
+
+        sgn = -1d0
         KK = 1
         do i=1,2
           sgn(1) = -sgn(1);
@@ -384,18 +363,36 @@ c     Assign Gaussians in groups of 8 according to principal axes
             end do
           end do
         end do
-cc        print *,"r=",r
         
         DO K = 1,NG
-          XMU(K,1:NATT) = XMUS(1:NATT)
-     .                  + matmul(XMU(K,1:NATT),r(1:NATT,1:NATT))
-cc          print *,"mean=",K,XMU(K,1:NATT)
+          C2 = C3*(1 + (K-1)/8)   !Push out excess Gaussians when K>8
+          XMU (K,:)   = XMUS + C2*matmul(XMU(K,:),r)
+          if (K == 1) then
+            XVAR(K,:,:) = XVARS
+          else
+            XVAR(K,:,:) = XVARS*C1
+          endif
         END DO
       endif
 
-c    Initialize Gaussian weights:
-      T(1:NG) = 1.0/DBLE(NG)
+      T(1:NG) = TS/DBLE(NG)
 
+c     IO
+
+      DO K=1,1 !NG
+        IF (STD_IO ) WRITE (*,445) K
+        IF (DIAG_IO) WRITE (FYLENO,445) K
+        IF (STD_IO ) WRITE (*,415) (XMU(K,J),J=1,NATT)
+        IF (DIAG_IO) WRITE (FYLENO,415) (XMU(K,J),J=1,NATT)
+        DO J=1,NATT
+          IF (STD_IO ) WRITE (*,415) (XVAR(K,I,J),I=1,J)
+          IF (DIAG_IO) WRITE (FYLENO,415) (XVAR(K,I,J),I=1,J)
+        ENDDO
+      ENDDO
+
+ 445  FORMAT (/2X,'Global mean, covariance matrix  ',I2)
+ 415  FORMAT (2X,5G30.12)
+      
       END SUBROUTINE GMM_INIT_GRP8
 
       end module gm_init
