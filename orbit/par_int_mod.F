@@ -46,7 +46,7 @@ c     ---------------------------------------------------------------
         enddo
       endif
 
-      !Compute line integral cut-offs for alpha=-1 (diffusion-advection)
+      !Compute line integral cut-offs for alpha<0 (diffusion-advection)
       if (alpha < 0d0) then
 cc        T_cutoff2 = tol
         T_cutoff2 = 1d0
@@ -65,6 +65,7 @@ cc        T_cutoff2 = tol
         S_cutoffm = S_cutoffm/abs(0.5*alpha)
         S_cutoffp = S_cutoffp/abs(0.5*alpha)
 cc        write (*,*) T_cutoff,S_cutoffm,S_cutoffp
+cc        stop
       endif
 
       !Compute coefficient matrix for SDC kernels
