@@ -53,7 +53,7 @@ c ######################################################################
      .               ,sel_graph(xdraw_cont_lim)
 
         integer    :: ndplot,nplot
-        real(8)    :: dplot,tmplot
+        real(8)    :: dplot,tplot
 
         integer    :: iplot,jplot,kplot
 

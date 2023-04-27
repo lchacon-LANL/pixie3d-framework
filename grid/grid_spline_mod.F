@@ -42,7 +42,7 @@ c #####################################################################
      .                                               ,bcarcoef => null()
 
         logical, private :: x_is_log,y_is_log,z_is_log
-     .                     ,local_spline=.true.
+     .                     ,local_spline=.false.
 
         INTERFACE setupSplines
           module procedure setupSplines_gst,setupSplines_nogst

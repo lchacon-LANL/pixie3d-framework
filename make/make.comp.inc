@@ -82,7 +82,7 @@ ifeq ($(findstring gfortran,$(shell $(FC) 2>&1)),gfortran)
   ifeq ($(ARCH),Darwin)
     OPTIMIZATION ?= -Wa,-q -Wa,-Wno-unused-command-line-argument -O3 -g -march=$(M_ARCH) -fopenmp-simd #-fopt-info -ffast-math 
   else
-    OPTIMIZATION ?= -O3 -g -march=$(M_ARCH) -fopenmp-simd -no-pie #-fopt-info  -ffast-math 
+    OPTIMIZATION ?= -O3 -g -march=$(M_ARCH) -fopenmp-simd #-no-pie #-fopt-info  -ffast-math 
   endif
   DEBUG        = -g -fbounds-check -fbacktrace -ffpe-trap=invalid,zero -ftrapv #-finit-real=snan #-finit-local-zero #-ggdb3
 #  DEBUG        = -g -fbounds-check -fbacktrace -ffpe-trap=invalid,zero,denormal -ftrapv #-finit-real=snan #-finit-local-zero #-ggdb3

@@ -4,7 +4,7 @@ c ######################################################################
 
         use ts_base
 
-        use graphics_io, ONLY: no_graphics_io,nplot,ndplot,tmplot,dplot
+        use graphics_io, ONLY: no_graphics_io,nplot,ndplot,tplot,dplot
 
         logical :: ts_after_restart = .false.
 
@@ -251,14 +251,16 @@ c     Local variables
 c     Begin program
 
       dump = (nplot == ndplot.and.nplot > 0)
-cc     .   .or.((time-tmplot) >= dplot-0.9*dt .and. dplot > 0d0)
-     .   .or.(sign(1d0,dt)*(time-tmplot)>=dplot-.1*abs(dt).and.dplot>0.)
-     .   .or.(          abs(tmax-time  )<=1d-10           .and.dplot>0.)
+cc     .   .or.((time-tplot) >= dplot-0.9*dt .and. dplot > 0d0)
+     .   .or.(sign(1d0,dt)*(time-tplot )>=dplot-.9*abs(dt).and.dplot>0.)
+     .   .or.(sign(1d0,dt)*(tmax-time  )<=1d-10           .and.dplot>0.)
      .   .or.(time == 0d0)
 
       if (reset.and.dump) then
-        nplot = 0
-        if (itime.gt.0) tmplot = time
+        if (itime.gt.0) then
+          tplot = time
+          nplot = itime
+        endif
       endif
 
 c     End program

@@ -165,6 +165,13 @@ c     Initialize grid structure
       if (ny == 1) g_pack(2)%pack = .false.
       if (nz == 1) g_pack(3)%pack = .false.
 
+      g_pack(1)%dxl = g_pack(1)%dx0
+      g_pack(1)%dxr = g_pack(1)%dx0
+      g_pack(2)%dxl = g_pack(2)%dx0
+      g_pack(2)%dxr = g_pack(2)%dx0
+      g_pack(3)%dxl = g_pack(3)%dx0
+      g_pack(3)%dxr = g_pack(3)%dx0
+      
       call init_gdef(nx,ny,nz,xmin,xmax,ymin,ymax,zmin,zmax
      .               ,g_pack,gparams,g_def
 #if defined(petsc) || defined(samrai)
@@ -247,6 +254,7 @@ c     ######################################################################
       if (my_rank == 0) write (*,*) 'Fine levels',g_def_sav%ngrid
       if (my_rank == 0) write (*,*) "Fine X dims",g_def_sav%nxv
       if (my_rank == 0) write (*,*) "Fine Y dims",g_def_sav%nyv
+      if (my_rank == 0) write (*,*) "Fine Z dims",g_def_sav%nzv
 
       do while(associated(g_def_sav%g_crse_def))
         il = il + 1
@@ -262,6 +270,7 @@ c     ######################################################################
         if (my_rank == 0) write (*,*) 'Coarse levels',g_def_sav%ngrid
         if (my_rank == 0) write (*,*) "Coarse X dims",g_def_sav%nxv
         if (my_rank == 0) write (*,*) "Coarse Y dims",g_def_sav%nyv
+        if (my_rank == 0) write (*,*) "Coarse Z dims",g_def_sav%nzv
 
         call MPI_Barrier(MPI_COMM_WORLD,mpierr)
       enddo
@@ -450,7 +459,7 @@ c     init_gdef
 c     #################################################################
       subroutine init_gdef(nxg,nyg,nzg,gxmin,gxmax,gymin,gymax,gzmin
      .     ,gzmax,g_pack,gparams,gdef,mpi_comm,np_x,np_y,np_z
-     .     ,coarsen_in_x,coarsen_in_y ,coarsen_in_z)
+     .     ,coarsen_in_x,coarsen_in_y,coarsen_in_z)
 
 c     -----------------------------------------------------------------
 c     Initializes grid structure, including MG pointers and PETSc
@@ -637,9 +646,7 @@ c     #################################################################
       subroutine createMGgrid(gdef)
 
 c     -----------------------------------------------------------------
-c     Defines logical grid and finds grid quantities from:
-c       * gpack (type grid_pack): stores grid packing info
-c       * gdef (type grid_mg_def): stores grid definition.
+c     Defines logical grid and finds grid quantities in MG grid hierarchy.
 c     -----------------------------------------------------------------
 
         implicit none
@@ -747,7 +754,7 @@ c     Consistency checks
 
         call consistencyCheck(gdef)
 
-c     Define uniform logical LOCAL grid on ALL grid levels
+c     Define logical LOCAL grid on ALL grid levels
 
         call createLogicalGrid(gdef%nxgl,gdef%mg_ratio_x
      .                        ,gdef%xg,gdef%xx,gdef%dx
@@ -808,17 +815,15 @@ c     Call variables
 
 c     Local variables
     
-        type(grid_pack) :: lpack
-    
-        integer :: ig,i,isig,ng,coarse_rat
+        integer :: ig,i,isig,ng
+
+        real(8),allocatable,dimension(:) :: xxg
+        
+        real(8) :: xi_l,xi_r,xi_0
+
+        real(8) :: nxi_l,nxi_r,nxi_0
 
 c     Begin program
-
-        ig = 1  !Finest grid level
-
-        lpack = dpack
-
-        lpack%pack = lpack%pack.and.(coords=='lpk')  !Logical grid packing
 
 c     Find grid quantities
 
@@ -828,13 +833,78 @@ c     Find grid quantities
 
           ng   = nglobal(ig)
 
-          !Find grid spacing
-          call findLocalGrid(ig,xx(isig),ng)
+          !Find global mesh
+          allocate(xxg(0:ng+1))
+          call findGlobalGrid(lmin,lmax,bcs1,bcs2,dpack,xxg
+     .                       ,xi_l,xi_r,xi_0)
+          
+c$$$          if (my_rank == 0) then
+c$$$            write (*,*) 'Grid level=',ig
+c$$$            write (*,*) 'Domain limits=',lmin,lmax
+c$$$            write (*,*) 'Coarsening ratio  =',mgr(ig)
+c$$$            write (*,*) 'Packing spacings  =',dpack%dxl
+c$$$     .                                       ,dpack%dx0
+c$$$     .                                       ,dpack%dxr
+c$$$            write (*,*) 'Geometric  factors=',xi_l
+c$$$     .                                       ,xi_0
+c$$$     .                                       ,xi_r
+c$$$c$$$            if (dpack%unif_nx == 0) then
+c$$$c$$$              write (*,*) 'Coarsening factors=',nxi_l
+c$$$c$$$     .                                         ,nxi_0
+c$$$c$$$     .                                         ,nxi_r
+c$$$c$$$            else
+c$$$c$$$              write (*,*) 'Coarser uniform nx=',dpack%unif_nx
+c$$$c$$$            endif
+c$$$            do i=0,ng+1
+c$$$              write (*,*) 'Mesh',i,xxg(i)
+c$$$            enddo
+c$$$            write (*,*)
+c$$$          endif
+c$$$          pause
+
+          !Compute new packing spacings for current grid and store in
+          !dpack for MG coarsening
+          if (ig /= ngrid) then
+
+            if (dpack%unif_nx == 0) then
+              nxi_l = 1d0 ; nxi_r = 1d0 ; nxi_0 = 1d0
+              do i=2,mgr(ig)
+                nxi_l = nxi_l + 2*(mgr(ig)-i+1)/mgr(ig)*xi_l**(i-1)
+                nxi_r = nxi_r + 2*(mgr(ig)-i+1)/mgr(ig)*xi_r**(i-1)
+                nxi_0 = nxi_0 + 2*(mgr(ig)-i+1)/mgr(ig)*xi_0**(i-1)
+              enddo
+
+              dpack%dx0 = dpack%dx0*nxi_0
+              dpack%dxl = dpack%dxl*nxi_l
+              dpack%dxr = dpack%dxr*nxi_r
+            else
+              dpack%unif_nx = dpack%unif_nx/mgr(ig)
+              dpack%left_nx = dpack%left_nx/mgr(ig)
+              dpack%rite_nx = dpack%rite_nx/mgr(ig)
+            endif
+          endif
+
+          !Assign top-level global grid
+          if (ig == 1) xg(1:ng+2) = xxg(0:ng+1)
+
+          !Assign local grid at every level
+          xx(isig:isig+nx(ig)+1) = xxg(ilo(ig)-1:ihi(ig)+1)
 
           !Find integer mesh spacings
+c$$$          dx(isig:isig+nx(ig)+1) = 0d0
+c$$$          do i = 0,nx(ig)
+c$$$            dx(i + isig) = xx(i+1 + isig) - xx(i + isig)
+c$$$          enddo
+c$$$          dx(nx(ig)+1+isig) = dx(nx(ig)+isig)
+c$$$     .                      *(dx(nx(ig)+isig)/dx(nx(ig)-1+isig))
+
           dx(isig:isig+nx(ig)+1) = 0d0
-          do i = 0,nx(ig)
-            dx(i + isig) = xx(i+1 + isig) - xx(i + isig)
+          do i = 0,nx(ig)+1
+            if (ilo(ig)+i <= ng+1) then
+              dx(i+isig) = xxg(ilo(ig)+i) - xxg(ilo(ig)+i-1)
+            else
+              dx(i+isig) = dx(i-1+isig)
+            endif
           enddo
 
           !Find half mesh spacings
@@ -847,62 +917,13 @@ c     Find grid quantities
             dxh(0        + isig) = dxh(nx(ig) + isig)
             dxh(nx(ig)+1 + isig) = dxh(1      + isig)
           else
-cc            dxh(0        + isig) = dx(0      + isig)*0.5 !Needed for extrapolation
-cc            dxh(nx(ig)+1 + isig) = dx(nx(ig) + isig)*0.5 !Needed for extrapolation
-            dxh(0        + isig) = dx(0      + isig)
-            dxh(nx(ig)+1 + isig) = dx(nx(ig) + isig)
+            dxh(0        + isig) = dx (0      + isig)
+            dxh(nx(ig)+1 + isig) = dx (nx(ig) + isig)
           endif
 
+          deallocate(xxg)
+          
         enddo
-
-      contains
-
-c     findLocalGrid
-c     #################################################################
-      subroutine findLocalGrid(ig,xx,ng)
-
-c     -----------------------------------------------------------------
-c     Finds grid on local processor
-c     -----------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-        integer :: ig,ng
-        real(8) :: xx(*)
-
-c     Local variables
-
-        real(8) :: xxg(0:ng+1)
-
-c     Begin program
-
-        if (ig == 1) then
-          coarse_rat = 1
-        else
-          coarse_rat = coarse_rat*mgr(ig-1)
-          !Failsafe to avoid overextending domain
-          if (lpack%dx0*coarse_rat > lmax-lmin) then
-            coarse_rat = coarse_rat/mgr(ig-1)
-          endif
-        endif
-
-c     Find global grid
-
-        call findGlobalGrid(lmin,lmax,bcs1,bcs2,xxg,lpack,coarse_rat)
-
-c     Assign global grid
-
-        if (ig == 1) xg(1:ng+2) = xxg(0:ng+1)
-
-c     Assign local grid
-
-        xx(1:nx(ig)+2) = xxg(ilo(ig)-1:ihi(ig)+1)
-
-c     End program
-
-      end subroutine findLocalGrid
 
       end subroutine createLogicalGrid
 

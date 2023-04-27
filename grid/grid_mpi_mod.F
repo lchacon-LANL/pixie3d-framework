@@ -2108,7 +2108,7 @@ c     ##############################################################
       implicit none
 
 c     --------------------------------------------------------------
-c     Performs parallel reduction to find global field INCLUDIN
+c     Performs parallel reduction to find global field INCLUDING
 c     ghost cells.
 c     --------------------------------------------------------------
 

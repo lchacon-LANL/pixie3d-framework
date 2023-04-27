@@ -46,8 +46,8 @@ c Initialize computation
 
 c Initialize counters
 
-      nplot  = 0
-      tmplot = 0d0
+      nplot = 0
+      tplot = 0d0
 
 c Time loop
 
@@ -82,10 +82,6 @@ c     Gather error info
 c     Check for error
 
         if (exitloop) exit
-
-c     Update counters
-
-        nplot  = nplot + 1
 
 c     MK setup
 
@@ -169,7 +165,7 @@ c Call variables
 c Local variables
 
       logical :: plot
-
+      
 c Interfaces
 
       INTERFACE
@@ -189,7 +185,7 @@ c Post-process solution for diagnostics and dump plots
      .       call evaluateDiagnostics(u_np,1,1,1,.false.)
 
       plot = TS_chk_plot_dump(.true.)
-
+      
       if (plot) then
 
         if (skip_diag) 
@@ -312,7 +308,8 @@ c Runtime initializations
 
       call PetscOptionsGetReal(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
      .   ,"-dplot",dplot,petsc_flg,ierr)
-
+      if (petsc_flg) ndplot = 0
+      
       call PetscOptionsGetInt(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
      .   ,"-ndplot",ndplot,petsc_flg,ierr)
 
@@ -323,6 +320,10 @@ c Runtime initializations
       call PetscOptionsGetInt(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
      .   ,"-ndstep",ndstep,petsc_flg,ierr)
       if (petsc_flg) dstep = 0d0
+
+      call PetscOptionsGetInt(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
+     .   ,"-ndplot",ndstep,petsc_flg,ierr)
+      if (petsc_flg) dplot = 0d0
 #endif
 
 c Allocate global variable

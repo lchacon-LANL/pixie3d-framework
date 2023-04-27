@@ -7,10 +7,10 @@ c #############################################################################
         use math, ONLY: factorial,pi,calerf
 
         integer,private :: kmax=100      !Maximum number of Fourier modes in Fourier Green's f. form
-        real(8),private :: t_tol,T_cutoff2,S_cutoff2,alpha=0d0
-     .                    ,aa(0:10,0:10),cc(0:10)
+        real(8),private :: t_tol,T_cutoff,T_cutoff2,S_cutoff2,S_cutoffp
+     .                    ,S_cutoffm,alpha=0d0,aa(0:10,0:10),cc(0:10)
 
-        real(8),parameter :: sqrpi=sqrt(pi),isqrpi=1d0/sqrpi,ipi=1d0/pi
+        real(8),parameter :: sqrpi=dsqrt(pi),isqrpi=1d0/sqrpi,ipi=1d0/pi
 
       contains
 
@@ -25,11 +25,12 @@ c     ---------------------------------------------------------------
       implicit none
 
       real(8) :: alp,tol
-      integer :: i,j
 
+      integer :: i,j
+      
       alpha = alp
 
-      if (alpha /= 1d0 .and. alpha /= 2d0) then
+      if (alpha >= 0d0 .and. alpha /= 1d0 .and. alpha /= 2d0) then
         call pstop("setup_T_kernels","Diffusion order not supported")
       endif
 
@@ -43,6 +44,28 @@ c     ---------------------------------------------------------------
           T_cutoff2 = abs(log(    sqrpi*t_tol*sqrt(T_cutoff2)))
           S_cutoff2 = abs(log(2d0*sqrpi*t_tol*     S_cutoff2 ))
         enddo
+      endif
+
+      !Compute line integral cut-offs for alpha<0 (diffusion-advection)
+      if (alpha < 0d0) then
+cc        T_cutoff2 = tol
+        T_cutoff2 = 1d0
+        S_cutoffm = 1d0 + abs(0.5*alpha) 
+        S_cutoffp = 1d0 
+        do i=1,10
+          T_cutoff2 = abs(log(2d0*sqrpi*t_tol*sqrt(T_cutoff2)))
+          S_cutoffm = abs(0.5*alpha)
+     .          + sqrt(abs(log(sqrpi*t_tol*S_cutoffm
+     .                    *sqrt(S_cutoffm*(S_cutoffm-abs(0.5*alpha))))))
+          S_cutoffp =-abs(0.5*alpha)
+     .          + sqrt(abs(log(sqrpi*t_tol*S_cutoffp
+     .                    *sqrt(S_cutoffp*(S_cutoffp+abs(0.5*alpha))))))
+        enddo
+        T_cutoff = sqrt(T_cutoff2)
+        S_cutoffm = S_cutoffm/abs(0.5*alpha)
+        S_cutoffp = S_cutoffp/abs(0.5*alpha)
+cc        write (*,*) T_cutoff,S_cutoffm,S_cutoffp
+cc        stop
       endif
 
       !Compute coefficient matrix for SDC kernels
@@ -86,7 +109,8 @@ c     Call variables
 
 c     Local variables
 
-      real(8) :: isct0,s2
+      real(8) :: isct0,s2,isD,eta
+      real(8) :: dt
 
 c     Begin program
 
@@ -97,9 +121,22 @@ c     Begin program
 
         ex_loop = (s2 > 4*T_cutoff2*ct0)
       elseif (alpha == 1d0) then
-        tkernel = ipi/(ct0*(1+(ss*ss)/(ct0*ct0)))
+        isct0 = 1d0/ct0
+        eta = ss*isct0
+        tkernel = ipi*isct0/(1+eta*eta)
 
         ex_loop = (abs(ss) >  2d0*ipi/t_tol*ct0)
+      elseif (alpha < 0d0) then
+        isD = abs(alpha)
+      
+        isct0 = isD/ct0        !epsilon/dt/sqrt(D*)
+        eta = ss*isct0
+        s2 = 0.25*(eta+isD)*(eta+isD)
+        tkernel = 0.5d0*isqrpi*isct0*exp(-s2)
+
+        ex_loop = (abs(abs(eta)+sign(isD,ss)) > 2d0*T_cutoff)
+cc        ex_loop = (tkernel<t_tol)
+        if (ex_loop) tkernel=0d0
       else
         call pstop('tkernel_3d','Fractional order not implemented')
       endif
@@ -191,24 +228,54 @@ c     Call variables
 c     Local variables
 
       real(8) :: eta,z,dum
+      real(8) :: chi,dt,sigss
+      real(8) :: erfc1,erfc2,ex,isD,dtinv
 
 c     Begin program
 
-      z = abs(ss)
-
       if (alpha == 2d0) then
+        z = abs(ss)
         dum = 1d0/sqrt(ct0)       !ct0=chi_par/chi_perp*t0
         eta = 0.5d0*z*dum
         skernel = ukernel(eta,0)*dum
 cc        skernel = (exp(-eta*eta)*isqrpi-eta*erfc(eta))*dum
         
         ex_loop = (z*z > 4*S_cutoff2*ct0)
-cc      elseif (alpha == 1d0) then
-cc        skernel = 1d0/(pi*ct0*(1+(abs(ss)/ct0)**2))
-cc
-cc        slim = s_max + 2/pi/t_tol*ct0
-cc
-cc        ex_loop = (abs(ss) > slim)
+      elseif (alpha == 1d0) then
+        z = abs(ss)
+        dum = 1d0/ct0
+        eta = ss*dum
+        skernel = ipi*dum/(1+eta*eta)
+
+        ex_loop = (abs(ss) > 2*ipi/t_tol*ct0)
+      elseif (alpha < 0d0) then 
+        isD = abs(alpha)
+      
+        dtinv=1d0/ct0     ! epsilon/dt
+
+        eta = ss*dtinv
+      
+        sigss=sign(1d0,eta)
+
+        ! exponential exp(s/t') 
+        ex= exp(min(-eta*isD*isD,709d0))
+ 
+        dum=(abs(eta)-sigss)*0.5d0*isD    
+        CALL CALERF(dum,erfc1,1)
+   
+        dum=(abs(eta)+sigss)*0.5d0*isD 
+        CALL CALERF(dum,erfc2,1)
+      
+        skernel= sigss*0.5d0*(ex*erfc1-erfc2)*dtinv 
+      
+        ex_loop =    (abs(eta)>S_cutoffm.and.eta<0d0)
+     .           .or.(abs(eta)>S_cutoffp.and.eta>0d0)
+cc        ex_loop = (skernel<t_tol)
+        if (ex_loop) then
+          skernel=0d0 
+c$$$          if (eta<0d0) write (*,*) "m",eta,S_cutoffm,dtinv
+c$$$          if (eta>0d0) write (*,*) "p",eta,S_cutoffp,dtinv
+        endif
       else
         call pstop('skernel_3d','Fractional order not implemented')
       endif
@@ -316,12 +383,12 @@ c     Begin program
         skernel = ukernel(eta,jj)*dum
 
         ex_loop = (z*z > 4*S_cutoff2*sig)
-cc      elseif (alpha == 1d0) then
-cc        skernel = 1d0/(pi*sig*(1+(abs(ss)/sig)**2))
-cc
-cc        slim = s_max + 2/pi/t_tol*sig
-cc
-cc        ex_loop = (abs(ss) > slim)
+      elseif (alpha == 1d0) then
+        dum = 1d0/sig
+        eta = z*dum
+        skernel = ipi*dum/(1+eta*eta)
+
+        ex_loop = (abs(ss) > 2*ipi/t_tol*sig)
       else
         call pstop('sdc_kernel_3d','Fractional order not implemented')
       endif
@@ -461,10 +528,6 @@ c     Local variables
       integer :: i,mtwo_to_j
       real(8) :: ff,eta2,et2,errorf
 
-#if defined(pgf90)
-cc      real(8) :: erfc
-#endif
-
 c     Begin program
 
       et2 = eta*eta
@@ -477,8 +540,6 @@ c     Begin program
          mtwo_to_j = -2*mtwo_to_j
       enddo
 
-cc      errorf = erfc(eta)
-cc      errorf = erfcc(eta)
       CALL CALERF(eta,errorf,2)
       ukernel = exp(-et2)*( ff  !Factor ff includes factor 1/sqrt(pi)
      .           -mtwo_to_j*eta2*eta*errorf)*cc(jj)
@@ -1026,7 +1087,8 @@ c     Free up orbit integral work space
 
 c     lag_3d_new
 c     ##############################################################
-      subroutine lag_3d_new(g_def,igrid,vec_in,vec_out,chi,iout,lsode_f)
+      subroutine lag_3d_new(g_def,igrid,vec_in,vec_out,chi,iout,lsode_f
+     .                     ,no_global_splines)
 
       implicit none
 
@@ -1053,6 +1115,8 @@ c     Call variables
           end subroutine lsode_f
         END INTERFACE
 
+        logical,optional :: no_global_splines
+        
 c     Local variables
 
         integer :: nx,ny,nz,i,j,k,ig,jg,kg,nxg,nyg,nzg,ieq,neq,nints
@@ -1061,9 +1125,17 @@ c     Local variables
      .            ,pkernel_dt,src_2dt,pkernel_2dt,b0_diag,lb0_diag
 
         real(8),pointer,dimension(:,:,:,:) :: vg
-
+        
+        logical :: no_global_spl
+        
 c     Begin program
 
+        if (PRESENT(no_global_splines)) then
+          no_global_spl = no_global_splines
+        else
+          no_global_spl = .false.
+        endif
+        
         nints = size(vec_out,4)
         orbit_conf%ode_conf%lsode_neq = 5+nints !Number of LSODE integrals
 
@@ -1104,7 +1176,7 @@ cc        allocate(dummy   (nxg+2,nyg+2,nzg+2,neq))
 #endif
 c     Spline temperature field
 
-        if (is_spline_local()) then
+        if (is_spline_local().or.no_global_spl) then
           sp_coef = vg
         else
 cc          dummy = vg
@@ -2655,7 +2727,8 @@ cc     .               ,chi,iout,lsode_f=lsode_2d_cn_3eq)
 
 c     lag_xport_bdf2
 c     ##############################################################
-      subroutine lag_xport_bdf2(g_def,igrid,in_flds,out_flds,chi,iout)
+      subroutine lag_xport_bdf2(g_def,igrid,in_flds,out_flds,chi,iout
+     .                         ,lsode_ext,no_global_splines)
 
       implicit none
 
@@ -2671,6 +2744,8 @@ c     Call variables
         integer :: igrid,iout
 
         real(8) :: chi(:,:,:),in_flds(:,:,:,:),out_flds(:,:,:,:)
+
+        logical, optional :: no_global_splines
 
 c     Local variables
 
@@ -2690,15 +2765,29 @@ c     Local variables
           real(8) :: t,y(neq),ydot(neq)
           end subroutine lsode_3d_bdf2
         END INTERFACE
+      
+        optional :: lsode_ext
+        
+        INTERFACE
+          subroutine lsode_ext(neq,t,y,ydot)
+          integer :: neq
+          real(8) :: t,y(neq),ydot(neq)
+          end subroutine lsode_ext
+        END INTERFACE
 
 c     Begin program
 
-        if (l2d) then
+        if (PRESENT(lsode_ext)) then
+          call lag_3d_new(g_def,igrid,in_flds,out_flds
+     .               ,chi,iout,lsode_f=lsode_ext
+     .               ,no_global_splines=no_global_splines)
+        elseif (l2d) then
           call lag_2d_new(g_def,igrid,in_flds,out_flds
      .               ,chi,iout,lsode_f=lsode_2d_bdf2_3eq)
         else
           call lag_3d_new(g_def,igrid,in_flds,out_flds
-     .               ,chi,iout,lsode_f=lsode_3d_bdf2)
+     .               ,chi,iout,lsode_f=lsode_3d_bdf2
+     .               ,no_global_splines=no_global_splines)
         endif
 
       end subroutine lag_xport_bdf2
@@ -2993,7 +3082,7 @@ c     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 c     lag_update_bdf2
 c     ###############################################################
       subroutine lag_update_bdf2(g_def,igrid,ivar,bcnd,tnm,tn,tnp,chi
-     .                          ,iout)
+     .                          ,iout,lsode_ext,no_global_splines)
 
 c     ---------------------------------------------------------------
 c     Performs Lagrangian update of temperature at time n+1 (returned
@@ -3012,6 +3101,8 @@ c       * tnm,tn,tnp: 3-level temperature field (for BDF2); returns
 c                     lagrangian step result in tnp
 c       * chi: parallel transport coeff (array)
 c       * iout: output diagnostics level
+c       * lsode_ext (optional): external LSODE driver routine
+c       * no_global_splines (optional): do NOT perform global splines
 c     ---------------------------------------------------------------
 
       implicit none
@@ -3023,6 +3114,17 @@ c     Call variables
       integer :: igrid,iout,bcnd(6),ivar
       real(8),dimension(0:,0:,0:) :: tnm,tn,tnp,chi
 
+      optional :: lsode_ext
+        
+      INTERFACE
+        subroutine lsode_ext(neq,t,y,ydot)
+        integer :: neq
+        real(8) :: t,y(neq),ydot(neq)
+        end subroutine lsode_ext
+      END INTERFACE
+
+      logical, optional :: no_global_splines
+      
 c     Local variables
 
       integer :: nx,ny,nz
@@ -3067,7 +3169,8 @@ c     Find rhs of delta_T iteration
 
       where (b0 > 0d0) chi_local = chi/b0  !Divide by beta
 
-      call lag_xport_bdf2(g_def,igrid,flds,integrals,chi_local,iout)
+      call lag_xport_bdf2(g_def,igrid,flds,integrals,chi_local,iout
+     .        ,lsode_ext=lsode_ext,no_global_splines=no_global_splines)
 
       if (bdf2) then
         sgamma = dt/(dt+dtold)
