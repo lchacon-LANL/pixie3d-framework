@@ -78,31 +78,31 @@ c     End program
 
       end subroutine set_local_spline
 
-c     is_spline_local
-c     ##################################################################
-      function is_spline_local() result(spline)
-
-c     ------------------------------------------------------------------
-c     Set splining domain limits (including ghost cells, except for
-c     periodic BCs), according to dimension vector x and boundary
-c     condition bc.
-c     ------------------------------------------------------------------
-
-        implicit none
-
-c     Call variables
-
-        logical :: spline
-
-c     Local Variables
-
-c     Begin program
-
-        spline = local_spline
-        
-c     End program
-
-      end function is_spline_local
+c$$$c     is_spline_local
+c$$$c     ##################################################################
+c$$$      function is_spline_local() result(spline)
+c$$$
+c$$$c     ------------------------------------------------------------------
+c$$$c     Set splining domain limits (including ghost cells, except for
+c$$$c     periodic BCs), according to dimension vector x and boundary
+c$$$c     condition bc.
+c$$$c     ------------------------------------------------------------------
+c$$$
+c$$$        implicit none
+c$$$
+c$$$c     Call variables
+c$$$
+c$$$        logical :: spline
+c$$$
+c$$$c     Local Variables
+c$$$
+c$$$c     Begin program
+c$$$
+c$$$        spline = local_spline
+c$$$        
+c$$$c     End program
+c$$$
+c$$$      end function is_spline_local
 
 c     set_sp_domain_limits
 c     ##################################################################
@@ -1040,14 +1040,18 @@ c     Begin program
         lxcoef => xcoef
       endif
 
-      do i=1,size(flds,4)
-        call db3ink(xs,nx,ys,ny,zs,nz,flds(:,:,:,i)
+      if (local_spline) then
+        lxcoef = flds
+      else
+        do i=1,size(flds,4)
+          call db3ink(xs,nx,ys,ny,zs,nz,flds(:,:,:,i)
      .             ,nx,ny,kx,ky,kz,tx,ty,tz,lxcoef(:,:,:,i),work,flg)
-      enddo
-
+        enddo
+      endif
+      
       if (PRESENT(fldcoef)) then
         fldcoef = lxcoef
-        deallocate(ext_xcoef)
+        deallocate(ext_xcoef) !We leave xcoef allocated (global var)
       endif
 
       nullify(lxcoef)
@@ -2132,7 +2136,7 @@ c     Begin program
 
       nqty = size(fld,4)
       
-c     Determine mesh position (i0,j0,k0) and normalized position wrt cell face
+c     Determine mesh position (i0,j0,k0)
 
       !Correct for boundary shift
       if (sbcnd(1) == PER.and.nx > 1) then
@@ -2150,6 +2154,8 @@ c     Determine mesh position (i0,j0,k0) and normalized position wrt cell face
       else
         coeffz = (x3-zsmin)*ihz + 0.5d0
       endif
+
+c     Compute normalized position wrt cell face
       
       i0 = min(floor(coeffx),nx)
       j0 = min(floor(coeffy),ny)
@@ -2159,7 +2165,7 @@ c     Determine mesh position (i0,j0,k0) and normalized position wrt cell face
       xhp(2) = coeffy - j0*1d0
       xhp(3) = coeffz - k0*1d0
 
-c     Interpolate
+c     Interpolate using second-order shape function
 
 c$$$      write (*,*) "Initial pos=",x1,x2,x3
 c$$$      write (*,*) "Normalized pos=",xhp
@@ -2281,7 +2287,7 @@ c     Local variables
 c     Begin program
 
       if (local_spline) then
-        call evalFlds_local(x1,x2,x3,arrayin,arrayout)
+        call evalFlds_local (x1,x2,x3,arrayin,arrayout)
       else
         call evalFlds_global(x1,x2,x3,arrayin,arrayout)
       endif

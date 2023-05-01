@@ -1015,11 +1015,7 @@ c     Assemble global temperature field
 #endif
 c     Spline temperature field
 
-        if (is_spline_local()) then
-          sp_coef = vg
-        else
-          call splineFlds(vg,fldcoef=sp_coef)
-        endif
+        call splineFlds(vg,fldcoef=sp_coef)
 
         deallocate(vg)
 
@@ -1086,16 +1082,15 @@ c     Free up orbit integral work space
       end subroutine lag_3d
 
 c     lag_3d_new
-c     ##############################################################
-      subroutine lag_3d_new(g_def,igrid,vec_in,vec_out,chi,iout,lsode_f
-     .                     ,no_global_splines)
+c     ##################################################################
+      subroutine lag_3d_new(g_def,igrid,vec_in,vec_out,chi,iout,lsode_f)
 
       implicit none
 
-c     --------------------------------------------------------------
+c     ------------------------------------------------------------------
 c     Performs Lagrangian Green's function temperature integration
 c     of tt and returns it in tt.
-c     --------------------------------------------------------------
+c     ------------------------------------------------------------------
 
 c     Call variables
 
@@ -1107,7 +1102,7 @@ c     Call variables
 
         real(8) :: vec_in(0:,0:,0:,:),vec_out(0:,0:,0:,:)
 
-        !Interface for optional LSODE function evaluation
+        !Interface for LSODE function evaluation
         INTERFACE
           subroutine lsode_f(neq,t,y,ydot)
           integer :: neq
@@ -1115,8 +1110,6 @@ c     Call variables
           end subroutine lsode_f
         END INTERFACE
 
-        logical,optional :: no_global_splines
-        
 c     Local variables
 
         integer :: nx,ny,nz,i,j,k,ig,jg,kg,nxg,nyg,nzg,ieq,neq,nints
@@ -1125,17 +1118,9 @@ c     Local variables
      .            ,pkernel_dt,src_2dt,pkernel_2dt,b0_diag,lb0_diag
 
         real(8),pointer,dimension(:,:,:,:) :: vg
-        
-        logical :: no_global_spl
-        
+
 c     Begin program
 
-        if (PRESENT(no_global_splines)) then
-          no_global_spl = no_global_splines
-        else
-          no_global_spl = .false.
-        endif
-        
         nints = size(vec_out,4)
         orbit_conf%ode_conf%lsode_neq = 5+nints !Number of LSODE integrals
 
@@ -1176,12 +1161,7 @@ cc        allocate(dummy   (nxg+2,nyg+2,nzg+2,neq))
 #endif
 c     Spline temperature field
 
-        if (is_spline_local().or.no_global_spl) then
-          sp_coef = vg
-        else
-cc          dummy = vg
-          call splineFlds(vg,fldcoef=sp_coef)
-        endif
+        call splineFlds(vg,fldcoef=sp_coef)
 
         deallocate(vg)
 
@@ -1337,11 +1317,7 @@ c     Assemble global temperature field
 #endif
 c     Spline fields
 
-        if (is_spline_local()) then
-          sp_coef = vg
-        else
-          call splineFlds(vg,fldcoef=sp_coef)
-        endif
+        call splineFlds(vg,fldcoef=sp_coef)
 
         deallocate(vg)
 
@@ -1496,11 +1472,7 @@ c     Assemble global temperature field
 
 c     Spline fields
 
-        if (is_spline_local()) then
-          sp_coef = vg
-        else
-          call splineFlds(vg,fldcoef=sp_coef)
-        endif
+        call splineFlds(vg,fldcoef=sp_coef)
 
         deallocate(vg)
   
@@ -2717,10 +2689,10 @@ c     Begin program
         if (l2d) then
           call lag_2d_new(g_def,igrid,in_flds,out_flds
 cc     .               ,chi,iout,lsode_f=lsode_2d_cn_3eq)
-     .               ,chi,iout,lsode_f=lsode_2d_cn_3eq_norm)
+     .                   ,chi,iout,lsode_f=lsode_2d_cn_3eq_norm)
         else
           call lag_3d_new(g_def,igrid,in_flds,out_flds
-     .               ,chi,iout,lsode_f=lsode_3d_cn)
+     .                   ,chi,iout,lsode_f=lsode_3d_cn)
         endif
 
       end subroutine lag_xport_theta
@@ -2728,7 +2700,7 @@ cc     .               ,chi,iout,lsode_f=lsode_2d_cn_3eq)
 c     lag_xport_bdf2
 c     ##############################################################
       subroutine lag_xport_bdf2(g_def,igrid,in_flds,out_flds,chi,iout
-     .                         ,lsode_ext,no_global_splines)
+     .                         ,lsode_ext)
 
       implicit none
 
@@ -2744,8 +2716,6 @@ c     Call variables
         integer :: igrid,iout
 
         real(8) :: chi(:,:,:),in_flds(:,:,:,:),out_flds(:,:,:,:)
-
-        logical, optional :: no_global_splines
 
 c     Local variables
 
@@ -2779,15 +2749,13 @@ c     Begin program
 
         if (PRESENT(lsode_ext)) then
           call lag_3d_new(g_def,igrid,in_flds,out_flds
-     .               ,chi,iout,lsode_f=lsode_ext
-     .               ,no_global_splines=no_global_splines)
+     .               ,chi,iout,lsode_f=lsode_ext)
         elseif (l2d) then
           call lag_2d_new(g_def,igrid,in_flds,out_flds
      .               ,chi,iout,lsode_f=lsode_2d_bdf2_3eq)
         else
           call lag_3d_new(g_def,igrid,in_flds,out_flds
-     .               ,chi,iout,lsode_f=lsode_3d_bdf2
-     .               ,no_global_splines=no_global_splines)
+     .               ,chi,iout,lsode_f=lsode_3d_bdf2)
         endif
 
       end subroutine lag_xport_bdf2
@@ -3141,6 +3109,10 @@ c     Begin program
      .            ,'Lagrangian integrator uninitialized')
       endif
 
+      if (PRESENT(no_global_splines)) then
+        call set_local_spline(no_global_splines)
+      endif
+      
       nx = size(tnp,1)-2
       ny = size(tnp,2)-2
       nz = size(tnp,3)-2
@@ -3170,7 +3142,7 @@ c     Find rhs of delta_T iteration
       where (b0 > 0d0) chi_local = chi/b0  !Divide by beta
 
       call lag_xport_bdf2(g_def,igrid,flds,integrals,chi_local,iout
-     .        ,lsode_ext=lsode_ext,no_global_splines=no_global_splines)
+     .                   ,lsode_ext=lsode_ext)
 
       if (bdf2) then
         sgamma = dt/(dt+dtold)
