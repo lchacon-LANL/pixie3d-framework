@@ -836,7 +836,7 @@ c     Find grid quantities
           !Find global mesh
           allocate(xxg(0:ng+1))
           call findGlobalGrid(lmin,lmax,bcs1,bcs2,dpack,xxg
-     .                       ,xi_l,xi_r,xi_0)
+     .                       ,xi_l=xi_l,xi_r=xi_r,xi_0=xi_0)
           
 c$$$          if (my_rank == 0) then
 c$$$            write (*,*) 'Grid level=',ig

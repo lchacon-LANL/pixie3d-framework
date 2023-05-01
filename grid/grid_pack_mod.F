@@ -1370,15 +1370,18 @@ c     -----------------------------------------------------------------
 
 c     Call variables
 
-        integer :: bcs1,bcs2,ng,nxleft,nxrite,nxunif
+        integer :: bcs1,bcs2
 
-        real(8) :: lmin,lmax,llmax,llmin,length,unif_dom,xxg(0:)
+        real(8) :: lmin,lmax,xxg(0:)
 
         type(grid_pack) :: lpack
 
-        real(8) :: xi_l,xi_r,xi_0,xp
+        real(8),intent(OUT),optional :: xi_l,xi_r,xi_0
 
 c     Local variables
+
+        integer :: ng,nxleft,nxrite,nxunif
+        real(8) :: xp,llmax,llmin,length,unif_dom,xl,xr,x0
 
 c     Begin program
 
@@ -1386,14 +1389,14 @@ c     Begin program
 
           call findGlobalUniformGrid(lmin,lmax,bcs1,bcs2,xxg)
 
-          xi_l = 0d0 ; xi_r = 0d0 ; xi_0 = 0d0
+          xl = 0d0 ; xr = 0d0 ; x0 = 0d0
 
         else  !Find global packed grid
 
           if (lpack%unif_nx == 0) then !No uniform region
 
             call findGlobalPackedGrid(lmin,lmax,bcs1,bcs2,lpack,xxg
-     .                               ,xi_0,xi_l,xi_r)
+     .                               ,x0,xl,xr)
 
           else                         !Uniform region specified
 
@@ -1403,8 +1406,6 @@ c     Begin program
             llmax = lpack%unif_dom_rite_bdry
             unif_dom = llmax-llmin
 
-cc            write (*,*) lmin,llmin,llmax,lmax
-            
             nxleft = lpack%left_nx
             nxrite = lpack%rite_nx
             nxunif = lpack%unif_nx
@@ -1416,7 +1417,6 @@ cc            write (*,*) lmin,llmin,llmax,lmax
             endif
 
             ng = size(xxg) - 2
-cc            length = lmax-llmax + (llmin-lmin)
             if (nxleft == 0.and.llmin > lmin) then
               nxleft = (ng-nxunif)/2
 cc     .       max(2**floor(log((llmin-lmin)/length*(ng-nxunif)/log(2d0)))
@@ -1429,7 +1429,6 @@ cc     .           ,1)
             elseif (llmax >= lmax) then
               nxrite = ng
             endif
-cc            write (*,*) ng,nxunif,nxleft,nxrite
             
             !Create uniform grid region
             call findGlobalUniformGrid(llmin,llmax,NEU,NEU
@@ -1440,7 +1439,7 @@ cc            write (*,*) ng,nxunif,nxleft,nxrite
               lpack%dxr = unif_dom/nxunif  !Set packing spacing to same as uniform region
               lpack%xp  = llmin
               call findGlobalPackedGrid(lmin,llmin,bcs1,NEU,lpack
-     .                                 ,xxg(0:nxleft+1),xi_0,xi_l,xi_r)
+     .                                 ,xxg(0:nxleft+1),x0,xl,xr)
             endif
             
             !Pack to the right of uniform grid region
@@ -1448,7 +1447,7 @@ cc            write (*,*) ng,nxunif,nxleft,nxrite
               lpack%dxl = unif_dom/nxunif  !Set packing spacing to same as uniform region
               lpack%xp  = llmax
               call findGlobalPackedGrid(llmax,lmax,NEU,bcs2,lpack
-     .                                 ,xxg(nxrite:),xi_0,xi_l,xi_r)
+     .                                 ,xxg(nxrite:),x0,xl,xr)
             endif
 
             !Save to configure next MG level
@@ -1457,6 +1456,10 @@ cc            write (*,*) ng,nxunif,nxleft,nxrite
             lpack%xp      = xp
           endif
         endif
+
+        if (PRESENT(xi_l)) xi_l = xl
+        if (PRESENT(xi_r)) xi_r = xr
+        if (PRESENT(xi_0)) xi_0 = x0
 
 c     End program
 
