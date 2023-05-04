@@ -451,6 +451,63 @@ ifeq ($(findstring quevedo,$(HOST)),quevedo)
 endif
 
 #############
+# pn1931569 #
+#############
+
+ifeq ($(findstring pn1931569,$(HOST)),pn1931569)
+
+  FC=gfortran
+
+  NETCDF=t
+  NETCDF_LIBS = -L/opt/local/lib -lnetcdff -lnetcdf
+  NETCDF_INC  = -I/opt/local/include
+
+  OMP_NUM_THREADS = 8
+
+  override MACHINE = pn1931569
+
+  ifdef BOPT
+
+    PETSC_DIR =$(HOME)/lib/petsc-3.17.3
+
+    ifeq ($(BOPT),O)
+      PETSC_ARCH = darwin-gcc12-openmpi4
+    else
+      PETSC_ARCH = darwin-gcc12-openmpi4_g
+    endif
+
+    HDF5 = t
+    HDF5_HOME =/opt/local
+    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+    HDF5_MOD  = $(HDF5_HOME)/include
+    HDF5_INC  = $(HDF5_MOD)
+
+    ADIOS2 = t
+    ADIOS2_METHOD = MPI
+    ADIOS2_HOME = $(HOME)/lib/adios-2.8.3/gcc12-openmpi4
+    ADIOS2_LIBS = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-libs)
+    ADIOS2_MOD  = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-flags)
+    ADIOS2_VER  = 2.8.3
+
+  else
+    LIBS += -llapack -lblas
+
+    HDF5 = t
+
+    HDF5_HOME =/opt/local
+    HDF5_LIBS =-L$(HDF5_HOME)/lib -lhdf5_fortran -lhdf5 -lz -lm
+    HDF5_MOD  = $(HDF5_HOME)/include
+    HDF5_INC  = $(HDF5_MOD)
+
+    ADIOS = f
+
+    ADIOS2 = f
+
+  endif
+
+endif
+
+#############
 # pn2033419 #
 #############
 
