@@ -120,7 +120,7 @@ c     ####################################################################
       function is_dir(dir)
 
 c     --------------------------------------------------------------------
-c     Checks whether "file" exists.
+c     Checks whether "dir" exists.
 c     --------------------------------------------------------------------
 
       implicit none
@@ -137,6 +137,33 @@ c     Local variables
 c     Begin program
 
       INQUIRE(DIRECTORY=trim(dir),exist=is_dir)
+
+c     End program
+
+      end function is_dir
+#else
+c     is_dir
+c     ####################################################################
+      function is_dir(dir)
+
+c     --------------------------------------------------------------------
+c     Checks whether "file" exists.
+c     --------------------------------------------------------------------
+
+      implicit none
+
+c     Call variables
+
+      logical :: is_dir
+      character(*) :: dir
+
+c     Local variables
+
+      integer :: ierr
+
+c     Begin program
+
+      INQUIRE(FILE=trim(dir),exist=is_dir)
 
 c     End program
 

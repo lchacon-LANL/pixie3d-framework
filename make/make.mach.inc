@@ -612,6 +612,7 @@ ifeq ($(findstring pn2033419,$(HOST)),pn2033419)
   endif
 
 endif
+
 ##############
 # quadrivium #
 ##############
@@ -1426,9 +1427,9 @@ ifeq ($(findstring ch,$(HOST)),ch)
      PETSC_DIR =/usr/projects/magreconn/soft/petsc-3.17.3
 
      ifeq ($(BOPT),O)
-      PETSC_ARCH = chicoma_gcc-11.2.0_mpich-8.1.14
+      PETSC_ARCH = chicoma_gcc-12.1.0_mpich-8.1.21
      else
-      PETSC_ARCH = chicoma_gcc-11.2.0_mpich-8.1.14_g
+      PETSC_ARCH = chicoma_gcc-12.1.0_mpich-8.1.21_g
      endif
 
      HDF5 = t
@@ -1439,7 +1440,7 @@ ifeq ($(findstring ch,$(HOST)),ch)
 
      ADIOS2 = t
      ADIOS2_METHOD = MPI_LUSTRE
-     ADIOS2_HOME = /usr/projects/magreconn/soft/adios-2.5/lib/chicoma_gcc-11.2.0_mpich-8.1.14
+     ADIOS2_HOME = /usr/projects/magreconn/soft/adios-2.5/lib/chicoma_gnu-12.1.0_mpich-8.1.21
      ADIOS2_LIBS = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-libs)
      ADIOS2_MOD  = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-flags) 
      ADIOS2_VER  = 2.5.0
@@ -1447,8 +1448,8 @@ ifeq ($(findstring ch,$(HOST)),ch)
      SPRNG = t
 
      SPRNG_PAR_HOME = /usr/projects/magreconn/soft/sprng5
-     SPRNG_LIBS = $(SPRNG_PAR_HOME)/lib/chicoma_gcc-11.2.0_mpich-8.1.14/lib -lsprng -lstdc++ -lm
-     SPRNG_INC  = $(SPRNG_PAR_HOME)/lib/chicoma_gcc-11.2.0_mpich-8.1.14/include
+     SPRNG_LIBS = $(SPRNG_PAR_HOME)/lib/chicoma_gcc-12.1.0_mpich-8.1.21/lib -lsprng -lstdc++ -lm
+     SPRNG_INC  = $(SPRNG_PAR_HOME)/lib/chicoma_gcc-12.1.0_mpich-8.1.21/include
 
     else
       HDF5 = f
