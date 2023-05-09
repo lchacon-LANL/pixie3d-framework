@@ -1403,6 +1403,60 @@ ifeq ($(findstring ba,$(HOST)),ba)
 endif
 
 #####################
+# Nersc Perlmutter  #
+#####################
+ifeq ($(findstring perlmutter,$(NERSC_HOST)),perlmutter)
+
+  FC = ftn
+
+  NETCDF = f
+
+  MPIEXEC = srun -C cpu
+
+  override MACHINE = perlmutter
+
+  CPPFLAGS+= $(PREPROC)USE_MPICH
+
+  ifdef BOPT
+
+    PETSC_DIR =$(HOME)/lib/petsc-3.17.3
+
+    ifeq ($(BOPT),O)
+      PETSC_ARCH = gcc12.2.0_mpich8.1.25
+    else
+      PETSC_ARCH = gcc12.2.0_mpich8.1.25
+    endif
+
+    HDF5 = t
+    HDF5_LIBS =-L$(HDF5_ROOT)/lib -lhdf5_fortran -lhdf5 -lz -lm
+    HDF5_MOD  = $(HDF5_ROOT)/include
+    HDF5_INC  = $(HDF5_MOD)
+
+    ADIOS2 = t
+    ADIOS2_METHOD = MPI_LUSTRE
+    ADIOS2_HOME = $(HOME)/lib/adios-2.8.3/gcc-12.2.0_mpich-8.1.25
+    ADIOS2_LIBS = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-libs)
+    ADIOS2_MOD  = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-flags)
+    ADIOS2_VER  = 2.8.3
+
+  else
+    LIBS += -llapack -lblas
+
+    HDF5 = t
+
+    HDF5_LIBS =-L$(HDF5_ROOT)/lib -lhdf5_fortran -lhdf5 -lz -lm
+    HDF5_MOD  = $(HDF5_ROOT)/include
+    HDF5_INC  = $(HDF5_MOD)
+
+    ADIOS = f
+
+    ADIOS2 = f
+
+  endif
+
+endif
+
+#####################
 # Chicoma turquoise #
 #####################
 
