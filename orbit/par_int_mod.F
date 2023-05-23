@@ -2043,7 +2043,7 @@ c     Begin program
 
         l2d = .false.   !Indicates 3D treatment
 
-        solen = .false. !Indicates non-solenoidal treatment
+        poinc_solen = .false. !Non-solenoidal treatment in Poincare
 
         have_chi = PRESENT(chi)
 
@@ -2522,26 +2522,26 @@ c     Begin program
 
 c     Setup orbits
 
-          !Orbit initialization
-          call orbit_setup(g_def
-     .                    ,bg(:,:,:,1)
-     .                    ,bg(:,:,:,2)
-     .                    ,bg(:,:,:,3)
-     .                    ,bcarg(:,:,:,1)
-     .                    ,bcarg(:,:,:,2)
-     .                    ,bcarg(:,:,:,3)
-     .                    ,jacg
-     .                    ,carg
-     .                    ,bcond
-     .                    ,dtime=orbit_dt
-     .                    ,atol=orbit_atol       !Field line integration absolute tolerance
-     .                    ,rtol=orbit_rtol       !Field line integration relative tolerance
-     .                    ,spline_order=spline_order
-     .                    ,solen=.false.
-     .                    ,lsode_neq = 4         !Number of equations (only integrate field line)
-     .                    ,ds_is_Bds=bwgt        !Use B.ds as integration variable
-     .                    ,lsode_s_indep=.true.  !Use arclength as independent variable
-     .                    )
+        !Orbit initialization
+        call orbit_setup(g_def
+     .                  ,bg(:,:,:,1)
+     .                  ,bg(:,:,:,2)
+     .                  ,bg(:,:,:,3)
+     .                  ,bcarg(:,:,:,1)
+     .                  ,bcarg(:,:,:,2)
+     .                  ,bcarg(:,:,:,3)
+     .                  ,jacg
+     .                  ,carg
+     .                  ,bcond
+     .                  ,dtime=orbit_dt
+     .                  ,atol=orbit_atol       !Field line integration absolute tolerance
+     .                  ,rtol=orbit_rtol       !Field line integration relative tolerance
+     .                  ,spline_order=spline_order
+     .                  ,solen=.false.
+     .                  ,lsode_neq = 4         !Number of equations (only integrate field line)
+     .                  ,ds_is_Bds=bwgt        !Use B.ds as integration variable
+     .                  ,lsode_s_indep=.true.  !Use arclength as independent variable
+     .                  )
 
 c      Compute beta
 

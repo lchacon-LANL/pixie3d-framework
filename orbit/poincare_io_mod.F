@@ -36,7 +36,7 @@
      .            ,rtol=0d-10  !Relative error tolerance in ODE convergence
      .            ,atol=1d-10  !Absolute error tolerance in CN convergence
 
-        logical :: solen=.true.   !Whether to use A or B formulation
+        logical :: poinc_solen=.true.   !Whether to use A or B formulation
 cc     .            ,forward=.true. !Whether to go forward or backward in field lines integration
      .            ,picard=.true.  !Whether we use Newton or Picard in CN stepping
 
@@ -167,7 +167,7 @@ c     Begin program
      .                  ,atol=atol
      .                  ,rtol=rtol
      .                  ,order=odeorder
-     .                  ,solen=solen
+     .                  ,solen=poinc_solen
      .                  ,picard=picard
      .                  ,spline_order=sporder
      .                  ,gauge=a_gauge
@@ -264,7 +264,7 @@ c     Orbit initialization on global array
      .                  ,atol=atol
      .                  ,rtol=rtol
      .                  ,order=odeorder
-     .                  ,solen=solen
+     .                  ,solen=poinc_solen
      .                  ,picard=picard
      .                  ,spline_order=sporder
      .                  ,gauge=a_gauge

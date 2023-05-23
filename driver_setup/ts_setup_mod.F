@@ -258,7 +258,7 @@ c     Initialization
 
       call TS_init_counters
 
-      alpha = 1. - cnfactor
+      alpha = 1d0 - cnfactor
 
       dtbase = dt
 
