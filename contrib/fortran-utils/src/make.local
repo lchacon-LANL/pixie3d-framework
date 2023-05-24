@@ -11,9 +11,10 @@ SUBDIRS =
 #Dependencies
 
 constants.o: types.o
-amos.o: types.o
+amos.o: constants.o
+utils.o: amos.o
 optimize.o: utils.o
-special.o: amos.o optimize.o
+special.o: optimize.o
 
 #Specific code
 
