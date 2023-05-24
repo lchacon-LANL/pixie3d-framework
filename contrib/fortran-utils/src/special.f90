@@ -1,4 +1,4 @@
-module special
+module special_funcs
 
 ! Special functions:
 ! This module offers some special functions such as
@@ -894,4 +894,4 @@ function reflect(order) result(res)
     endif
 end function
 
-end module
+end module special_funcs
