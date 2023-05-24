@@ -5,7 +5,7 @@ LIB_PATH = lib
 
 #Define message
 
-MESSAGE = "Compiling SLATEC interpolation libraries"
+MESSAGE = "Compiling SLATEC library"
 
 #Define subdirectories for common code
 
@@ -15,4 +15,5 @@ SUBDIRS = ./1d_spline \
           ./2d_spline \
 	  ./3d_spline \
 	  ./spline_common \
-	  ./xerror
+	  ./xerror \
+	  ./amos

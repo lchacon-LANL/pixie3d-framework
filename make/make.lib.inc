@@ -3,6 +3,11 @@
 ######## Generic package configuration ############
 ###################################################
 
+# Fortran utils setup
+
+CONTRIBLIBS += -L$(COMMONDIR)/contrib/fortran-utils/lib -lfutils
+MODPATH     += $(ADDMODFLAG)$(COMMONDIR)/contrib/fortran-utils/lib
+
 # LSODE setup
 
 CONTRIBLIBS += -L$(COMMONDIR)/contrib/lsode -llsode

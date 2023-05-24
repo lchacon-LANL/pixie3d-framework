@@ -1,0 +1,22 @@
+#Define message
+
+MESSAGE = "Compiling f90 fortran utilities"
+
+#Define subdirectories for common code
+
+COMMONDIR = 
+
+SUBDIRS = 
+
+#Dependencies
+
+constants.o: types.o
+amos.o: types.o
+optimize.o: utils.o
+special.o: amos.o optimize.o
+
+#Specific code
+
+CPPFLAGS += 
+LIBNAME=libfutils.a
+LIB_PATH=../lib

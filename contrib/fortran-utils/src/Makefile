@@ -1,21 +1,16 @@
-
 # Read application specific variables
 
--include make.inc
+-include make.local
 
-# Read local configuration
+#Default compiler
 
-ifndef ARCH
--include $(COMMONDIR)/make/make.mach.inc
-endif
-
-ifndef MODFLAG 
--include $(COMMONDIR)/make/make.comp.inc
-endif
-
-ifndef CONTRIBLIBS
--include $(COMMONDIR)/make/make.lib.inc
-endif
+FC  ?= gfortran
+PREPROC ?= -D
+MODFLAG ?= -I
+ADDMODFLAG  ?= -I
+VERBOSE     ?= -v
+CPPFLAGS    ?= $(PREPROC)gfortran
+FFLAGS      ?= -fno-automatic -O3
 
 # GENERAL PURPOSE MAKEFILE
 
@@ -45,21 +40,22 @@ LIBS :=
 
 prefix = .
 
-#FRMWRK_REL1=3
-#FRMWRK_REL2=1
-#override CPPFLAGS += $(PREPROC)FRMWRK_REL1=$(FRMWRK_REL1) $(PREPROC)FRMWRK_REL2=$(FRMWRK_REL2)
-
 #Module search path
 
 MODDIRS = $(MODPATH) $(patsubst $(COMMONDIR)%,$(ADDMODFLAG)$(COMMONDIR)%,$(SUBDIRS))
 
-#Define main targets
+#Define targets
 
 PWD = `pwd`
 
 .PHONY: setup setup_lnk target lib message clean distclean common contrib contrib_clean $(SUBDIRS)
 
+lib: target
+	-ar rs $(LIBNAME) $(OBJMOD) $(OBJS) $(COMMON_OBJS)
+	-mv $(LIBNAME) $(LIB_PATH)
+
 target: common message $(OBJMOD) $(OBJS) $(COMMON_OBJS)
+	-cp *.mod *.MOD $(LIB_PATH) 2>/dev/null || true
 
 message: ;
 	@echo ''
@@ -70,70 +66,22 @@ common: $(SUBDIRS)
 $(SUBDIRS):
 	$(MAKE) -e -C $@ target
 
-#Cleaning targets
-
-clean:: ;
-	-@rm -f *.o *.*mod *.a || true
+clean: ;
+	-@rm -f *.o *.mod $(LIB_PATH)/*.a || true
 
 distclean: clean
+	-@rm $(LIB_PATH)/*.a $(LIB_PATH)/*.mod $(LIB_PATH)/*.MOD 2>/dev/null || true
 	-@for subdir in $(SUBDIRS) ; do \
 		$(MAKE) -C $$subdir clean;  done
 
-#Main setup targets
-
-setup:
-	-@for subdir in `find . -name "make.inc" -exec dirname {} \;` ; do \
-		rm $$subdir/makefile 2>/dev/null ; \
-		ln -sf $(PWD)/Makefile $$subdir/makefile 2>/dev/null ; \
-		$(MAKE) -C $$subdir setup_lnk; done
-
-setup_lnk: ;
-ifdef ADIOS_CONFIG
-ifeq (var_setup,$(notdir $(CURDIR)))
-	-@ln -sf $(ADIOS_CONFIG) adios_config.xml 2>/dev/null ;
-endif
-endif
-	-@for file in $(LNK_FILES) ; do \
-		ln -sf $$file 2>/dev/null ; done
-
-#Library setup
-
-lib: common $(OBJMOD) $(OBJS) $(COMMON_OBJS)
-ifdef LIBNAME
-	-ar rs $(LIBNAME) $(OBJMOD) $(OBJS) 
-endif
-ifdef LIBNAME_COM
-	-ar rs $(LIBNAME_COM) $(OBJMOD) $(OBJS) $(COMMON_OBJS)
-endif
-
-#Contributed software setup
-
-contrib: ;
-	$(MAKE) --no-print-directory -e -C contrib/lsode lib
-	$(MAKE) --no-print-directory -e -C contrib/slatec lib
-	$(MAKE) --no-print-directory -e -C contrib/fpa/src lib
-	$(MAKE) --no-print-directory -e -C contrib/sdc/src lib
-	$(MAKE) --no-print-directory -e -C contrib/rng/src lib
-	$(MAKE) --no-print-directory -e -C contrib/fortran-utils/src lib
-	$(MAKE) --no-print-directory -e -C contrib/btridiag lib
-ifdef BOPT
-	$(MAKE) --no-print-directory -e -C contrib/ptridiag lib
-endif
-
-contrib_clean: ;
-	@$(MAKE) -e -C contrib/lsode clean
-	@$(MAKE) -e -C contrib/slatec distclean
-	@$(MAKE) -e -C contrib/fpa/src distclean
-	@$(MAKE) -e -C contrib/sdc/src distclean
-	@$(MAKE) -e -C contrib/rng/src clean
-	@$(MAKE) -e -C contrib/fortran-utils/src clean
-	@$(MAKE) -e -C contrib/btridiag clean
-	@$(MAKE) -e -C contrib/ptridiag clean
+setup: ;
+	-@for subdir in `find . -name "make.local" -exec dirname {} \;` ; do \
+		-rm $$subdir/Makefile 2>/dev/null || true ; \
+		ln -s -f $(PWD)/Makefile $$subdir/Makefile 2>/dev/null ; done
 
 #Define dependencies
 
-$(MODS): make.inc
-$(OBJS): $(MODS) $(COMMON_MODS)
+$(OBJS) : $(MODS) $(COMMOM_MODS)
 
 #Define patterns
 
@@ -156,9 +104,3 @@ $(OBJS): $(MODS) $(COMMON_MODS)
 %.o : %.c
 	@echo 'Compiling' $@
 	$(CC) -c $(CFLAGS) $(CPPFLAGS) $<
-
-%.o : %.C
-	@echo 'Compiling' $@
-	$(CXX) -c $(CXXFLAGS) $(CPPFLAGS) $<
-
-
