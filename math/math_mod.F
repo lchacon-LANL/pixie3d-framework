@@ -1167,6 +1167,11 @@ c     ellipticK_vec
 c     ####################################################################
       function ellipticK_vec(eta,pole) result(ellK)
 
+c     --------------------------------------------------------------------
+c     Parametrization and convention from Abramowitz and Stegun (17.3.34).
+c     Accurate to 2x10^(-8). Eta=1-mu^2
+c     --------------------------------------------------------------------
+
       implicit none
 
 c     Call variables
@@ -1218,6 +1223,11 @@ c     ellipticE_vec
 c     ####################################################################
       function ellipticE_vec(eta) result(ellE)
 
+c     --------------------------------------------------------------------
+c     Parametrization and convention from Abramowitz and Stegun (17.3.36).
+c     Accurate to 2x10^(-8).  Eta=1-mu^2
+c     --------------------------------------------------------------------
+
       implicit none
 
 c     Call variables
@@ -1255,6 +1265,11 @@ c     ####################################################################
 
       implicit none
 
+c     --------------------------------------------------------------------
+c     Parametrization and convention from Abramowitz and Stegun (17.3.34).
+c     Accurate to 2x10^(-8). Eta=1-mu^2
+c     --------------------------------------------------------------------
+      
 c     Call variables
 
       real(8) :: eta,ellK
@@ -1290,6 +1305,11 @@ c     ####################################################################
       function ellipticE_scl(eta) result(ellE)
 
       implicit none
+
+c     --------------------------------------------------------------------
+c     Parametrization and convention from Abramowitz and Stegun (17.3.36).
+c     Accurate to 2x10^(-8). Eta=1-mu^2
+c     --------------------------------------------------------------------
 
 c     Call variables
 
