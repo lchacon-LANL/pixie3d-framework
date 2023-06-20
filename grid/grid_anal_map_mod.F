@@ -152,6 +152,14 @@ c     Begin program
         case ('hel')
           mm = gp(1)
           kk = gp(2)
+          rr = gp(3)
+
+          if (abs(abs(kk*rr)-nint(abs(kk*rr))*1d0) > 1d-13) then
+            write (*,*) "Inconsistent helical input: k*R=",abs(kk*rr)
+     $                 ,"not an integer"
+            write (*,*) "Aborting..."
+            stop
+          endif
 
           phi = (xlog(2)-kk*xlog(3))/mm
           car(1) = xlog(1)*cos(phi)
