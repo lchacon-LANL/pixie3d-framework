@@ -368,6 +368,9 @@ c     #################################################################
         det = determ2(tensor)
       case(3)
         det = determ3(tensor)
+      case default
+        write (*,*) "Tensor size unsupported"
+        stop
       end select
       
       end function det
@@ -1921,7 +1924,7 @@ C------------------------------------------------------------------
 C------------------------------------------------------------------
       X = ARG
       Y = ABS(X)
-      if (Y > 0d0) IY = ONE/Y
+      IY = ONE/Y
 
       IF (Y .LE. THRESH) THEN
 C------------------------------------------------------------------
@@ -1962,8 +1965,8 @@ C------------------------------------------------------------------
             RESULT = ZERO
             IF (Y .GE. XBIG) THEN
                IF ((JINT .NE. 2) .OR. (Y .GE. XMAX)) GO TO 300
-               IF (Y .GE. XHUGE) THEN
-                  RESULT = SQRPI * IY !/ Y
+               IF (Y .GE. XHUGE) THEN 
+                 RESULT = SQRPI * IY !/ Y
                   GO TO 300
                END IF
             END IF
@@ -2226,6 +2229,8 @@ c     ETA should be set equal to the smallest +ve value such that
 c     1.0 + eta is calculated as being greater than 1.0 in the accuracy
 c     being used.
 
+        RSQ = 0d0
+        
         if (PRESENT(TOL)) then
           ETA = TOL
         else

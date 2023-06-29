@@ -650,12 +650,14 @@ c$$$      END SUBROUTINE KSTAND
       
       REAL(8) :: XSTAN(NIND,NATT),XK(NG,NATT),WX(NIND),DISTB,DIST
 
+      DISTB=DIST
+      
       DO 310 I=1,NG
         DIST=0D0
         DO 300 J=1,NATT
           DIST=DIST+WX(KK)*(XSTAN(KK,J)-XK(I,J))**2
 300     CONTINUE
-        IF (I.EQ.1) DISTB=DIST 
+cc        IF (I.EQ.1) DISTB=DIST 
         IF (DIST.LE.DISTB) THEN
           IDT(KK)=I
           DISTB=DIST

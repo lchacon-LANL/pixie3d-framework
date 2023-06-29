@@ -846,6 +846,8 @@ c     Begin program
         else
           der = 0
         endif
+
+        if(der > 2) call sstop(0,"gaussian_scl","deriv > 2 unsupported")
         
         if (x0p == 0d0 .or. eta == 0d0) then
 

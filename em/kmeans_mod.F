@@ -341,15 +341,15 @@ c     it also compute element counts for groups, GRP_CT(1:NG)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
       DIMENSION XSTAN(NATT),XK(NG,NATT)
       INTEGER :: GRP_CT(NG),IB,IDT
+
+      IB = 1
+      DISTB = 0
+      
       DO 310 I=1,NG
         DIST=0
   	DO 300 J=1,NATT
           DIST=DIST+(XSTAN(J)-XK(I,J))**2
 300 	CONTINUE
-        IF (I.EQ.1) THEN
-	  DISTB=DIST
-	  IB=I
-	ENDIF
         IF (DIST.LE.DISTB) THEN
 	  IDT=I
 	  IB=I

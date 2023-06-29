@@ -87,9 +87,9 @@ c     ########################################################################
 
 c     FINOUT
 c     ##################################################################
-      SUBROUTINE FINOUT(NIND,NATT,NCOV,NG,XUU,XMU,XVAR,T,IDT,XCC)
+      SUBROUTINE FINOUT(IOUT,NIND,NATT,NCOV,NG,XUU,XMU,XVAR,T,IDT,XCC)
       IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-      INTEGER FLAGS(40)
+      INTEGER IOUT
       EXTERNAL AUTOPARTITION
       EXTERNAL RANDNUM,DETERRANDOM
       DOUBLE PRECISION RANDNUM
@@ -97,18 +97,21 @@ c     ##################################################################
      &         XMU(NG,NATT),IDT(NIND),XUU(NG),N(NG),
      &         XCC(NG),ISUM(NG)
       
-CC   local arrays
+C     Local arrays
+
       real(8) :: xvar_l(3,3),xmu_l(3) !limited to 3 dims
 
 C     FINAL OUTPUT Section
 
 C     Output parameter estimates to file
-      IF (FLAGS(7).GT.0) THEN
-      WRITE (FYLENO,26)
-26    FORMAT (/2X,'Estimated Nu for each component')
+
+      IF (IOUT.GT.0) THEN
+        WRITE (FYLENO,26)
+ 26     FORMAT (/2X,'Estimated Nu for each component')
         WRITE (FYLENO,35) (XUU(K),K=1,NG)
       ENDIF
-      IF (FLAGS(20).EQ.1) THEN
+      
+      IF (IOUT.EQ.1) THEN
        DO 1030 K=1,NG
         WRITE (FYLENO,35) (XMU(K,J),J=1,NATT)
         IF (NCOV.EQ.1) THEN
@@ -642,6 +645,7 @@ c     Scan all component pairs
 
       Bmin = Huge(1d0)
       Bmaxmin = 0d0
+      imaxmin = 0
 
       Do K = 1,NG
          determ = MDET(NATT,XVAR(K,1:NATT,1:NATT))
