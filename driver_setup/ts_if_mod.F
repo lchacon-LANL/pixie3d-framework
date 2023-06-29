@@ -328,7 +328,7 @@ c     Setup vectors
       call evaluateNewtonResidual(ntotd,nk_conf%xk,nk_conf%rk)
 
       !Setup preconditioner
-      call setupPC(ntotd,nk_conf%xk,1)
+      call setupPC(ntotd,nk_conf%xk)
 
       !Setup initial guess for eigenfunction
       x = x - nk_conf%xk

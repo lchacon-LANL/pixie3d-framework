@@ -1029,7 +1029,7 @@ C
 C     If LSODE is to be used in an overlay situation, the user must
 C     declare, in the primary overlay, the variables in:
 C     (1) the call sequence to LSODE,
-C     (2) the internal COMMON block /DLS001/, of length 255 
+C     (2) the internal COMMON block /DLS004/, of length 255 
 C         (218 real*8 words followed by 37 integer words).
 C
 C     If LSODE is used on a system in which the contents of internal
@@ -1092,7 +1092,7 @@ C     quantities NQ, NYH, H, and NST can be obtained by including in
 C     DEWSET the statements:
 C
 C           REAL*8  RLS
-C           COMMON /DLS001/ RLS(218),ILS(37)
+C           COMMON /DLS004/ RLS(218),ILS(37)
 C           NQ = ILS(33)
 C           NYH = ILS(12)
 C           NST = ILS(34)
@@ -1131,7 +1131,7 @@ C                 of ODE solvers", in Scientific Computing, R. S.
 C                 Stepleman, et al. (Eds.), (North-Holland, Amsterdam,
 C                 1983), pp. 55-64.
 C***ROUTINES CALLED  DEWSET, DINTDY, DUMACH, DSTODE, DVNORM, XERRWD
-C***COMMON BLOCKS    DLS001
+C***COMMON BLOCKS    DLS004
 C***REVISION HISTORY  (YYMMDD)
 C   791129  DATE WRITTEN
 C   870330  Major update by ACH.
@@ -1232,13 +1232,13 @@ C LSODE, DINTDY, DSTODE, DPREPJ, and DSOLSY.  Groups of variables are
 C replaced by dummy arrays in the common declarations in routines
 C where those variables are not used.
 C-----------------------------------------------------------------------
-      COMMON /DLS001/ ROWNS(209),
+      COMMON /DLS004/ ROWNS(209),
      1   CCMAX, EL0, H, HMIN, HMXI, HU, RC, TN, UROUND,
      2   INIT, LYH, LEWT, LACOR, LSAVF, LWM, LIWM,
      3   MXSTEP, MXHNIL, NHNIL, NSLAST, NYH, IOWNS(6),
      4   ICF, IERPJ, IERSL, JCUR, JSTART, KFLAG, L, METH, MITER,
      5   MAXORD, MAXCOR, MSBP, MXNCF, N, NQ, NST, NFE, NJE, NQU
-!$OMP THREADPRIVATE (/DLS001/)
+!$OMP THREADPRIVATE (/DLS004/)
 C
       DATA  MORD(1),MORD(2)/12,5/, MXSTP0/500/, MXHNL0/10/
 C-----------------------------------------------------------------------
