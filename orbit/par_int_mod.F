@@ -3050,7 +3050,7 @@ c     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 c     lag_update_bdf2
 c     ###############################################################
       subroutine lag_update_bdf2(g_def,igrid,ivar,bcnd,tnm,tn,tnp,chi
-     .                          ,iout,lsode_ext,no_global_splines)
+     .                          ,iout,lsode_ext,global_splines)
 
 c     ---------------------------------------------------------------
 c     Performs Lagrangian update of temperature at time n+1 (returned
@@ -3070,7 +3070,7 @@ c                     lagrangian step result in tnp
 c       * chi: parallel transport coeff (array)
 c       * iout: output diagnostics level
 c       * lsode_ext (optional): external LSODE driver routine
-c       * no_global_splines (optional): do NOT perform global splines
+c       * global_splines (optional): use global splines for interpolation
 c     ---------------------------------------------------------------
 
       implicit none
@@ -3091,7 +3091,7 @@ c     Call variables
         end subroutine lsode_ext
       END INTERFACE
 
-      logical, optional :: no_global_splines
+      logical, optional :: global_splines
       
 c     Local variables
 
@@ -3109,8 +3109,8 @@ c     Begin program
      .            ,'Lagrangian integrator uninitialized')
       endif
 
-      if (PRESENT(no_global_splines)) then
-        call set_local_spline(no_global_splines)
+      if (PRESENT(global_splines)) then
+        call set_local_spline(.not.global_splines)
       endif
       
       nx = size(tnp,1)-2
