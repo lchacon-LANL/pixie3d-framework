@@ -3062,6 +3062,7 @@ c     WORKSPACE FREED  BY A CALL TO lag_destroy
 c     >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 c
 c     On call sequence:
+c       * g_def: grid config structure
 c       * igrid: grid level
 c       * ivar: variable identification
 c       * bcnd: boundary conditions
@@ -3510,6 +3511,24 @@ c     ##############################################################
 
 c     --------------------------------------------------------------
 c     Initializes Lagrangian step.
+c      
+c     On call sequence:
+c       * g_def: grid config structure
+c       * igr: grid level
+c       * bb: vector field determining orbits
+c       * alp: constant determining integration kernel
+c          - alp = 2: gaussian
+c          - alp = 1: streaming
+c          - alp < 0: advection diffusion
+c       * iout: level of output
+c       * G_tol: integrator tolerance
+c       * s_order: interpolation order
+c       * B_wgt: account for variation of magnetic field along line
+c                (for alp=2 only)
+c       * force_three_d: whether we force 3d orbit integration in 2d
+c       * psi (optional): streamfunction (for 2D integration)
+c       * chi (optional): array of diffusivities (for alp=2 only)
+c       * poinc_file (optional): file specifying magnetic field
 c     --------------------------------------------------------------
 
 c     Call variables
