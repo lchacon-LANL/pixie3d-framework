@@ -3050,7 +3050,7 @@ c     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 c     lag_update_bdf2
 c     ###############################################################
       subroutine lag_update_bdf2(g_def,igrid,ivar,bcnd,tnm,tn,tnp,chi
-     .                          ,iout,lsode_ext,global_splines)
+     .                          ,iout,lsode_ext)
 
 c     ---------------------------------------------------------------
 c     Performs Lagrangian update of temperature at time n+1 (returned
@@ -3071,7 +3071,6 @@ c                     lagrangian step result in tnp
 c       * chi: parallel transport coeff (array)
 c       * iout: output diagnostics level
 c       * lsode_ext (optional): external LSODE driver routine
-c       * global_splines (optional): use global splines for interpolation
 c     ---------------------------------------------------------------
 
       implicit none
@@ -3092,8 +3091,6 @@ c     Call variables
         end subroutine lsode_ext
       END INTERFACE
 
-      logical, optional :: global_splines
-      
 c     Local variables
 
       integer :: nx,ny,nz
@@ -3110,10 +3107,6 @@ c     Begin program
      .            ,'Lagrangian integrator uninitialized')
       endif
 
-      if (PRESENT(global_splines)) then
-        call set_local_spline(.not.global_splines)
-      endif
-      
       nx = size(tnp,1)-2
       ny = size(tnp,2)-2
       nz = size(tnp,3)-2
@@ -3505,7 +3498,8 @@ c     Free workspace
 c     lag_init
 c     ##############################################################
       subroutine lag_init(g_def,igr,bb,alp,iout,G_tol,s_order
-     .                   ,B_wgt,force_three_d,psi,chi,poinc_file)
+     $                   ,global_splines,B_wgt,force_three_d
+     .                   ,psi,chi,poinc_file)
 
       implicit none
 
@@ -3523,6 +3517,7 @@ c          - alp < 0: advection diffusion
 c       * iout: level of output
 c       * G_tol: integrator tolerance
 c       * s_order: interpolation order
+c       * global_splines: whether we use global splines for interpolation
 c       * B_wgt: account for variation of magnetic field along line
 c                (for alp=2 only)
 c       * force_three_d: whether we force 3d orbit integration in 2d
@@ -3540,7 +3535,7 @@ c     Call variables
       real(8) :: G_tol,alp
       real(8),INTENT(IN) :: bb(0:,0:,0:,:)
 
-      logical :: B_wgt,force_three_d
+      logical :: B_wgt,force_three_d,global_splines
 
       real(8),INTENT(IN),optional :: psi(0:,0:,0:)
      .                              ,chi(0:,0:,0:)
@@ -3562,6 +3557,8 @@ c     Begin program
       ny = g_def%nyv(igr)
       nz = g_def%nzv(igr)
 
+      call set_local_spline(.not.global_splines)
+      
       lag3d = (nxg > 1 .and. nyg > 1 .and. nzg > 1)
      .       .or.(force_three_d)
      .       .or.PRESENT(poinc_file)
