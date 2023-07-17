@@ -475,6 +475,8 @@ c     Begin program
 
       call equateDerivedType(u_np,u_n)
 
+      call equateDerivedType(u_nm,u_n)
+
       itime = 0
       time  = 0d0
       
@@ -533,6 +535,7 @@ c     Read files
 
         call equateDerivedType(u_n ,u_0)
         call equateDerivedType(u_np,u_n)
+        call equateDerivedType(u_nm,u_n)
 cc        call pstop('readSimulationState','Unable to read u_n')
 cc        ts_restart = .false.
       else
@@ -553,6 +556,7 @@ cc        ts_restart = .false.
             exit
           else
             call TS_update_preCounters(time,exclude_itime=.true.)
+            call equateDerivedType(u_nm,u_n )
             call equateDerivedType(u_n ,u_np)
             call equateDerivedType(u_np,vmed)
             if (   (itime > nrestart.and.nrestart > 0)
