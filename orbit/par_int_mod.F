@@ -977,9 +977,9 @@ c     Output
 
         if (my_rank == 0) then
           if (iout == 1) then
-            write (*,FMT="(a)",ADVANCE="NO") 'Lagrangian 3D: '
+            write (*,FMT="(a)",ADVANCE="NO") ' Lagrangian 3D step: '
           elseif (iout <= 0) then
-            write (*,*) '     Lagrangian step in 3D...'
+            write (*,*) '--> Lagrangian 3D step...'
           endif
         endif
 
@@ -1132,9 +1132,9 @@ c     Output
 
         if (my_rank == 0) then
           if (iout == 1) then
-            write (*,FMT="(a)",ADVANCE="NO") 'Lagrangian 3D: '
+            write (*,FMT="(a)",ADVANCE="NO") ' Lagrangian 3D step: '
           elseif (iout == 0) then
-            write (*,*) '--> Lagrangian step in 3D...'
+            write (*,*) ' --> Lagrangian 3D step...'
           endif
         endif
 

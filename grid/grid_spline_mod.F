@@ -2157,9 +2157,9 @@ c     Determine mesh position (i0,j0,k0)
 
 c     Compute normalized position wrt cell face
       
-      i0 = min(floor(coeffx),nx)
-      j0 = min(floor(coeffy),ny)
-      k0 = min(floor(coeffz),nz)
+      i0 = max(min(floor(coeffx),nx),1)
+      j0 = max(min(floor(coeffy),ny),1)
+      k0 = max(min(floor(coeffz),nz),1)
       
       xhp(1) = coeffx - i0*1d0
       xhp(2) = coeffy - j0*1d0
