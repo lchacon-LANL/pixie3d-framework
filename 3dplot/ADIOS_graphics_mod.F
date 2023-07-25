@@ -322,6 +322,7 @@ c End of temporary fix
      .               node_ldim_str, "nxd+1,nyd+1,nzd+1", 
      .               offset_str, varid)
           enddo
+            
           groupsize = groupsize 
 cc     .      + (ihip-ilo+1) * (jhip-jlo+1) * (khip-klo+1) *ARRAY_RANK*8 ! node coords
 c Temporary fix to ADIOS bug (L. Chacon 10/6/10)

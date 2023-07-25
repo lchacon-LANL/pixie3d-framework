@@ -244,101 +244,6 @@ c End program
 
       end subroutine initializeCalculation
 
-c$$$c setInitialState
-c$$$c####################################################################
-c$$$      subroutine setInitialState
-c$$$
-c$$$c--------------------------------------------------------------------
-c$$$c     Set initial state for initial value calculation.
-c$$$c--------------------------------------------------------------------
-c$$$
-c$$$      use grid
-c$$$
-c$$$      use timeStepping
-c$$$
-c$$$      use var_io
-c$$$
-c$$$#if defined(MK)
-c$$$      use mk
-c$$$#endif
-c$$$
-c$$$      implicit none
-c$$$
-c$$$c Local variables
-c$$$
-c$$$      integer :: ieq,nx,ny,nz,igrid
-c$$$
-c$$$c Interfaces
-c$$$
-c$$$      INTERFACE
-c$$$        subroutine setEquilibrium(igx,varray)
-c$$$        use var_setup
-c$$$        integer :: igx
-c$$$        type(var_array),pointer :: varray
-c$$$        end subroutine setEquilibrium
-c$$$      END INTERFACE
-c$$$
-c$$$      INTERFACE
-c$$$        subroutine perturbEquilibrium(varray)
-c$$$        use var_setup
-c$$$        type(var_array),pointer :: varray
-c$$$        end subroutine perturbEquilibrium
-c$$$      END INTERFACE
-c$$$
-c$$$      INTERFACE
-c$$$        subroutine get_src(varray)
-c$$$        use var_setup
-c$$$        type(var_array),pointer :: varray
-c$$$        end subroutine get_src
-c$$$      END INTERFACE
-c$$$
-c$$$c Begin program
-c$$$
-c$$$      igrid = 1
-c$$$
-c$$$c Create equilibrium u_0
-c$$$
-c$$$      call setEquilibrium(igrid,u_0)  !External
-c$$$
-c$$$#if defined(MK)
-c$$$      if (mk_grid) then
-c$$$        u_0%array_var(neqd)%descr = 'MK phi'
-c$$$        u_0%array_var(neqd)%array = 0d0
-c$$$
-c$$$        call MK_initGrid(igrid,bcs=bcond)  !Change also in 3dplot.F
-c$$$      endif
-c$$$#endif
-c$$$
-c$$$      call equateDerivedType(u_n,u_0)
-c$$$
-c$$$      call equateDerivedType(u_np,u_n)
-c$$$
-c$$$c Set up source
-c$$$      
-c$$$      call get_src(u_n)  !This also imposes BCs
-c$$$
-c$$$      call mapStructureToVector(gv%gparams,x0,u_n)
-c$$$
-c$$$c Write geometry when applicable
-c$$$
-c$$$cc      if (coords == 'ext') call writeExtMap(gv%gparams)
-c$$$
-c$$$c Perturb equilibrium
-c$$$
-c$$$      if (.not.relax_init_grid) call perturbEquilibrium(u_np)
-c$$$
-c$$$c Impose BC (to initialize all auxiliary variables)
-c$$$
-c$$$      call applyBC(igrid,u_np,gv%aux,it=1)
-c$$$
-c$$$#if defined(MK)
-c$$$      if (mk_grid) call MK_applyBC(igrid,u_np%array_var(neqd)%array)
-c$$$#endif
-c$$$
-c$$$c End program
-c$$$
-c$$$      end subroutine setInitialState
-
 c readSimulationState
 c####################################################################
       subroutine readSimulationState(file)
@@ -367,8 +272,6 @@ c Local variables
 
       integer :: ieq,igrid
 
-      type(var_array),pointer :: vmed => null()
-
 c Interfaces
 
       INTERFACE
@@ -377,13 +280,6 @@ c Interfaces
         integer :: igx
         type(var_array),pointer :: varray
         end subroutine setEquilibrium
-      END INTERFACE
-
-      INTERFACE
-        subroutine get_src(varray)
-        use var_setup
-        type(var_array),pointer :: varray
-        end subroutine get_src
       END INTERFACE
 
       INTERFACE
@@ -411,12 +307,7 @@ c Read init data
 
 c Set up source
 
-      call allocateDerivedType(vmed)
-
-      call equateDerivedType(vmed,u_0)
-      call get_src(vmed)
-
-      call deallocateDerivedType(vmed)
+      call get_src
 
 c Introduce perturbation at restart
 
@@ -513,7 +404,7 @@ c     Open restart files
 
 c     Allocate intermediate variable
 
-      call allocateDerivedType(vmed)
+      call allocateDerivedType(neqd,vmed)
 
 c     Read equilibrium
 
@@ -616,8 +507,6 @@ c Local variables
 
       integer :: ierr,ieq,igrid
 
-      type(var_array),pointer :: u_graph => null()
-
 c Interfaces
 
 c Begin program
@@ -629,20 +518,16 @@ c Begin program
 
       igrid = 1
 
-#if defined(adios)
-      ierr = init_ADIOS_IO()
-#endif
+c Initialize IO
 
-#if defined(ADIOS2)
-      ierr = init_ADIOS2_IO()
-#endif
+      call init_IO
 
 c Open record file
 
       if (.not.no_graphics_io) then
         if ((.not.ts_restart).or.(ts_restart.and.(itime==0))) then
           !Dump initial data
-          call writeRecordFile(file,0,0d0,dt,0d0,u_0)
+          call writeRecordFile(file,0,0d0,dt,0d0,u_0,init=.true.)
           call writeRecordFile(file,0,0d0,dt,0d0,u_np)
 c$$$        elseif (getEarlyTimeRestartFlag()) then
 c$$$          file = new_dumpfile(itime)
@@ -666,7 +551,7 @@ c End programs
 
 c get_src
 c####################################################################
-      subroutine get_src(varray)
+      subroutine get_src
 
 c--------------------------------------------------------------------
 c     Set initial conditions for initial value calculation. Variables
@@ -686,9 +571,9 @@ c--------------------------------------------------------------------
 
 c Call variables
 
-      type(var_array),pointer :: varray
-
 c Local variables
+
+      type(var_array),pointer :: varray => null()
 
       integer :: ieq,igr
 
@@ -708,6 +593,10 @@ c Begin program
         !Begin profiling NL solver
         call switch_profile_stage(iNL)
 #endif
+
+      call allocateDerivedType(neqd,varray)
+
+      call equateDerivedType(varray,u_0)
 
       igr = 1
 
@@ -731,6 +620,8 @@ cc        call dump_src
 
       source_eval = .false.
 
+      call deallocateDerivedType(varray)
+
       !Spline source if moving mesh
 #if defined(MK)
       if (mk_grid) call MK_spline_src(igr,fsrc)
@@ -740,7 +631,6 @@ cc        call dump_src
         !End profiling NL solver
         call switch_profile_stage(iSTUP)
 #endif
-
 
 c End program
 

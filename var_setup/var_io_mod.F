@@ -52,7 +52,7 @@ c     Local variables
 #if defined(adios)
       ierr = init_ADIOS_IO()
 #elif defined(ADIOS2)
-      ierr = init_ADIOS2_IO()
+      ierr = init_ADIOS2_IO(adios2obj,aio,u_0)
 #endif
 
 c     Begin program
@@ -78,7 +78,7 @@ c     Local variables
 #if defined(adios)
       ierr = destroy_ADIOS_IO()
 #elif defined(ADIOS2)
-      ierr = destroy_ADIOS2_IO()
+      ierr = destroy_ADIOS2_IO(adios2obj,engine)
 #endif
 
 c     Begin program
@@ -140,12 +140,13 @@ c     Begin program
       endif
       adios_err = destroy_ADIOS_IO()
 #elif defined(ADIOS2)
+c$$$      adios2_err = closeADIOS2FileForRead(rengine)
       adios2_err = closeADIOS2RecordFileForRead()
       if (adios2_err /= 0) then
         call pstop('closeRestartFileForRead'
      $            ,'Error closing ADIOS restart file')
       endif
-      adios2_err = destroy_ADIOS2_IO()
+      adios2_err = destroy_ADIOS2_IO(adios2obj,rengine)
 #else
       close(ufile)
 #endif
@@ -824,7 +825,7 @@ c     Begin program
       if (np > 1) then
         ufile = openPOSIXRestartFileForRead(file=file)
       else
-        ufile = 1000
+        ufile = find_unit(1000)
         call openRecordFiles(ufile,file,ilog,ihig,jlog,jhig,klog,khig)
       endif
 #endif
@@ -850,17 +851,17 @@ c     Begin program
 #if defined(adios)
       adios_err = closeADIOSRecordFileForRead()
       if (adios_err /= 0) then
-        call pstop('closeRestartFileForRead'
+        call pstop('closeGraphicsFiles'
      $            ,'Error closing ADIOS restart file')
       endif
       adios_err = destroy_ADIOS_IO()
 #elif defined(ADIOS2)
-      adios2_err = closeADIOS2RecordFileForRead()
+      adios2_err = closeADIOS2FileForRead(engine)
       if (adios2_err /= 0) then
-        call pstop('closeRestartFileForRead'
-     $            ,'Error closing ADIOS restart file')
+        call pstop('closeGraphicsFiles'
+     $            ,'Error closing ADIOS2 restart file')
       endif
-      adios2_err = destroy_ADIOS2_IO()
+      adios2_err = destroy_ADIOS2_IO(adios2obj,engine)
 #else
       if (associated(murecord)) then
         call closeFiles(murecord)
@@ -875,7 +876,7 @@ c     End programs
 
 c     new_dumpfile
 c     #################################################################
-      function new_dumpfile(itime) result(file)
+      function new_dumpfile(itime,ifile) result(file)
 
 c     -----------------------------------------------------------------
 c     Switches the dump file to bifurcated one due to restart
@@ -887,11 +888,13 @@ c     Call variables
 
       integer :: itime
       character(1024) :: file
+      character(*),optional :: ifile
 
 c     Local variables
 
       integer :: length
       character(10) :: counter1
+      logical :: have_file
 
 c     Begin program
 
@@ -900,14 +903,29 @@ c     Begin program
       counter1 = counter1(1:len(counter1)-length)
      .         //trim(int2char(itime))
 
+      have_file = PRESENT(ifile)
+      
 #if defined(adios)
-      file = ADIOS_FILE
+      if (.not.have_file) then
+        file = ADIOS_FILE
+      else
+        file = ifile
+      endif
       file = file(1:index(file,'.bp')-1)//'_it='//counter1//'.bp'
 #elif defined(ADIOS2)
-      file = ADIOS2_FILE
+      if (.not.have_file) then
+        file = ADIOS2_FILE
+      else
+        file = ifile
+      endif
       file = file(1:index(file,'.bp')-1)//'_it='//counter1//'.bp'
 #else
-      file = 'record_it='//counter1//'.bin'
+      if (.not.have_file) then
+        file = "record.bin"
+      else
+        file = ifile
+      endif
+      file = file(1:index(file,'.bin')-1)//'_it='//counter1//'.bin'
 #endif
 
 cc      if (my_rank == 0) write (*,*) "dumpfile=",trim(file)
