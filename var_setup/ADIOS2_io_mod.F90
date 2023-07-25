@@ -22,7 +22,7 @@
 
         integer :: adios2_err            ! error handler
 
-        logical,private :: adios2_debug=.false. &
+        logical,private :: adios2_debug=.true. &
                           ,adios2_append_recordfile=.false.
 
 #if !defined(ADIOS2_BUFFER_MB)
@@ -118,7 +118,7 @@
       call adios2_logging('write close')
       call adios2_close(engine, ierr)
       call adios2_check_err(ierr, 'Problem in write close')
-      call adios2_logging('finalize')
+      call adios2_logging('Finalize ADIOS2')
       call adios2_finalize(obj, ierr)
 
       call MPI_Comm_free(adios2_world_comm,ierr)
@@ -512,8 +512,6 @@
           rfile = recordfile
         endif
 
-        call MPI_Comm_dup (MPI_COMM_WORLD, adios2_world_comm, ierr)
-
         !Open ADIOS file
         call adios2_declare_io(aio, adios2obj, 'record.read', ierr)
 
@@ -572,6 +570,23 @@
       endif
 
       end function openADIOS2RestartFileForRead
+
+!     closeADIOS2RestartFileForRead
+!     #################################################################
+      function closeADIOS2RestartFileForRead() result(ierr)
+
+        implicit none
+
+        integer :: ierr
+
+        ierr = closeADIOS2RecordFileForRead()
+
+        call adios2_logging('Finalize ADIOS2')
+        call adios2_finalize(adios2obj, ierr)
+
+        call MPI_Comm_free(adios2_world_comm,ierr)
+
+      end function closeADIOS2RestartFileForRead
 
 !     readADIOS2RecordFile
 !     #################################################################
@@ -808,17 +823,25 @@
 
 !     closeADIOS2FileForRead
 !     #################################################################
-      function closeADIOS2FileForRead(engine) result(ierr)
+      function closeADIOS2FileForRead(obj,engine) result(ierr)
 
         implicit none
         
+        type(adios2_adios)  :: obj
         type(adios2_engine) :: engine
 
         integer :: ierr
 
+        call adios2_logging('Terminating IO')
+
         call adios2_logging('read close')
         call adios2_close(engine, ierr)
         call adios2_check_err(ierr, 'Problem in read close')
+
+        call adios2_logging('Finalize ADIOS2')
+        call adios2_finalize(obj, ierr)
+
+        call MPI_Comm_free(adios2_world_comm,ierr)
 
       end function closeADIOS2FileForRead
 

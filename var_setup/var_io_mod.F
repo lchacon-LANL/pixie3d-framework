@@ -140,13 +140,11 @@ c     Begin program
       endif
       adios_err = destroy_ADIOS_IO()
 #elif defined(ADIOS2)
-c$$$      adios2_err = closeADIOS2FileForRead(rengine)
-      adios2_err = closeADIOS2RecordFileForRead()
+      adios2_err = closeADIOS2RestartFileForRead()
       if (adios2_err /= 0) then
         call pstop('closeRestartFileForRead'
-     $            ,'Error closing ADIOS restart file')
+     $            ,'Error closing ADIOS2 restart file')
       endif
-      adios2_err = destroy_ADIOS2_IO(adios2obj,rengine)
 #else
       close(ufile)
 #endif
@@ -856,12 +854,11 @@ c     Begin program
       endif
       adios_err = destroy_ADIOS_IO()
 #elif defined(ADIOS2)
-      adios2_err = closeADIOS2FileForRead(engine)
+      adios2_err = closeADIOS2RestartFileForRead()
       if (adios2_err /= 0) then
         call pstop('closeGraphicsFiles'
      $            ,'Error closing ADIOS2 restart file')
       endif
-      adios2_err = destroy_ADIOS2_IO(adios2obj,engine)
 #else
       if (associated(murecord)) then
         call closeFiles(murecord)
