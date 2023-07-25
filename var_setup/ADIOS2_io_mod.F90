@@ -147,7 +147,6 @@
 
       logical :: rinit
 
-      integer*8    :: handle, totalsize, groupsize
       integer      :: err
       character(2) :: mode='a'//char(0)
       integer      :: adios2_mode
@@ -227,14 +226,6 @@
       if (isfirst) then
          isfirst = .false.
 
-!!$         call adios2_declare_io (aio, adios2obj, "record", err)
-!!$         call adios2_set_engine (aio, "BP4", err)
-!!$         call adios2_define_variable (var, aio, "time"  , adios2_type_dp, err)
-!!$         call adios2_define_variable (var, aio, "itime" , adios2_type_integer4, err)
-!!$         call adios2_define_variable (var, aio, "dt"    , adios2_type_dp, err)
-!!$         call adios2_define_variable (var, aio, "gammat", adios2_type_dp, err)
-!!$         call defineDerivedTypeADIOS2 (aio, varray)
-
          call adios2_logging('write access mode: '//trim(mode))
          call adios2_logging('write open')
          call adios2_open(engine,aio,file,adios2_mode,adios2_world_comm,err)
@@ -270,7 +261,6 @@
 
 !     Call variables
         type(adios2_io)          :: aio
-        integer*8                :: handle
         type(var_array),pointer  :: varray
 
 !     Local variables
@@ -379,7 +369,6 @@
 
 !     Call variables
         type(adios2_engine)      :: engine
-        integer*8                :: handle
         type(var_array),pointer  :: varray
         logical                  :: addl_write
 
@@ -468,9 +457,11 @@
             if (addl_write) then
                 ! write /name/v<ieq>
                 write (vname, '("/name/v",i0)') ieq
-                call adios2_put (engine, vname, trim(varray%array_var(ieq)%descr)//char(0), adios2_mode_sync, err)
+                call adios2_put (engine, vname, trim(varray%array_var(ieq)%descr)//char(0), &
+                                 adios2_mode_sync, err)
                 if (adios2_debug) then
-                   write (*, '(" ADIOS2 INFO: attr write ",a,": ",a)') trim(vname), trim(varray%array_var(ieq)%descr)
+                   write (*, '(" ADIOS2 INFO: attr write ",a,": ",a)') trim(vname), &
+                         trim(varray%array_var(ieq)%descr)
                 endif
             endif
         enddo
@@ -480,7 +471,8 @@
            do ieq=1,varray%nvar
               bconds( (ieq-1)*6+1:ieq*6 ) = varray%array_var(ieq)%bconds(:)
               if (adios2_debug) then
-                 write (*,'(" ADIOS2 INFO: attr write bconds=(",6i3")")') bconds( (ieq-1)*6+1:ieq*6 )
+                 write (*,'(" ADIOS2 INFO: attr write bconds=(",6i3")")') &
+                      bconds( (ieq-1)*6+1:ieq*6 )
               endif
            enddo
            call adios2_put (engine, "bconds", bconds, adios2_mode_sync, err)
@@ -645,8 +637,8 @@
         implicit none
 
 !     Call variables
-        type(adios2_io)     :: io
-        type(adios2_engine) :: engine
+        type(adios2_io)          :: io
+        type(adios2_engine)      :: engine
         type(var_array),pointer  :: varray
         integer                  :: step
         integer, intent(out)     :: ierr
@@ -655,12 +647,10 @@
 
         integer      :: ieq,ilom,ihip,jlom,jhip,klom,khip
         integer*8, dimension(4) :: start, readcount ! dimensions are 64bit in adios
-        integer      :: vrank, vtype, vtimed, err  ! adios_inq_var() outputs
-        integer*8, dimension(10) :: dims ! adios_inq_var() output
         integer,allocatable :: bconds(:)  ! all boundary conditions as one array
         character(20):: vvar      ! /var/v<idx> 
         character(20):: vname     ! /name/v<idx> 
-        character(len(varray%array_var(1)%descr))    :: desc      ! name of variable read from file
+        character(len(varray%array_var(1)%descr)) :: desc      ! name of variable read from file
         integer*8    :: n ! bytes to read
 
         integer      :: iloghost, ihighost
@@ -721,6 +711,9 @@
         if (firstread) then
            call adios2_get(engine,"nvar",adios2_nvar, adios2_mode_sync,ierr)
         endif
+
+        if (adios2_debug) write (*,"(a,i0,a,i0)") " ADIOS2 INFO: rank=",my_rank, &
+            " read # vars=",adios2_nvar
 
         varray%nvar = adios2_nvar
 
@@ -867,7 +860,6 @@
 
 !     Local variables
 
-      integer*8    :: handle, totalsize, groupsize
       integer      :: err
       character(2) :: mode='a'//char(0)
       integer      :: adios2_mode
