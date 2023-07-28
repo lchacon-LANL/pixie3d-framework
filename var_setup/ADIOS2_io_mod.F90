@@ -813,12 +813,17 @@
 
 !     Begin program
 
+        call adios2_logging('read-only open')
+
         call MPI_Comm_dup (MPI_COMM_WORLD, adios2_world_comm, ierr)
+        call adios2_logging('read init')
+        call adios2_init(obj,'adios_config.xml',adios2_world_comm,.true.,ierr)
 
         !Open ADIOS file
+        call adios2_logging('declare io')
         call adios2_declare_io(io, obj, 'record.read', ierr)
 
-        call adios2_logging('read-only open')
+        call adios2_logging('open file')
         call adios2_open(engine,io,trim(file),adios2_mode_read,adios2_world_comm,ierr)
         call adios2_check_err(ierr, 'Problem in read-only open')
         
