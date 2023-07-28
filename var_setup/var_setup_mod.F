@@ -440,13 +440,13 @@ c     End program
 
 c     allocateDerivedType
 c     #################################################################
-      subroutine allocateDerivedType(neq,varray,igx,igy,igz)
+      subroutine allocateDerivedType(varray,igx,igy,igz,neq)
 
         implicit none
 
 c     Call variables
 
-        integer :: neq
+        integer,optional :: neq
         type(var_array),pointer  :: varray
         integer, optional :: igx,igy,igz
 
@@ -459,7 +459,11 @@ c     Begin program
         if (.not.associated(varray)) then
           allocate(varray)
 
-          varray%nvar = neq
+          if (PRESENT(neq)) then
+            varray%nvar = neq
+          else
+            varray%nvar = neqd
+          endif
 
           if (PRESENT(igx)) then
             imn = 1-gcw
@@ -494,10 +498,10 @@ c     Begin program
             varray%array_var(ieq)%descr = 'unset'
 
             allocate(varray%array_var(ieq)
-     .                     %bc_dep_list(NAUXS+NAUXV+neq,3))
+     .                     %bc_dep_list(NAUXS+NAUXV+varray%nvar,3))
             varray%array_var(ieq)%bc_dep_list = 0
             allocate(varray%array_var(ieq)
-     .                     %dom_dep_list(NAUXS+NAUXV+neq,3))
+     .                     %dom_dep_list(NAUXS+NAUXV+varray%nvar,3))
             varray%array_var(ieq)%dom_dep_list = 0
 
             varray%array_var(ieq)%time_0 = .false.
@@ -560,7 +564,7 @@ c     Local variables
 
 c     Begin program
 
-        call allocateDerivedType(varray1%nvar,varray2)
+        call allocateDerivedType(varray2,neq=varray1%nvar)
 
         varray2%nvar = varray1%nvar
 
@@ -603,7 +607,7 @@ c     Local variables
 
 c     Begin program
 
-        call allocateDerivedType(neqd,varray,igx=igr,igy=igr,igz=igr)
+        call allocateDerivedType(varray,igx=igr,igy=igr,igz=igr)
 
         varray%nvar = gv%u_0%nvar
 
@@ -639,7 +643,7 @@ c     Local variables
 
 c     Begin program
 
-        call allocateDerivedType(varray2%nvar,varray3)
+        call allocateDerivedType(varray3,neq=varray2%nvar)
 
         varray3%nvar = varray2%nvar
 
@@ -962,16 +966,16 @@ c     Local variables
 
 c     Begin program
 
-        call allocateDerivedType(neqd,gv%u_n )
-        call allocateDerivedType(neqd,gv%u_0)
+        call allocateDerivedType(gv%u_n )
+        call allocateDerivedType(gv%u_0)
 
         u_0     => gv%u_0
         u_n     => gv%u_n
 
 #if !defined(samrai)
-        call allocateDerivedType(neqd,gv%u_np)
-        call allocateDerivedType(neqd,gv%u_nm)
-        call allocateDerivedType(neqd,gv%u_nm2)
+        call allocateDerivedType(gv%u_np)
+        call allocateDerivedType(gv%u_nm)
+        call allocateDerivedType(gv%u_nm2)
 
         u_np    => gv%u_np
         u_nm    => gv%u_nm

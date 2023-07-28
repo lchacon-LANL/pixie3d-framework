@@ -404,7 +404,7 @@ c     Open restart files
 
 c     Allocate intermediate variable
 
-      call allocateDerivedType(neqd,vmed)
+      call allocateDerivedType(vmed)
 
 c     Read equilibrium
 
@@ -528,7 +528,7 @@ c Open record file
         if ((.not.ts_restart).or.(ts_restart.and.(itime==0))) then
           !Dump initial data
           call writeRecordFile(file,0,0d0,dt,0d0,u_0,init=.true.)
-          call writeRecordFile(file,0,0d0,dt,0d0,u_np)
+          call writeRecordFile(file,0,0d0,dt,0d0,u_np,init=.true.)
 c$$$        elseif (getEarlyTimeRestartFlag()) then
 c$$$          file = new_dumpfile(itime)
 c$$$          call writeRecordFile(file,itime,time,dt,gammat,u_np)
@@ -594,7 +594,7 @@ c Begin program
         call switch_profile_stage(iNL)
 #endif
 
-      call allocateDerivedType(neqd,varray)
+      call allocateDerivedType(varray)
 
       call equateDerivedType(varray,u_0)
 

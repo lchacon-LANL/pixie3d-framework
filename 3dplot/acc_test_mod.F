@@ -121,7 +121,7 @@ c     Read reference grid info
       call setVectorDimensions
 
       !Read solutions
-      call allocateDerivedType(neqd,vref)
+      call allocateDerivedType(vref)
 
       do
         call readTimeStep(ufile,itime,time,dt,gammat,vref,ierr)
@@ -187,7 +187,7 @@ c Initialize current grid info and read current grid solution
 
       call setVectorDimensions
 
-      call allocateDerivedType(neqd,vsol)
+      call allocateDerivedType(vsol)
 
       do
         call readTimeStep(ufile,itime,time,dt,gammat,vsol,ierr)
@@ -363,7 +363,7 @@ c     Read reference field
      .   ,'Reference and solution are at different spatial resolutions')
       endif
 
-      call allocateDerivedType(neqd,vref)
+      call allocateDerivedType(vref)
 
       do
         call readTimeStep(ufile,itime,time,dt,gammat,vref,ierr)
@@ -392,7 +392,7 @@ c     Read current solution
       !This redefines nxd,nyd,nzd
       ufile=openRestartFileForRead(file=recordfile)
 
-      call allocateDerivedType(neqd,vsol)
+      call allocateDerivedType(vsol)
 
       do
         call readTimeStep(ufile,itime,time,dt,gammat,vsol,ierr)

@@ -22,7 +22,7 @@
 
         integer :: adios2_err            ! error handler
 
-        logical,private :: adios2_debug=.true. &
+        logical,private :: adios2_debug=.false. &
                           ,adios2_append_recordfile=.false.
 
 #if !defined(ADIOS2_BUFFER_MB)
@@ -385,6 +385,8 @@
         character(20)    :: vvar      ! /var/v<idx> 
         character(20)    :: vname     ! /name/v<idx> 
 
+        character(200)   :: msg
+        
 !     Begin program
 
 !        write (*,*) "# addl_write=",addl_write
@@ -459,24 +461,25 @@
                 write (vname, '("/name/v",i0)') ieq
                 call adios2_put (engine, vname, trim(varray%array_var(ieq)%descr)//char(0), &
                                  adios2_mode_sync, err)
-                if (adios2_debug) then
-                   write (*, '(" ADIOS2 INFO: attr write ",a,": ",a)') trim(vname), &
+                write (msg, '(" attr write ",a,": ",a)') trim(vname), &
                          trim(varray%array_var(ieq)%descr)
-                endif
+                call adios2_logging(msg)
             endif
         enddo
 
         if (addl_write) then 
            call adios2_put (engine, "nvar", varray%nvar, err)
+        endif
+
+!!$        if (addl_write) then
            do ieq=1,varray%nvar
               bconds( (ieq-1)*6+1:ieq*6 ) = varray%array_var(ieq)%bconds(:)
-              if (adios2_debug) then
-                 write (*,'(" ADIOS2 INFO: attr write bconds=(",6i3")")') &
+              write (msg,'(" attr write bconds=(",6i3")")') &
                       bconds( (ieq-1)*6+1:ieq*6 )
-              endif
+              call adios2_logging(msg)
            enddo
            call adios2_put (engine, "bconds", bconds, adios2_mode_sync, err)
-        endif
+!!$        endif
 
       end subroutine writeDerivedTypeADIOS2
 
@@ -582,7 +585,8 @@
 
 !     readADIOS2RecordFile
 !     #################################################################
-      function readADIOS2RecordFile(unit,itime,time,dt,gammat,varray) result(ierr)
+      function readADIOS2RecordFile(unit,itime,time,dt,gammat,varray) &
+               result(ierr)
 
 !     -----------------------------------------------------------------
 !     Reads record file
@@ -663,8 +667,12 @@
 
         logical      :: firstread
 
-        character(len=100), save :: desc_sv(20)
-        integer, save :: bconds_sv(120),adios2_nvar
+        integer      :: adios2_nvar
+
+        character(200) :: msg
+        
+!!$        character(len=100), save :: desc_sv(20)
+!!$        integer, save :: bconds_sv(120),adios2_nvar
 
 !     Begin program
 
@@ -710,28 +718,33 @@
 
         if (firstread) then
            call adios2_get(engine,"nvar",adios2_nvar, adios2_mode_sync,ierr)
+           if (adios2_nvar /= varray%nvar) then
+              write (*,*) adios2_nvar,varray%nvar
+              call pstop("readADIOS2Derivedtype" &
+                        ,"Incorrect # of variables in ADIOS2 file")
+           endif
         endif
 
         if (adios2_debug) write (*,"(a,i0,a,i0)") " ADIOS2 INFO: rank=",my_rank, &
-            " read # vars=",adios2_nvar
+            " read # vars=",varray%nvar
 
-        varray%nvar = adios2_nvar
+!!$        varray%nvar = adios2_nvar  !Already known from outside routine
 
         do ieq=1,varray%nvar
          if (firstread) then
-            desc = "" ; desc_sv(ieq) = ""
+            desc = ""
+!!$            desc_sv(ieq) = ""
             ! read in name of Nth variable
             write (vname, '("/name/v",i0)') ieq
             call adios2_get (engine, vname, desc, adios2_mode_sync, ierr)
             varray%array_var(ieq)%descr = desc
-            desc_sv(ieq) = trim(desc)
+!!$            desc_sv(ieq) = trim(desc)
 !!$            if (my_rank == 0) write (*,*) "fr desc",ieq,trim(desc)," ",desc_sv(ieq)
-            if (adios2_debug.and.my_rank==0) &
-                 write (*,"(a,a,a,a,a,i0)") " ADIOS2 INFO: first read ",trim(vname), &
-                 ": [",trim(desc),"]"
-         else
+            write(msg,"(a,a,a,a,a,i0)") "first read ",trim(vname), ": [",trim(desc),"]"
+            call adios2_logging(msg)
+!!$         else   !Already known from outside routine
 !!$            if (my_rank == 0) write (*,*) "aft desc",ieq,trim(desc_sv(ieq))
-            varray%array_var(ieq)%descr = trim(desc_sv(ieq))
+!!$            varray%array_var(ieq)%descr = trim(desc_sv(ieq))
          endif
 
          ! read in data of Nth variable
@@ -746,35 +759,34 @@
                                       jlom+jloghost:jhip+jhighost, &
                                       klom+kloghost:khip+khighost), &
                             ierr)
-         if (.not. ierr.eq.0) then
-            write (*,"(a,a,i0)") "ERROR: could not read ", trim(vvar), ierr
-            ierr = -1
-         endif
 
-         if (adios2_debug.and.my_rank==0) write (*,"(a,a,a,i0)") " ADIOS2 INFO: read ",trim(vvar)
+         write (msg,"(a,a,i0)") "could not read ", trim(vvar), ierr
+         call adios2_check_err(ierr,msg)
+
+         write (msg,"(a,a)") "read ",trim(vvar)
+         call adios2_logging(msg)
        enddo
 
-       if (firstread) then
+!!$       if (firstread) then
           allocate(bconds(6*varray%nvar))
           call adios2_get (engine, "bconds", bconds, adios2_mode_sync, ierr)
-          if (.not.ierr.eq.0) then
-             write (*,"(a,i0,a,i0)") "ERROR: could not read bconds err=", ierr
-             ierr = -1
-          endif
-          bconds_sv = 0
-          bconds_sv(1:size(bconds)) = bconds
+          call adios2_check_err(ierr,"could not read bconds")
+
+!!$          bconds_sv = 0
+!!$          bconds_sv(1:size(bconds)) = bconds
           do ieq=1,varray%nvar
-             varray%array_var(ieq)%bconds = bconds( (ieq-1)*6+1:ieq*6 ) 
-             if (adios2_debug.and.my_rank==0) &
-                  write (*,"(a,6i3)") " ADIOS2 INFO: read bcond=",bconds( (ieq-1)*6+1:ieq*6 )
+             varray%array_var(ieq)%bconds = bconds( (ieq-1)*6+1:ieq*6 )
+             write (msg,"(a,6i3)") "read bcond=",bconds( (ieq-1)*6+1:ieq*6 )
+             call adios2_logging(msg)
           enddo
           deallocate(bconds)
-       else
-          do ieq=1,varray%nvar
-!!$             if (my_rank == 0) write (*,*) "aft BCs",ieq,bconds_sv( (ieq-1)*6+1:ieq*6 )
-             varray%array_var(ieq)%bconds = bconds_sv( (ieq-1)*6+1:ieq*6 )
-          enddo
-       endif
+!!$       else    !Already known from outside routine
+!!$          do ieq=1,varray%nvar
+!!$             write (msg,"(a,7i3)") "aft BCs",ieq,varray%array_var(ieq)%bconds
+!!$             call adios2_logging(msg)
+!!$!!             varray%array_var(ieq)%bconds = bconds_sv( (ieq-1)*6+1:ieq*6 )
+!!$          enddo
+!!$       endif
 
 !     End program
 
@@ -782,7 +794,7 @@
 
 !     openADIOS2FileForRead
 !     #################################################################
-      subroutine openADIOS2FileForRead(obj,io,engine,file,ierr)
+      function openADIOS2FileForRead(obj,io,engine,file) result(ierr)
 
         implicit none
 
@@ -792,7 +804,7 @@
         type(adios2_engine) :: engine
         type(adios2_io) :: io
 
-        integer,intent(out) :: ierr
+        integer :: ierr
         character(*) :: file
 
 !     Local variables
@@ -812,7 +824,7 @@
         
         call adios2_get(engine, 'time', tmp, ierr)
 
-      end subroutine openADIOS2FileForRead
+      end function openADIOS2FileForRead
 
 !     closeADIOS2FileForRead
 !     #################################################################
@@ -972,7 +984,8 @@
         character(1000) :: msg2
 
         if (errno.ne.0) then
-           write (msg2,'(a,a,a,i3,a,i4,a)') ' ADIOS2 ERROR: ',trim(msg),' (errno=',errno,', rank=',my_rank,')'
+           write (msg2,'(a,a,a,i3,a,i4,a)') ' ADIOS2 ERROR: ',trim(msg),&
+                ' (errno=',errno,', rank=',my_rank,')'
         endif
 
         if (ipmax(errno)/=0)  call pstop("",msg2)
