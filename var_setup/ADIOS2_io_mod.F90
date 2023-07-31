@@ -22,7 +22,7 @@
 
         integer :: adios2_err            ! error handler
 
-        logical,private :: adios2_debug=.false. &
+        logical,private :: adios2_debug=.true. &
                           ,adios2_append_recordfile=.false.
 
 #if !defined(ADIOS2_BUFFER_MB)
@@ -99,7 +99,7 @@
 
 !     destroy_ADIOS2_IO
 !     #################################################################
-      function destroy_ADIOS2_IO(obj,engine) result(ierr)
+      function destroy_ADIOS2_IO(obj,eng) result(ierr)
 
 !     -----------------------------------------------------------------
 !     Initializes ADIOS IO according to adios_config.xml
@@ -111,12 +111,12 @@
 
       integer :: ierr
       type(adios2_adios) :: obj
-      type(adios2_engine) :: engine
+      type(adios2_engine) :: eng
 
       call adios2_logging('Terminating IO')
 
       call adios2_logging('write close')
-      call adios2_close(engine, ierr)
+      call adios2_close(eng, ierr)
       call adios2_check_err(ierr, 'Problem in write close')
       call adios2_logging('Finalize ADIOS2')
       call adios2_finalize(obj, ierr)
@@ -363,14 +363,13 @@
 
 !     writeDerivedTypeADIOS2
 !     #################################################################
-      subroutine writeDerivedTypeADIOS2(engine, varray, addl_write)
+      subroutine writeDerivedTypeADIOS2(eng, varray)
 
         implicit none
 
 !     Call variables
-        type(adios2_engine)      :: engine
+        type(adios2_engine)      :: eng
         type(var_array),pointer  :: varray
-        logical                  :: addl_write
 
 !     Local variables
 
@@ -446,20 +445,22 @@
         ysize = jhip+yhighost-jlom-yloghost+1
         zsize = khip+zhighost-klom-zloghost+1
 
+        if (my_rank == 0) call adios2_put (eng, "nvar", varray%nvar, err)
+
         do ieq=1,varray%nvar
             write (vvar,  '("/var/v",i0)')  ieq
             ! write /var/v<ieq>
-            call adios2_put (engine, vvar, &
+            call adios2_put (eng, vvar, &
                   varray%array_var(ieq)%array( &
                         ilom+xloghost:ihip+xhighost, &
                         jlom+yloghost:jhip+yhighost, &
                         klom+zloghost:khip+zhighost), &
                         adios2_mode_sync, err)
 
-            if (addl_write) then
+            if (my_rank == 0) then
                 ! write /name/v<ieq>
                 write (vname, '("/name/v",i0)') ieq
-                call adios2_put (engine, vname, trim(varray%array_var(ieq)%descr)//char(0), &
+                call adios2_put (eng, vname, trim(varray%array_var(ieq)%descr)//char(0), &
                                  adios2_mode_sync, err)
                 write (msg, '(" attr write ",a,": ",a)') trim(vname), &
                          trim(varray%array_var(ieq)%descr)
@@ -467,20 +468,16 @@
             endif
         enddo
 
-        if (addl_write) then 
-           call adios2_put (engine, "nvar", varray%nvar, err)
-        endif
-
-!!$        if (addl_write) then
+        if (my_rank == 0) then
            do ieq=1,varray%nvar
               bconds( (ieq-1)*6+1:ieq*6 ) = varray%array_var(ieq)%bconds(:)
               write (msg,'(" attr write bconds=(",6i3")")') &
                       bconds( (ieq-1)*6+1:ieq*6 )
               call adios2_logging(msg)
            enddo
-           call adios2_put (engine, "bconds", bconds, adios2_mode_sync, err)
-!!$        endif
-
+           call adios2_put (eng, "bconds", bconds, adios2_mode_sync, err)
+        endif
+        
       end subroutine writeDerivedTypeADIOS2
 
 !     readDerivedTypeADIOS2
@@ -871,14 +868,14 @@
 
 !     openADIOS2FileForRead
 !     #################################################################
-      function openADIOS2FileForRead(obj,io,engine,file) result(ierr)
+      function openADIOS2FileForRead(obj,io,eng,file) result(ierr)
 
         implicit none
 
 !     Call variables
 
         type(adios2_adios) :: obj
-        type(adios2_engine) :: engine
+        type(adios2_engine) :: eng
         type(adios2_io) :: io
 
         integer :: ierr
@@ -902,10 +899,10 @@
         call adios2_declare_io(io, obj, 'record.read', ierr)
 
         call adios2_logging('open file')
-        call adios2_open(engine,io,trim(file),adios2_mode_read,adios2_world_comm,ierr)
+        call adios2_open(eng,io,trim(file),adios2_mode_read,adios2_world_comm,ierr)
         call adios2_check_err(ierr, 'Problem in read-only open')
         
-        call adios2_get(engine, 'time', tmp, ierr)
+        call adios2_get(eng, 'time', tmp, ierr)
 
       end function openADIOS2FileForRead
 
@@ -946,14 +943,14 @@
 
 !     Call variables
 
-      type(adios2_io) :: io
+      type(adios2_io)     :: io
       type(adios2_engine) :: eng
-      integer    :: itime,err
-      real(8)    :: time
-      real(8),optional :: dt,gammat
-      character(*) :: file
-      logical    :: init
-      type(var_array),pointer  :: varray
+      integer             :: itime,err
+      real(8)             :: time
+      real(8),optional    :: dt,gammat
+      character(*)        :: file
+      logical             :: init
+      type(var_array),pointer :: varray
 
 !     Local variables
 
@@ -961,8 +958,6 @@
       integer      :: adios2_mode
       logical      :: addl_write  ! true: write names and bconds
 
-!!      logical, save :: isfirst = .true.
-      
 !     Begin program
         
 !     Create/Append adios file
@@ -979,9 +974,7 @@
       call adios2_logging('write access mode: '//trim(mode))
       call adios2_logging('write open')
 
-      !!jyc: isfirst will be true only once at each run.
-      if (init) then
-!!         isfirst = .false.
+      if (.not.eng%valid) then
          call adios2_open(eng,io,file,adios2_mode,adios2_world_comm,err)
          call adios2_check_err(err,'Could not open file for writing')
       else
@@ -999,8 +992,7 @@
       if (my_rank == 0.and.PRESENT(gammat)) &
            call adios2_put(eng,"gammat",gammat,err)
 
-      addl_write=(my_rank == 0.and.init)
-      call writeDerivedTypeADIOS2(eng, varray, addl_write)
+      call writeDerivedTypeADIOS2(eng, varray)
       
       !End adios step
       call adios2_logging('end write step')
