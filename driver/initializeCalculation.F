@@ -528,7 +528,7 @@ c Open record file
         if ((.not.ts_restart).or.(ts_restart.and.(itime==0))) then
           !Dump initial data
           call writeRecordFile(file,0,0d0,dt,0d0,u_0,init=.true.)
-          call writeRecordFile(file,0,0d0,dt,0d0,u_np,init=.true.)
+          call writeRecordFile(file,0,0d0,dt,0d0,u_np)
 c$$$        elseif (getEarlyTimeRestartFlag()) then
 c$$$          file = new_dumpfile(itime)
 c$$$          call writeRecordFile(file,itime,time,dt,gammat,u_np)

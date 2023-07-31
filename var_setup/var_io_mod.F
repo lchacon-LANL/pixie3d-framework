@@ -484,7 +484,8 @@ c     Begin program
 #if defined(adios)
       ierr = readADIOSRecordFile(unit,itime,time,dt,gammat,varray)
 #elif defined(ADIOS2)
-      ierr = readADIOS2RecordFile(unit,itime,time,dt,gammat,varray)
+      unit = find_unit(12345)
+      ierr = readADIOS2RecordFile(itime,time,dt,gammat,varray)
 #else
       ierr = readPOSIXRecordFile(unit,itime,time,dt,gammat,varray)
 #endif
@@ -575,8 +576,8 @@ c     Begin program
       call writeADIOSRecordFile(file,itime,time,dt,gammat,varray
      .                         ,init=init)
 #elif defined(ADIOS2)
-      call writeADIOS2RecordFile(file,itime,time,dt,gammat
-     .                         ,varray,init=init)
+      call writeADIOS2RecordFile(file,itime,time,dt,gammat,varray
+     $                          ,init=init)
 #else
       call writePOSIXRecordFile(file,itime,time,dt,gammat,varray
      .                         ,init=init)
