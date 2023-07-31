@@ -22,33 +22,33 @@
 
         integer :: adios2_err            ! error handler
 
-        logical,private :: adios2_debug=.true. &
-                          ,adios2_append_recordfile=.false.
+        logical,private :: adios2_debug=.false. !&
+!!$                          ,adios2_append_recordfile=.false.
 
-#if !defined(ADIOS2_BUFFER_MB)
-        !ADIOS2 IO buffer 
-        integer,private :: ADIOS2_BUFFER_MB=100  !In MB
-#endif
-
-#if !defined(ADIOS2_METHOD)
-        !ADIOS2 method 
-        character(20) :: ADIOS2_METHOD="MPI"
-#endif     
+!!$#if !defined(ADIOS2_BUFFER_MB)
+!!$        !ADIOS2 IO buffer 
+!!$        integer,private :: ADIOS2_BUFFER_MB=100  !In MB
+!!$#endif
+!!$
+!!$#if !defined(ADIOS2_METHOD)
+!!$        !ADIOS2 method 
+!!$        character(20) :: ADIOS2_METHOD="MPI"
+!!$#endif     
       contains
 
-!     setADIOS2AppendIOMode
-!     ##############################################################
-      subroutine setADIOS2AppendIOMode
-
-        implicit none
-
-!       Call variables
-
-!       Local variables
-
-        adios2_append_recordfile = .true. !Set ADIOS2 recordfile to append
-
-      end subroutine setADIOS2AppendIOMode
+!!$!     setADIOS2AppendIOMode
+!!$!     ##############################################################
+!!$      subroutine setADIOS2AppendIOMode
+!!$
+!!$        implicit none
+!!$
+!!$!       Call variables
+!!$
+!!$!       Local variables
+!!$
+!!$        adios2_append_recordfile = .true. !Set ADIOS2 recordfile to append
+!!$
+!!$      end subroutine setADIOS2AppendIOMode
 
 !     init_ADIOS2_IO
 !     #################################################################

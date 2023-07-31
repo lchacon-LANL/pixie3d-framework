@@ -375,24 +375,24 @@ c       Local variables
 
       end subroutine initPOSIXBinFile
 
-c     setAppendIOMode
-c     ##############################################################
-      subroutine setAppendIOMode
-
-        implicit none
-
-c       Call variables
-
-c       Local variables
-
-#if defined(adios)
-        call setADIOSAppendIOMode()      !Set ADIOS recordfile to append
-#elif defined(ADIOS2)
-        call setADIOS2AppendIOMode()     !Set ADIOS2 recordfile to append
-#else
-        posix_append_recordfile = .true. !Set POSIX recordfile to append
-#endif
-      end subroutine setAppendIOMode
+c$$$c     setAppendIOMode
+c$$$c     ##############################################################
+c$$$      subroutine setAppendIOMode
+c$$$
+c$$$        implicit none
+c$$$
+c$$$c       Call variables
+c$$$
+c$$$c       Local variables
+c$$$
+c$$$#if defined(adios)
+c$$$        call setADIOSAppendIOMode()      !Set ADIOS recordfile to append
+c$$$#elif defined(ADIOS2)
+c$$$        call setADIOS2AppendIOMode()     !Set ADIOS2 recordfile to append
+c$$$#else
+c$$$        posix_append_recordfile = .true. !Set POSIX recordfile to append
+c$$$#endif
+c$$$      end subroutine setAppendIOMode
 
 c     readPOSIXRecordFile
 c     #################################################################
