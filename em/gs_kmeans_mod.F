@@ -307,6 +307,7 @@ c$$$#endif
         DO I=1,NATT
           XMIN = pmin(MINVAL(X(:,I)))
           XMAX = pmax(MAXVAL(X(:,I)))
+          DIFF = XMAX-XMIN
           DO J=1,NIND
             CALL UNIF_RNG(XREF(J,I))
             XREF(J,I) = DIFF*XREF(J,I)+XMIN
@@ -646,18 +647,18 @@ c$$$      END SUBROUTINE KSTAND
 !     ie which mean is closest to the given data point (Euclidean).
 
       IMPLICIT NONE
-      INTEGER :: NIND,NATT,NG,IDT(NIND),IER,I,J,KK
-      
-      REAL(8) :: XSTAN(NIND,NATT),XK(NG,NATT),WX(NIND),DISTB,DIST
+      INTEGER :: NIND,NATT,NG,IDT(NIND),IER,KK
+      REAL(8) :: XK(NG,NATT),WX(NIND),DISTB
 
-      DISTB=DIST
-      
+      INTEGER :: I,J
+      REAL(8) :: XSTAN(NIND,NATT),DIST
+
       DO 310 I=1,NG
         DIST=0D0
         DO 300 J=1,NATT
           DIST=DIST+WX(KK)*(XSTAN(KK,J)-XK(I,J))**2
 300     CONTINUE
-cc        IF (I.EQ.1) DISTB=DIST 
+        IF (I.EQ.1) DISTB=DIST 
         IF (DIST.LE.DISTB) THEN
           IDT(KK)=I
           DISTB=DIST
