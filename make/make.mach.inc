@@ -415,7 +415,6 @@ ifeq ($(findstring quevedo,$(HOST)),quevedo)
     ADIOS_VER  = 1.10.0
 
     ADIOS2 = t
-    ADIOS2_METHOD = MPI
     ADIOS2_HOME = $(HOME)/lib/adios-2.5.0/gcc-6.5.0_openmpi-3.1.5
     ADIOS2_LIBS = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-libs)
     ADIOS2_MOD  = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-flags)
@@ -483,7 +482,6 @@ ifeq ($(findstring pn1931569,$(HOST)),pn1931569)
     HDF5_INC  = $(HDF5_MOD)
 
     ADIOS2 = t
-    ADIOS2_METHOD = MPI
     ADIOS2_HOME = $(HOME)/lib/adios-2.8.3/gcc12-openmpi4
     ADIOS2_LIBS = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-libs)
     ADIOS2_MOD  = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-flags)
@@ -546,7 +544,6 @@ ifeq ($(findstring pn2033419,$(HOST)),pn2033419)
       HDF5_INC  = $(HDF5_MOD)
 
       ADIOS2 = t
-      ADIOS2_METHOD = MPI
       ADIOS2_HOME = $(HOME)/lib/adios-2.8.3/gcc-9.4.0_mpich-3.4.2
       ADIOS2_LIBS = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-libs)
       ADIOS2_MOD  = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-flags)
@@ -572,7 +569,6 @@ ifeq ($(findstring pn2033419,$(HOST)),pn2033419)
       HDF5_INC  = $(HDF5_MOD)
 
       ADIOS2 = t
-      ADIOS2_METHOD = MPI
 #      ADIOS2_HOME = $(HOME)/lib/adios-2.5.0/gcc-9.4.0_openmpi-3.1.5
       ADIOS2_HOME = $(HOME)/lib/adios-2.8.3/gcc-9.4.0_openmpi-3.1.5
       ADIOS2_LIBS = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-libs)
@@ -710,7 +706,6 @@ ifeq ($(findstring Marias,$(HOST)),Marias)
 #    ADIOS_VER  = 1.10.0
 
     ADIOS2 = t
-    ADIOS2_METHOD = MPI
     ADIOS2_HOME = $(WORKDIR)/lib/adios-2.5.0/gcc-12.2.0_openmpi-3.1.6
     ADIOS2_LIBS = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-libs)
     ADIOS2_MOD  = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-flags) 
@@ -1275,7 +1270,6 @@ ifeq ($(findstring ba,$(HOST)),ba)
        ADIOS_VER  = 1.10.0
 
        ADIOS2 = t
-       ADIOS2_METHOD = MPI_LUSTRE
        ADIOS2_HOME = /turquoise/usr/projects/magreconn/soft/adios-2.5/lib/badger_gcc-9.3.0_openmpi-3.1.6
 #       ADIOS2_HOME = /turquoise/usr/projects/magreconn/soft/adios2-latest/lib/badger_gcc-9.3.0_openmpi-3.1.6
        ADIOS2_LIBS = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-libs)
@@ -1340,7 +1334,6 @@ ifeq ($(findstring ba,$(HOST)),ba)
       ADIOS_VER  = 1.10.0
 
       ADIOS2 = t
-      ADIOS2_METHOD = MPI_LUSTRE
       ADIOS2_HOME = /turquoise/usr/projects/magreconn/soft/adios-2.5/lib/badger_intel-19.0.4_openmpi-3.1.6
 #      ADIOS2_HOME = /turquoise/usr/projects/magreconn/soft/adios2-latest/lib/badger_intel-19.0.4_openmpi-3.1.6
       ADIOS2_LIBS = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-libs)
@@ -1433,7 +1426,6 @@ ifeq ($(findstring perlmutter,$(NERSC_HOST)),perlmutter)
     HDF5_INC  = $(HDF5_MOD)
 
     ADIOS2 = t
-    ADIOS2_METHOD = MPI_LUSTRE
     ADIOS2_HOME = $(HOME)/lib/adios-2.8.3/gcc-12.2.0_mpich-8.1.25
     ADIOS2_LIBS = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-libs)
     ADIOS2_MOD  = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-flags)
@@ -1489,7 +1481,6 @@ ifeq ($(findstring ch,$(HOST)),ch)
      HDF5_INC  = $(HDF5_MOD)
 
      ADIOS2 = t
-     ADIOS2_METHOD = MPI_LUSTRE
      ADIOS2_HOME = /usr/projects/magreconn/soft/adios-2.5/lib/chicoma_gnu-12.1.0_mpich-8.1.21
      ADIOS2_LIBS = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-libs)
      ADIOS2_MOD  = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-flags) 
@@ -1529,7 +1520,6 @@ ifeq ($(findstring ch,$(HOST)),ch)
      HDF5_INC  = $(HDF5_MOD)
 
      ADIOS2 = f
-     ADIOS2_METHOD = MPI_LUSTRE
      ADIOS2_HOME = /turquoise/usr/projects/magreconn/soft/adios-2.5/lib/badger_intel-19.0.4_openmpi-3.1.6
      ADIOS2_LIBS = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-libs)
      ADIOS2_MOD  = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-flags) 
@@ -1569,7 +1559,6 @@ ifeq ($(findstring ch,$(HOST)),ch)
      HDF5_INC  = $(HDF5_MOD)
 
      ADIOS2 = f
-     ADIOS2_METHOD = MPI_LUSTRE
      ADIOS2_HOME = /turquoise/usr/projects/magreconn/soft/adios-2.5/lib/badger_intel-19.0.4_openmpi-3.1.6
      ADIOS2_LIBS = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-libs)
      ADIOS2_MOD  = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-flags) 
@@ -1622,7 +1611,6 @@ ifeq ($(findstring sn,$(HOST)),sn)
       ADIOS_VER  = 1.10.0
 
       ADIOS2 = t
-      ADIOS2_METHOD = MPI_LUSTRE
       ADIOS2_HOME = /usr/projects/DPIC/Software/adios-2.5/lib/snow_intel-21.2.0_openmpi-4.1.1
       ADIOS2_LIBS = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-libs)
       ADIOS2_MOD  = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-flags)
@@ -1671,7 +1659,6 @@ ifeq ($(findstring sn,$(HOST)),sn)
       ADIOS = f
 
       ADIOS2 = t
-      ADIOS2_METHOD = MPI_LUSTRE
       ADIOS2_HOME = /usr/projects/DPIC/Software/adios-2.5/lib/gcc-10.3.0_openmpi-4.1.1
       ADIOS2_LIBS = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-libs)
       ADIOS2_MOD  = $(shell $(ADIOS2_HOME)/bin/adios2-config --fortran-flags)
