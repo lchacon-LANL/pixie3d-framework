@@ -117,7 +117,7 @@ C    Setup GM EM algorithm
 
       XUU=0
 
-      CALL INIT_GM(NIND,NATT,NG,X,WX,IDT,XMU,XVAR,T,WTOT,DV,V)
+      CALL INIT_GM(NIND,NATT,NG,X,WX,IDT,XMU,XVAR,T,DV,V)
 
       ! Start timing CW-EM
       call cpu_time(t_start)
@@ -132,12 +132,7 @@ C     Parameters initialization for EM
 
       NG_ORG  = NG              ! original (starting) number of components
       XLOGL   = 0D0
-      WTOT = SUM(WX(1:NIND))    !DBLE(NIND)
-#if defined(petsc)
-      LWTOT = WTOT
-      call MPI_Allreduce(LWTOT,WTOT,1,MPI_DOUBLE_PRECISION
-     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-#endif
+      WTOT    = PSUM(WX)
 
       ALIVE_GRP(1:NG_ORG) = 1   ! we start with all alive Gaussians; 0: killed
 

@@ -43,7 +43,7 @@ c     ##################################################################
 
 c     INIT_GM
 !     #########################################################################
-      SUBROUTINE INIT_GM(NIND,NATT,NG,X,WX,IDT,XMU,XVAR,T,WTOT,DV,V)
+      SUBROUTINE INIT_GM(NIND,NATT,NG,X,WX,IDT,XMU,XVAR,T,DV,V)
 
       IMPLICIT NONE
 
@@ -53,7 +53,7 @@ c    Call variables
       INTEGER, INTENT(INOUT) :: NG,IDT(NIND)
       REAL(8), INTENT(IN)    :: X(NIND,NATT),WX(NIND)
       REAL(8), INTENT(OUT)   :: XMU(NG,NATT),XVAR(NG,NATT,NATT),T(NG)
-     .                         ,WTOT,DV(NG),V(NG,NATT,NATT)
+     .                         ,DV(NG),V(NG,NATT,NATT)
 
 c    Local variables
 
@@ -61,7 +61,7 @@ c    Local variables
      $          ,TEMP
      $          ,WSUM(NG)    !Sum of weights of a group
      $          ,KOK,K0,Np,Nd
-     $          ,GDV,GV(NATT,NATT),LWTOT,W(NIND,NG)
+     $          ,GDV,GV(NATT,NATT),LWTOT,W(NIND,NG),WTOT
 
       INTEGER :: I,J,K,KK,II,RANI
       real(8) :: r(NATT,NATT),sgn(3),NPARBY2
@@ -154,24 +154,6 @@ C    !Invert covariance matrices, returned by GS-KMeans init
 
       CALL GDET(NATT,NG,XVAR(1:NG,:,:),V(1:NG,:,:),DV(1:NG),IER)
 
-      IER = 0
-
-C     Calculate total data size when data is weighted ie weighted
-C     likelihood and sum of weights does not equal one.
-
-      WTOT = psum(WX)
-c$$$#if defined(petsc)
-c$$$      lwtot = WTOT
-c$$$      call MPI_Allreduce(lwtot,WTOT,1,MPI_DOUBLE_PRECISION
-c$$$     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-c$$$#endif
-
-      ! If (adaptive/GS)--K-means is used then NG is changed.
-      ! Here, 
-      !   T(1:NG)         stores the the initial weights
-      !   XMU(1:NG,:)     stores the the initial means
-      !   XVAR(1:NG,:,:)  stores the the initial cov-matrices
-
       END SUBROUTINE INIT_GM
 
 c     GMM_INIT_RANDOM
@@ -211,10 +193,10 @@ c     Compute initial single-Gaussian moments
         IF (STD_IO) WRITE (*      ,445) K
         IF (DIAG_IO) WRITE (FYLENO,445) K
  445    FORMAT (/2X,'Global mean, covariance matrix  ',I2)
-        IF (STD_IO) WRITE (*     ,415) 'XMU',(XMU(K,J),J=1,NATT)
-        IF (DIAG_IO)WRITE (FYLENO,415) 'XMU',(XMU(K,J),J=1,NATT)
+        IF (STD_IO) WRITE (*     ,*  ) 'XMU ',(XMU(K,J),J=1,NATT)
+        IF (DIAG_IO)WRITE (FYLENO,415) 'XMU' ,(XMU(K,J),J=1,NATT)
         DO J=1,NATT
-          IF (STD_IO) WRITE (*     ,415) 'XVAR',(XVAR(K,I,J),I=1,J)
+          IF (STD_IO) WRITE (*     ,*  ) 'XVAR',(XVAR(K,I,J),I=1,J)
           IF (DIAG_IO)WRITE (FYLENO,415) 'XVAR',(XVAR(K,I,J),I=1,J)
         ENDDO
       ENDDO

@@ -937,8 +937,8 @@ c     Begin program
       NULL=NNULL
       GOTO 900
 
- 895  FORMAT (/2X,'Terminal error in SYMINV for matrix ',I3,
-     &        'as IFAULT is ',I3)
+ 895  FORMAT (/2X,'Terminal error in GDETK for matrix ',I3,
+     &        ' as IFAULT is ',I3)
  899  IF (DIAG_IO) WRITE (FYLENO,895) K, IER
       IF (STD_IO) WRITE (*,895)  K, IER
 
@@ -971,14 +971,14 @@ c     Begin program
         if (IER == 5) then
           write (*,*) "Determinant equal to zero in group",K
           do I=1,NATT
-            write (*,*) xvar(K,I,:)
+            write (*,*) "XVAR",xvar(K,I,:)
           enddo
           stop
         endif
         if (NULL /= 0) then
           write (*,*) "Group",K," rank deficiency=",NULL
           do I=1,NATT
-            write (*,*) xvar(K,I,:)
+            write (*,*) "XVAR",xvar(K,I,:)
           enddo
           stop
         endif

@@ -164,7 +164,7 @@ C    Setup GM EM algorithm
       U = 0 ; IDT = 0 ; XUU=0 ; T = 0 ; XUU = 0
       DV = 0 ; XMU = 0 ; V = 0 ; XVAR = 0
 
-      CALL INIT_GM(NIND,NATT,NG,X,WX,IDT,XMU,XVAR,T,WTOT,DV,V)  !This can change NG
+      CALL INIT_GM(NIND,NATT,NG,X,WX,IDT,XMU,XVAR,T,DV,V)  !This can change NG
 
 C     Initialize output G-params to be 0D0
 
@@ -172,18 +172,12 @@ C     Initialize output G-params to be 0D0
       XMUOUT  = 0D0
       XVAROUT = 0D0
 
-
       ! timing the AMEM routine (without/with AA)
       call cpu_time(time_start)
       
 C    Parameters initialization for CWEM
 
-      WTOT = SUM(WX)
-#if defined(petsc)
-      LWTOT = WTOT
-      call MPI_Allreduce(LWTOT,WTOT,1,MPI_DOUBLE_PRECISION
-     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-#endif
+      WTOT = PSUM(WX)
 
       ALIVE_GRP = 0
       ALIVE_GRP(1:NG) = 1   ! we start with all alive Gaussians; 0: killed
