@@ -180,24 +180,25 @@ C     number of points assigned to cluster K)
         T(NG) = 1d0
       end if
 
-C      Check conservation
+C     Check conservation
 
       if (DIAG_IO) then
         CALL CHECK_CONSERVATION(NG,NATT,TS,XMUS,XVARS
      $            ,T(1:NG),XMU(1:NG,1:NATT),XVAR(1:NG,1:NATT,1:NATT))
         write (ML_IO,*)
       end if
-     
+
       end subroutine std_EM_step
 
 c     CW_AEM_step
 c     ###############################################################
       subroutine CW_AEM_step(NIND,NATT,NG,X,WX,W,AL,GUM,DV,T,XMU,XVAR
      .                      ,V,WSUM,WTOT,ALIVE_GRP)
-      ! This subroutine do adaptive EM step in a component-wise manner [Celeux2001]
-      ! Truong 10/16/2020: We now know that this can be expensive
-      !     and can be improved with simultaneous approach given the use of GS--Kmeans
-      !     to avoid choosing too large value for the initial number of components.
+      ! This subroutine do adaptive EM step in a component-wise manner
+      ! [Celeux2001] Truong 10/16/2020: We now know that this can be
+      ! expensive and can be improved with simultaneous approach given
+      ! the use of GS--Kmeans to avoid choosing too large value for the
+      ! initial number of components.
 
       implicit none
       

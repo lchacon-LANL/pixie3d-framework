@@ -189,7 +189,14 @@ c     Compute initial single-Gaussian moments
       CALL LCALK(NIND,NATT,X,W(1:NIND,K),WSUM(K),XMU(K,1:NATT)
      .          ,XVAR(K,1:NATT,1:NATT))
 
-      DO K=1,1 !NG (ASK Gy)
+      !Populate all components
+      do K=2,NG
+        XMU (K,:)   = XMU (1,:)
+        XVAR(K,:,:) = XVAR(1,:,:)
+      enddo
+
+      !IO
+      DO K=1,1
         IF (STD_IO) WRITE (*      ,445) K
         IF (DIAG_IO) WRITE (FYLENO,445) K
  445    FORMAT (/2X,'Global mean, covariance matrix  ',I2)

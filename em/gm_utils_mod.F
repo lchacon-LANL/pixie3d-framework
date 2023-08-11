@@ -264,14 +264,14 @@ c      EM algorithm applied to the best partition.
         WRITE (FYLENO,9550) IOUNT-1
  9550   FORMAT(2X,"Final iteration:",I5)
         WRITE (FYLENO,9551) XLOGL(1)
- 9551   FORMAT(2X,"Initial LOG-LIKELIHOOD:",2F24.16)
+ 9551   FORMAT(2X,"Initial LOG-LIKELIHOOD:",2E25.15)
         WRITE (FYLENO,9552) XLOGL(IOUNT-1),XLOGL(IOUNT-2)
- 9552   FORMAT(2X,"Last two LOG-LIKELIHOOD:",2F24.16)
+ 9552   FORMAT(2X,"Last two LOG-LIKELIHOOD:",2E25.15)
       
         WRITE (FYLENO,9553) MLENG(1)
- 9553   FORMAT(2X,"Initial Message-length:",2F24.16)
+ 9553   FORMAT(2X,"Initial Message-length:",2E25.15)
         WRITE (FYLENO,9554) MLENG(IOUNT-1),MLENG(IOUNT-2)
- 9554   FORMAT(2X,"Last two Message-Length:",2F24.16)
+ 9554   FORMAT(2X,"Last two Message-Length:",2E25.15)
       ENDIF
 
       WRITE(FYLENO,*)
@@ -279,7 +279,7 @@ c      EM algorithm applied to the best partition.
       WRITE(FYLENO,*) 'Final NG = ', NG
 
       WRITE (FYLENO,1105) IOUNT,XLOGL(IOUNT)
-1105    FORMAT (/2X,'In loop ',I3,' log likelihood is ',F15.3)
+1105    FORMAT (/2X,'In loop ',I3,' log likelihood is ',E20.10)
 
       WRITE (FYLENO,*) 'Observation | mixture log density|',
      &'Grp1 Grp2 ..etc...|'
@@ -328,11 +328,14 @@ C     Check conservation of mass
       DIFF = ABS( SUM(T(1:NG)) - TS )
       IF ( DIFF .LT. TOL ) THEN
         WRITE(FYLENO,*) 'TOTAL MASS CONSERVED!'
+        WRITE(*,*) 'TOTAL MASS CONSERVED!'
       ELSE
         WRITE(FYLENO,*) 'TOTAL MASS NOT-CONSERVED!'
+        WRITE(*,*) 'TOTAL MASS NOT-CONSERVED!'
         CONSERVED_FLAG(1) = 0
       ENDIF
       WRITE(FYLENO,*) '		DIFF=',DIFF
+      WRITE(*,*) '		DIFF=',DIFF
 
 C     Check conservation of momentum
       XMU_TOT = 0D0
@@ -340,13 +343,17 @@ C     Check conservation of momentum
         XMU_TOT(1:NATT) = XMU_TOT(1:NATT) + T(K)*XMU(K,1:NATT)
       END DO
       DIFF = NORM2(XMU_TOT(1:NATT) - XMUS(1:NATT))
+     $      /NORM2(XMU_TOT(1:NATT))
       IF ( ABS(DIFF) .LT. TOL ) THEN
         WRITE(FYLENO,*) 'TOTAL MOMENTUM CONSERVED!'
+        WRITE(*,*) 'TOTAL MOMENTUM CONSERVED!'
       ELSE
         WRITE(FYLENO,*) 'TOTAL MOMENTUM NOT-CONSERVED!'
+        WRITE(*,*) 'TOTAL MOMENTUM NOT-CONSERVED!'
         CONSERVED_FLAG(2) = 0
       ENDIF
       WRITE(FYLENO,*) '		DIFF=',DIFF
+      WRITE(*,*) '		DIFF=',DIFF
 
 C     Check conservation of covariance
       XVAR_TOT = 0D0
@@ -366,13 +373,17 @@ C     Check conservation of covariance
         END DO
       END DO
       DIFF = NORM2(XVAR_TOT(1:NATT,1:NATT)-XVARS(1:NATT,1:NATT))
+     $      /NORM2(XVAR_TOT(1:NATT,1:NATT))
       IF ( ABS(DIFF) .LT. TOL ) THEN
         WRITE(FYLENO,*) 'TOTAL COVAR CONSERVED!'
+        WRITE(*,*) 'TOTAL COVAR CONSERVED!'
       ELSE
         WRITE(FYLENO,*) 'TOTAL COVAR NOT-CONSERVED!'
+        WRITE(*,*) 'TOTAL COVAR NOT-CONSERVED!'
         CONSERVED_FLAG(3) = 0
       ENDIF
       WRITE(FYLENO,*) '		DIFF=',DIFF
+      WRITE(*,*) '		DIFF=',DIFF
 
       DO J=1,3
         IF (CONSERVED_FLAG(J) .EQ. 0) STOP
@@ -907,7 +918,7 @@ c     Begin program
       ! Should use small tolerance:
       !TOL=(TOL/NATT)*1.0D-10
       TOL=(TOL/NATT)*1.0D-6    ! original TOL
-      CALL SYMINV (TRIANG,NATT,ATRIANG,TEMP,NULL,IER,RMAX,CMY,TOL=TOL)
+      CALL SYMINV (TRIANG,NATT,ATRIANG,TEMP,NULL,IER,RMAX,CMY)!,TOL=TOL)
       IF (IER.GT.0) GO TO 899
       IF (NULL.NE.0) THEN
         WRITE (*,815)  K, NULL

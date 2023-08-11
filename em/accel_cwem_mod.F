@@ -681,16 +681,17 @@ c     .     (MOD(AASTATE%MAA,MVEC_AA).EQ.0).OR.AA_RELAX.OR.(.NOT.MON_CHK)
 !   Note: Subroutines for doing AA will be employed from REG_AA_MOD (driver for regularized AA)
 !CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
 
-!c     CWAEM_STEP
-!c     ###############################################################
+!c    CWAEM_STEP
+!c    ###############################################################
       SUBROUTINE CWAEM_STEP(G_DOF,NG_ORG,NG,NIND,NATT,WTOT
      $            ,WX,X,THETA,GVAL,AL,GUM,WSUM,ALIVE_GRP,CWFL)
-        ! Unlike adaptive_EM_step() which utilizes component-wise EM (Celeux2001),
-        ! This subroutine performs 1 adaptive-em step in simultaneous manner
-        !   (given a good guess for starting number of component)
-        ! This subroutine follows the implementation of subroutine ADAPTIVE_EM_STEP_OPT
-        ! in GMMEM_MOD (from A-AMEM's stand-alone code)
-        ! Small update: considering vector of particles' weights, WX(1:NIND), in the E-step
+      ! Unlike adaptive_EM_step() which utilizes component-wise EM
+      ! (Celeux2001), This subroutine performs 1 adaptive-em step in
+      ! simultaneous manner (given a good guess for starting number of
+      ! component) This subroutine follows the implementation of
+      ! subroutine ADAPTIVE_EM_STEP_OPT in GMMEM_MOD (from A-AMEM's
+      ! stand-alone code) Small update: considering vector of particles'
+      ! weights, WX(1:NIND), in the E-step
 
       IMPLICIT NONE
 
@@ -819,11 +820,13 @@ c      WSUM(NG+1:)=0d0 ; ALIVE_GRP(NG+1:)=0
 !c     ###############################################################
       SUBROUTINE COMPUTE_PLLH_VER2(ITER,NIND,G_DOF,NG_ORG,NG,NATT
      $            ,WX,X,THETA,XLOGL_OUT,MLENG_OUT,AL,GUM,ALIVE_GRP)
-!   Given the Gaussian parameters vector U & the data points X(1:NIND,1:NATT), we
-!	compute the XLOGL, the LOGLIKELIHOOD value, of Gaussian mixture at iteration ITER
-!   During the process of computing XLOGL, we actually computed responsibilities, 
-!   pdf of X(J,:) in Gaussian(K), AL(J,K), and pdf of GMM, GUM(J) J=1,...,NIND & K=1,...,NG_ORG.
-!   So we output them (AL & GUM) as well
+!     Given the Gaussian parameters vector U & the data points
+!     X(1:NIND,1:NATT), we compute the XLOGL, the LOGLIKELIHOOD value,
+!     of Gaussian mixture at iteration ITER During the process of
+!     computing XLOGL, we actually computed responsibilities, pdf of
+!     X(J,:) in Gaussian(K), AL(J,K), and pdf of GMM, GUM(J)
+!     J=1,...,NIND & K=1,...,NG_ORG.  So we output them (AL & GUM) as
+!     well
 
       IMPLICIT NONE
 
@@ -883,8 +886,8 @@ c      WSUM(NG+1:)=0d0 ; ALIVE_GRP(NG+1:)=0
 
       END SUBROUTINE COMPUTE_PLLH_VER2
 
-!c     RELAX_ACCEL_SOLN
-!c     ###############################################################
+!     RELAX_ACCEL_SOLN
+!     ###############################################################
       SUBROUTINE RELAX_ACCEL_SOLN(G_DOF,NG,NATT,CUR_ITER,THETA,GVAL
      $                           ,RELAX_FLAG,ALIVE_GRP)
 !     Perform relaxation on accelerated solutions if positivity (of
@@ -1163,7 +1166,6 @@ c     local variables
       END DO
 
       end subroutine compute_GUM
-
 
 c     CW__AEM__step
 c     ###############################################################
