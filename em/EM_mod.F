@@ -102,8 +102,6 @@ c    Begin program
       MAXSPLIT = 0
       NCOV = 2
 
-c$$$      NPARBY2 = (NATT+NATT*(NATT+1)/2d0)*0.5d0 !T/2 (of restart paper)
-      
 C    Set EM IO
 
       CALL INIT_EM_IO((info>3),(info>2),trim(FILEID))
@@ -177,7 +175,9 @@ c         write(ML_IO,*) "#SPLIT",ISPLIT
         CALL compute_pllh(NATT,T,GUM,WX,ALIVE_GRP
      .                   ,XLOGL(IOUNT),MLENG(IOUNT))
         if (DIAG_IO) write(ML_IO,*) IOUNT,XLOGL(IOUNT),MLENG(IOUNT)
-     .                           ,MINVAL(T,mask=(ALIVE_GRP==1))
+     .                           ,MINVAL(T,mask=(ALIVE_GRP==1)),NG
+        if (STD_IO) write(*,*)      IOUNT,XLOGL(IOUNT),MLENG(IOUNT)
+     .                           ,MINVAL(T,mask=(ALIVE_GRP==1)),NG
 
         min_T_old = 1D0
         
@@ -198,7 +198,9 @@ c         write(ML_IO,*) "#SPLIT",ISPLIT
           CALL compute_pllh(NATT,T,GUM,WX,ALIVE_GRP
      .                     ,XLOGL(IOUNT),MLENG(IOUNT))
           if (DIAG_IO) write(ML_IO,*) IOUNT,XLOGL(IOUNT),MLENG(IOUNT)
-     .                               ,MINVAL(T,mask=(ALIVE_GRP==1))
+     .                               ,MINVAL(T,mask=(ALIVE_GRP==1)),NG
+          if (STD_IO)  write(*,*)     IOUNT,XLOGL(IOUNT),MLENG(IOUNT)
+     .                               ,MINVAL(T,mask=(ALIVE_GRP==1)),NG
 
           !Standard convergence criteria      
           IF (IOUNT .GT. 1) THEN

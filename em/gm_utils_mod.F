@@ -6,6 +6,8 @@ c     ##################################################################
       use mpi
 #endif
 
+      use io
+
       integer,private :: mpierr
 
       INTEGER :: my_rank_gmm=0,nproc_gmm=1
@@ -64,11 +66,11 @@ c     ########################################################################
       character(100) :: file
 
       file = "GMMEM-diag-"//trim(id)//".log"
-      FYLENO=22
+      FYLENO=find_unit(22)
       OPEN (UNIT=FYLENO,FILE=trim(file),STATUS = 'UNKNOWN') 
 
       file = "LF-diag-"//trim(id)//".log"
-      ML_IO = 31
+      ML_IO = find_unit(31)
       OPEN (UNIT=ML_IO,FILE=trim(file),STATUS = 'UNKNOWN')
       write (ML_IO,*) "#ITER  Log-likelihood  Message-length  T(1:K)"
 
@@ -949,9 +951,9 @@ c     GDET
 c     ###################################################################
       SUBROUTINE GDET(NATT,NG,XVAR,V,DV,IER)
       IMPLICIT NONE
-C     This subroutine reads all covariance matrices, then calls
-C     SYMINV, which inverts a matrix and calculates its determinant,
-C     for each covariance matrix in turn.
+C     This subroutine reads all covariance matrices, then inverts them
+C     and calculates their determinant, for each covariance matrix in
+C     turn.
 
 C     Call variables
 

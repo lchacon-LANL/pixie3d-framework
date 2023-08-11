@@ -1993,6 +1993,8 @@ c     Begin program
 
       call chk_pos(x1,x2,x3,ierr=ierror)
 
+      jac = 0d0
+      
       if (ierror /= ORB_OK) return
 
       jac = db3val(x1,x2,x3,0,0,0,tx,ty,tz,nx,ny,nz
@@ -2067,6 +2069,8 @@ c     Begin program
         lfcoef => fldcoef
       endif
 
+      ff = 0d0
+      
       call chk_pos(x1,x2,x3,ierr=ierror)
 
       if (ierror /= ORB_OK) return

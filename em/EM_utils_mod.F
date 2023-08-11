@@ -164,17 +164,9 @@ C     number of points assigned to cluster K)
           W(JJ,K)= WX(JJ)*W(JJ,K)/GUM(JJ)
         END DO
 
-        WSUM(K)=0.0
-        DO JJ=1,NIND           
-          WSUM(K)=WSUM(K)+W(JJ,K)
-        END DO
-#if defined(petsc)
-        LWSUM = WSUM(K)
-        call MPI_Allreduce(LWSUM,WSUM(K),1,MPI_DOUBLE_PRECISION
-     .                    ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-#endif         
+        WSUM(K)=PSUM(W(:,K))
         T(K)=WSUM(K)/WTOT
-        
+
         call update_gaussian_moments(NIND,NATT,K,X,W(:,K),DV(K)
      .                              ,XMU(K,:),XVAR(K,:,:)
      .                              ,V(K,:,:),WSUM(K))
@@ -228,12 +220,7 @@ c     Local variables
       
 c     Begin program
 
-#if defined(petsc)
-      call MPI_Allreduce(NIND,NINDT,1,MPI_INTEGER
-     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-#else
-      NINDT = NIND
-#endif
+      NINDT = ipsum((/NIND/))
 
       CN=1d0/(2d0*PI)**(NATT*0.5d0)
       
@@ -292,9 +279,8 @@ c$$$        KILL_G = (T(K) .LT. 5D-3)
           NG = NG - 1
           NG_Killed = NG_killed+1
           ! need to remove the probabilities of dead component from GUM
-          ! (01/28/2020)
           DO JJ=1,NIND
-            GUM(JJ)= GUM(JJ)-AL(JJ,K)+1d-14
+            GUM(JJ)= GUM(JJ) - AL(JJ,K)!+1d-14 ! LC 08/11/23: broke Killian's test case
           END DO
 
         else
@@ -388,12 +374,13 @@ c     Local variables
       
 c     Begin program
 
-#if defined(petsc)
-      call MPI_Allreduce(NIND,NINDT,1,MPI_INTEGER
-     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-#else
-      NINDT = NIND
-#endif
+      NINDT = IPSUM((/NIND/))
+c$$$#if defined(petsc)
+c$$$      call MPI_Allreduce(NIND,NINDT,1,MPI_INTEGER
+c$$$     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+c$$$#else
+c$$$      NINDT = NIND
+c$$$#endif
 
       CN=1d0/(2d0*PI)**(NATT*0.5d0)
       
@@ -528,12 +515,13 @@ c     Local variables
       
 c     Begin program
 
-#if defined(petsc)
-      call MPI_Allreduce(NIND,NINDT,1,MPI_INTEGER
-     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-#else
-      NINDT = NIND
-#endif
+      NINDT = IPSUM((/NIND/))
+c$$$#if defined(petsc)
+c$$$      call MPI_Allreduce(NIND,NINDT,1,MPI_INTEGER
+c$$$     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+c$$$#else
+c$$$      NINDT = NIND
+c$$$#endif
 
       CN=1d0/(2d0*PI)**(NATT*0.5d0)
 
@@ -699,26 +687,28 @@ c     PLLH(\theta) = XLOGL
       NIND = size(GUM)
       XLOGL = 0d0
 
-#if defined(petsc)
-      call MPI_Allreduce(NIND,NINDT,1,MPI_INTEGER
-     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-#else
-      NINDT = NIND
-#endif
+      NINDT = IPSUM((/NIND/))
+c$$$#if defined(petsc)
+c$$$      call MPI_Allreduce(NIND,NINDT,1,MPI_INTEGER
+c$$$     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+c$$$#else
+c$$$      NINDT = NIND
+c$$$#endif
       
       NPARBY2 = 0.5D0*(NATT+NATT*(NATT+1)*0.5)
 
       ! Compute standard LLH (taking into account particles' weights)
-      LXLOGL = 0.0D0
-      DO JJ=1,NIND
-        LXLOGL = LXLOGL + WX(JJ)*LOG(GUM(JJ))
-      END DO
-#if defined(petsc)
-      call MPI_Allreduce(LXLOGL,XLOGL,1,MPI_DOUBLE_PRECISION
-     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-#else
-      XLOGL = LXLOGL
-#endif
+      XLOGL = PSUM(WX*LOG(GUM))
+c$$$      LXLOGL = 0.0D0
+c$$$      DO JJ=1,NIND
+c$$$        LXLOGL = LXLOGL + WX(JJ)*LOG(GUM(JJ))
+c$$$      END DO
+c$$$#if defined(petsc)
+c$$$      call MPI_Allreduce(LXLOGL,XLOGL,1,MPI_DOUBLE_PRECISION
+c$$$     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
+c$$$#else
+c$$$      XLOGL = LXLOGL
+c$$$#endif
 
       LOGT = sum(LOG(T+1d-15),mask=(ALIVE_GRP==1))
 

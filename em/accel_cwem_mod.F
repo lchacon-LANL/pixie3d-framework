@@ -771,12 +771,7 @@ c      WSUM(NG+1:)=0d0 ; ALIVE_GRP(NG+1:)=0
       GRAD_LLH= 0d0
       NPARBY2 = 0.5D0*(NATT+NATT*(NATT+1)/2)
 
-#if defined(petsc)
-      call MPI_Allreduce(NIND,NINDT,1,MPI_INTEGER
-     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-#else
-      NINDT = NIND
-#endif
+      NINDT = IPSUM((/NIND/))
 
       ! First, Extract vector solution THETA to G-parameters
       CALL EXTRACT_GPARAMS_VECTOR(G_DOF,NG_ORG,NATT,T(1:NG_ORG)
@@ -882,7 +877,9 @@ c      WSUM(NG+1:)=0d0 ; ALIVE_GRP(NG+1:)=0
       ! Compute penalized LLH (taking into account particles' weights)
       CALL compute_pllh(NATT,T,GUM,WX,ALIVE_GRP,XLOGL_OUT,MLENG_OUT)
       if (DIAG_IO) write(ML_IO,*) ITER,XLOGL_OUT,MLENG_OUT
-     .                           ,MINVAL(T,mask=(ALIVE_GRP==1))
+     .                           ,MINVAL(T,mask=(ALIVE_GRP==1)),NG
+      if (STD_IO)  write(*,*)     ITER,XLOGL_OUT,MLENG_OUT
+     .                           ,MINVAL(T,mask=(ALIVE_GRP==1)),NG
 
       END SUBROUTINE COMPUTE_PLLH_VER2
 
@@ -1204,12 +1201,7 @@ c     Local variables
 
 c     Begin program
 
-#if defined(petsc)
-      call MPI_Allreduce(NIND,NINDT,1,MPI_INTEGER
-     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-#else
-      NINDT = NIND
-#endif
+      NINDT = IPSUM((/NIND/))
 
       CN=1d0/(2d0*PI)**(NATT*0.5d0)
 
@@ -1257,7 +1249,7 @@ C         !An easier condition for killing Gaussian:
             DV(K) = 0d0 ; V(K,:,:) = 0d0   ; WSUM(K) = 0d0
             ! remove contribution of dead Gaussian in GUM
             DO JJ=1,NIND
-              GUM(JJ) = GUM(JJ) - AL(JJ,K) + 1.0d-15
+              GUM(JJ) = GUM(JJ) - AL(JJ,K) !+ 1.0d-15 !LC 08/11/23: broke Killian's test case
             END DO
           else
 
@@ -1284,8 +1276,8 @@ C           after update its moments (means & cov)
                 p_ik=(-0.5d0)*MIN(p_ik,1d0*DENMAX)
                 semiAL(JJ,K)=EXP(p_ik)*ISQDV
                 !Component-wise update 
-                GUM(JJ) = GUM(JJ) - AL(JJ,K) + 1.0d-15
-                AL(JJ,K)=TK*semiAL(JJ,K)
+                GUM(JJ) = GUM(JJ) - AL(JJ,K) !+ 1.0d-15 !LC 08/11/23: broke Killian's test case
+                AL(JJ,K)= TK*semiAL(JJ,K)
                 GUM(JJ) = GUM(JJ) + AL(JJ,K)
               END DO                     !particle
             end if ! cw_flag

@@ -97,7 +97,7 @@ c     Begin program
 
 CGMM_OMP!$OMP MASTER
         if (my_rank_gmm==0.and.std_io)
-     .       PRINT*,"Performing RANDOM init"
+     .      write (*,*) "Performing RANDOM init"
 CGMM_OMP!$OMP END MASTER
 
         call GMM_INIT_RANDOM(NIND,NATT,NG,W,WSUM,X,XMU,XVAR,T)
