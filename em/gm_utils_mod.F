@@ -279,7 +279,7 @@ c      EM algorithm applied to the best partition.
       WRITE(FYLENO,*) 'Final NG = ', NG
 
       WRITE (FYLENO,1105) IOUNT,XLOGL(IOUNT)
-1105    FORMAT (/2X,'In loop ',I3,' log likelihood is ',E20.10)
+1105    FORMAT (/2X,'In loop ',I0,' log likelihood is ',E20.10)
 
       WRITE (FYLENO,*) 'Observation | mixture log density|',
      &'Grp1 Grp2 ..etc...|'
@@ -288,7 +288,7 @@ c      EM algorithm applied to the best partition.
         WRITE (FYLENO,1170) I,(W(I,K),K=1,NG)
  1160 CONTINUE
 
- 1170 FORMAT (2X,I6,2X,10G13.5,'*',I3)
+ 1170 FORMAT (2X,I6,2X,*(G13.5))
 cc 1170 FORMAT (2X,I6,2X,G13.5,' ',10F7.4,'*',I3)
  1171 FORMAT (2X,I6,2X,7G12.5)
 
