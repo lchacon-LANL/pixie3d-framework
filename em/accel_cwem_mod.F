@@ -429,10 +429,10 @@ C      enforce conservation
        
       END DO !SPLIT-LOOP
 
-
       ! Finish timing AMEM routine (without/with AA)
       call cpu_time(time_end)
-      if(amem_diag.or.std_io)print*,'amem runtime =',time_end-time_start
+      if (amem_diag.or.std_io)
+     $     print*,'amem runtime (s) =',time_end-time_start
 
 c     Final work after convergence
       

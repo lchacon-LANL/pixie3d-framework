@@ -65,11 +65,11 @@ c     ########################################################################
 
       character(100) :: file
 
-      file = "GMMEM-diag-"//trim(id)//".log"
+      file = "GMMEM-diag-"//trim(id)
       FYLENO=find_unit(22)
       OPEN (UNIT=FYLENO,FILE=trim(file),STATUS = 'UNKNOWN') 
 
-      file = "LF-diag-"//trim(id)//".log"
+      file = "LF-diag-"//trim(id)
       ML_IO = find_unit(31)
       OPEN (UNIT=ML_IO,FILE=trim(file),STATUS = 'UNKNOWN')
       write (ML_IO,*) "#ITER  Log-likelihood  Message-length  T(1:K)"
