@@ -27,7 +27,7 @@ CGMM_OMP!$OMP THREADPRIVATE(NINDT)
      &          ,KM_NG_MAX  = 10  ! max # of Gaussians
      &          ,KM_NG_ADJ  = 2   ! to avoid underestimate # of Gaussians
 
-      REAL(8) :: KM_TOL = 1d-4  ! KMEANS convergence tolerance
+      REAL(8) :: KM_TOL = 1d-4    ! KMEANS convergence tolerance
       
       contains
 

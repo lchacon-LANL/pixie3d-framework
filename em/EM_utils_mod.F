@@ -689,32 +689,17 @@ c     PLLH(\theta) = XLOGL
       XLOGL = 0d0
 
       NINDT = IPSUM((/NIND/))
-c$$$#if defined(petsc)
-c$$$      call MPI_Allreduce(NIND,NINDT,1,MPI_INTEGER
-c$$$     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-c$$$#else
-c$$$      NINDT = NIND
-c$$$#endif
       
       NPARBY2 = 0.5D0*(NATT+NATT*(NATT+1)*0.5)
 
       ! Compute standard LLH (taking into account particles' weights)
       XLOGL = PSUM(WX*LOG(GUM))
-c$$$      LXLOGL = 0.0D0
-c$$$      DO JJ=1,NIND
-c$$$        LXLOGL = LXLOGL + WX(JJ)*LOG(GUM(JJ))
-c$$$      END DO
-c$$$#if defined(petsc)
-c$$$      call MPI_Allreduce(LXLOGL,XLOGL,1,MPI_DOUBLE_PRECISION
-c$$$     .                  ,MPI_SUM,MPI_COMM_WORLD,mpierr)
-c$$$#else
-c$$$      XLOGL = LXLOGL
-c$$$#endif
 
-      LOGT = sum(LOG(T+1d-15),mask=(ALIVE_GRP==1))
+      LOGT = sum(LOG(T),mask=(ALIVE_GRP==1))
 
       ! Take into account the penalized term in adaptive-EM approach:
-      DVAL = (NG*NPARBY2+0.5*NG-0.5)
+      DVAL = (NG*NPARBY2+0.5*NG-0.5)  !Figuereido & Jain minus one to account for weight norm.
+c$$$      DVAL = (NG*NPARBY2+0.5*NG)  !Figuereido & Jain
       XLOGL = XLOGL -NPARBY2*LOGT - DVAL*LOG(1.0D0*NINDT)
     
       MLENG = -XLOGL + NPARBY2*LOGT + 0.5d0*NG

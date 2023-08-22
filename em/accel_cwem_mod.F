@@ -26,7 +26,7 @@ C     (Component-wise [Celeux2001]), and automatically selects the
 C     number of components via minimum message length criterion [Figueiredo2002].
 C     On input:
 C     * INFO: level of IO information (>2 -> STD output, >3 -> IO to file)
-C     * FILEID: character specifying output file (if INFO>3)
+C     * FILEID: character specifying output file name ID (if INFO>3)
 C     * NIND: number of observations
 C     * NATT: dimension of space of observations
 C     * NG: number of initial gaussians

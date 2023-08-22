@@ -1593,11 +1593,14 @@ c     -------------------------------------------------------------------------
         integer,INTENT(IN),optional :: seed
 
 #ifdef _SPRNG
+        if (output) write (*,*) "Initializing SPRNG"
         call init_random_seed_sprng(nstreams,streamnum,output,seed=seed)
 #else
 #ifdef _OPENMP
+        if (output) write(*,*) "Initializing LCG RNG"
         call init_random_seed_lcg(streamnum,seed=seed)
 #else
+        if (output) write(*,*) "Initializing F90 RNG"
         call init_random_seed_f90(streamnum,seed=seed)
 #endif
 #endif
