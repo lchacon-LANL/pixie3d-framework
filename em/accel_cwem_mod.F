@@ -1225,7 +1225,7 @@ c     Begin program
           LWSUM = 0d0
           if (NIND > 0) then
             DO JJ=1,NIND          !particle
-              W(JJ,K) = WX(JJ)*AL(JJ,K)/GUM(JJ)
+              W(JJ,K) = WX(JJ)*AL(JJ,K)/(GUM(JJ)+1d-15)
               LWSUM = LWSUM + W(JJ,K)
             END DO                !particle
           endif
