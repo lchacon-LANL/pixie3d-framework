@@ -14,7 +14,40 @@ c #####################################################################
 
 c     init_grid_pack_config
 c     #################################################################
-      subroutine init_grid_pack_config(gp1,gp2,gp3)
+      subroutine init_grid_pack_config(gp)
+
+c     -----------------------------------------------------------------
+c     Computes slope for grid packing.
+c     -----------------------------------------------------------------
+
+      implicit none
+
+      type(grid_pack) :: gp
+        
+c     Begin program
+
+      gp%pack = .false.
+      gp%xp = 0d0
+      gp%dx0 = 0d0
+      gp%pack_both_bdrys = .false.
+      gp%modes = 1
+      gp%unif_dom_left_bdry=0d0
+      gp%unif_dom_rite_bdry=0d0
+      gp%unif_nx = 0
+      gp%slope = 0d0
+      gp%dxl = 0d0
+      gp%dxr = 0d0
+      gp%processed = .false.
+      gp%left_nx = 0
+      gp%rite_nx = 0
+
+c     End program
+
+      end subroutine init_grid_pack_config
+
+c     set_grid_pack_config
+c     #################################################################
+      subroutine set_grid_pack_config(gp1,gp2,gp3)
 
 c     -----------------------------------------------------------------
 c     Computes slope for grid packing.
@@ -32,8 +65,8 @@ c     Begin program
 
 c     End program
 
-      end subroutine init_grid_pack_config
-
+      end subroutine set_grid_pack_config
+      
 c     get_grid_pack_config
 c     #################################################################
       subroutine get_grid_pack_config(gp)

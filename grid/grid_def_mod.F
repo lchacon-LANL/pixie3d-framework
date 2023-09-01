@@ -13,23 +13,22 @@ c #####################################################################
         real(8)   ,parameter :: UNDEF_DP=-1234d0
 
         type :: grid_pack
-#if defined(samrai)
           sequence
-#endif
           logical    :: pack = .false.
-          real(8)    :: xp
-          real(8)    :: dx0
+          real(8)    :: xp=0d0
+          real(8)    :: dx0=0d0
           logical    :: pack_both_bdrys=.false.
-          integer    :: modes = 1
-          real(8)    :: unif_dom_left_bdry
-          real(8)    :: unif_dom_rite_bdry
+          integer    :: modes=1
+          real(8)    :: unif_dom_left_bdry=0d0
+          real(8)    :: unif_dom_rite_bdry=0d0
           integer    :: unif_nx=0
           !Put these last
-          real(8)    :: slope = 0d0
-          real(8)    :: dxl
-          real(8)    :: dxr
+          real(8)    :: slope=0d0
+          real(8)    :: dxl=0d0
+          real(8)    :: dxr=0d0
           logical    :: processed=.false.
-          integer    :: left_nx=0,rite_nx=0
+          integer    :: left_nx=0
+          integer    :: rite_nx=0
         end type grid_pack
 
         type :: grid_metrics

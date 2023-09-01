@@ -86,22 +86,13 @@ c     Set defaults
                                !     (homogeneous Neumann/Dirichlet
                                !      for even/odd quantities)
 
-      gp1%pack = .false.       ! Do not pack in X-direction
-      gp1%xp   = 0d0
-      gp1%dx0  = 0d0
-      gp2%pack = .false.       ! Do not pack in Y-direction
-      gp2%xp   = 0d0
-      gp2%dx0  = 0d0
-      gp3%pack = .false.       ! Do not pack in Z-direction
-      gp3%xp   = 0d0
-      gp3%dx0  = 0d0
-                               ! To select packing, one needs to set the fields
-                               ! of gp1, gp2, gp3 as follows:
-                               !    gp* = pack,xp,dx0
-                               ! where:
-                               !   + pack (logical): whether to pack
-                               !   + xp (real): where to pack
-                               !   + dx0 (real): initial grid spacing (at xp)
+      call init_grid_pack_config(gp1)  ! To select packing, one needs to set the fields
+      call init_grid_pack_config(gp2)  ! of gp1, gp2, gp3 as follows:                  
+      call init_grid_pack_config(gp3)  !    gp* = pack,xp,dx0                          
+                                       ! where:                                        
+                                       !   + pack (logical): whether to pack           
+                                       !   + xp (real): where to pack                  
+                                       !   + dx0 (real): initial grid spacing (at xp)  
 
       mg_ratio = 2             ! MG coarsening ratio
 
@@ -120,7 +111,7 @@ c     Read initialization parameters
 
 c     Initialize grid packing structure
 
-      call init_grid_pack_config(gp1,gp2,gp3)
+      call set_grid_pack_config(gp1,gp2,gp3)
 
 c     Consistency check
 
