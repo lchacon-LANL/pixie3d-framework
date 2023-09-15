@@ -281,7 +281,6 @@ c Store function evaluation
       do k = 1,nz
         do j = 1,ny
           do i = 1,nx
-cc            ii = vecPos(neqd,i,j,k,igr,igr,igr)
             ii = neqd*vPos(gv%gparams,igr,(/i,j,k/))
 
 #if defined(MK)
@@ -435,7 +434,6 @@ c Begin program
           do k = klo,khi
             do j = jlo,jhi
               do i = ilo,ihi
-cc                ii = vecPos(neqd,i,j,k,igrid,igrid,igrid)
                 ii = neqd*vPos(gv%gparams,igrid,(/i,j,k/))
                 src(ii+1:ii+neqd) = MK_eval_src(igrid,i,j,k) !Interpolate source on current MK mesh
               enddo
