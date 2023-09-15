@@ -98,7 +98,7 @@ ifdef BOPT
   export PETSC_DIR PETSC_ARCH FLINKER PETSC_SNES_LIB BOPT SNES_OPT
 endif
 
-#SAMRAI setup
+# SAMRAI setup
 
 ifdef SAMR
   ifdef SAMRSOLVERS_HOME
@@ -139,3 +139,8 @@ ifeq ($(SPRNG),t)
   CPPFLAGS    += $(PREPROC)_SPRNG -I$(SPRNG_INC) -DHAVE_CONFIG_H -DPOINTER_SIZE=8 -DLONG64=long -DINTEGER_STAR_8
 #  MODPATH     += $(ADDMODFLAG)$(SPRNG_MOD)
 endif
+
+# TORH setup
+
+CONTRIBLIBS += -L$(COMMONDIR)/contrib/torh/lib -ltorh
+MODPATH     += $(ADDMODFLAG)$(COMMONDIR)/contrib/torh/lib

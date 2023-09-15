@@ -1,0 +1,20 @@
+#Define message
+
+MESSAGE = "Compiling f90 Toroidal Harmonics modules"
+
+#Define subdirectories for common code
+
+COMMONDIR = 
+
+SUBDIRS = 
+
+#Dependencies
+
+dtorh.o: dtorh_utils.o
+toroidal_harmonics.o: dtorh.o
+
+#Specific code
+
+CPPFLAGS += 
+LIBNAME=libtorh.a
+LIB_PATH=../lib
