@@ -387,10 +387,10 @@ c     Check convergence/failure
         convergence = (fkp <= flimit.or.(dxnorm<=stol.and.(.not.init)))
 
         is_ieee_exception = is_NAN(fkp).or.is_INF(fkp)
-        convergence = convergence.and.(.not.is_ieee_exception)
-        
-        failure     = (check > check_lim .or. jit == ntit_max_rej)
-     .               .and.(.not.convergence)
+
+        failure     = (    check > check_lim
+     $                 .or.jit == ntit_max_rej
+     $                 .or.is_ieee_exception  )
 
         exit_lp = (convergence .or. failure)
 
@@ -408,6 +408,7 @@ c     ###############################################################
       if (failure) then 
         if (jit == ntit_max_rej .and. prnt) write (*,220) check
         if (check > check_lim .and. prnt) write (*,230) check,check_lim
+        if (is_ieee_exception.and. prnt) write (*,260) 
         ierr = NOCONV
       !Accept solution, but warn user
       elseif (((jit-1).ge.ntit_max_acc).and.(ntit_max_acc > 0)) then 
@@ -428,6 +429,7 @@ c     ###############################################################
  230  format ('    Relative residual =',f7.2,' >',f7.2)
  240  format ('    FPA converged in too many iterations (>',i3,')')
  250  format ('    FPA converged in too many iterations (>',i3,')')
+ 260  format ('    Detected IEEE exception')
 
       end function chk_err
 
@@ -886,7 +888,7 @@ c     Check convergence/failure
         dxnorm = rms(dx)
 
         if (out.ge.1 .and. prnt)
-     $       write(*,210)jit,dxnorm,fkp,check,damp,pdt,etak,itk
+     $       write(*,210) jit,dxnorm,fkp,check,damp,pdt,etak,itk
 
         if (out.ge.3) then
           call dumpResidualNorms(neq,-rk,vol_wgt)
@@ -895,12 +897,11 @@ c     Check convergence/failure
         convergence = (fkp <= flimit.or.(dxnorm<=stol.and.(.not.init)))
 
         is_ieee_exception = is_NAN(fkp).or.is_INF(fkp)
-        convergence = convergence.and.(.not.is_ieee_exception)
 
         failure     = (    check > check_lim
-     .                .or. jit == ntit_max_rej
-     .                .or. damp < 1d-5)
-     .               .and.(.not.convergence)
+     .                 .or.jit == ntit_max_rej
+     $                 .or.is_ieee_exception
+     .                 .or.damp < 1d-5        )
 
         exit_lp = (convergence .or. failure)
 
@@ -920,6 +921,7 @@ c     ###############################################################
         if (check > check_lim .and. prnt) write (*,230) check,check_lim
         if (damp  < 1d-5 .and. prnt)
      $       write (*,*) 'Damping parameter too small'
+        if (is_ieee_exception.and. prnt) write (*,250) 
         ierr = NOCONV
       !Accept solution, but warn user
       elseif (((jit-1).ge.ntit_max_acc).and.(ntit_max_acc > 0)) then 
@@ -935,6 +937,7 @@ c     ###############################################################
      .       ,1p,1e10.2)
  230  format ('    Relative residual =',f7.2,' >',f7.2)
  240  format ('    Newton converged in too many iterations (>',i3,')')
+ 250  format ('    Detected IEEE exception')
 
       end function chk_err
 
