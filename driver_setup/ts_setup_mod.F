@@ -44,6 +44,8 @@ c ######################################################################
         real(8) :: ts_ramp_up_dt_fraction = 5d-1 !Fraction of initial timestep
      .            ,ts_ramp_up_dt_recovery = 1.05 !Ramp up coefficient
 
+        logical,private :: ts_rollback = .false. !Whether ts rollback has happened due to error
+
         !TS working variables
         real(8),allocatable,dimension(:) :: cnf,one_over_dt
      .                                     ,bdfp,bdfn,bdfnm
@@ -175,6 +177,8 @@ c     Begin program
       tnm   = tnm2
       tnm2  = 0d0
 
+      call set_ts_rollback(.true.)
+      
 c     End program
 
       end subroutine TS_rollback_counters
@@ -495,4 +499,36 @@ c     End program
 
       end subroutine TS_init_dump
 
+c     get_ts_rollback
+c     #################################################################
+      subroutine get_ts_rollback(rlbk)
+
+c     -----------------------------------------------------------------
+c     Setup dumping intervals
+c     -----------------------------------------------------------------
+
+      implicit none
+
+      logical :: rlbk
+
+      rlbk = ts_rollback
+      
+      end subroutine get_ts_rollback
+
+c     set_ts_rollback
+c     #################################################################
+      subroutine set_ts_rollback(rlbk)
+
+c     -----------------------------------------------------------------
+c     Setup dumping intervals
+c     -----------------------------------------------------------------
+
+      implicit none
+
+      logical :: rlbk
+
+      ts_rollback = rlbk
+      
+      end subroutine set_ts_rollback
+      
       end module ts_setup

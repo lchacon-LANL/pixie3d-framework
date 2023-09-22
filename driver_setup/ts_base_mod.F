@@ -251,6 +251,8 @@ c     Begin program
 
       gmres_tot = gmres_tot + itgmres
       newt_tot  = newt_tot  + itnewt
+
+      call set_ts_rollback(.false.)
       
 #if defined(petsc)
       !Begin profiling postprocessing stage
