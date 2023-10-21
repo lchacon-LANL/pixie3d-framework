@@ -2705,111 +2705,141 @@ c     Input variables
         type(grid_mg_def),pointer :: g_def
 
         integer :: i,j,k,igrid
-        real(8) :: cov(0:,0:,0:,:),cnv(3)
-
+        real(8),target :: cov(0:,0:,0:,:)
+        real(8) :: cnv(3)
+        
 c     Local variables
 
-        integer :: nx,ny,nz,ip,im,jp,jm,kp,km
+        integer :: nx,ny,nz,ip,im,jp,jm,kp,km,ii,jj,kk
 
         real(8) :: d_xx_ip,d_xy_ipjp,d_xy_ipjm,d_xz_ipkp,d_xz_ipkm
         real(8) :: d_yy_jp,d_xy_imjp,d_yz_jpkp,d_yz_jpkm
         real(8) :: d_zz_kp,d_xz_imkp,d_yz_jmkp
 
+        real(8),pointer,dimension(:,:,:,:,:) :: gsup_v
+        real(8),pointer,dimension(:,:,:,:)   :: covl
+c$$$        real(8),dimension(0:1,0:1,0:1,3,3) :: gsup_v
+c$$$        real(8),dimension(0:2,0:2,0:2,3)   :: covl
+        
 c     Begin program
 
         cnv = 0d0
 
+        ii = i
         ip = min(i+1,size(cov,1)-1)
         im = i-1
 
+        jj = j
         jp = min(j+1,size(cov,2)-1)
         jm = j-1
 
+        kk = k
         kp = min(k+1,size(cov,3)-1)
         km = k-1
 
-        if (jm >= 0.and.km >= 0) then
+        gsup_v => g_def%gmetric%grid(igrid)%gsup_v
+        covl   => cov
+        
+c$$$        ip = min(i+1,size(cov,1)-1)
+c$$$        im = max(i-1,0)
+c$$$
+c$$$        jp = min(j+1,size(cov,2)-1)
+c$$$        jm = max(j-1,0)
+c$$$
+c$$$        kp = min(k+1,size(cov,3)-1)
+c$$$        km = max(k-1,0)
+c$$$
+c$$$        !Copy arrays into local registers (optimization)
+c$$$        gsup_v(0:i-im,0:j-jm,0:k-km,:,:)
+c$$$     $       = g_def%gmetric%grid(igrid)%gsup_v(im:i,jm:j,km:k,:,:)
+c$$$        covl(0:ip-im,0:jp-jm,0:kp-km,:) = cov(im:ip,jm:jp,km:kp,:)
+c$$$
+c$$$        ii = i-im ; ip = ip-im ; im = 0
+c$$$        jj = j-jm ; jp = jp-jm ; jm = 0
+c$$$        kk = k-km ; kp = kp-km ; km = 0
+        
+        if (j >= 1.and.k >= 1) then
           !i+1/2,j,k
-          d_xx_ip = 0.25*(g_def%gmetric%grid(igrid)%gsup_v(i,j ,k ,1,1)
-     .                   +g_def%gmetric%grid(igrid)%gsup_v(i,jm,k ,1,1)
-     .                   +g_def%gmetric%grid(igrid)%gsup_v(i,j ,km,1,1)
-     .                   +g_def%gmetric%grid(igrid)%gsup_v(i,jm,km,1,1))
+          d_xx_ip = 0.25*(gsup_v(ii,jj,kk,1,1)
+     .                   +gsup_v(ii,jm,kk,1,1)
+     .                   +gsup_v(ii,jj,km,1,1)
+     .                   +gsup_v(ii,jm,km,1,1))
 
-          d_xy_ipjp =0.5*(g_def%gmetric%grid(igrid)%gsup_v(i,j ,k ,1,2)
-     .                   +g_def%gmetric%grid(igrid)%gsup_v(i,j ,km,1,2))
-          d_xy_ipjm =0.5*(g_def%gmetric%grid(igrid)%gsup_v(i,jm,k ,1,2)
-     .                   +g_def%gmetric%grid(igrid)%gsup_v(i,jm,km,1,2))
+          d_xy_ipjp =0.5*(gsup_v(ii,jj,kk,1,2)
+     .                   +gsup_v(ii,jj,km,1,2))
+          d_xy_ipjm =0.5*(gsup_v(ii,jm,kk,1,2)
+     .                   +gsup_v(ii,jm,km,1,2))
 
-          d_xz_ipkp =0.5*(g_def%gmetric%grid(igrid)%gsup_v(i,j ,k ,1,3)
-     .                   +g_def%gmetric%grid(igrid)%gsup_v(i,jm,k ,1,3))
-          d_xz_ipkm =0.5*(g_def%gmetric%grid(igrid)%gsup_v(i,j ,km,1,3)
-     .                   +g_def%gmetric%grid(igrid)%gsup_v(i,jm,km,1,3))
+          d_xz_ipkp =0.5*(gsup_v(ii,jj,kk,1,3)
+     .                   +gsup_v(ii,jm,kk,1,3))
+          d_xz_ipkm =0.5*(gsup_v(ii,jj,km,1,3)
+     .                   +gsup_v(ii,jm,km,1,3))
 
-          cnv(1) = d_xx_ip*cov(i,j,k,1)
-     .           +0.25*d_xy_ipjp*(cov(i ,j ,k ,2)
-     .                           +cov(ip,j ,k ,2))
-     .           +0.25*d_xy_ipjm*(cov(i ,jm,k ,2)
-     .                           +cov(ip,jm,k ,2))
-     .           +0.25*d_xz_ipkp*(cov(i ,j ,k ,3)
-     .                           +cov(ip,j ,k ,3))
-     .           +0.25*d_xz_ipkm*(cov(i ,j ,km,3)
-     .                           +cov(ip,j ,km,3))
+          cnv(1) = d_xx_ip*covl(ii,jj,kk,1)
+     .           +0.25*d_xy_ipjp*(covl(ii,jj,kk,2)
+     .                           +covl(ip,jj,kk,2))
+     .           +0.25*d_xy_ipjm*(covl(ii,jm,kk,2)
+     .                           +covl(ip,jm,kk,2))
+     .           +0.25*d_xz_ipkp*(covl(ii,jj,kk,3)
+     .                           +covl(ip,jj,kk,3))
+     .           +0.25*d_xz_ipkm*(covl(ii,jj,km,3)
+     .                           +covl(ip,jj,km,3))
         endif
 
-        if (im >= 0.and.km >= 0) then
+        if (i >= 1.and.k >= 1) then
           !i,j+1/2,k
-          d_xy_ipjp =0.5*(g_def%gmetric%grid(igrid)%gsup_v(i ,j,k ,1,2)
-     .                   +g_def%gmetric%grid(igrid)%gsup_v(i ,j,km,1,2))
-          d_xy_imjp =0.5*(g_def%gmetric%grid(igrid)%gsup_v(im,j,k ,1,2)
-     .                   +g_def%gmetric%grid(igrid)%gsup_v(im,j,km,1,2))
+          d_xy_ipjp =0.5*(gsup_v(ii,jj,kk,1,2)
+     .                   +gsup_v(ii,jj,km,1,2))
+          d_xy_imjp =0.5*(gsup_v(im,jj,kk,1,2)
+     .                   +gsup_v(im,jj,km,1,2))
 
-          d_yy_jp = 0.25*(g_def%gmetric%grid(igrid)%gsup_v(i ,j,k ,2,2)
-     .                   +g_def%gmetric%grid(igrid)%gsup_v(im,j,k ,2,2)
-     .                   +g_def%gmetric%grid(igrid)%gsup_v(i ,j,km,2,2)
-     .                   +g_def%gmetric%grid(igrid)%gsup_v(im,j,km,2,2))
+          d_yy_jp = 0.25*(gsup_v(ii,jj,kk,2,2)
+     .                   +gsup_v(im,jj,kk,2,2)
+     .                   +gsup_v(ii,jj,km,2,2)
+     .                   +gsup_v(im,jj,km,2,2))
 
-          d_yz_jpkp =0.5*(g_def%gmetric%grid(igrid)%gsup_v(i ,j,k ,2,3)
-     .                   +g_def%gmetric%grid(igrid)%gsup_v(im,j,k ,2,3))
-          d_yz_jpkm =0.5*(g_def%gmetric%grid(igrid)%gsup_v(i ,j,km,2,3)
-     .                   +g_def%gmetric%grid(igrid)%gsup_v(im,j,km,2,3))
+          d_yz_jpkp =0.5*(gsup_v(ii,jj,kk,2,3)
+     .                   +gsup_v(im,jj,kk,2,3))
+          d_yz_jpkm =0.5*(gsup_v(ii,jj,km,2,3)
+     .                   +gsup_v(im,jj,km,2,3))
 
-          cnv(2) = d_yy_jp*cov(i,j,k,2)
-     .        +0.25*d_xy_ipjp*(cov(i ,j ,k ,1)
-     .                        +cov(i ,jp,k ,1))
-     .        +0.25*d_xy_imjp*(cov(im,j ,k ,1)
-     .                        +cov(im,jp,k ,1))
-     .        +0.25*d_yz_jpkp*(cov(i ,j ,k ,3)
-     .                        +cov(i ,jp,k ,3))
-     .        +0.25*d_yz_jpkm*(cov(i ,j ,km,3)
-     .                        +cov(i ,jp,km,3))
+          cnv(2) = d_yy_jp*covl(ii,jj,kk,2)
+     .        +0.25*d_xy_ipjp*(covl(ii,jj,kk,1)
+     .                        +covl(ii,jp,kk,1))
+     .        +0.25*d_xy_imjp*(covl(im,jj,kk,1)
+     .                        +covl(im,jp,kk,1))
+     .        +0.25*d_yz_jpkp*(covl(ii,jj,kk,3)
+     .                        +covl(ii,jp,kk,3))
+     .        +0.25*d_yz_jpkm*(covl(ii,jj,km,3)
+     .                        +covl(ii,jp,km,3))
         endif
 
-        if (im >= 0.and.jm >= 0) then
+        if (i >= 1.and.j >= 1) then
           !i,j,k+1/2
-          d_xz_ipkp =0.5*(g_def%gmetric%grid(igrid)%gsup_v(i ,j ,k,1,3)
-     .                   +g_def%gmetric%grid(igrid)%gsup_v(i ,jm,k,1,3))
-          d_xz_imkp =0.5*(g_def%gmetric%grid(igrid)%gsup_v(im,j ,k,1,3)
-     .                   +g_def%gmetric%grid(igrid)%gsup_v(im,jm,k,1,3))
+          d_xz_ipkp =0.5*(gsup_v(ii,jj,kk,1,3)
+     .                   +gsup_v(ii,jm,kk,1,3))
+          d_xz_imkp =0.5*(gsup_v(im,jj,kk,1,3)
+     .                   +gsup_v(im,jm,kk,1,3))
 
-          d_yz_jpkp =0.5*(g_def%gmetric%grid(igrid)%gsup_v(i ,j ,k,2,3)
-     .                   +g_def%gmetric%grid(igrid)%gsup_v(im,j ,k,2,3))
-          d_yz_jmkp =0.5*(g_def%gmetric%grid(igrid)%gsup_v(i ,jm,k,2,3)
-     .                   +g_def%gmetric%grid(igrid)%gsup_v(im,jm,k,2,3))
+          d_yz_jpkp =0.5*(gsup_v(ii,jj,kk,2,3)
+     .                   +gsup_v(im,jj,kk,2,3))
+          d_yz_jmkp =0.5*(gsup_v(ii,jm,kk,2,3)
+     .                   +gsup_v(im,jm,kk,2,3))
 
-          d_zz_kp = 0.25*(g_def%gmetric%grid(igrid)%gsup_v(i ,j ,k,3,3)
-     .                   +g_def%gmetric%grid(igrid)%gsup_v(im,j ,k,3,3)
-     .                   +g_def%gmetric%grid(igrid)%gsup_v(i ,jm,k,3,3)
-     .                   +g_def%gmetric%grid(igrid)%gsup_v(im,jm,k,3,3))
+          d_zz_kp = 0.25*(gsup_v(ii,jj,kk,3,3)
+     .                   +gsup_v(im,jj,kk,3,3)
+     .                   +gsup_v(ii,jm,kk,3,3)
+     .                   +gsup_v(im,jm,kk,3,3))
 
-          cnv(3) = d_zz_kp*cov(i,j,k,3)
-     .        +0.25*d_xz_ipkp*(cov(i ,j ,k ,1)
-     .                        +cov(i ,j ,kp,1))
-     .        +0.25*d_xz_imkp*(cov(im,j ,k ,1)
-     .                        +cov(im,j ,kp,1))
-     .        +0.25*d_yz_jpkp*(cov(i ,j ,k ,2)
-     .                        +cov(i ,j ,kp,2))
-     .        +0.25*d_yz_jmkp*(cov(i ,jm,k ,2)
-     .                        +cov(i ,jm,kp,2))
+          cnv(3) = d_zz_kp*covl(ii,jj,kk,3)
+     .        +0.25*d_xz_ipkp*(covl(ii,jj,kk,1)
+     .                        +covl(ii,jj,kp,1))
+     .        +0.25*d_xz_imkp*(covl(im,jj,kk,1)
+     .                        +covl(im,jj,kp,1))
+     .        +0.25*d_yz_jpkp*(covl(ii,jj,kk,2)
+     .                        +covl(ii,jj,kp,2))
+     .        +0.25*d_yz_jmkp*(covl(ii,jm,kk,2)
+     .                        +covl(ii,jm,kp,2))
         endif
 
       end function XformToCnv_stg_ijk
