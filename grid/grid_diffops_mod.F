@@ -2821,7 +2821,7 @@ c$$$        end INTERFACE
 
 c     fnabla_v
 c     #################################################################
-      function fnabla_v(g_def,i,j,k,igrid,aa,half_elem,comp1,comp2,cnv)
+      function fnabla_v(g_def,i,j,k,igrid,aa,half_elem,comp1,comp2,cnvt)
      .         result(tensor)
 c     -----------------------------------------------------------------
 c     Calculates the tensor components T_l^m of nabla(vec v), with
@@ -2846,25 +2846,18 @@ c     Call variables
         real(8) :: tensor(3,3)
         real(8) :: aa(0:,0:,0:,:)
 
-        logical,optional :: cnv
+        logical :: cnvt
 
 c     Local variables
 
         integer :: ig,jg,kg,ip,im,jp,jm,kp,km,ii,jj,cc1,cc2
         real(8) :: idh(3),v(3),vp(3,3),vm(3,3)
         real(8) :: tsrc(3,3),gsuper(3,3),dhx,dhy,dhz
-        logical :: cntv
         real(8),pointer,dimension(:,:,:,:,:) :: gsup
 
 c     Begin program
 
-        if (PRESENT(cnv)) then
-          cntv = cnv
-        else
-          cntv = .false.
-        endif
-
-        if (cntv) then
+        if (cnvt) then
           cc1 = 1 ; cc2 = 3
         else
           cc1 = comp1 ; cc2 = comp2
@@ -2881,7 +2874,7 @@ c     Begin program
         kp = k+1
         km = k-1
 
-        if (cntv) gsup => g_def%gmetric%grid(igrid)%gsup
+        if (cnvt) gsup => g_def%gmetric%grid(igrid)%gsup
 
         tsrc = nabla_v_src(i,j,k)
 
@@ -2902,7 +2895,7 @@ c     Begin program
 
           tsrc = 0.5*(nabla_v_src(ip,j,k)+tsrc)
 
-          if (cntv) gsuper = 0.5*(gsup(ip,j,k,:,:)
+          if (cnvt) gsuper = 0.5*(gsup(ip,j,k,:,:)
      .                           +gsup(i ,j,k,:,:))
         case (2)
           dhx = 2.*g_def%dxh(ig)
@@ -2920,7 +2913,7 @@ c     Begin program
 
           tsrc = 0.5*(nabla_v_src(i,jp,k)+tsrc)
 
-          if (cntv) gsuper = 0.5*(gsup(i,jp,k,:,:)
+          if (cnvt) gsuper = 0.5*(gsup(i,jp,k,:,:)
      .                           +gsup(i,j ,k,:,:))
         case (3)
           dhx = 2.*g_def%dxh(ig)
@@ -2938,7 +2931,7 @@ c     Begin program
 
           tsrc = 0.5*(nabla_v_src(i,j,kp)+tsrc)
 
-          if (cntv) gsuper = 0.5*(gsup(i,j,kp,:,:)
+          if (cnvt) gsuper = 0.5*(gsup(i,j,kp,:,:)
      .                           +gsup(i,j,k ,:,:))
         case default
           dhx = 2.*g_def%dxh(ig)
@@ -2954,7 +2947,7 @@ c     Begin program
           vp(3,:) = aa(i,j,kp,:)
           vm(3,:) = aa(i,j,km,:)
 
-          if (cntv) gsuper = gsup(i,j,k,:,:)
+          if (cnvt) gsuper = gsup(i,j,k,:,:)
         end select
 
         !Assembly of tensor
@@ -2964,7 +2957,7 @@ c     Begin program
         idh(3) = 1d0/dhz
 
         !Highly optimized, do NOT touch
-        if (cntv) then
+        if (cnvt) then
           do jj=1,3
             do ii=comp1,comp2
               tensor(ii,jj) =
@@ -3010,8 +3003,8 @@ c     Begin program
 
         cnv = aa(i,j,k,:)
 
-        do n=cc1,cc2
-          do m=1,3
+        do m=1,3
+          do n=cc1,cc2
             tensor(n,m) =
      .           cnv(1)* Hessian(i,j,k,m,1,n)
      .          +cnv(2)* Hessian(i,j,k,m,2,n)
@@ -3033,7 +3026,13 @@ c     #############################################################
       function fnabla_v_upwd(g_def,i,j,k,igrid,aa,hex,hey,hez)
      .         result(tensor)
 c     -------------------------------------------------------------
-c     Calculates the tensor nabla(vec v) at the following positions:
+c     Calculates the tensor components T_k^m of nabla(vec v), with
+c     v contravariant, given by:
+c
+c       T_k^m = (J*partial_k(v^m/J) + v_n Gamma(m)_kn), l=ic
+c
+c     upwinded according to sign of hex,hey,hez.
+c     Tensor is computed at the following positions:
 c       + hex,hey,hez = 0 => i,j,k
 c       + hex=+-1 --> i+-1/2
 c       + hey=+-1 --> j+-1/2
@@ -4815,7 +4814,8 @@ c     #############################################################
      .         result(tensor)
 c     -------------------------------------------------------------
 c     Calculates the tensor components T_lm of nabla(vec v), with
-c     v covariant, and fills tensor(l,m) at the following positions:
+c     v covariant using upwinding according to sign of hex,hey,hez,
+c     and fills tensor(l,m) at the following positions:
 c       + hex,hey,hez = 0 => i,j,k
 c       + hex=+-1 --> i+-1/2
 c       + hey=+-1 --> j+-1/2
@@ -6079,21 +6079,18 @@ c     Begin program
           ip = i
           jac = g_def%gmetric%grid(igrid)%jac(i,j,k)
 
-          nabla_v_cnv = fnabla_v(g_def,i,j,k,igrid,vec,0,1,1,cnv=.true.)
+          nabla_v_cnv = fnabla_v(g_def,i,j,k,igrid,vec,0,1,1,.true.)
         else
           ip = i+1
-          jac  = 0.5*(g_def%gmetric%grid(igrid)%jac (ip,j,k)
-     .               +g_def%gmetric%grid(igrid)%jac (i ,j,k))
+          jac = 0.5*(g_def%gmetric%grid(igrid)%jac (ip,j,k)
+     .              +g_def%gmetric%grid(igrid)%jac (i ,j,k))
 
-          nabla_v_cnv = fnabla_v(g_def,i,j,k,igrid,vec,1,1,1,cnv=.true.)
+          nabla_v_cnv = fnabla_v(g_def,i,j,k,igrid,vec,1,1,1,.true.)
         endif
 
         if (associated(coef)) then
-          if (coef(ip,j,k)*coef(i,j,k)>0d0) then
-            dd = 2./(1./coef(ip,j,k) + 1./coef(i,j,k))
-          else
-            dd = 0d0
-          endif
+          dd = max(coef(ip,j,k)*coef(i,j,k),0d0)
+          dd = 2.*dd/(coef(ip,j,k) + coef(i,j,k))
         else
           dd = 1d0
         endif
@@ -6152,21 +6149,18 @@ c     Begin program
           jp = j
           jac= g_def%gmetric%grid(igrid)%jac(i,j,k)
 
-          nabla_v_cnv = fnabla_v(g_def,i,j,k,igrid,vec,0,2,2,cnv=.true.)
+          nabla_v_cnv = fnabla_v(g_def,i,j,k,igrid,vec,0,2,2,.true.)
         else
           jp = j+1
-          jac  = 0.5*(g_def%gmetric%grid(igrid)%jac (i,jp,k)
-     .               +g_def%gmetric%grid(igrid)%jac (i,j ,k))
+          jac = 0.5*(g_def%gmetric%grid(igrid)%jac (i,jp,k)
+     .              +g_def%gmetric%grid(igrid)%jac (i,j ,k))
 
-          nabla_v_cnv = fnabla_v(g_def,i,j,k,igrid,vec,2,2,2,cnv=.true.)
+          nabla_v_cnv = fnabla_v(g_def,i,j,k,igrid,vec,2,2,2,.true.)
         endif
 
         if (associated(coef)) then
-          if (coef(i,jp,k)*coef(i,j,k)>0d0) then
-            dd = 2./(1./coef(i,jp,k) + 1./coef(i,j ,k))
-          else
-            dd = 0d0
-          endif
+          dd = max(coef(i,jp,k)*coef(i,j,k),0d0)
+          dd = 2.*dd/(coef(i,jp,k) + coef(i,j,k))
         else
           dd = 1d0
         endif
@@ -6221,21 +6215,18 @@ c     Begin program
           kp = k
           jac= g_def%gmetric%grid(igrid)%jac(i,j,k)
 
-          nabla_v_cnv = fnabla_v(g_def,i,j,k,igrid,vec,0,3,3,cnv=.true.)
+          nabla_v_cnv = fnabla_v(g_def,i,j,k,igrid,vec,0,3,3,.true.)
         else
           kp = k+1
           jac  = 0.5*(g_def%gmetric%grid(igrid)%jac (i,j,kp)
      .               +g_def%gmetric%grid(igrid)%jac (i,j,k ))
 
-          nabla_v_cnv = fnabla_v(g_def,i,j,k,igrid,vec,3,3,3,cnv=.true.)
+          nabla_v_cnv = fnabla_v(g_def,i,j,k,igrid,vec,3,3,3,.true.)
         endif
 
         if (associated(coef)) then
-          if (coef(i,j,kp)*coef(i,j,k)>0d0) then
-            dd = 2./(1./coef(i,j,kp) + 1./coef(i,j,k ))
-          else
-            dd = 0d0
-          endif
+          dd = max(coef(i,j,kp)*coef(i,j,k),0d0)
+          dd = 2.*dd/(coef(i,j,kp) + coef(i,j,k))
         else
           dd = 1d0
         endif
@@ -8309,7 +8300,7 @@ c       * advect = 7 => Gamma (modification of SMART; not operational)
         real(8),private :: zip_threshold=1d-8
         
         INTERFACE inter
-          module procedure in2face_scl,in2face_vec
+          module procedure in2face_scl!,in2face_vec
 cc     .                    ,in2face_scl_new,in2face_vec_new
         end INTERFACE
 
@@ -9867,7 +9858,7 @@ c     Begin program
         if (v1cov) then
           nabla_v=fnabla_v_cov(g_def,i,j,k,igx,v1,0)
         else
-          nabla_v=fnabla_v    (g_def,i,j,k,igx,v1,0,1,3)
+          nabla_v=fnabla_v    (g_def,i,j,k,igx,v1,0,1,3,.false.)
         endif
       case default
         call pstop('tensor_nc_advc','Advection option not implemented')
@@ -10224,11 +10215,13 @@ c     Flux limiting
           vxp = 0.5*(vec1(ip,j,k,1)*ijacp+vec1(i,j,k,1)*ijac0)*jac
 
           !Limit flux based on velocity
-          t1 = vxp*inter(g_def%xx(igpp),vec2(ipp,j,k,:)
-     .                  ,g_def%xx(igp ),vec2(ip ,j,k,:)
-     .                  ,g_def%xx(ig  ),vec2(i  ,j,k,:)
-     .                  ,g_def%xx(igm ),vec2(im ,j,k,:)
-     .                  ,vxp,adv__meth)
+          call in2face_vec(g_def%xx(igm ),vec2(im ,j,k,1:3)
+     .                    ,g_def%xx(ig  ),vec2(i  ,j,k,1:3)
+     .                    ,g_def%xx(igp ),vec2(ip ,j,k,1:3)
+     .                    ,g_def%xx(igpp),vec2(ipp,j,k,1:3)
+     .                    ,vxp,adv__meth,t1)
+
+          t1 = vxp*t1
         endif
 
 c     Postprocessing
@@ -10324,12 +10317,13 @@ c     Flux limiting
           vyp = 0.5*(vec1(i,jp,k,2)+vec1(i,j,k,2))
 
           !Limit flux based on velocity
-          t2 = vyp*inter(g_def%yy(jgpp),vec2(i,jpp,k,:)
-     .                  ,g_def%yy(jgp ),vec2(i,jp ,k,:)
-     .                  ,g_def%yy(jg  ),vec2(i,j  ,k,:)
-     .                  ,g_def%yy(jgm ),vec2(i,jm ,k,:)
-     .                  ,vyp,adv__meth)
+          call in2face_vec(g_def%yy(jgm ),vec2(i,jm ,k,1:3)
+     .                    ,g_def%yy(jg  ),vec2(i,j  ,k,1:3)
+     .                    ,g_def%yy(jgp ),vec2(i,jp ,k,1:3)
+     .                    ,g_def%yy(jgpp),vec2(i,jpp,k,1:3)
+     .                    ,vyp,adv__meth,t2)
 
+          t2 = vyp*t2
         endif
 
 c     Postprocessing
@@ -10424,13 +10418,14 @@ c     Flux limiting
 
           vzp = 0.5*(vec1(i,j,kp,3)+vec1(i,j,k,3))
 
-            !Limit flux based on velocity
-          t3=vzp*inter(g_def%zz(kgpp),vec2(i,j,kpp,:)
-     .                ,g_def%zz(kgp ),vec2(i,j,kp ,:)
-     .                ,g_def%zz(kg  ),vec2(i,j,k  ,:)
-     .                ,g_def%zz(kgm ),vec2(i,j,km ,:)
-     .                ,vzp,adv__meth)
+          !Limit flux based on velocity
+          call in2face_vec(g_def%zz(kgm ),vec2(i,j,km ,1:3)
+     .                    ,g_def%zz(kg  ),vec2(i,j,k  ,1:3)
+     .                    ,g_def%zz(kgp ),vec2(i,j,kp ,1:3)
+     .                    ,g_def%zz(kgpp),vec2(i,j,kpp,1:3)
+     .                    ,vzp,adv__meth,t3)
 
+          t3 = vzp*t3
         endif
 
 c     Postprocessing
@@ -10550,8 +10545,6 @@ c          q1    q2 ^  q3    q4
 c                   ^
 c           Location of face
 c     ---------------------------------------------------------------
-
-      use oned_int
 
       implicit none                !For safe fortran
 
@@ -10752,8 +10745,6 @@ c                   ^
 c           Location of face
 c     ---------------------------------------------------------------
 
-      use oned_int
-
       implicit none                !For safe fortran
 
 c     Call variables
@@ -10938,8 +10929,7 @@ c     End
 
 c     in2face_vec
 c     ###############################################################
-      function in2face_vec(x4,q4,x3,q3,x2,q2,x1,q1,vel,advect)
-     .         result(inter)
+      subroutine in2face_vec(x1,q1,x2,q2,x3,q3,x4,q4,vel,advect,int)
 
 c     ---------------------------------------------------------------
 c     This function computes the advection interpolation of vector
@@ -10953,24 +10943,18 @@ c                   ^
 c           Location of face
 c     ---------------------------------------------------------------
 
-      use oned_int
-
       implicit none                !For safe fortran
 
 c     Call variables
 
-      real(8) :: x4,x3,x2,x1,q4(:),q3(:),q2(:),q1(:),vel
-      real(8) :: inter(size(q1))
-      integer :: advect
+      integer :: advect,np
+      real(8) :: x4,x3,x2,x1,vel
+      real(8),dimension(3) :: int,q4,q3,q2,q1
 
 c     Local variables
 
-      real(8) :: qt1(size(q1)),qt2(size(q1))
-     .          ,qt3(size(q1)),qt4(size(q1))
-     .          ,slp1,slp2,a(size(q1)),b(size(q1)),c(size(q1))
-     .          ,xp1,xp2,curv(size(q1))
-     $          ,dq1(size(q1)),dq2(size(q1)),dq3(size(q1))
-     .          ,dx1,dx2,dx3
+      real(8) :: slp1,slp2,xp1,xp2,dx1,dx2,dx3
+      real(8),dimension(3) :: qt1,qt2,qt3,qt4,a,b,c,curv,dq1,dq2,dq3
 
 c     Begin program
 
@@ -10988,16 +10972,16 @@ c     Begin program
 c     Upwind
 
         if (vel.gt.0d0) then
-          inter = q2
+          int = q2
         else
-          inter = q3
+          int = q3
         endif
 
       case(ZIP)
 
 c     Centered
 
-        inter = 0.5*(q3+q2)
+        int = 0.5*(q3+q2)
 
       case(QUICK)
 
@@ -11011,7 +10995,7 @@ cc          curv = 2d0*((q4-q3)/(x4-x3)-(q3-q2)/(x3-x2))/(x4-x2)
           curv = 2d0*(dq3/dx3-dq2/dx2)/(dx3+dx2)
         endif
 
-        inter = 0.5*(q3+q2) - 0.125*curv*dx2*dx2
+        int = 0.5*(q3+q2) - 0.125*curv*dx2*dx2
 
       case(SMART)
 
@@ -11030,7 +11014,7 @@ c$$$          qt3 = slp2*q2 + (1.-slp2)*q3
           qt2 = q2 + (slp1-1.)*dq1
           qt3 = q2 - (slp2-1.)*dq2
           qt4 = fmed(q2,qt2,qt3)
-          inter = fmed(q2,qt4,qt1)
+          int = fmed(q2,qt4,qt1)
         else
 c$$$          curv = 2d0*((q4-q3)/(x4-x3)-(q3-q2)/(x3-x2))/(x4-x2)
 c$$$          qt1 = 0.5d0*(q3+q2) - 0.125*curv*(x3-x2)**2
@@ -11041,7 +11025,7 @@ c$$$          qt3 = slp2*q3 + (1.-slp2)*q2
           qt2 = q3 - (slp1-1.)*dq3
           qt3 = q3 + (slp2-1.)*dq2
           qt4 = fmed(q3,qt2,qt3)
-          inter = fmed(q3,qt4,qt1)
+          int = fmed(q3,qt4,qt1)
         endif
 
       case(SSMART)
@@ -11058,20 +11042,20 @@ cc          qt1  = (q2-q1)/(q3-q1)
             a = .25d0*(xp1-3d0)*xp1**(-3)
             b = (1.125d0-0.5d0*xp1)*xp1**(-2)
             qt2 = qt1*(a*qt1**2 + b*qt1 + 1d0)
-cc            inter = q1 + qt2*(q3-q1)
-            inter = q3 + (qt2-1.)*(dq2+dq1)
+cc            int = q1 + qt2*(q3-q1)
+            int = q3 + (qt2-1.)*(dq2+dq1)
           elsewhere (qt1.ge.xp2.and.qt1.lt.1d0)
             a = (0.25d0*xp2-.5d0)*(xp2-1d0)**(-3)
             b = 0.125d0*(-4d0*xp2**2+7d0*xp2+1d0)*(xp2-1d0)**(-3)
             c = 1d0 - (-.5d0*xp2**2-0.375d0+1.125d0*xp2)*(xp2-1d0)**(-3)
             qt2 = (qt1 - 1d0)*(a*qt1**2 + b*qt1 + c) + 1d0
-cc            inter = q1 + qt2*(q3-q1)
-            inter = q3 + (qt2-1.)*(dq2+dq1)
+cc            int = q1 + qt2*(q3-q1)
+            int = q3 + (qt2-1.)*(dq2+dq1)
           elsewhere (qt1.ge.xp1.and.qt1.lt.xp2)
-cc            inter = 0.375d0*q3 + 0.75d0*q2 - 0.125d0*q1
-            inter = 0.125*(3*q3 + 5*q2 + dq1)
+cc            int = 0.375d0*q3 + 0.75d0*q2 - 0.125d0*q1
+            int = 0.125*(3*q3 + 5*q2 + dq1)
           elsewhere
-            inter = q2
+            int = q2
           end where
         else
 cc          qt1  = (q3-q4)/(q2-q4)
@@ -11081,20 +11065,20 @@ cc          qt1  = (q3-q4)/(q2-q4)
             b = (1.125d0-0.5d0*xp1)*xp1**(-2)
             c = 1d0
             qt2 = qt1*(a*qt1**2 + b*qt1 + c)
-cc            inter = q4 + qt2*(q2-q4)
-            inter = q2 - (qt2-1.)*(dq2+dq3)
+cc            int = q4 + qt2*(q2-q4)
+            int = q2 - (qt2-1.)*(dq2+dq3)
           elsewhere (qt1.ge.xp2.and.qt1.lt.1d0)
             a = (0.25d0*xp2-.5d0)*(xp2-1d0)**(-3)
             b = 0.125d0*(-4d0*xp2**2+7d0*xp2+1d0)*(xp2-1d0)**(-3)
             c = 1d0 - (-.5d0*xp2**2-0.375d0+1.125d0*xp2)*(xp2-1d0)**(-3)
             qt2 = (qt1 - 1d0)*(a*qt1**2 + b*qt1 + c) + 1d0
-cc            inter = q4 + qt2*(q2-q4)
-            inter = q2 - (qt2-1.)*(dq3+dq2)
+cc            int = q4 + qt2*(q2-q4)
+            int = q2 - (qt2-1.)*(dq3+dq2)
           elsewhere (qt1.ge.xp1.and.qt1.lt.xp2)
-cc            inter = 0.375d0*q2 + 0.75d0*q3- 0.125d0*q4
-            inter = 0.125*(3*q2 + 5*q3 - dq3)
+cc            int = 0.375d0*q2 + 0.75d0*q3- 0.125d0*q4
+            int = 0.125*(3*q2 + 5*q3 - dq3)
           elsewhere
-            inter = q3
+            int = q3
           end where
         endif
 
@@ -11102,8 +11086,8 @@ cc            inter = 0.375d0*q2 + 0.75d0*q3- 0.125d0*q4
 
 c     Centered high-order
 
-cc        inter = 0.0625d0*(-q1 + 9.*q2 + 9.*q3 - q4)
-        inter = 0.0625d0*(dq1-dq3) + 0.5*(q2 + q3)
+cc        int = 0.0625d0*(-q1 + 9.*q2 + 9.*q3 - q4)
+        int = 0.0625d0*(dq1-dq3) + 0.5*(q2 + q3)
 
 cc      case(7)
 cc
@@ -11118,7 +11102,7 @@ cccc          qt1 = 3.*q3/8. + 3.*q2/4.- q1/8.
 cc          qt2 = slp1*q2 + (1.-slp1)*q1
 cc          qt3 = slp2*q2 + (1.-slp2)*q3
 cc          qt4 = fmed(q2,qt2,qt3)
-cc          inter = fmed(q2,qt4,qt1)
+cc          int = fmed(q2,qt4,qt1)
 cc        else
 cc          curv = ((q4-q3)/(x4-x3)-(q3-q2)/(x3-x2))/0.5/(x4-x2)
 cc          qt1 = 0.5*(q3+q2) - 0.125*curv*(x3-x2)**2
@@ -11126,7 +11110,7 @@ cccc          qt1 = 3.*q2/8. + 3.*q3/4.- q4/8.
 cc          qt2 = slp1*q3 + (1.-slp1)*q4
 cc          qt3 = slp2*q3 + (1.-slp2)*q2
 cc          qt4 = fmed(q3,qt2,qt3)
-cc          inter = fmed(q3,qt4,qt1)
+cc          int = fmed(q3,qt4,qt1)
 cc        endif
 
       case default
@@ -11137,7 +11121,7 @@ cc        endif
 
 c     End
 
-      end function in2face_vec
+      end subroutine in2face_vec
 
 c     in2face_vec_new
 c     ###############################################################
@@ -11156,8 +11140,6 @@ c                q2 ^  q3
 c                   ^
 c           Location of face
 c     ---------------------------------------------------------------
-
-      use oned_int
 
       implicit none                !For safe fortran
 
@@ -11329,7 +11311,6 @@ cc        endif
         call pstop('in2face_vec','Advection scheme not available')
 
       end select
-
 
 c     End
 

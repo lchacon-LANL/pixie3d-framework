@@ -68,7 +68,7 @@ message: ;
 common: $(SUBDIRS)
 
 $(SUBDIRS):
-	$(MAKE) -e -C $@ target
+#	$(MAKE) -e -C $@ target
 
 #Cleaning targets
 
