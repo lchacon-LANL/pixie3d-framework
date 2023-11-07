@@ -58,7 +58,7 @@
          call MPI_Comm_dup (MPI_COMM_WORLD,adios2_world_comm,ierr)
          if (.not.obj%valid) then
             call adios2_logging('init')
-            call adios2_init(obj,'adios_config.xml', adios2_world_comm,.true.,ierr)
+            call adios2_init(obj,'adios_config.xml', adios2_world_comm,ierr)
             call adios2_check_err(ierr, 'Problem in init')
 
             call adios2_declare_io (io, obj, "record", err)
@@ -613,7 +613,7 @@
 
         call MPI_Comm_dup (MPI_COMM_WORLD, adios2_world_comm, ierr)
         call adios2_logging('read init')
-        call adios2_init(obj,'adios_config.xml',adios2_world_comm,.true.,ierr)
+        call adios2_init(obj,'adios_config.xml',adios2_world_comm,ierr)
         call adios2_check_err(ierr, 'Problem in read init')
         
         !Open ADIOS file
