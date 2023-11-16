@@ -177,7 +177,7 @@ c     Begin program
       tnm   = tnm2
       tnm2  = 0d0
 
-      call set_ts_rollback(.true.)
+      if (.not.ex_it) call set_ts_rollback(.true.)
       
 c     End program
 
