@@ -19,9 +19,9 @@ endif
 
 # GENERAL PURPOSE MAKEFILE
 
-SRC  ?= $(wildcard *.[F,c,f] *.f90 *.F90)
+SRC  ?= $(filter-out $(EXCLUDE),$(wildcard *.[F,c,f] *.f90 *.F90))
 
-MODS ?= $(wildcard *_mod.[F,f] *_mod.f90 *_mod.F90)
+MODS ?= $(filter-out $(EXCLUDE),$(wildcard *_mod.[F,f] *_mod.f90 *_mod.F90))
 
 OBJS   := $(filter %.o, $(patsubst %.f,%.o,$(filter-out $(MODS),$(SRC)))\
                         $(patsubst %.c,%.o,$(filter-out $(MODS),$(SRC)))\
@@ -32,8 +32,8 @@ OBJS   := $(filter %.o, $(patsubst %.f,%.o,$(filter-out $(MODS),$(SRC)))\
 
 OBJMOD := $(patsubst %.f,%.o,$(patsubst %.F,%.f,$(patsubst %.f90,%.f,$(patsubst %.F90,%.f,$(MODS)))))
 
-COMMON_MODS = $(foreach dir,$(SUBDIRS),$(wildcard $(dir)/*_mod.[f,F] $(dir)/*_mod.f90 $(dir)/*_mod.F90))
-COMMON_SRC  = $(foreach dir,$(SUBDIRS),$(filter-out $(dir)/test.f,$(wildcard $(dir)/*.[f,F,c,C] $(dir)/*.f90 $(dir)/*.F90)))
+COMMON_MODS = $(foreach dir,$(SUBDIRS),$(filter-out $(EXCLUDE),$(wildcard $(dir)/*_mod.[f,F] $(dir)/*_mod.f90 $(dir)/*_mod.F90)))
+COMMON_SRC  = $(foreach dir,$(SUBDIRS),$(filter-out $(EXCLUDE) %test.f,$(wildcard $(dir)/*.[f,F,c,C] $(dir)/*.f90 $(dir)/*.F90)))
 COMMON_OBJS = $(filter %.o, $(patsubst %.f,%.o,$(COMMON_SRC))\
                             $(patsubst %.c,%.o,$(COMMON_SRC))\
                             $(patsubst %.C,%.o,$(COMMON_SRC))\
