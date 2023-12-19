@@ -2660,7 +2660,8 @@ c     End program
 c     lap_ijk
 c     ###############################################################
       function lap_ijk(g_def,i,j,k,nx,ny,nz,igx,igy,igz,arr,dff,vol
-     .                ,vertex_metrics,div_by_J) result (laplacian)
+     .                ,vertex_metrics,div_by_J,zeroflx)
+     $         result (laplacian)
 c     ---------------------------------------------------------------
 c     Calculates div(dff grad(arr)) at cell centers in general non-orthog.
 c     coordinates, preserving the SPD property.
@@ -2676,7 +2677,7 @@ c     Call variables
 
       real(8),optional :: dff(0:nx+1,0:ny+1,0:nz+1)
 
-      logical,optional,intent(IN) :: vol,vertex_metrics,div_by_J
+      logical,optional,intent(IN) :: vol,vertex_metrics,div_by_J,zeroflx
 
       type(grid_mg_def),pointer :: g_def
 
@@ -2686,13 +2687,16 @@ c     Local variables
 
       real(8) :: flxip,flxim,flxjp,flxjm,flxkp,flxkm
 
-      logical :: vol_wgt,vrtx_met
+      logical :: vol_wgt,vrtx_met,zero_flx
 
 c     Begin program
 
       vol_wgt = .false.
       if (PRESENT(vol)) vol_wgt = vol
 
+      zero_flx = .false.
+      if (PRESENT(zeroflx)) zero_flx = .true.
+      
       call getMGmap(g_def,i,j,k,igx,igy,igz,ig,jg,kg)
 
       im = i-1
@@ -2714,6 +2718,17 @@ c     Begin program
       flxkm=lap_flx_z_ijk(g_def,i,j,km,igz,arr,diff=dff
      .                   ,vertex=vertex_metrics,divbyJ=div_by_J)
 
+      if (zero_flx) then
+        if (isBdry(g_def,i,igx,1).and.bcond(1)/=PER) flxim=0d0
+        if (isBdry(g_def,i,igx,2).and.bcond(2)/=PER) flxip=0d0
+                                 
+        if (isBdry(g_def,j,igy,3).and.bcond(3)/=PER) flxjm=0d0
+        if (isBdry(g_def,j,igy,4).and.bcond(4)/=PER) flxjp=0d0
+                                 
+        if (isBdry(g_def,k,igz,5).and.bcond(5)/=PER) flxkm=0d0
+        if (isBdry(g_def,k,igz,6).and.bcond(6)/=PER) flxkp=0d0
+      endif
+      
       laplacian = ((flxip -flxim)/g_def%dxh(ig)
      .            +(flxjp -flxjm)/g_def%dyh(jg)
      .            +(flxkp -flxkm)/g_def%dzh(kg))

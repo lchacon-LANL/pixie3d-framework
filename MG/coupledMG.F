@@ -4110,7 +4110,7 @@ c     ##################################################################
      .                  ,mg_order_prol
      .                  ,mg_vcyc
      .                  ,mg_cycle
-     .                  ,mg_coarse_grid_size
+c$$$     .                  ,mg_coarse_grid_size
      .                  ,mg_coarse_grid_level
      .                  ,mg_gm_coarse_solve
      .                  ,mg_smooth_only
@@ -4165,8 +4165,8 @@ c       * mg_vcyc: maximum number of MG V-cycles (default 1)
 c       * mg_cycle: number of mu_cycles in MG (default 1)
 c       * mg_galerkin: whether to do Galerkin coarsening of operator
 c                  (true) or rediscretization (default: false)
-c       * mg_coarse_grid_size: minimum coarse mesh (roughly mg_ratio^mg_cgs per
-c                 direction).
+c$$$c       * mg_coarse_grid_size: minimum coarse mesh (roughly mg_ratio^mg_cgs per
+c$$$c                 direction).
 c       * mg_coarse_grid_level: grid level considered coarsest
 c       * mg_gm_coarse_solve: whether we do GMRES at the coarsest grid
 c       * mg_debug: turn on debugging in MG
@@ -4198,7 +4198,7 @@ c     Call variables
         integer,optional,intent(IN) :: mg_order_res
      .                                ,mg_order_prol
      .                                ,mg_vcyc,mg_cycle
-     .                                ,mg_coarse_grid_size
+c$$$     .                                ,mg_coarse_grid_size !Deprecated
      .                                ,mg_coarse_grid_level
      .                                ,sm_it
      .                                ,sm_zebra_it
@@ -4234,7 +4234,7 @@ c     Call variables
 c     Local variables
 
         integer    :: ntot,iorder_res,iorder_prol,vcyc,mu_cyc,nclrs,smit
-     .               ,mgminl,i,ieq,gmit,zit,zdir!,mgmin
+     .               ,mgminl,i,ieq,gmit,zit,zdir
         real(8)    :: xi(ntotp*neq),bi(ntotp*neq),omg,r_tol,a_tol,s_tol
      .               ,zomg
         real(8), target :: ddg(neq,2*neq*ntotp)
