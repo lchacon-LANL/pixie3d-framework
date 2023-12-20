@@ -259,25 +259,6 @@ c Local variables
       integer :: ierr,igx,igy,igz
       logical :: petsc_flg
 
-c Interfaces
-
-      INTERFACE
-        subroutine initializeDiagnostics(varray,iigx,iigy,iigz)
-        use var_setup
-        integer :: iigx,iigy,iigz
-        type(var_array),pointer :: varray
-        end subroutine initializeDiagnostics
-      END INTERFACE
-
-      INTERFACE
-        subroutine evaluateDiagnostics(varray,iigx,iigy,iigz,init)
-        use var_setup
-        integer :: iigx,iigy,iigz
-        logical :: init
-        type(var_array),pointer :: varray
-        end subroutine evaluateDiagnostics
-      END INTERFACE
-
 c Begin program
 
       igx = 1 ; igy = 1 ; igz = 1
