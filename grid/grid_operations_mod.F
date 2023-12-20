@@ -2001,7 +2001,6 @@ c     End
 
       end function scalarProduct_mesh
 
-
 c     tensorScalarProduct
 c     ################################################################
       function tensorScalarProduct(g_def,i,j,k,igrid,tnsr1,tnsr2)
