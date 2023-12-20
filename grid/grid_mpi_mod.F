@@ -2514,8 +2514,7 @@ c$$$      end subroutine find_global_vec
 
 c     dumpGlobalField
 c     #################################################################
-      subroutine dumpGlobalField(g_def,file,nx,ny,nz,nxg,nyg,nzg,arr
-     .                          ,flg,no_bc)
+      subroutine dumpGlobalField(g_def,igrid,file,arr,flg,no_bc)
 
       use io, ONLY: find_unit
 
@@ -2532,14 +2531,14 @@ c     Call variables
 
       type(grid_mg_def),pointer :: g_def
 
-      integer :: nx,ny,nz,nxg,nyg,nzg,flg,mpi_comm
-      real(8) :: arr(0:nx+1,0:ny+1,0:nz+1)
+      integer :: flg,igrid
+      real(8) :: arr(0:,0:,0:)
       character(*) :: file
       logical, optional :: no_bc
 
 c     Local variables
 
-      integer :: unit
+      integer :: nx,ny,nz,nxg,nyg,nzg,unit
       real(8),allocatable,dimension(:,:,:) :: dbg
       real(8) :: xmin,xmax,ymin,ymax,zmin,zmax
       logical :: nobc
@@ -2561,6 +2560,14 @@ c     Begin program
       zmin = g_def%gzmin
       zmax = g_def%gzmax
 
+      nx = g_def%nxv(igrid)
+      ny = g_def%nyv(igrid)
+      nz = g_def%nzv(igrid)
+
+      nxg = g_def%nxgl(igrid)
+      nyg = g_def%nygl(igrid)
+      nzg = g_def%nzgl(igrid)
+      
       !Open .bin file
       if (my_rank == 0) then
         if (flg == 0) then

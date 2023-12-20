@@ -1572,7 +1572,7 @@ c     Dump quantities
           enddo
         enddo
 
-        call dumpGlobalField(gdef,debugfile,nx,ny,nz,nxg,nyg,nzg,dbl,0)
+        call dumpGlobalField(gdef,igrid,debugfile,dbl,0)
 
 cc        !Volume
 cc        dbg = 0d0
@@ -1618,8 +1618,7 @@ cc     .              *gdef%gmetric%grid(igrid)%jac_v(i,j,k)
               enddo
             enddo
 
-            call dumpGlobalField(gdef,debugfile,nx,ny,nz,nxg,nyg,nzg,dbl
-     .                          ,1)
+            call dumpGlobalField(gdef,igrid,debugfile,dbl,1)
           enddo
         enddo
 
@@ -1645,8 +1644,7 @@ cc     .              *gdef%gmetric%grid(igrid)%jac_v(i,j,k)
                 endif
               enddo
             enddo
-            call dumpGlobalField(gdef,debugfile,nx,ny,nz,nxg,nyg,nzg,dbl
-     .                          ,1)
+            call dumpGlobalField(gdef,igrid,debugfile,dbl,1)
           enddo
         enddo
 
@@ -1673,8 +1671,7 @@ cc     .              *gdef%gmetric%grid(igrid)%jac_v(i,j,k)
             enddo
           endif
 
-          call dumpGlobalField(gdef,debugfile,nx,ny,nz,nxg,nyg,nzg,dbl
-     $                      ,1)
+          call dumpGlobalField(gdef,igrid,debugfile,dbl,1)
         enddo
 
         !Cnv vectors
@@ -1698,8 +1695,7 @@ cc     .              *gdef%gmetric%grid(igrid)%jac_v(i,j,k)
                 endif
               enddo
             enddo
-            call dumpGlobalField(gdef,debugfile,nx,ny,nz,nxg,nyg,nzg,dbl
-     .                          ,1)
+            call dumpGlobalField(gdef,igrid,debugfile,dbl,1)
           enddo
         enddo
 
@@ -1724,8 +1720,7 @@ cc     .              *gdef%gmetric%grid(igrid)%jac_v(i,j,k)
                 endif
               enddo
             enddo
-            call dumpGlobalField(gdef,debugfile,nx,ny,nz,nxg,nyg,nzg,dbl
-     .                          ,1)
+            call dumpGlobalField(gdef,igrid,debugfile,dbl,1)
           enddo
         enddo
 
@@ -1752,8 +1747,7 @@ cc     .              *gdef%gmetric%grid(igrid)%jac_v(i,j,k)
                   endif
                 enddo
               enddo
-              call dumpGlobalField(gdef,debugfile,nx,ny,nz,nxg,nyg,nzg
-     .                            ,dbl,1)
+              call dumpGlobalField(gdef,igrid,debugfile,dbl,1)
             enddo
           enddo
         enddo
@@ -1885,8 +1879,7 @@ c     Dump quantities
           enddo
         enddo
 
-        call dumpGlobalField(gdef,debugfile,nx,ny,nz,nxg,nyg,nzg,dbl,0
-     .                      ,no_bc=.true.)
+        call dumpGlobalField(gdef,igrid,debugfile,dbl,0,no_bc=.true.)
 
         !Metric tensors
         do l=1,3
@@ -1911,8 +1904,8 @@ c     Dump quantities
               enddo
             enddo
 
-            call dumpGlobalField(gdef,debugfile,nx,ny,nz,nxg,nyg,nzg,dbl
-     .                          ,1,no_bc=.true.)
+            call dumpGlobalField(gdef,igrid,debugfile,dbl,1
+     $                          ,no_bc=.true.)
           enddo
         enddo
 
@@ -1937,8 +1930,8 @@ c     Dump quantities
                 endif
               enddo
             enddo
-            call dumpGlobalField(gdef,debugfile,nx,ny,nz,nxg,nyg,nzg,dbl
-     .                          ,1,no_bc=.true.)
+            call dumpGlobalField(gdef,igrid,debugfile,dbl,1
+     $                          ,no_bc=.true.)
           enddo
         enddo
 
@@ -1964,8 +1957,8 @@ c     Dump quantities
                 endif
               enddo
             enddo
-            call dumpGlobalField(gdef,debugfile,nx,ny,nz,nxg,nyg,nzg,dbl
-     .                          ,1,no_bc=.true.)
+            call dumpGlobalField(gdef,igrid,debugfile,dbl,1
+     $                          ,no_bc=.true.)
           enddo
         enddo
 
@@ -1991,8 +1984,8 @@ c     Dump quantities
                 endif
               enddo
             enddo
-            call dumpGlobalField(gdef,debugfile,nx,ny,nz,nxg,nyg,nzg,dbl
-     .                          ,1,no_bc=.true.)
+            call dumpGlobalField(gdef,igrid,debugfile,dbl,1
+     $                          ,no_bc=.true.)
           enddo
         enddo
 
@@ -2283,8 +2276,7 @@ c     Dump quantities
             enddo
           enddo
 
-          call dumpGlobalField(gdef,debugfile,nx,ny,nz,nxg,nyg,nzg,dbl
-     .                        ,0)
+          call dumpGlobalField(gdef,igrid,debugfile,dbl,0)
 
         case default
           call pstop('symmCheck','Dimension not implemented')
