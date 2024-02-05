@@ -303,6 +303,7 @@ c Runtime initializations
       
       call PetscOptionsGetInt(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
      .   ,"-ndplot",ndplot,petsc_flg,ierr)
+      if (petsc_flg) dplot = 0d0
 
       call PetscOptionsGetInt(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
      .   ,"-numtime",numtime,petsc_flg,ierr)
@@ -311,10 +312,6 @@ c Runtime initializations
       call PetscOptionsGetInt(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
      .   ,"-ndstep",ndstep,petsc_flg,ierr)
       if (petsc_flg) dstep = 0d0
-
-      call PetscOptionsGetInt(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER
-     .   ,"-ndplot",ndstep,petsc_flg,ierr)
-      if (petsc_flg) dplot = 0d0
 #endif
 
 c Allocate global variable

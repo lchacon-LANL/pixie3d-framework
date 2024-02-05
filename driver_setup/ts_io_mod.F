@@ -250,7 +250,7 @@ c     Local variables
 
 c     Begin program
 
-      dump = (nplot == ndplot.and.nplot > 0)
+      dump = ((itime-nplot) == ndplot.and.ndplot > 0)
 cc     .   .or.((time-tplot) >= dplot-0.9*dt .and. dplot > 0d0)
      .   .or.(sign(1d0,dt)*(time-tplot )>=dplot-.9*abs(dt).and.dplot>0.)
      .   .or.(sign(1d0,dt)*(tmax-time  )<=1d-10           .and.dplot>0.)
